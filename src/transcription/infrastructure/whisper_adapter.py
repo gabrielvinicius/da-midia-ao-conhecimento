@@ -2,8 +2,10 @@ import whisper
 from typing import Optional
 import tempfile
 
+from src.transcription.infrastructure.speech_recognition import ISpeechRecognition
 
-class WhisperTranscriber:
+
+class WhisperTranscriber(ISpeechRecognition):
     def __init__(self, model_name: str = "base"):
         self.model = whisper.load_model(model_name)
 
