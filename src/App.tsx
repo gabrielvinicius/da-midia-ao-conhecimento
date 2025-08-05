@@ -1,5 +1,5 @@
 // src/App.tsx
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { DarkModeProvider } from "./contexts/DarkModeContext";
 import Layout from "./components/Layout";
@@ -8,6 +8,9 @@ import Register from "./pages/Register";
 import UserDashboard from "./pages/UserDashboard";
 import SummaryView from "./pages/SummaryView";
 import TranscriptionView from "./pages/TranscriptionView";
+import AdminDashboard from "./components/AdminDashboard";
+import NotFoundPage from "./pages/NotFoundPage";
+import AuthGuard from "./components/AuthGuard";
 
 export default function App() {
     return (
@@ -18,10 +21,28 @@ export default function App() {
                         <Routes>
                             <Route path="/login" element={<Login />} />
                             <Route path="/register" element={<Register />} />
-                            <Route path="/user" element={<UserDashboard />} />
-                            <Route path="/summary/:videoId" element={<SummaryView />} />
-                            <Route path="/transcription/:videoId" element={<TranscriptionView />} />
-                            <Route path="/" element={<UserDashboard />} />
+                            <Route path="/user" element={
+                                <AuthGuard>
+                                    <UserDashboard />
+                                </AuthGuard>
+                            } />
+                            <Route path="/summary/:videoId" element={
+                                <AuthGuard>
+                                    <SummaryView />
+                                </AuthGuard>
+                            } />
+                            <Route path="/transcription/:videoId" element={
+                                <AuthGuard>
+                                    <TranscriptionView />
+                                </AuthGuard>
+                            } />
+                            <Route path="/admin" element={
+                                <AuthGuard adminOnly>
+                                    <AdminDashboard />
+                                </AuthGuard>
+                            } />
+                            <Route path="/" element={<Navigate to="/user" />} />
+                            <Route path="*" element={<NotFoundPage />} />
                         </Routes>
                     </Layout>
                 </AuthProvider>
