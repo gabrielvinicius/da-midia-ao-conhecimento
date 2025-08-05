@@ -1,7 +1,6 @@
-// src/components/AuthGuard.tsx
+import React, { useEffect } from "react";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { useEffect } from "react";
 
 interface AuthGuardProps {
     children: React.ReactNode;
@@ -13,11 +12,12 @@ export default function AuthGuard({ children, adminOnly = false }: AuthGuardProp
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (!loading && !user) {
-            navigate("/login");
-        }
-        if (!loading && adminOnly && user?.role !== "admin") {
-            navigate("/user");
+        if (!loading) {
+            if (!user) {
+                navigate("/login", { replace: true });
+            } else if (adminOnly && user.role !== "admin") {
+                navigate("/user", { replace: true });
+            }
         }
     }, [user, loading, navigate, adminOnly]);
 

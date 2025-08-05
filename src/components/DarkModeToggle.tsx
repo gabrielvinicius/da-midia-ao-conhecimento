@@ -1,13 +1,16 @@
-// src/components/DarkModeToggle.tsx
+import React from "react";
 import { useDarkMode } from "../contexts/DarkModeContext";
 
 export default function DarkModeToggle() {
     const { darkMode, toggleDarkMode } = useDarkMode();
+    const label = darkMode ? "Ativar modo claro" : "Ativar modo escuro";
+
     return (
         <button
             onClick={toggleDarkMode}
             className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
-            aria-label={darkMode ? "Ativar modo claro" : "Ativar modo escuro"}
+            aria-label={label}
+            title={label}
         >
             {darkMode ? (
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
