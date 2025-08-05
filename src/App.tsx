@@ -26,9 +26,9 @@ export default function App() {
                             <Route path="/login" element={<Login />} />
                             <Route path="/register" element={<Register />} />
 
-                            {/* Rotas protegidas */}
+                            {/* Rotas protegidas com Layout */}
                             <Route element={<Layout />}>
-                                <Route path="/" element={<Navigate to="/user" replace />} />
+                                <Route index element={<Navigate to="/user" replace />} />
                                 <Route path="/user" element={
                                     <AuthGuard>
                                         <UserDashboard />
@@ -44,11 +44,11 @@ export default function App() {
                                         <TranscriptionView />
                                     </AuthGuard>
                                 } />
-                                {/*<Route path="/admin" element={
+                                {/* <Route path="/admin" element={
                                     <AuthGuard adminOnly>
                                         <AdminDashboard />
                                     </AuthGuard>
-                                } />*/}
+                                } /> */}
                             </Route>
 
                             {/* Rota 404 */}

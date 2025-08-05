@@ -7,14 +7,14 @@ import AuthFormContainer from "../components/AuthFormContainer";
 import { login } from "@/services/auth.service";
 
 export default function Login() {
-    const [email, setEmail] = useState("");
+    const [username, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const navigate = useNavigate();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const data = await login({ email, password });
+            const data = await login({ username, password });
             localStorage.setItem("token", data.access_token);
             navigate("/user");
         } catch (error) {
@@ -29,7 +29,7 @@ export default function Login() {
                 <InputField
                     label="Email"
                     type="email"
-                    value={email}
+                    value={username}
                     onChange={(e) => setEmail(e.target.value)}
                     required
                 />
