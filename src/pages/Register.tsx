@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import InputField from "../components/InputField";
 import Button from "../components/Button";
 import AuthFormContainer from "../components/AuthFormContainer";
-import { register } from "../services/auth.service";
+import { register } from "@/services/auth.service";
 
 export default function Register() {
     const [email, setEmail] = useState("");
@@ -41,7 +41,7 @@ export default function Register() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    autoFocus
+                    //autoFocus
                 />
                 <InputField
                     label="Senha"
@@ -49,7 +49,7 @@ export default function Register() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    minLength={6}
+                    //minLength={6}
                 />
                 <InputField
                     label="Confirmar Senha"
@@ -57,7 +57,7 @@ export default function Register() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    minLength={6}
+                    //minLength={6}
                 />
                 <Button type="submit" disabled={loading} fullWidth>
                     {loading ? "Registrando..." : "Registrar"}

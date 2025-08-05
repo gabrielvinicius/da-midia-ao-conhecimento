@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
+import { login, register } from '../services/auth.service'; // ← Import dos serviços
 import { User } from '../types';
 
 export const useAuth = () => {
@@ -14,13 +14,15 @@ export const useAuth = () => {
         data: user,
         isLoading,
         error,
-        refetch,
     } = useQuery<User | null>({
         queryKey: ['auth'],
         queryFn: async () => {
             try {
-                const res = await api.get('/auth/me');
-                return res.data;
+                const res = await fetch('/auth/me', {
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                });
+                if (!res.ok) throw new Error();
+                return await res.json();
             } catch (err) {
                 return null;
             }
@@ -31,10 +33,7 @@ export const useAuth = () => {
 
     // Mutation: Login
     const loginMutation = useMutation({
-        mutationFn: async ({ email, password }: { email: string; password: string }) => {
-            const res = await api.post('/auth/login', { email, password });
-            return res.data;
-        },
+        mutationFn: login, // ← Usa o serviço
         onSuccess: (data) => {
             localStorage.setItem('token', data.access_token);
             queryClient.setQueryData(['auth'], data.user);
@@ -44,16 +43,13 @@ export const useAuth = () => {
 
     // Mutation: Registro
     const registerMutation = useMutation({
-        mutationFn: async ({ email, password }: { email: string; password: string }) => {
-            const res = await api.post('/auth/register', { email, password });
-            return res.data;
-        },
+        mutationFn: register, // ← Usa o serviço
         onSuccess: () => {
             navigate('/login');
         },
     });
 
-    // Logout (não é mutation, é ação direta)
+    // Logout
     const logout = () => {
         localStorage.removeItem('token');
         queryClient.setQueryData(['auth'], null);

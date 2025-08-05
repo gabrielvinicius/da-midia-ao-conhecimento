@@ -1,5 +1,5 @@
 // src/components/AuthGuard.tsx
-import { useAuth } from "../contexts/AuthContext";
+import { useAuthContext } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 
@@ -9,7 +9,7 @@ interface AuthGuardProps {
 }
 
 export default function AuthGuard({ children, adminOnly = false }: AuthGuardProps) {
-    const { user, loading } = useAuth();
+    const { user, loading } = useAuthContext();
     const navigate = useNavigate();
 
     useEffect(() => {

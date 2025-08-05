@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import InputField from "../components/InputField";
 import Button from "../components/Button";
 import AuthFormContainer from "../components/AuthFormContainer";
-import { login } from "../services/auth.service";
+import { login } from "@/services/auth.service";
 
 export default function Login() {
     const [email, setEmail] = useState("");
