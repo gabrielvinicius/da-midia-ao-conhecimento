@@ -1,52 +1,16 @@
-import { createContext, useContext, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import api from "../services/api";
+// src/contexts/AuthContext.tsx
+import { createContext, useContext, ReactNode } from 'react';
+import { useAuth } from '../hooks/useAuth';
 
-const AuthContext = createContext();
+const AuthContext = createContext<ReturnType<typeof useAuth> | null>(null);
 
-export function AuthProvider({ children }) {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const navigate = useNavigate();
-
-    useEffect(() => {
-        const checkAuth = async () => {
-            try {
-                const res = await api.get("/auth/me");
-                setUser(res.data);
-            } catch (err) {
-                setUser(null);
-            } finally {
-                setLoading(false);
-            }
-        };
-        checkAuth();
-    }, []);
-
-    const login = async (email, password) => {
-        const res = await api.post("/auth/login", { email, password });
-        setUser(res.data.user);
-        navigate("/user");
-    };
-
-    const register = async (email, password) => {
-        const res = await api.post("/auth/register", { email, password });
-        setUser(res.data.user);
-        navigate("/login");
-    };
-
-    const logout = () => {
-        setUser(null);
-        navigate("/login");
-    };
-
-    return (
-        <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, register, logout, loading }}>
-            {children}
-        </AuthContext.Provider>
-    );
+export function AuthProvider({ children }: { children: ReactNode }) {
+    const auth = useAuth();
+    return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
-    return useContext(AuthContext);
+export function useAuthContext() {
+    const context = useContext(AuthContext);
+    if (!context) throw new Error('useAuthContext deve estar dentro de AuthProvider');
+    return context;
 }

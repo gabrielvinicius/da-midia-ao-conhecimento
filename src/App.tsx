@@ -1,6 +1,7 @@
+// src/App.tsx
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
-import { DarkModeProvider } from "./contexts/ DarkModeContext";
+import { DarkModeProvider } from "./contexts/DarkModeContext";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Register from "./pages/Register";

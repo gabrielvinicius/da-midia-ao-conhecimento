@@ -1,9 +1,9 @@
-import { useAuth } from "../contexts/AuthContext";
+import { useAuthContext } from "../contexts/AuthContext";
 import { Link } from "react-router-dom";
 import DarkModeToggle from "./DarkModeToggle";
 
 export default function Navbar() {
-    const { user, logout } = useAuth();
+    const { user, logout } = useAuthContext();
 
     return (
         <nav className="bg-white dark:bg-gray-800 shadow-sm">
