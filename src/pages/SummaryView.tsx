@@ -1,137 +1,204 @@
 // src/pages/SummaryView.tsx
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getSummaryByVideoId } from '../services/summary.service';
-import { getVideoById } from '../services/video.service';
-import ExportButtons from '../components/ExportButtons';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { useAuthContext } from '../contexts/AuthContext';
+import api from '../services/api';
+import { toast } from 'react-toastify';
+import { jsPDF } from 'jspdf';
+import { saveAs } from 'file-saver';
 
 export default function SummaryView() {
-    const { videoId } = useParams<{ videoId: string }>();
+    const { videoId } = useParams();
+    const { user } = useAuthContext();
     const navigate = useNavigate();
+    const [summary, setSummary] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+    const [videoInfo, setVideoInfo] = useState<{
+        status: string;
+        title: string;
+        createdAt: string;
+    } | null>(null);
+    // Novo estado para progresso
+    const [progress, setProgress] = useState<number>(0);
+    const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
+    const [currentStage, setCurrentStage] = useState<string>('Processando...');
 
-    const {
-        data: summary,
-        isLoading: loadingSummary,
-        error: summaryError,
-    } = useQuery({
-        queryKey: ['summary', videoId],
-        queryFn: () => getSummaryByVideoId(videoId!),
-        enabled: !!videoId,
-        retry: (failureCount, error) => {
-            // Se o vídeo está em processamento, tente novamente algumas vezes
-            if ((error as any)?.response?.status === 404 && failureCount < 3) {
-                return true;
+    // Busca resumo e informações do vídeo
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                setIsLoading(true);
+                // Busca o resumo
+                const summaryResponse = await api.get(`/summaries/${videoId}`);
+                setSummary(summaryResponse.data.content);
+                // Busca informações do vídeo (opcional)
+                const videoResponse = await api.get(`/videos/${videoId}`);
+                setVideoInfo({
+                    status: "",
+                    title: videoResponse.data.file_name || `Vídeo ${videoId.slice(0, 8)}`,
+                    createdAt: videoResponse.data.created_at
+                });
+                // Se o vídeo já está completo, seta progresso para 100%
+                if (videoResponse.data.status === 'COMPLETED') {
+                    setProgress(100);
+                    setCurrentStage('Concluído');
+                }
+            } catch (error) {
+                toast.error('Falha ao carregar resumo');
+                navigate('/user');
+            } finally {
+                setIsLoading(false);
             }
-            return false;
-        },
-        retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000), // Exponential backoff
-    });
+        };
+        fetchData();
+    }, [videoId, navigate]);
 
-    const {
-        data: videoInfo,
-        isLoading: loadingVideo,
-        error: videoError,
-    } = useQuery({
-        queryKey: ['video', videoId],
-        queryFn: () => getVideoById(videoId!),
-        enabled: !!videoId,
-    });
+    // Efeito para configurar o SSE e escutar eventos de progresso
+    useEffect(() => {
+        if (!videoId || videoInfo?.status === 'COMPLETED') return;
 
-    const isLoading = loadingSummary || loadingVideo;
-    const error = summaryError || videoError;
+        const eventSource = new EventSource(`${import.meta.env.VITE_API_URL}/videos/events`);
 
-    if (isLoading) return <LoadingSpinner />;
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'UPDATE' && data.video.id === videoId) {
+                // Atualiza as informações do vídeo
+                setVideoInfo(prev => ({
+                    ...prev!,
+                    status: data.video.status
+                }));
+                // Se o status mudou para COMPLETED, atualiza o progresso
+                if (data.video.status === 'COMPLETED') {
+                    setProgress(100);
+                    setCurrentStage('Concluído');
+                }
+            }
 
-    if (error) {
-        return (
-            <div className="p-8 max-w-4xl mx-auto dark:bg-gray-900 min-h-screen">
-                <div className="flex justify-between items-center mb-6">
-                    <button
-                        onClick={() => navigate('/user')}
-                        className="flex items-center text-blue-500 hover:text-blue-700 dark:text-blue-400"
-                    >
-                        ← Voltar
-                    </button>
-                    <h1 className="text-2xl font-bold dark:text-white">
-                        Erro ao carregar resumo
-                    </h1>
-                </div>
+            // Escuta eventos específicos de progresso
+            if (data.video_id === videoId && data.type === 'transcription_progress') {
+                setProgress(data.progress);
+                setCurrentStage('Transcrevendo...');
+                if (data.estimated_total_seconds) {
+                    setEstimatedTime(data.estimated_total_seconds);
+                }
+            }
 
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
-                    <h2 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">
-                        {videoInfo?.status === 'PROCESSING'
-                            ? 'Processamento em andamento'
-                            : 'Erro ao carregar resumo'}
-                    </h2>
+            if (data.video_id === videoId && data.type === 'summarization_progress') {
+                setProgress(data.progress);
+                setCurrentStage('Gerando Resumo...');
+                if (data.estimated_total_seconds) {
+                    setEstimatedTime(data.estimated_total_seconds);
+                }
+            }
+        };
 
-                    <p className="text-gray-700 dark:text-gray-300 mb-4">
-                        {videoInfo?.status === 'PROCESSING'
-                            ? 'Seu vídeo ainda está sendo processado. Atualize esta página em alguns minutos.'
-                            : 'Não foi possível carregar o resumo deste vídeo.'}
-                    </p>
+        eventSource.onerror = (error) => {
+            console.error('Erro na conexão SSE:', error);
+            // Opcional: Tentar reconectar ou mostrar notificação ao usuário
+        };
 
-                    <div className="flex space-x-4">
-                        <button
-                            onClick={() => window.location.reload()}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                        >
-                            Tentar novamente
-                        </button>
-                        <button
-                            onClick={() => navigate('/user')}
-                            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                            Voltar para lista
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
+        // Cleanup ao desmontar o componente
+        return () => {
+            eventSource.close();
+        };
+    }, [videoId, videoInfo?.status]);
 
-    const exportAsPdf = () => alert('Exportação para PDF em desenvolvimento');
+    // Exportar como TXT
+    const exportAsTxt = () => {
+        const blob = new Blob([summary], { type: 'text/plain;charset=utf-8' });
+        saveAs(blob, `resumo-${videoId}.txt`);
+    };
+
+    // Exportar como PDF
+    const exportAsPdf = () => {
+        const doc = new jsPDF();
+        // Cabeçalho com informações do vídeo
+        doc.setFontSize(12);
+        doc.text(`Resumo do Vídeo: ${videoInfo?.title || videoId}`, 10, 10);
+        doc.text(`Data: ${videoInfo?.createdAt ? new Date(videoInfo.createdAt).toLocaleDateString() : ''}`, 10, 16);
+        // Conteúdo do resumo (com quebra de linhas)
+        const splitText = doc.splitTextToSize(summary, 180);
+        doc.setFontSize(10);
+        doc.text(splitText, 10, 26);
+        doc.save(`resumo-${videoId}.pdf`);
+    };
+
+    // Voltar para a lista de vídeos
+    const handleBack = () => {
+        navigate('/user');
+    };
 
     return (
         <div className="p-8 max-w-4xl mx-auto dark:bg-gray-900 min-h-screen">
+            {/* Cabeçalho */}
             <div className="flex justify-between items-center mb-6">
                 <button
-                    onClick={() => navigate('/user')}
+                    onClick={handleBack}
                     className="flex items-center text-blue-500 hover:text-blue-700 dark:text-blue-400"
                 >
                     ← Voltar
                 </button>
                 <h1 className="text-2xl font-bold dark:text-white">
-                    Resumo do Vídeo: {videoInfo?.file_path || `Vídeo ${videoId}`}
+                    Resumo do Vídeo: {videoInfo?.title || videoId}
                 </h1>
-                <div className="w-8"></div>
+                <div className="w-8"></div> {/* Espaçamento */}
             </div>
-
-            {videoInfo?.created_at && (
+            {/* Data de criação */}
+            {videoInfo?.createdAt && (
                 <p className="text-gray-500 dark:text-gray-400 mb-6">
-                    Criado em: {new Date(videoInfo.created_at).toLocaleString()}
+                    Criado em: {new Date(videoInfo.createdAt).toLocaleString()}
                 </p>
             )}
-
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mb-6">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-semibold dark:text-white">Resumo:</h2>
-                    {videoInfo?.status === 'PROCESSING' && (
-                        <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
-                            Processando...
-                        </span>
+            {/* Barra de Progresso (aparece apenas se estiver processando) */}
+            {videoInfo?.status !== 'COMPLETED' && (
+                <div className="mb-6">
+                    <div className="flex justify-between mb-2">
+                        <span className="text-sm font-medium dark:text-white">{currentStage}</span>
+                        <span className="text-sm font-medium dark:text-white">{progress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                        <div
+                            className="bg-blue-600 h-2.5 rounded-full"
+                            style={{ width: `${progress}%` }}
+                        ></div>
+                    </div>
+                    {estimatedTime && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Tempo estimado: {Math.ceil(estimatedTime / 60)} minutos
+                        </p>
                     )}
                 </div>
-                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                    {summary?.text || 'O resumo está sendo gerado. Atualize esta página em alguns minutos.'}
-                </p>
-            </div>
-
-            {videoInfo?.status === 'COMPLETED' && (
-                <ExportButtons onExportTxt={() => {}} onExportPdf={exportAsPdf} />
             )}
-
+            {/* Botões de Exportação */}
+            <div className="flex flex-wrap gap-3 mb-6">
+                <button
+                    onClick={exportAsTxt}
+                    className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 px-4 py-2 rounded flex items-center"
+                >
+                    <span className="mr-2">📄</span> Exportar como TXT
+                </button>
+                <button
+                    onClick={exportAsPdf}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded flex items-center"
+                >
+                    <span className="mr-2">📑</span> Exportar como PDF
+                </button>
+            </div>
+            {/* Conteúdo do Resumo */}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-40">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                    </div>
+                ) : (
+                    <pre className="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200">
+            {summary}
+          </pre>
+                )}
+            </div>
+            {/* Rodapé com informações do usuário */}
             <div className="mt-6 text-sm text-gray-500 dark:text-gray-400">
+                <p>Gerado para: {user?.email}</p>
                 <p>ID do Vídeo: {videoId}</p>
             </div>
         </div>
