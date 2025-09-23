@@ -44,3 +44,27 @@ export const deleteVideo = async (id: string): Promise<boolean> => {
     const response = await api.delete(`/videos/${id}`);
     return response.status === 204;
 };
+
+// Nova função para conectar ao SSE e escutar atualizações
+export const subscribeToVideoEvents = (
+    onVideoUpdate: (video: Video) => void,
+    onError: (error: Event) => void
+): EventSource => {
+    const token = localStorage.getItem("token");
+    const eventSource = new EventSource(`${import.meta.env.VITE_API_URL}/videos/events`, {
+        withCredentials: true,
+    });
+
+    // Escuta eventos de atualização
+    eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'INITIAL' || data.type === 'UPDATE') {
+            onVideoUpdate(data.video);
+        }
+    };
+
+    // Escuta erros de conexão
+    eventSource.onerror = onError;
+
+    return eventSource;
+};

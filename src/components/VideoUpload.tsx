@@ -1,9 +1,11 @@
-import React, { useRef } from "react";
+import React, {useRef} from "react";
+//import {File} from "node:buffer";
 
 interface VideoUploadProps {
-    onUpload: (file: File) => void;
-    className?: string;
-    disabled?: boolean;
+    onUpload: (file: File) => void,
+    className?: string,
+    disabled?: boolean,
+    onUploadSuccess?: () => void
 }
 
 export default function VideoUpload({

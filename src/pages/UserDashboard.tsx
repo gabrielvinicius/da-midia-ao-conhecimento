@@ -1,12 +1,18 @@
 // src/pages/UserDashboard.tsx
-import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-toastify';
 import VideoCard from '../components/VideoCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import VideoUpload from '../components/VideoUpload';
-import { getVideosByUser } from '../services/video.service';
+import { getVideosByUser, uploadVideo } from '@/services/video.service';
+import { Video } from '@/types';
 
 export default function UserDashboard() {
+    const navigate = useNavigate();
+    const queryClient = useQueryClient();
+
     const {
         data: videos = [],
         isLoading,
@@ -17,10 +23,60 @@ export default function UserDashboard() {
         queryFn: getVideosByUser,
     });
 
-    const handleUploadSuccess = () => {
-        // Opcional: mostrar notificação de sucesso
-        console.log('Vídeo enviado com sucesso!');
+    // Mutation para upload de vídeo
+    const uploadMutation = useMutation({
+        mutationFn: uploadVideo,
+        onSuccess: () => {
+            // Invalida e refetch a lista de vídeos após o upload
+            queryClient.invalidateQueries({ queryKey: ['userVideos'] });
+            toast.success('Vídeo enviado com sucesso!');
+        },
+        onError: (error: any) => {
+            toast.error(error.message || 'Falha ao enviar vídeo.');
+        },
+    });
+
+    // Função que será passada para o componente VideoUpload
+    const handleFileSelect = (file: File) => {
+        uploadMutation.mutate(file);
     };
+
+    // Efeito para carregar vídeos iniciais e configurar SSE
+    useEffect(() => {
+        // Carrega os vídeos iniciais (já feito pelo useQuery acima)
+
+        // Configura a conexão SSE
+        const eventSource = new EventSource(`${import.meta.env.VITE_API_URL}/videos/events`);
+
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'INITIAL' || data.type === 'UPDATE') {
+                // Atualiza ou adiciona o vídeo na lista
+                queryClient.setQueryData(['userVideos'], (oldVideos: Video[] = []) => {
+                    const existingIndex = oldVideos.findIndex(v => v.id === data.video.id);
+                    if (existingIndex >= 0) {
+                        // Atualiza o vídeo existente
+                        const newVideos = [...oldVideos];
+                        newVideos[existingIndex] = data.video;
+                        return newVideos;
+                    } else {
+                        // Adiciona novo vídeo
+                        return [...oldVideos, data.video];
+                    }
+                });
+            }
+        };
+
+        eventSource.onerror = (error) => {
+            console.error('Erro na conexão SSE:', error);
+            // Opcional: Tentar reconectar ou mostrar notificação ao usuário
+        };
+
+        // Cleanup ao desmontar o componente
+        return () => {
+            eventSource.close();
+        };
+    }, [queryClient]);
 
     return (
         <div className="container mx-auto px-4 py-8">
@@ -30,9 +86,8 @@ export default function UserDashboard() {
                     Total: {videos.length}
                 </div>
             </div>
-
-            <VideoUpload onUploadSuccess={handleUploadSuccess} />
-
+            {/* Passa a função handleFileSelect como onUpload */}
+            <VideoUpload onUpload={handleFileSelect} />
             {isLoading ? (
                 <LoadingSpinner />
             ) : error ? (
