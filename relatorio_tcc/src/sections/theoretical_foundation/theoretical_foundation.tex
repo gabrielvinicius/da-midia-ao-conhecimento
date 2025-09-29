@@ -1,0 +1,50 @@
+\section{Fundamentação Teórica}
+\label{sec:fundamentacao}
+
+Nesta seção, são apresentados os conceitos, padrões e tecnologias fundamentais que constituem a base teórica e prática para o design e a implementação da plataforma de processamento de mídias.
+
+\subsection{Arquitetura de Software e Padrões de Design}
+
+\subsubsection{Domain-Driven Design (DDD)}
+O 	extit{Domain-Driven Design} (DDD) é uma abordagem para o desenvolvimento de software que se concentra em modelar o software para corresponder a um domínio de negócio, baseando-se em um modelo rico e em uma linguagem ubíqua compartilhada entre os especialistas do domínio e os desenvolvedores \cite{evans2004domain}. No contexto deste projeto, o DDD foi aplicado através da definição de 	extit{Bounded Contexts} (Contextos Delimitados) claros, como \texttt{media\_management}, \texttt{transcription} e \texttt{summarization}, cada um com seu próprio modelo de domínio, garantindo o baixo acoplamento e a alta coesão.
+
+\subsubsection{Command Query Responsibility Segregation (CQRS)}
+O padrão CQRS, popularizado por Greg Young, advoga a separação completa dos modelos responsáveis por modificar o estado do sistema (comandos) daqueles responsáveis por ler o estado (consultas) \cite{young2010cqrs}. A implementação deste padrão na plataforma, através de classes dedicadas de 	extit{Commands}, 	extit{Command Handlers} e 	extit{Queries}, simplifica a lógica de negócio, permite a otimização independente das operações de leitura e escrita, e melhora a manutenibilidade do sistema ao isolar as responsabilidades.
+
+\subsubsection{Padrão State}
+O padrão de design 	extit{State} é um padrão comportamental que permite a um objeto alterar seu comportamento quando seu estado interno muda, fazendo com que o objeto pareça ter mudado de classe \cite{gamma1995design}. Neste projeto, o padrão foi aplicado à entidade 	exttt{Media} para gerenciar seu ciclo de vida de processamento (e.g., 	exttt{UPLOADED}, 	exttt{PROCESSING}, 	exttt{COMPLETED}). Cada estado é encapsulado em sua própria classe, que define as transições válidas, tornando o gerenciamento do ciclo de vida explícito, robusto e livre de lógicas condicionais complexas.
+
+\subsubsection{Padrão Strategy e Factory}
+O padrão 	extit{Strategy} define uma família de algoritmos, encapsula cada um deles e os torna intercambiáveis, permitindo que o algoritmo varie independentemente dos clientes que o utilizam \cite{gamma1995design}. Em conjunto com o padrão 	extit{Factory}, ele foi utilizado para criar um sistema de provedores dinâmicos para os serviços de armazenamento, transcrição e sumarização. Isso permite que novas implementações (e.g., um novo provedor de nuvem ou um novo modelo de IA) sejam adicionadas ao sistema sem modificar a lógica de negócio existente, promovendo a extensibilidade e aderindo ao Princípio Aberto/Fechado.
+
+\subsection{Processamento Assíncrono e Mensageria}
+
+\subsubsection{Celery e Redis}
+O processamento de mídias é uma tarefa inerentemente longa e computacionalmente intensiva, que não deve bloquear a interação do usuário com a API. Para gerenciar isso, a plataforma utiliza uma arquitetura de processamento assíncrono. O 	extbf{Celery} é um gerenciador de filas de tarefas distribuídas para Python, que permite a execução de tarefas em segundo plano, fora do ciclo de requisição-resposta da API. O 	extbf{Redis}, um armazenamento de estrutura de dados em memória, é utilizado como o 	extit{message broker} (intermediário de mensagens) para o Celery, gerenciando a fila de tarefas a serem processadas pelos workers \cite{celery_documentation}.
+
+\subsubsection{Arquitetura Orientada a Eventos (EDA)}
+A comunicação entre os diferentes módulos do pipeline de processamento (e.g., da extração de áudio para a transcrição) é realizada através de uma Arquitetura Orientada a Eventos. Quando um módulo conclui sua tarefa, ele publica um 	extit{Domain Event} no 	extit{Event Bus}. Outros módulos, que se inscreveram para ouvir aquele evento, são então acionados para iniciar a próxima etapa do processamento. Este padrão promove um desacoplamento radical entre os componentes do sistema, aumentando a flexibilidade e a resiliência.
+
+\subsection{Processamento de Linguagem Natural e Reconhecimento de Fala}
+
+\subsubsection{Modelo Transformer e Mecanismo de Atenção}
+A arquitetura 	extit{Transformer}, introduzida por Vaswani et al. (2017), revolucionou o campo do Processamento de Linguagem Natural (PLN). Diferente de arquiteturas sequenciais como as RNNs, o Transformer processa os dados em paralelo e utiliza um mecanismo de 	extbf{auto-atenção} (	extit{self-attention}) para ponderar a importância de diferentes palavras em uma sequência, permitindo a captura de dependências de longo alcance de forma eficiente \cite{vaswani2017attention}. Esta arquitetura é a base para os modelos de linguagem modernos utilizados neste projeto.
+
+\subsubsection{Sumarização Abstrativa}
+A sumarização de texto pode ser extrativa (selecionando sentenças importantes do texto original) ou abstrativa (gerando novas sentenças que capturam a essência do conteúdo). Este projeto utiliza modelos de sumarização abstrativa baseados em Transformers (e.g., T5, BART), que são capazes de gerar resumos mais fluentes e concisos, parafraseando o conteúdo original em vez de apenas copiá-lo \cite{lewis2019bart}.
+
+\subsubsection{Reconhecimento Automático de Fala (ASR) com Whisper}
+O Whisper, desenvolvido pela OpenAI, é um modelo de reconhecimento de fala de código aberto treinado em um vasto e diverso conjunto de dados de áudio. Sua arquitetura baseada em Transformer o torna extremamente robusto a diferentes sotaques, ruídos de fundo e linguagens técnicas. O modelo é capaz de realizar a transcrição multilíngue e a tradução para o inglês, tornando-o uma escolha ideal para a tarefa de transcrição genérica da plataforma \cite{radford2023robust}.
+
+\subsection{Observabilidade e Resiliência}
+
+\subsubsection{Os Três Pilares da Observabilidade}
+Para garantir a manutenibilidade e a confiabilidade de um sistema distribuído, é essencial ter uma estratégia de observabilidade completa, baseada em três pilares:
+\begin{itemize}
+    \item \textbf{Logs}: Registros de eventos discretos que ocorrem ao longo do tempo. O projeto utiliza logging estruturado com 	exttt{structlog} para produzir logs em formato JSON, que são fáceis de consultar e analisar.
+    \item \textbf{Métricas}: Agregações numéricas de dados ao longo do tempo, como contadores e histogramas. O projeto utiliza 	exttt{Prometheus} para expor métricas sobre a saúde do sistema e o desempenho do negócio.
+    \item \textbf{Tracing (Rastreamento Distribuído)}: Permite visualizar o fluxo de uma requisição através de múltiplos serviços e componentes. O projeto utiliza 	extbf{OpenTelemetry}, o padrão da indústria para instrumentação, e 	extbf{Jaeger} para visualização, permitindo a depuração de latência e a identificação de gargalos no pipeline assíncrono.
+\end{itemize}
+
+\subsubsection{Padrão Circuit Breaker}
+Para aumentar a resiliência contra falhas em serviços externos (e.g., APIs de modelos de IA), o sistema implementa o 	extit{Circuit Breaker Pattern}. Utilizando a biblioteca 	exttt{pybreaker}, as chamadas de rede são envoltas em um disjuntor que, após um número configurável de falhas consecutivas, "abre" e impede novas chamadas por um período, permitindo que o serviço externo se recupere e evitando que o sistema local esgote seus recursos com tentativas fúteis. Este padrão previne falhas em cascata e melhora a estabilidade geral da aplicação.

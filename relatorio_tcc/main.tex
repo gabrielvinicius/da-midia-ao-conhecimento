@@ -12,27 +12,54 @@
 % INÍCIO DA PARTE ESCRITA 
 % ---------------------------------------------------------------------
 
+% 1. Introdução (Visão Geral)
 \input{src/sections/overview/overview}
+
+% 2. Fundamentação Teórica (Novo)
+\input{src/sections/theoretical_foundation/theoretical_foundation}
+
+% 3. Objetivos
 \input{src/sections/objectives/objectives}
-\input{src/sections/definitions/definitions}
-\input{src/sections/definitions/problem_statement}
-\input{src/sections/definitions/solution_proposal}
-\input{src/sections/definitions/technologies}
+
+% 4. Requisitos
 \input{src/sections/requirements/requirements}
 \input{src/sections/requirements/functional_requirements}
 \input{src/sections/requirements/non_functional_requirements}
+
+% 5. Design e Arquitetura
 \input{src/sections/design/design}
 \input{src/sections/design/uml_project}
 \input{src/sections/design/architecture}
 \input{src/sections/design/database_model}
+
+% 6. Qualidade e Testes
 \input{src/sections/quality/quality}
 \input{src/sections/quality/testing_plan}
+
+% 7. Implantação
 \input{src/sections/deployment/deploy}
 \input{src/sections/deployment/deployment_plan}
+
+% 8. Manual do Usuário
 \input{src/sections/user_manual/user_manual}
+
+% 9. Agradecimentos
 \input{src/sections/acknowledgements/acknowledgements}
+
+% Seções antigas que foram incorporadas na Fundamentação Teórica e Arquitetura
+% \input{src/sections/definitions/definitions}
+% \input{src/sections/definitions/problem_statement}
+% \input{src/sections/definitions/solution_proposal}
+% \input{src/sections/definitions/technologies}
 
 \bibliography{referencias}
 \cite{fastapi}
 \cite{vaswani2017attention}
+\cite{evans2004domain}
+\cite{young2010cqrs}
+\cite{gamma1995design}
+\cite{celery_documentation}
+\cite{lewis2019bart}
+\cite{radford2023robust}
+
 \end{document}

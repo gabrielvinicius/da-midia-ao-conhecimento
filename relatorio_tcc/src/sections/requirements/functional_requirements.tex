@@ -1,10 +1,25 @@
 \subsection{Requisitos Funcionais}
-    \begin{description}
-        \item [RNF1] - Como usuário, desejo me registrar e fazer login para utilizar a plataforma.
-        \item [RNF2] - Como usuário, quero fazer upload de vídeos para iniciar o processo de resumo.
-        \item [RNF3] - Como usuário, preciso receber notificações quando o vídeo for processado.
-        \item [RNF4] - Como usuário, quero visualizar a transcrição completa do vídeo.
-        \item [RNF5] - Como usuário, quero visualizar o resumo gerado automaticamente.
-        \item [RNF6] - Como usuário, quero listar todos os vídeos já processados.
-        \item [RNF7] - Como administrador, quero monitorar o status dos vídeos processados.
-    \end{description}
+\label{sec:requisitos_funcionais}
+
+Os requisitos funcionais descrevem as funcionalidades específicas que o sistema deve oferecer ao usuário.
+
+\begin{description}
+    \item [RF1 - Gerenciamento de Usuários] O sistema deve permitir que novos usuários se registrem na plataforma e que usuários existentes se autentiquem de forma segura para obter acesso às funcionalidades.
+
+    \item [RF2 - Upload de Mídia Genérica] O sistema deve fornecer um endpoint de API para que usuários autenticados possam fazer o upload de diferentes tipos de arquivos de mídia, incluindo, mas não se limitando a, vídeos (e.g., MP4), áudios (e.g., MP3) e documentos de texto (e.g., PDF).
+
+    \item [RF3 - Descoberta de Provedores] A API deve expor endpoints que permitam ao cliente descobrir quais provedores de serviço estão disponíveis em tempo de execução para as diferentes etapas do processamento, como armazenamento, transcrição e sumarização.
+
+    \item [RF4 - Seleção Dinâmica de Provedores] Durante o upload, o usuário deve ter a opção de especificar qual provedor de armazenamento (e.g., `local` ou `s3`) deve ser utilizado para o arquivo enviado.
+
+    \item [RF5 - Processamento Automatizado e Assíncrono] Após o upload, o sistema deve iniciar automaticamente um pipeline de processamento assíncrono, baseado no tipo de mídia:
+    \begin{itemize}
+        \item Se a mídia for um \textbf{vídeo}, o áudio deve ser extraído.
+        \item Se a mídia for um \textbf{áudio} (original ou extraído de um vídeo), o conteúdo deve ser transcrito para texto.
+        \item Se a mídia for um \textbf{texto} (original ou transcrito), um resumo abstrativo deve ser gerado.
+    \end{itemize}
+
+    \item [RF6 - Consulta de Status e Resultados] O usuário deve poder consultar o status de processamento de uma mídia através da API. Após a conclusão do pipeline, o usuário deve poder acessar os artefatos gerados (e.g., a transcrição e o resumo) através de endpoints de API dedicados e seguros.
+
+    \item [RF7 - Monitoramento e Observabilidade] O sistema deve expor endpoints para monitoramento, incluindo um endpoint `/health` para verificação de saúde e um endpoint `/metrics` que fornece métricas no formato Prometheus para análise de performance e comportamento.
+\end{description}
