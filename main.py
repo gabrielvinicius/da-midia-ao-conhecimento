@@ -46,20 +46,32 @@ async def lifespan(app: FastAPI):
     # 3. Initialize Modules and Compose Application (Composition Root)
     print("⚙️ Initializing modules and composing application...")
     async with AsyncSessionLocal() as session:
-        # Create shared components first
+        # Create shared components and factories first
         event_bus = get_event_bus()
         storage_factory = get_storage_service_factory()
         speech_factory = get_speech_recognition_service_factory()
         summarizer_factory = get_summarizer_service_factory()
+        metrics_components = bootstrap_metrics_module()
 
         # Bootstrap all modules, passing dependencies explicitly
-        metrics_components = bootstrap_metrics_module()
         auth_components = bootstrap_auth_module(session)
         analytics_components = bootstrap_analytics_module(session)
         transcription_components = bootstrap_transcription_module(session)
-        notification_components = bootstrap_notification_module(session, user_repository=auth_components["user_repository"])
-        video_components = bootstrap_video_module(session, storage_factory, event_bus, metrics_components["metrics_service"])
-        summarization_components = bootstrap_summarization_module(session, event_bus)
+        
+        notification_components = bootstrap_notification_module(
+            db_session=session,
+            user_repository=auth_components["user_repository"] # Cross-context dependency
+        )
+        video_components = bootstrap_video_module(
+            db_session=session,
+            storage_service_factory=storage_factory,
+            event_bus=event_bus,
+            metrics_service=metrics_components["metrics_service"]
+        )
+        summarization_components = bootstrap_summarization_module(
+            db_session=session,
+            event_bus=event_bus
+        )
 
         # Create a unified container dictionary for the application state
         app.state.container = {
