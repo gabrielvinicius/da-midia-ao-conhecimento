@@ -1,0 +1,73 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libsm6 libxext6
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Pytest
+        run: pytest
+
+      - name: Run Ruff Linter
+        run: ruff check src/ tests/
+
+      - name: Run MyPy Type Checker
+        run: mypy src/
+
+      - name: Run Bandit Security Scanner
+        run: bandit -r src/
+
+      - name: Build Docker image for validation
+        run: docker build . -t video-summarizer-api:${{ github.sha }}
+
+  deploy:
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' # Deploy only on push to main branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        run: |
+          docker build . -t your-docker-username/video-summarizer-api:${{ github.sha }}
+          docker push your-docker-username/video-summarizer-api:${{ github.sha }}
+          docker tag your-docker-username/video-summarizer-api:${{ github.sha }} your-docker-username/video-summarizer-api:latest
+          docker push your-docker-username/video-summarizer-api:latest
+
+      - name: Deploy to Production (Placeholder)
+        run: echo "Deployment logic would go here (e.g., kubectl apply, aws ecs update-service, etc.)"
+
+      - name: Run Database Migrations (Placeholder)
+        run: echo "This step should be part of your deployment strategy, e.g., a Kubernetes Job or an init container."
