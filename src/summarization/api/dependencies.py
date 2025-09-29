@@ -1,16 +1,17 @@
 # src/summarization/api/dependencies.py
-from fastapi import Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from src.shared.infrastructure.database import get_db
+from fastapi import Request, Depends
+from typing import Annotated
+
 from src.summarization.application.summarization_service import SummarizationService
-from src.summarization.infrastructure.dependencies import get_summarizer
-from src.summarization.infrastructure.summary_repository import SummaryRepository
-from src.transcription.api.dependencies import get_transcription_service
+from src.summarization.application.queries.summary_queries import SummaryQueries
 
+# --- Service and Query Getters ---
 
-async def get_summary_service(db: AsyncSession = Depends(get_db),
-                              trasncription_service=Depends(get_transcription_service),
-                              summarizer=Depends(get_summarizer)
-                              ) -> SummarizationService:
-    repo = SummaryRepository(db)
-    return SummarizationService(summary_repo=repo, trasncription_service=trasncription_service, summarizer=summarizer)
+def get_container(request: Request) -> dict:
+    return request.app.state.container
+
+def get_summarization_service(container: Annotated[dict, Depends(get_container)]) -> SummarizationService:
+    return container["summarization_service"]
+
+def get_summary_queries(container: Annotated[dict, Depends(get_container)]) -> SummaryQueries:
+    return container["summary_queries"]

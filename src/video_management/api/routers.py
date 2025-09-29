@@ -7,14 +7,14 @@ from fastapi import APIRouter, UploadFile, Depends, HTTPException, status, File,
 from fastapi.responses import StreamingResponse
 from fastapi.encoders import jsonable_encoder
 
+# Import dependencies from the local module file and other specific modules
 from src.auth.api.dependencies import get_current_user
 from src.auth.domain.user import User
-from src.shared.dependencies import get_service, get_video_queries
-from src.video_management.application.commands.upload_video_command import UploadVideoCommand
-from src.video_management.application.video_service import VideoService
-from src.video_management.application.queries.video_queries import VideoQueries
+from .dependencies import get_video_service, get_video_queries, get_video_settings
+from ..application.commands.upload_video_command import UploadVideoCommand
+from ..application.video_service import VideoService
+from ..application.queries.video_queries import VideoQueries
 from .schemas import VideoResponse, VideoDetailResponse
-from .dependencies import get_video_settings
 from ..config.settings import VideoSettings
 
 router = APIRouter(
@@ -29,7 +29,7 @@ async def create_video(
     file: UploadFile = File(...),
     storage_provider: Optional[str] = Query("local", description="The storage provider to use (e.g., 'local', 's3')."),
     current_user: User = Depends(get_current_user),
-    video_service: VideoService = Depends(get_service("video_service")),
+    video_service: VideoService = Depends(get_video_service),
     settings: VideoSettings = Depends(get_video_settings),
 ):
     """Uploads a video file to create a new video resource."""
@@ -66,9 +66,9 @@ async def get_video_by_id(
 ):
     """Retrieves detailed metadata for a specific video."""
     if current_user.role.value == "admin":
-        video = await video_queries.get_by_id(video_id=str(video_id))
+        video = await video_queries.get_by_id(str(video_id))
     else:
-        video = await video_queries.get_video_by_user_by_id(video_id=str(video_id), user_id=str(current_user.id))
+        video = await video_queries.get_by_user_by_id(str(video_id), str(current_user.id))
     
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
@@ -79,15 +79,14 @@ async def get_video_by_id(
 async def request_video_transcription(
     video_id: UUID,
     provider: Optional[str] = Query("whisper", description="The transcription provider to use (e.g., 'whisper', 'fastwhisper')."),
-    video_service: VideoService = Depends(get_service("video_service")),
-    # No need to inject video_queries or event_bus here anymore
+    current_user: User = Depends(get_current_user),
+    video_service: VideoService = Depends(get_video_service),
 ):
     """Starts an asynchronous transcription process for a video."""
     try:
         await video_service.request_transcription(video_id=str(video_id), provider=provider)
         return {"message": "Transcription requested successfully"}
     except ValueError as e:
-        # Handle specific business logic errors from the service layer
         if "not found" in str(e):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         else:

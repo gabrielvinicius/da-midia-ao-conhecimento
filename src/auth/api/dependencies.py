@@ -1,69 +1,61 @@
-from uuid import UUID
-from fastapi import Depends, HTTPException, status
+# src/auth/api/dependencies.py
+from fastapi import Request, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from typing import Annotated
 from jose import JWTError
+from typing import Annotated
 
+from src.auth.application.auth_service import AuthService
+from src.auth.application.queries.auth_queries import AuthQueries
 from src.auth.domain.user import User, UserRole
 from src.auth.utils.token import verify_token
-from src.auth.infrastructure.user_repository import UserRepository
-from src.auth.application.auth_service import AuthService
-from src.shared.dependencies import get_auth_service
 
-# OAuth2 scheme - corrigido para usar a URL completa
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+# --- Service and Query Getters ---
 
+def get_container(request: Request) -> dict:
+    return request.app.state.container
+
+def get_auth_service(container: Annotated[dict, Depends(get_container)]) -> AuthService:
+    return container["auth_service"]
+
+def get_auth_queries(container: Annotated[dict, Depends(get_container)]) -> AuthQueries:
+    return container["auth_queries"]
+
+
+# --- Security Dependencies ---
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 async def get_current_user(
-        token: Annotated[str, Depends(oauth2_scheme)],
-        auth_service: AuthService = Depends(get_auth_service)
+    token: Annotated[str, Depends(oauth2_scheme)],
+    auth_queries: AuthQueries = Depends(get_auth_queries) # Use the local, explicit dependency
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-
     try:
         payload = verify_token(token)
-        if not payload:
+        if payload is None:
             raise credentials_exception
-
         user_id = payload.get("sub")
-        if not user_id:
+        if user_id is None:
             raise credentials_exception
-
-        # Validação adicional do formato UUID
-        try:
-            user_uuid = UUID(user_id)
-        except ValueError:
-            raise credentials_exception
-
-        user = await auth_service.get_user_by_id(str(user_uuid))
-
-        if not user or not user.is_active:
-            raise credentials_exception
-
-        return user
-
-    except JWTError as e:
-        raise credentials_exception from e
+    except JWTError:
+        raise credentials_exception
+    
+    user = await auth_queries.get_by_id(user_id)
+    if user is None:
+        raise credentials_exception
+    return user
 
 
 async def get_current_admin_user(
-        current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user)
 ) -> User:
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso restrito a administradores",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="The user does not have enough privileges"
         )
-    return current_user
-
-
-# Nova dependência para usuários comuns (não-admin)
-async def get_current_active_user(
-        current_user: User = Depends(get_current_user),
-) -> User:
     return current_user
