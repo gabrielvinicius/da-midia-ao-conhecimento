@@ -1,19 +1,25 @@
+version: '3.8'
+
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:15-alpine
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-video_summarizer}
     ports:
-      - "${DB_PORT}:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
 
   redis:
-    image: redis:latest
+    image: redis:7-alpine
     ports:
-      - "${REDIS_PORT}:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - app-network
 
   minio:
     image: minio/minio:latest
@@ -21,12 +27,54 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: ${ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${SECRET_KEY}
+      MINIO_ROOT_USER: ${ACCESS_KEY:-minio}
+      MINIO_ROOT_PASSWORD: ${SECRET_KEY_S3:-minio123}
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
+    networks:
+      - app-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "6831:6831/udp" # Jaeger agent
+      - "16686:16686"   # Jaeger UI
+    networks:
+      - app-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - app-network
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A src.shared.events.event_bus.celery worker --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - app-network
 
 volumes:
   postgres_data:
   minio_data:
+
+networks:
+  app-network:
+    driver: bridge
