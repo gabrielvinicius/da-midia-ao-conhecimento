@@ -1,5 +1,6 @@
 # src/notifications/application/commands/send_notification_command_handler.py
 import structlog
+from typing import Dict, Any
 
 from src.notifications.domain.notification import Notification, NotificationType
 from src.notifications.infrastructure.notification_repository import NotificationRepository
@@ -12,40 +13,39 @@ logger = structlog.get_logger(__name__)
 class SendNotificationCommandHandler:
     def __init__(
         self,
-        email_adapter,
-        sms_adapter,
-        webhook_adapter,
+        adapter_map: Dict[NotificationType, Any], # Strategy Pattern: Map of adapters
         notification_repository: NotificationRepository,
     ):
-        self.email_adapter = email_adapter
-        self.sms_adapter = sms_adapter
-        self.webhook_adapter = webhook_adapter
+        self.adapter_map = adapter_map
         self.notification_repo = notification_repository
 
     async def handle(self, command: SendNotificationCommand) -> Notification:
-        """Handles the notification sending process using data from the command."""
+        """Handles the notification sending process using a strategy pattern for adapters."""
         notification = Notification(
             id=generate_id(),
             user_id=command.user_id,
             type=command.notification_type,
             content=command.message
         )
-        await self.notification_repo.save(notification)
+        # The entity is now only saved once at the end.
 
         try:
-            if command.notification_type == NotificationType.EMAIL:
-                email_address = command.contact_info.get("email")
-                if not email_address:
-                    raise ValueError("Email address not provided in contact_info for EMAIL notification.")
-                await self.email_adapter.send(email_address, "Notification", command.message)
-            
-            # Similar logic for SMS and WEBHOOK would be added here
+            adapter = self.adapter_map.get(command.notification_type)
+            if not adapter:
+                raise ValueError(f"No adapter configured for notification type: {command.notification_type}")
 
+            # Get contact info from the enriched command
+            contact_info = command.contact_info.get(command.notification_type.value.lower())
+            if not contact_info:
+                raise ValueError(f"Contact info for {command.notification_type} not provided.")
+
+            await adapter.send(contact_info, "Notification", command.message)
+            
             notification.mark_as_sent()
             logger.info("notification.sent", notification_id=str(notification.id), type=command.notification_type)
         except Exception as e:
             notification.mark_as_failed(str(e))
             logger.error("notification.failed", notification_id=str(notification.id), error=str(e))
 
-        await self.notification_repo.save(notification)
-        return notification
+        # Persist the final state of the notification once.
+        return await self.notification_repo.save(notification)

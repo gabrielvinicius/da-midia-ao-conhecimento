@@ -13,23 +13,24 @@ from .schemas import NotificationResponse, NotificationRequest
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
-@router.post("/", response_model=NotificationResponse, status_code=status.HTTP_202_ACCEPTED, summary="Send a notification")
-async def send_notification(
+@router.post("/", status_code=status.HTTP_202_ACCEPTED, summary="Request a notification to be sent")
+async def request_notification(
     request: NotificationRequest,
     service: NotificationService = Depends(get_notification_service),
     current_user: User = Depends(get_current_user),
 ):
-    """Sends a notification to a user. Requires authentication."""
+    """Requests a notification to be sent asynchronously to a user."""
     if str(request.user_id) != str(current_user.id) and current_user.role.value != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to send notification for this user")
 
     try:
-        notification = await service.send_notification(
+        # The service now dispatches an event and returns immediately.
+        await service.request_notification(
             user_id=str(request.user_id),
             message=request.message,
             notification_type=request.type
         )
-        return notification
+        return {"message": "Notification request accepted and is being processed."}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 

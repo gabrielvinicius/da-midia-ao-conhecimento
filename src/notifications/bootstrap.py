@@ -13,19 +13,22 @@ def bootstrap_notification_module(
     auth_queries: AuthQueries, # Correct cross-context dependency
     event_bus: EventBus,
 ) -> Dict[str, Any]:
-    """Constructs and returns the services for the notification module."""
+    """Constructs and returns the services for the notification module's API layer."""
     notification_repository = NotificationRepository(db=db_session)
     
-    # The service is now a facade for dispatching events
+    # The service is a facade for dispatching events, it needs to fetch user data.
     notification_service = NotificationService(
         auth_queries=auth_queries,
         event_bus=event_bus
     )
-    # The query service handles all read operations
+    
+    # The query service handles all read operations.
     notification_queries = NotificationQueries(notification_repository=notification_repository)
 
+    # Note: The SendNotificationCommandHandler and its adapters are constructed inside the Celery task,
+    # as they are only used in the asynchronous background process.
+
     return {
-        "notification_repository": notification_repository,
         "notification_service": notification_service,
         "notification_queries": notification_queries,
     }

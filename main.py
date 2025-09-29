@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
         app_container.update(bootstrap_analytics_module(session))
         app_container.update(bootstrap_transcription_module(session))
         app_container.update(bootstrap_media_module(session, app_container["storage_service_factory"], app_container["event_bus"]))
-        app_container.update(bootstrap_notification_module(session, user_repository=app_container["user_repository"]))
+        app_container.update(bootstrap_notification_module(session, auth_queries=app_container["auth_queries"], event_bus=app_container["event_bus"]))
         app_container.update(bootstrap_video_processing_module(app_container["media_queries"], app_container["storage_service_factory"], app_container["event_bus"]))
         app_container.update(bootstrap_text_processing_module(session, app_container["media_queries"], app_container["storage_service_factory"], app_container["event_bus"]))
         app_container.update(bootstrap_summarization_module(session, app_container["event_bus"], app_container["analytics_queries"], app_container["metrics_service"]))
@@ -73,11 +73,13 @@ async def lifespan(app: FastAPI):
         from src.text_processing.application.event_handlers import register_event_handlers as register_text_handlers
         from src.transcription.application.event_handlers import register_event_handlers as register_transcription_handlers
         from src.summarization.application.event_handlers import register_event_handlers as register_summary_handlers
+        from src.notifications.application.event_handlers import register_event_handlers as register_notification_handlers
         
         await register_video_handlers(app_container["event_bus"])
         await register_text_handlers(app_container["event_bus"])
         await register_transcription_handlers(app_container["event_bus"])
         await register_summary_handlers(app_container["event_bus"])
+        await register_notification_handlers(app_container["event_bus"])
 
         # 5. Start Background Services
         print("🚀 Starting event bus...")
