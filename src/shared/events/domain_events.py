@@ -3,6 +3,8 @@ from dataclasses import dataclass, asdict
 from abc import ABC
 from typing import Optional
 
+from src.media_management.domain.media import MediaType
+
 
 @dataclass(frozen=True)
 class DomainEvent(ABC):
@@ -12,35 +14,47 @@ class DomainEvent(ABC):
         return asdict(self)
 
 
-# --- Video Management Events ---
+# --- Media Management Events ---
 
 @dataclass(frozen=True)
-class VideoUploaded(DomainEvent):
-    """Event triggered when a video has been successfully uploaded."""
-    video_id: str
+class MediaUploaded(DomainEvent):
+    """Event triggered when a new media file has been successfully uploaded."""
+    media_id: str
     user_id: str
+    media_type: MediaType
+    file_path: str
+    storage_provider: str
+
+# --- Video Processing Events ---
+
+@dataclass(frozen=True)
+class AudioExtracted(DomainEvent):
+    """Event triggered when audio has been successfully extracted from a video."""
+    media_id: str
+    audio_file_path: str
+    storage_provider: str
 
 
-# --- Transcription Events ---
+# --- Transcription Events (Refactored to use media_id) ---
 
 @dataclass(frozen=True)
 class TranscriptionRequested(DomainEvent):
-    """Event triggered when a transcription is explicitly requested for a video."""
-    video_id: str
+    """Event triggered when a transcription is explicitly requested."""
+    media_id: str
     provider: str
 
 @dataclass(frozen=True)
 class TranscriptionStarted(DomainEvent):
-    video_id: str
+    media_id: str
 
 @dataclass(frozen=True)
 class TranscriptionCompleted(DomainEvent):
-    video_id: str
+    media_id: str
     transcription_id: str
 
 @dataclass(frozen=True)
 class TranscriptionFailed(DomainEvent):
-    video_id: str
+    media_id: str
     error: str
 
 

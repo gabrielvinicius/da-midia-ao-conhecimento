@@ -1,3 +1,4 @@
+# src/transcription/tasks/tasks.py
 import asyncio
 import structlog
 from celery import shared_task
@@ -6,13 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.shared.events.event_bus import get_event_bus
 from src.shared.infrastructure.database import get_db
 from src.storage.infrastructure.dependencies import get_storage_service_factory
-# Import the new CQRS components
+# Import the new CQRS components and their dependencies
 from src.transcription.application.commands.process_transcription_command import ProcessTranscriptionCommand
 from src.transcription.application.commands.process_transcription_command_handler import ProcessTranscriptionCommandHandler
 from src.transcription.infrastructure.dependencies import get_transcription_repository, create_speech_recognition_service
-# Import dependencies for manual construction
-from src.video_management.application.queries.video_queries import VideoQueries
-from src.video_management.infrastructure.video_repository import VideoRepository
+from src.media_management.application.queries.media_queries import MediaQueries
+from src.media_management.infrastructure.media_repository import MediaRepository
 from src.metrics.application.metrics_service import MetricsService
 from src.metrics.infrastructure.prometheus_provider import PrometheusMetricsProvider
 
@@ -20,16 +20,23 @@ logger = structlog.get_logger(__name__)
 
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
-def process_transcription_task(self, video_id: str, provider: str, language: str = "en"):
-    """Celery async task to process video transcription with a specific provider."""
+def process_transcription_task(
+    self, 
+    media_id: str, 
+    file_path: str, 
+    storage_provider: str, 
+    transcription_provider: str, 
+    language: str = "en"
+):
+    """Celery task to process media transcription with a specific provider."""
     try:
-        return asyncio.run(_run_transcription(video_id, provider, language))
+        return asyncio.run(_run_transcription(media_id, file_path, storage_provider, transcription_provider, language))
     except Exception as e:
-        logger.error(f"Error in transcription task for video {video_id}: {str(e)}", exc_info=True)
+        logger.error(f"Error in transcription task for media {media_id}: {str(e)}", exc_info=True)
         return None
 
 
-async def _run_transcription(video_id: str, provider: str, language: str):
+async def _run_transcription(media_id: str, file_path: str, storage_provider: str, transcription_provider: str, language: str):
     """Helper to run transcription logic with dynamic dependency injection."""
     async for db_session in get_db():
         if not isinstance(db_session, AsyncSession):
@@ -40,18 +47,12 @@ async def _run_transcription(video_id: str, provider: str, language: str):
         metrics_service = MetricsService(provider=PrometheusMetricsProvider())
         storage_service_factory = get_storage_service_factory()
         
-        # The handler needs to read video data and write its updated state
-        video_repository = VideoRepository(db=db_session)
-        video_queries = VideoQueries(video_repository=video_repository)
-
-        video = await video_queries.get_by_id(video_id)
-        if not video:
-            logger.error(f"Video {video_id} not found in transcription task.")
-            return
+        media_repository = MediaRepository(db=db_session)
+        media_queries = MediaQueries(media_repository=media_repository)
 
         # Dynamically create the correct services for this job
-        storage_service = storage_service_factory(video.storage_provider)
-        speech_recognition_service = create_speech_recognition_service(provider)
+        storage_service = storage_service_factory(storage_provider)
+        speech_recognition_service = create_speech_recognition_service(transcription_provider)
         transcription_repository = await get_transcription_repository(db_session)
 
         # 1. Create the command handler
@@ -60,15 +61,17 @@ async def _run_transcription(video_id: str, provider: str, language: str):
             storage_service=storage_service,
             event_bus=event_bus,
             transcription_repository=transcription_repository,
-            video_queries=video_queries,
-            video_repository=video_repository,
+            media_queries=media_queries,
+            media_repository=media_repository,
             metrics_service=metrics_service
         )
         
         # 2. Create the command
         command = ProcessTranscriptionCommand(
-            video_id=str(video_id), 
-            provider=provider, 
+            media_id=media_id, 
+            file_path=file_path,
+            storage_provider=storage_provider,
+            transcription_provider=transcription_provider,
             language=language
         )
 
@@ -76,5 +79,5 @@ async def _run_transcription(video_id: str, provider: str, language: str):
         try:
             return await handler.handle(command)
         except Exception as e:
-            logger.error(f"Error processing transcription for video {video_id}: {str(e)}", exc_info=True)
+            logger.error(f"Error processing transcription for media {media_id}: {str(e)}", exc_info=True)
             raise

@@ -15,6 +15,6 @@ class TranscriptionQueries:
         """Retrieves a transcription by its unique ID."""
         return await self.transcription_repository.find_by_id(transcription_id)
 
-    async def get_by_video_id(self, video_id: str) -> Optional[Transcription]:
-        """Retrieves a transcription by its associated video ID."""
-        return await self.transcription_repository.find_by_video_id(video_id)
+    async def get_by_media_id(self, media_id: str) -> Optional[Transcription]:
+        """Retrieves a transcription by its associated media ID."""
+        return await self.transcription_repository.find_by_media_id(media_id)

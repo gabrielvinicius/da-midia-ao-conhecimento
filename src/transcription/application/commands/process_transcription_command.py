@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ProcessTranscriptionCommand:
-    video_id: str
-    provider: str
+    media_id: str
+    file_path: str
+    storage_provider: str
+    transcription_provider: str
     language: str
