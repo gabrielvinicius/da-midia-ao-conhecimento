@@ -5,6 +5,7 @@ from typing import Annotated
 from src.summarization.application.summarization_service import SummarizationService
 from src.summarization.application.queries.summary_queries import SummaryQueries
 from src.media_management.application.queries.media_queries import MediaQueries
+from src.transcription.application.queries.transcription_queries import TranscriptionQueries # Added dependency
 
 # --- Service and Query Getters ---
 
@@ -19,3 +20,6 @@ def get_summary_queries(container: Annotated[dict, Depends(get_container)]) -> S
 
 def get_media_queries(container: Annotated[dict, Depends(get_container)]) -> MediaQueries:
     return container["media_queries"]
+
+def get_transcription_queries(container: Annotated[dict, Depends(get_container)]) -> TranscriptionQueries:
+    return container["transcription_queries"]

@@ -13,18 +13,35 @@ from .schemas import MediaResponse
 router = APIRouter(
     prefix="/media",
     tags=["Media"],
-    responses={404: {"description": "Not found"}},
 )
 
 
-@router.post("/", response_model=MediaResponse, status_code=status.HTTP_201_CREATED, summary="Upload a new media file")
+@router.post(
+    "/", 
+    response_model=MediaResponse, 
+    status_code=status.HTTP_201_CREATED, 
+    summary="Upload a new media file",
+    description="""
+Uploads a new media file (video, audio, or text). This is the main entry point for the processing pipeline.
+
+This endpoint is asynchronous. It returns immediately with the initial media record and triggers a background process based on the media type:
+- **VIDEO**: Triggers audio extraction.
+- **AUDIO**: Triggers transcription.
+- **TEXT**: Triggers text extraction (e.g., from a PDF).
+""",
+    responses={
+        400: {"description": "Invalid file type or bad request"},
+        401: {"description": "Unauthorized"},
+        413: {"description": "File too large"},
+        500: {"description": "Internal server error during upload"},
+    }
+)
 async def create_media(
     file: UploadFile = File(...),
     storage_provider: Optional[str] = Query("local", description="The storage provider to use (e.g., 'local', 's3')."),
     current_user: User = Depends(get_current_user),
     media_service: MediaService = Depends(get_media_service),
 ):
-    """Uploads a new media file (video, audio, or text) to start a processing pipeline."""
     try:
         command = CreateMediaCommand(
             user_id=str(current_user.id),
