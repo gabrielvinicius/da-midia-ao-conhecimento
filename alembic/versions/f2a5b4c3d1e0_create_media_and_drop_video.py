@@ -2,7 +2,7 @@
 
 Revision ID: f2a5b4c3d1e0
 Revises: e9f8b7c6a5d4
-Create Date: 2024-07-31 10:00:00.000000
+Create Date: 2024-07-31 12:00:00.000000
 
 """
 from typing import Sequence, Union
@@ -37,9 +37,8 @@ def upgrade() -> None:
     op.add_column('transcriptions', sa.Column('media_id', sa.UUID(), nullable=True))
     op.add_column('summaries', sa.Column('media_id', sa.UUID(), nullable=True))
 
-    # NOTE: In a real-world scenario with existing data, you would now run a data migration:
-    # op.execute('UPDATE transcriptions SET media_id = (SELECT id FROM media WHERE media.old_video_id = transcriptions.video_id)')
-    # op.execute('UPDATE summaries SET media_id = (SELECT media_id FROM transcriptions WHERE transcriptions.id = summaries.transcription_id)')
+    # NOTE: In a real-world migration with existing data, you would now write a data migration
+    # to populate 'media_id' based on the old 'video_id'. For a fresh setup, this is fine.
 
     # 3. Drop old foreign keys and columns
     op.drop_constraint('transcriptions_video_id_fkey', 'transcriptions', type_='foreignkey')
