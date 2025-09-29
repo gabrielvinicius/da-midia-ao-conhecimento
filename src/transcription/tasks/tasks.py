@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.shared.events.event_bus import get_event_bus
 from src.shared.infrastructure.database import get_db
 from src.storage.infrastructure.dependencies import get_storage_service_factory
-# Import the new CQRS components and their dependencies
+# Import the new CQRS components and their correct dependencies
 from src.transcription.application.commands.process_transcription_command import ProcessTranscriptionCommand
 from src.transcription.application.commands.process_transcription_command_handler import ProcessTranscriptionCommandHandler
 from src.transcription.infrastructure.dependencies import get_transcription_repository, create_speech_recognition_service

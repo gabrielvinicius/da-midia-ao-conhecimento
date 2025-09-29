@@ -15,6 +15,6 @@ class SummaryQueries:
         """Retrieves a summary by its unique ID."""
         return await self.summary_repository.find_by_id(summary_id)
 
-    async def get_by_transcription_id(self, transcription_id: str) -> Optional[Summary]:
-        """Retrieves a summary by its associated transcription ID."""
-        return await self.summary_repository.find_by_transcription_id(transcription_id)
+    async def get_by_media_id(self, media_id: str) -> Optional[Summary]:
+        """Retrieves a summary by its associated media ID."""
+        return await self.summary_repository.find_by_media_id(media_id)

@@ -1,7 +1,8 @@
 # src/summarization/infrastructure/summary_repository.py
 from typing import Optional
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import select
 
 from src.summarization.domain.interfaces import ISummaryRepository
 from src.summarization.domain.summary import Summary
@@ -17,12 +18,14 @@ class SummaryRepository(ISummaryRepository):
         await self.session.refresh(summary)
         return summary
 
-    async def find_by_transcription_id(self, transcription_id: str) -> Optional[Summary]:
-        stmt = select(Summary).where(Summary.transcription_id == transcription_id)
+    async def find_by_media_id(self, media_id: str) -> Optional[Summary]:
+        """Finds a summary by its associated media ID."""
+        stmt = select(Summary).where(Summary.media_id == UUID(media_id))
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def find_by_id(self, summary_id: str) -> Optional[Summary]:
-        stmt = select(Summary).where(Summary.id == summary_id)
+        """Finds a summary by its ID."""
+        stmt = select(Summary).where(Summary.id == UUID(summary_id))
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()

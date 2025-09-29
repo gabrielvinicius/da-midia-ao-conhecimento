@@ -1,15 +1,15 @@
 # src/summarization/domain/summary.py
+import uuid
+from datetime import datetime
+from enum import Enum
 
 from sqlalchemy import Column, String, DateTime, Enum as SqlEnum, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
 
 from src.shared.infrastructure.database import Base
-from datetime import datetime
-import enum
-import uuid
 
 
-class SummaryStatus(str, enum.Enum):
+class SummaryStatus(str, Enum):
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
     COMPLETED = "COMPLETED"
@@ -20,18 +20,19 @@ class Summary(Base):
     __tablename__ = "summaries"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    transcription_id = Column(UUID(as_uuid=True), ForeignKey("transcriptions.id"), nullable=False, unique=True)
+    # Refactored to link to the generic Media entity
+    media_id = Column(UUID(as_uuid=True), ForeignKey("media.id"), nullable=False, unique=True)
     text = Column(Text, nullable=True)
     status = Column(SqlEnum(SummaryStatus), default=SummaryStatus.PENDING, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     processed_at = Column(DateTime, nullable=True)
     error_message = Column(String, nullable=True)
-    provider = Column(String, nullable=True)  # Added provider field
+    provider = Column(String, nullable=True)
 
     @staticmethod
-    def create(transcription_id: str, provider: str) -> "Summary":
+    def create(media_id: str, provider: str) -> "Summary":
         """Factory method to create a new summary in a valid initial state."""
-        summary = Summary(transcription_id=transcription_id, provider=provider)
+        summary = Summary(media_id=media_id, provider=provider)
         summary.status = SummaryStatus.PROCESSING
         summary.created_at = datetime.utcnow()
         return summary

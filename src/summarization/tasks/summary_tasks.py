@@ -1,3 +1,4 @@
+# src/summarization/tasks/summary_tasks.py
 import asyncio
 import structlog
 from celery import shared_task
@@ -11,8 +12,6 @@ from src.summarization.application.commands.process_summary_command import Proce
 from src.summarization.application.commands.process_summary_command_handler import ProcessSummaryCommandHandler
 from src.summarization.infrastructure.dependencies import create_summarizer_service
 from src.summarization.infrastructure.summary_repository import SummaryRepository
-from src.transcription.application.queries.transcription_queries import TranscriptionQueries
-from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
 from src.analytics.application.queries.analytics_queries import AnalyticsQueries
 from src.analytics.infrastructure.analytics_repository import AnalyticsRepository
 from src.analytics.config.settings import AnalyticsSettings
@@ -23,16 +22,16 @@ logger = structlog.get_logger(__name__)
 
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
-def process_summary_task(self, transcription_id: str, provider: str):
-    """Celery entrypoint to trigger the summarization pipeline with a specific provider."""
+def process_summary_task(self, media_id: str, text_content: str, provider: str):
+    """Celery entrypoint to trigger the summarization pipeline from any text source."""
     try:
-        return asyncio.run(_run_summarization(transcription_id, provider))
+        return asyncio.run(_run_summarization(media_id, text_content, provider))
     except Exception as e:
-        logger.error(f"Error in summarization task for transcription {transcription_id}: {str(e)}", exc_info=True)
+        logger.error(f"Error in summarization task for media {media_id}: {str(e)}", exc_info=True)
         return None
 
 
-async def _run_summarization(transcription_id: str, provider: str):
+async def _run_summarization(media_id: str, text_content: str, provider: str):
     """Helper to run summarization logic with dynamic dependency injection."""
     async for db_session in get_db():
         if not isinstance(db_session, AsyncSession):
@@ -41,10 +40,6 @@ async def _run_summarization(transcription_id: str, provider: str):
         # --- Manual Dependency Injection for Celery Task ---
         event_bus = get_event_bus()
         metrics_service = MetricsService(provider=PrometheusMetricsProvider())
-        
-        # Build necessary query services and repositories
-        transcription_repo = TranscriptionRepository(db=db_session)
-        transcription_queries = TranscriptionQueries(transcription_repository=transcription_repo)
         
         analytics_repo = AnalyticsRepository(db=db_session)
         analytics_settings = AnalyticsSettings()
@@ -57,7 +52,6 @@ async def _run_summarization(transcription_id: str, provider: str):
         handler = ProcessSummaryCommandHandler(
             summarizer=summarizer_instance,
             summary_repo=summary_repo,
-            transcription_queries=transcription_queries,
             metrics_service=metrics_service,
             analytics_queries=analytics_queries,
             event_bus=event_bus
@@ -65,7 +59,8 @@ async def _run_summarization(transcription_id: str, provider: str):
 
         # 2. Create the command
         command = ProcessSummaryCommand(
-            transcription_id=transcription_id,
+            media_id=media_id,
+            text_content=text_content,
             provider=provider
         )
 
@@ -73,5 +68,5 @@ async def _run_summarization(transcription_id: str, provider: str):
         try:
             return await handler.handle(command)
         except Exception as e:
-            logger.error(f"Error processing summarization for transcription {transcription_id}: {str(e)}", exc_info=True)
+            logger.error(f"Error processing summarization for media {media_id}: {str(e)}", exc_info=True)
             raise

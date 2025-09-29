@@ -3,5 +3,6 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ProcessSummaryCommand:
-    transcription_id: str
+    media_id: str
+    text_content: str
     provider: str

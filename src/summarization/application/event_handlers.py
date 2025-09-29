@@ -2,8 +2,8 @@
 import logging
 from typing import Dict, Any
 
-from src.shared.events.domain_events import SummarizationRequested
 from src.shared.events.event_bus import EventBus
+from src.shared.events.domain_events import TextContentReady
 from src.summarization.tasks.summary_tasks import process_summary_task
 
 logger = logging.getLogger(__name__)
@@ -12,21 +12,28 @@ logger = logging.getLogger(__name__)
 async def register_event_handlers(event_bus: EventBus):
     """Registers all summarization-related event handlers."""
 
-    async def handle_summarization_requested(event_data: Dict[str, Any]):
-        """Handles SummarizationRequested events by triggering the summarization task."""
+    async def handle_text_content_ready(event_data: Dict[str, Any]):
+        """Handles TextContentReady events by triggering the summarization task."""
         try:
-            transcription_id = event_data["transcription_id"]
-            provider = event_data.get("provider", "huggingface")  # Default provider
-            logger.info(f"Received SummarizationRequested for {transcription_id} with provider {provider}")
+            media_id = event_data["media_id"]
+            text_content = event_data["text_content"]
+            logger.info(f"Text content ready for media {media_id}. Dispatching summarization task.")
 
-            # Dispatch summarization task with the chosen provider
-            process_summary_task.delay(transcription_id=transcription_id, provider=provider)
-            logger.info(f"Summary task dispatched for transcription {transcription_id}")
+            # For now, we use a default provider. This could be made configurable.
+            process_summary_task.delay(
+                media_id=media_id, 
+                text_content=text_content,
+                provider="huggingface"
+            )
 
         except KeyError as e:
-            logger.error(f"Missing key in SummarizationRequested event: {str(e)}")
+            logger.error(f"Missing required field in TextContentReady event: {e}")
         except Exception as e:
-            logger.error(f"Failed to handle SummarizationRequested event: {str(e)}", exc_info=True)
+            logger.error(f"Failed to handle TextContentReady event: {e}", exc_info=True)
 
-    event_bus.subscribe(SummarizationRequested, handle_summarization_requested)
-    logger.info("Successfully registered SummarizationRequested handler.")
+    try:
+        event_bus.subscribe(TextContentReady, handle_text_content_ready)
+        logger.info("Successfully registered TextContentReady handler for summarization.")
+    except Exception as e:
+        logger.error(f"Failed to register summarization event handlers: {e}", exc_info=True)
+        raise

@@ -37,9 +37,10 @@ python-jose[cryptography]~=3.3.0
 # --- AWS & S3 Storage ---
 boto3~=1.34.141
 
-# --- Video/Audio Processing ---
+# --- Media Processing ---
 av~=12.1.0
 resampy~=0.4.3
+PyMuPDF~=1.24.9  # For PDF text extraction
 
 # --- Observability & Resilience ---
 structlog~=24.2.0

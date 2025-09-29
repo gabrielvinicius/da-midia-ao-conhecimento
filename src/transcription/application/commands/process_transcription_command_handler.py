@@ -3,13 +3,12 @@ import time
 import structlog
 
 from src.metrics.application.metrics_service import MetricsService
-from src.shared.events.domain_events import TranscriptionCompleted, TranscriptionFailed, TranscriptionStarted
+from src.shared.events.domain_events import TextContentReady, TranscriptionFailed, TranscriptionStarted
 from src.shared.events.event_bus import EventBus
 from src.storage.application.storage_service import StorageService
 from src.transcription.domain.transcription import Transcription, TranscriptionStatus
 from src.transcription.infrastructure.interfaces import ISpeechRecognition
 from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
-# Import correct CQRS dependencies for Media
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
 from .process_transcription_command import ProcessTranscriptionCommand
@@ -56,7 +55,7 @@ class ProcessTranscriptionCommandHandler:
                 media.complete()
                 await self.media_repository.save(media)
                 logger.info("transcription.completed", media_id=command.media_id, from_cache=True)
-                await self.event_bus.publish(TranscriptionCompleted(media_id=transcription.media_id, transcription_id=str(transcription.id)))
+                await self.event_bus.publish(TextContentReady(media_id=media.id, text_content=transcription.text))
                 return transcription
 
             if transcription is None:
@@ -78,7 +77,7 @@ class ProcessTranscriptionCommandHandler:
             media.complete()
             await self.media_repository.save(media)
 
-            await self.event_bus.publish(TranscriptionCompleted(media_id=command.media_id, transcription_id=str(transcription.id)))
+            await self.event_bus.publish(TextContentReady(media_id=command.media_id, text_content=text))
 
             duration = time.time() - start_time
             self.metrics_service.increment_transcription('success')

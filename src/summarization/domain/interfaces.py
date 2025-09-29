@@ -12,8 +12,8 @@ class ISummaryRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def find_by_transcription_id(self, transcription_id: str) -> Optional[Summary]:
-        """Finds a summary by its transcription ID."""
+    async def find_by_media_id(self, media_id: str) -> Optional[Summary]:
+        """Finds a summary by its associated media ID."""
         raise NotImplementedError
 
     @abstractmethod
