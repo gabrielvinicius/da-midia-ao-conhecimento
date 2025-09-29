@@ -1,2 +1,29 @@
-\section{Definições}
-    Este documento descreve o desenvolvimento de uma plataforma web responsável pela automatização de resumos de vídeos. O sistema utiliza tecnologias modernas de reconhecimento de fala (ASR - Automatic Speech Recognition) e sumarização de texto, combinadas com uma arquitetura modular e escalável. O termo “plataforma” refere-se ao conjunto de componentes lógicos e físicos envolvidos na coleta, processamento e apresentação de dados relacionados aos vídeos submetidos pelos usuários.
+\section{Definições e Conceitos Fundamentais}
+\label{sec:definicoes}
+
+Esta seção estabelece um glossário de termos e conceitos arquiteturais que são fundamentais para a compreensão do design e da implementação do sistema. A definição precisa destes termos é essencial para a análise técnica apresentada neste documento, servindo como um léxico comum para os padrões e princípios de engenharia de software aplicados.
+
+\begin{description}
+    \item[Injeção de Dependência (DI)] Um padrão de design no qual um objeto ou função recebe suas dependências de uma fonte externa, em vez de criá-las internamente. Isso inverte o controle sobre a construção de dependências, promovendo o baixo acoplamento e aumentando a testabilidade. No projeto, a DI é gerenciada de forma explícita na \textit{Raiz de Composição}.
+
+    \item[Composition Root (Raiz de Composição)] Um padrão de Injeção de Dependência onde a composição do grafo de objetos de uma aplicação é feita em um único local, próximo ao ponto de entrada da aplicação. No projeto, a função \texttt{lifespan} no arquivo \texttt{main.py} atua como a Raiz de Composição, orquestrando a inicialização de cada módulo (via funções de \textit{bootstrap}) e injetando explicitamente as dependências cruzadas.
+
+    \item[Monólito Modular] Uma abordagem arquitetural onde a aplicação é desenvolvida e implantada como uma única unidade (um monólito), mas é internamente estruturada em módulos com alta coesão e baixo acoplamento. Este projeto adota essa abordagem, com cada Bounded Context (e.g., \texttt{auth}, \texttt{media\_management}) funcionando como um módulo independente dentro da aplicação principal.
+
+    \item[Domain-Driven Design (DDD)] Uma metodologia de desenvolvimento de software que se concentra na modelagem do software para corresponder a um domínio de negócio complexo. No projeto, os princípios do DDD foram aplicados através da definição de \textit{Bounded Contexts} e da criação de um modelo de domínio rico, com entidades que encapsulam regras de negócio \cite{evans2004domain}.
+
+    \item[Bounded Context (Contexto Delimitado)] Um conceito central do DDD que define os limites de um modelo de domínio específico. No projeto, cada módulo principal representa um Bounded Context, com seu próprio vocabulário e lógica, comunicando-se com outros contextos através de interfaces explícitas, como eventos de domínio.
+
+    \item[Command Query Responsibility Segregation (CQRS)] Um padrão arquitetural que segrega as operações que modificam o estado de um sistema (comandos) daquelas que leem o estado (consultas). No projeto, cada módulo implementa este padrão com classes dedicadas de \textit{Commands}, \textit{Command Handlers} e \textit{Queries}, o que simplifica a lógica de negócio e permite otimizações independentes \cite{young2010cqrs}.
+
+    \item[Event-Driven Architecture (EDA)] Uma arquitetura de software baseada na produção, detecção, consumo e reação a eventos. O pipeline de processamento de mídia da plataforma é implementado como uma EDA, onde módulos desacoplados reagem a eventos publicados em um \textit{Event Bus} central, como \texttt{MediaUploaded} e \texttt{TextContentReady}.
+
+    \item[State Pattern (Padrão de Estado)] Um padrão de design comportamental que permite a um objeto alterar seu comportamento quando seu estado interno muda. Foi utilizado na entidade \texttt{Media} para gerenciar seu ciclo de vida de processamento (\texttt{UPLOADED}, \texttt{PROCESSING}, etc.) de forma robusta, encapsulando a lógica de transição em classes de estado dedicadas e prevenindo estados inválidos \cite{gamma1995design}.
+
+    \item[Strategy e Factory Patterns] O padrão \textit{Strategy} define uma família de algoritmos intercambiáveis, enquanto o padrão \textit{Factory} fornece uma interface para criar objetos. Em conjunto, foram utilizados para criar um sistema de provedores dinâmicos, onde uma \textit{factory} (e.g., \texttt{create\_speech\_recognition\_service}) instancia a \textit{estratégia} correta (e.g., \texttt{WhisperTranscriber}) em tempo de execução, com base na escolha do usuário.
+
+    \item[Circuit Breaker Pattern (Padrão de Disjuntor)] Um padrão de resiliência que impede que uma aplicação tente repetidamente executar uma operação que provavelmente falhará. Foi implementado para proteger as chamadas de rede a serviços externos (provedores de IA), prevenindo falhas em cascata e permitindo que o sistema "falhe rápido".
+
+    \item[Observability (Observabilidade)] A capacidade de medir o estado interno de um sistema a partir de seus dados externos. No projeto, a observabilidade é alcançada através da implementação dos seus três pilares: \textbf{Logs} estruturados (com \texttt{structlog}), \textbf{Métricas} (com \texttt{Prometheus}) e \textbf{Tracing} distribuído (com \texttt{OpenTelemetry} e \texttt{Jaeger}).
+
+\end{description}

@@ -1,15 +1,26 @@
 \section{Objetivos}
-    O objetivo geral do projeto é desenvolver uma plataforma automática de resumos de vídeos capaz de extrair conteúdo relevante de vídeos, gerando transcrições textuais e resumos concisos através de técnicas de processamento de áudio, reconhecimento de fala e sumarização de texto. A solução visa facilitar o acesso a conteúdos audiovisuais por meio de representações textuais estruturadas, auxiliando estudantes, profissionais e pesquisadores no consumo rápido de informações.
-    
-    Os objetivos específicos incluem:
-    
-        
-- Implementar funcionalidades de upload e armazenamento seguro de vídeos;
-        
-- Realizar transcrição automática de áudio extraído dos vídeos;
-        
-- Aplicar técnicas de inteligência artificial para geração de resumos textuais;
-        
-- Garantir autenticação segura de usuários e notificações sobre o status dos processamentos;
-        
-- Fornecer interface intuitiva para visualização de resultados e gerenciamento de vídeos.
+\label{sec:objetivos}
+
+Este trabalho se propõe a investigar, projetar e implementar uma plataforma de software robusta e escalável para o processamento genérico de mídias. A pesquisa e o desenvolvimento se concentram não apenas na entrega de uma solução funcional para a sumarização de conteúdo, mas, fundamentalmente, na aplicação e validação de um conjunto de padrões de arquitetura de software modernos que garantam a manutenibilidade, extensibilidade e resiliência do sistema em um cenário de produção.
+
+\subsection{Objetivo Geral}
+
+O objetivo geral deste trabalho é desenvolver uma plataforma de software como serviço (SaaS), apresentada como uma API RESTful, capaz de orquestrar um pipeline de processamento assíncrono e dinâmico para diversas formas de mídia. O sistema deve ser capaz de ingerir arquivos de vídeo, áudio e texto, e aplicar uma série de transformações — como extração de áudio, transcrição por reconhecimento de fala e sumarização abstrativa por meio de modelos de linguagem avançados — de forma automatizada, desacoplada e resiliente, entregando ao usuário final um artefato de valor que sintetize a informação original.
+
+\subsection{Objetivos Específicos}
+
+Para alcançar o objetivo geral, foram estabelecidos os seguintes objetivos específicos, que representam os pilares técnicos, arquiteturais e de engenharia do projeto:
+
+\begin{enumerate}
+    \item \textbf{Projetar e Implementar uma Arquitetura de Pipeline de Mídia Genérico e Extensível:} O primeiro objetivo específico é superar a rigidez de sistemas focados em um único tipo de mídia. Isso envolve a concepção de uma entidade de domínio central e agnóstica, a 	exttt{Media}, e a criação de um pipeline orientado a eventos onde diferentes tipos de mídia (vídeo, áudio, texto) são tratados como cidadãos de primeira classe. A arquitetura deve permitir que novos tipos de mídia e novos estágios de processamento (e.g., análise de sentimento, classificação de imagens) sejam adicionados no futuro com o mínimo de atrito, validando a extensibilidade como um atributo de primeira classe do sistema.
+
+    \item \textbf{Adotar e Validar o Padrão CQRS (Command Query Responsibility Segregation):} Este objetivo visa atacar a complexidade inerente a serviços de aplicação que misturam lógicas de escrita e leitura. A meta é aplicar rigorosamente o padrão CQRS em todos os Bounded Contexts do sistema, segregando as operações em 	extit{Commands}, 	extit{Command Handlers} e 	extit{Queries}. A validação deste objetivo se dará pela demonstração de como essa separação simplifica a lógica de negócio, melhora a coesão dos componentes e abre caminho para otimizações de performance independentes para os caminhos de leitura e escrita.
+
+    \item \textbf{Implementar um Sistema de Provedores Dinâmicos com os Padrões Strategy e Factory:} Para evitar o acoplamento rígido com implementações de infraestrutura específicas (e.g., um único provedor de nuvem ou um único modelo de IA), este objetivo consiste em desenvolver um sistema de provedores dinâmicos. Utilizando os padrões de design 	extit{Strategy} e 	extit{Factory}, o sistema permitirá que provedores de serviço para armazenamento, transcrição e sumarização sejam registrados dinamicamente e selecionados em tempo de execução, conferindo à plataforma um alto grau de flexibilidade e independência tecnológica.
+
+    \item \textbf{Garantir a Integridade do Ciclo de Vida das Entidades com o Padrão State:} A fim de gerenciar de forma robusta e explícita o ciclo de vida complexo de uma mídia em processamento (e.g., 	exttt{UPLOADED}, 	exttt{PROCESSING}, 	exttt{COMPLETED}, 	exttt{FAILED}), este objetivo é implementar o 	extit{State Pattern}. A lógica e as transições válidas para cada estado serão encapsuladas em classes dedicadas, eliminando a necessidade de condicionais complexas nos serviços e prevenindo a ocorrência de estados inválidos, o que aumenta a robustez e a previsibilidade do sistema.
+
+    \item \textbf{Assegurar a Observabilidade Completa de um Sistema Distribuído e Assíncrono:} Reconhecendo os desafios de depuração e monitoramento em uma arquitetura orientada a eventos, este objetivo é implementar os três pilares da observabilidade. Isso inclui a integração de 	extbf{logs estruturados} para análise de eventos, 	extbf{métricas} no padrão Prometheus para monitoramento de saúde e performance, e, crucialmente, 	extbf{tracing distribuído} de ponta a ponta com OpenTelemetry e Jaeger. O sucesso deste objetivo será medido pela capacidade de rastrear uma única requisição através de múltiplos serviços, eventos e workers assíncronos.
+
+    \item \textbf{Aumentar a Resiliência do Sistema com o Padrão Circuit Breaker:} Para proteger a aplicação contra a indisponibilidade de serviços externos dos quais depende (e.g., APIs de modelos de IA), este objetivo é implementar o 	extit{Circuit Breaker Pattern}. A meta é prevenir falhas em cascata, permitindo que o sistema "falhe rápido" e se recupere automaticamente, garantindo assim uma maior estabilidade e disponibilidade da plataforma como um todo.
+\end{enumerate}

@@ -1,6 +1,22 @@
 \subsection{Declaração do Problema}
-    No cenário atual, há uma grande quantidade de conteúdo em formato de vídeo, especialmente em plataformas como YouTube, aulas online e reuniões corporativas gravadas. Entretanto, muitos usuários enfrentam dificuldades em encontrar rapidamente informações relevantes nesses vídeos, sendo necessário assistir ao conteúdo completo para compreender sua essência.
+\label{sec:problema}
 
-    Isso representa um problema de produtividade e eficiência, especialmente para estudantes, profissionais e pesquisadores que precisam consumir grandes volumes de informação em pouco tempo. Atualmente, ferramentas de indexação e busca textual são limitadas a metadados ou legendas pré-existentes, não oferecendo um resumo contextualizado do conteúdo real.
+O problema abordado neste trabalho é duplo, abrangendo tanto uma necessidade do usuário final quanto um desafio de engenharia de software.
 
-    Diante disso, surge a motivação para desenvolver uma solução que automatize a extração de conhecimento a partir de vídeos, transformando-os em textos resumidos acessíveis e buscáveis, contribuindo para a democratização do acesso à informação.
+\subsubsection{O Problema do Usuário: Sobrecarga de Informação}
+
+Na era digital, indivíduos e organizações estão imersos em um volume exponencial de conteúdo de mídia não estruturado, como vídeos de longa duração, podcasts, palestras e documentos extensos. O consumo linear deste conteúdo é um processo inerentemente ineficiente, que demanda um investimento de tempo significativo para a extração de informações essenciais. Estudantes, pesquisadores e profissionais enfrentam uma barreira de produtividade, pois a necessidade de assimilar conhecimento rapidamente colide com a natureza demorada do consumo de mídia tradicional. A ausência de ferramentas eficazes para a síntese automática e contextualizada deste conteúdo representa um gargalo crítico no acesso à informação.
+
+\subsubsection{O Problema Arquitetural: Sistemas Rígidos e Acoplados}
+
+O desenvolvimento de sistemas para resolver o problema acima apresenta um desafio arquitetural significativo. Abordagens tradicionais frequentemente resultam em sistemas monolíticos e fortemente acoplados, com as seguintes deficiências:
+
+\begin{itemize}
+    \item \textbf{Falta de Extensibilidade:} Os sistemas são frequentemente projetados com um foco rígido em um único tipo de mídia (e.g., vídeo). A introdução de novos formatos de entrada (como arquivos de áudio ou documentos PDF) ou a adição de novas etapas ao pipeline de processamento (como análise de sentimento) exigem refatorações complexas e arriscadas, violando o Princípio Aberto/Fechado.
+    
+    \item \textbf{Acoplamento Tecnológico:} A lógica de negócio fica frequentemente acoplada a implementações de serviços específicos (e.g., um único provedor de nuvem para armazenamento ou um modelo de IA específico para transcrição). A substituição de uma dessas tecnologias por uma alternativa mais moderna ou de menor custo torna-se uma tarefa de alta complexidade.
+    
+    \item \textbf{Baixa Resiliência e Escalabilidade:} Em um fluxo de processamento síncrono ou rigidamente orquestrado, a falha em uma única etapa (como a indisponibilidade de uma API externa) pode comprometer todo o pipeline. Além disso, a incapacidade de escalar os estágios de processamento de forma independente (e.g., alocar mais recursos apenas para a etapa de transcrição, que é computacionalmente intensiva) limita a performance do sistema sob alta carga.
+\end{itemize}
+
+Portanto, o desafio de engenharia não é apenas "processar uma mídia", mas sim "construir uma plataforma que possa processar qualquer mídia, de forma confiável, escalável e que possa evoluir ao longo do tempo". A solução para o problema do usuário só é sustentável se a arquitetura subjacente for robusta e flexível.

@@ -1,19 +1,101 @@
-\section{Manual do Usuário}
-\textcolor{blue}{
-    O manual do usuário será fornecido em formato digital, contendo instruções passo a passo sobre:
-    
-        
-- Como criar uma conta e fazer login
-        
-- Como fazer upload de vídeos
-        
-- Como acompanhar o progresso do processamento
-        
-- Como visualizar transcrições e resumos
-        
-- Como gerenciar seus vídeos salvos
-    
+\section{Manual do Usuário (Guia de Uso da API)}
+\label{sec:manual_usuario}
 
-    O sistema possuirá telas intuitivas e feedbacks claros em cada etapa do processo. Em versões futuras, pretende-se incluir tutoriais interativos e suporte via chatbot.
-} \\
-\textcolor{red}{[Obrigatório]}
+Este manual descreve o fluxo de trabalho típico para um desenvolvedor que deseja interagir com a plataforma de processamento de mídias. As interações são realizadas através de requisições HTTP para a API RESTful do sistema. Os exemplos a seguir utilizam a ferramenta de linha de comando \texttt{curl} para demonstrar o processo completo, desde a autenticação até a obtenção do resultado final.
+
+\subsection{Passo 1: Autenticação}
+
+O primeiro passo para utilizar a API é registrar um novo usuário e obter um token de acesso JWT (JSON Web Token), que deverá ser incluído em todas as requisições subsequentes.
+
+\subsubsection{Registro de um Novo Usuário}
+Para criar uma conta, envie uma requisição \texttt{POST} para o endpoint \texttt{/auth/register} com o e-mail e a senha desejados.
+
+\begin{verbatim}
+curl -X POST "http://localhost:8000/auth/register" \
+-H "Content-Type: application/json" \
+-d '{
+  "email": "dev@example.com",
+  "password": "a-strong-password-123"
+}'
+\end{verbatim}
+
+\subsubsection{Obtenção do Token de Acesso}
+Após o registro, faça o login enviando uma requisição \texttt{POST} para o endpoint \texttt{/auth/token}. O corpo da requisição deve conter o \texttt{username} (que é o e-mail) e a \texttt{password}.
+
+\begin{verbatim}
+curl -X POST "http://localhost:8000/auth/token" \
+-H "Content-Type: application/json" \
+-d '{
+  "username": "dev@example.com",
+  "password": "a-strong-password-123"
+}'
+\end{verbatim}
+
+A resposta conterá o \texttt{access\_token}. Guarde este token para as próximas requisições.
+
+\begin{verbatim}
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
+\end{verbatim}
+
+\subsection{Passo 2: Upload da Mídia}
+
+Com o token de acesso em mãos, o próximo passo é fazer o upload do arquivo de mídia para iniciar o pipeline de processamento. Envie uma requisição \texttt{POST} para o endpoint \texttt{/media/}, passando o token no cabeçalho de autorização e o arquivo como \textit{multipart/form-data}.
+
+\begin{verbatim}
+# Exporte o token para uma variável de ambiente
+export AUTH_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+# Envie o arquivo de mídia (ex: um áudio)
+curl -X POST "http://localhost:8000/media/?storage_provider=local" \
+-H "Authorization: Bearer $AUTH_TOKEN" \
+-F "file=@/path/to/your/audio.mp3"
+\end{verbatim}
+
+A API responderá imediatamente com um status \texttt{201 Created} e os metadados iniciais da mídia, incluindo o \texttt{id} único que será usado para acompanhar o progresso.
+
+\begin{verbatim}
+{
+  "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  "user_id": "...",
+  "original_file_path": "media/.../audio.mp3",
+  "media_type": "AUDIO",
+  "status": "UPLOADED",
+  "created_at": "..."
+}
+\end{verbatim}
+
+\subsection{Passo 3: Acompanhamento do Processamento (Polling)}
+
+Como o processamento é assíncrono, o cliente deve consultar periodicamente o status da mídia para saber quando o processo foi concluído. Utilize o \texttt{id} da mídia retornado no passo anterior para fazer uma requisição \texttt{GET} ao endpoint \texttt{/media/\{media\_id\}}.
+
+\begin{verbatim}
+export MEDIA_ID="a1b2c3d4-e5f6-7890-1234-567890abcdef"
+
+curl -X GET "http://localhost:8000/media/$MEDIA_ID" \
+-H "Authorization: Bearer $AUTH_TOKEN"
+\end{verbatim}
+
+Inicialmente, o status será \texttt{PROCESSING}. Continue consultando até que o status mude para \texttt{COMPLETED} ou \texttt{FAILED}.
+
+\subsection{Passo 4: Obtenção dos Resultados}
+
+Uma vez que o status da mídia seja \texttt{COMPLETED}, você pode buscar os artefatos gerados (transcrição e resumo) utilizando o \texttt{media\_id} nos endpoints de consulta correspondentes.
+
+\subsubsection{Obter a Transcrição}
+
+\begin{verbatim}
+curl -X GET "http://localhost:8000/transcriptions/?media_id=$MEDIA_ID" \
+-H "Authorization: Bearer $AUTH_TOKEN"
+\end{verbatim}
+
+\subsubsection{Obter o Resumo}
+
+\begin{verbatim}
+curl -X GET "http://localhost:8000/summaries/?media_id=$MEDIA_ID" \
+-H "Authorization: Bearer $AUTH_TOKEN"
+\end{verbatim}
+
+Essas requisições retornarão os objetos completos da transcrição e do resumo, incluindo o conteúdo textual gerado, finalizando o fluxo de uso da API.

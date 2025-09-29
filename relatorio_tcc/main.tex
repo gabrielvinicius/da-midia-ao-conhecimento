@@ -1,65 +1,48 @@
 \documentclass[11pt]{relatorio_tcc_ads_ifba}
+
+% --- Pacotes e Configurações ---
+% (Seus pacotes, como hyperref, graphicx, etc., devem estar aqui ou na classe)
+
 \begin{document}
 
+% --- Informações Pré-Textuais ---
 \aluno{Gabriel Vinicius Souza de Souza}
-\titulo{Plataforma Automática de Resumos de Vídeos}
-\date{21 de janeiro de 2024}
-\orientador{Jowaner Araújo}
-\coorientador{Beltrano de tal}
+\titulo{Design e Implementação de um Pipeline de Processamento de Mídia Genérico Baseado em Arquitetura Modular e Orientada a Eventos}
+\date{Agosto de 2024}
+\orientador{Prof. Dr. Jowaner Araújo}
+\coorientador{}
+
+% Gera a capa, folha de rosto, etc.
 \pretextual
 
 % ---------------------------------------------------------------------
-% INÍCIO DA PARTE ESCRITA 
+% CORPO DO DOCUMENTO
 % ---------------------------------------------------------------------
 
-% 1. Introdução (Visão Geral)
-\input{src/sections/overview/overview}
+% Cada arquivo de capítulo é responsável por seus próprios `\input` de subseções.
 
-% 2. Fundamentação Teórica (Novo)
-\input{src/sections/theoretical_foundation/theoretical_foundation}
+\input{src/sections/introduction/introduction} % Capítulo de Introdução
 
-% 3. Objetivos
-\input{src/sections/objectives/objectives}
+\input{src/sections/objectives/objectives} % Capítulo de Objetivos
 
-% 4. Requisitos
-\input{src/sections/requirements/requirements}
-\input{src/sections/requirements/functional_requirements}
-\input{src/sections/requirements/non_functional_requirements}
+\input{src/sections/definitions/definitions} % Capítulo de Definições e Conceitos
 
-% 5. Design e Arquitetura
-\input{src/sections/design/design}
-\input{src/sections/design/uml_project}
-\input{src/sections/design/architecture}
-\input{src/sections/design/database_model}
+\input{src/sections/requirements/requirements} % Capítulo de Requisitos
 
-% 6. Qualidade e Testes
-\input{src/sections/quality/quality}
-\input{src/sections/quality/testing_plan}
+\input{src/sections/design/design} % Capítulo de Design e Arquitetura
 
-% 7. Implantação
-\input{src/sections/deployment/deploy}
-\input{src/sections/deployment/deployment_plan}
+\input{src/sections/quality/quality} % Capítulo de Qualidade e Testes
 
-% 8. Manual do Usuário
-\input{src/sections/user_manual/user_manual}
+\input{src/sections/deployment/deploy} % Capítulo de Implantação
 
-% 9. Agradecimentos
-\input{src/sections/acknowledgements/acknowledgements}
+\input{src/sections/user_manual/user_manual} % Capítulo do Manual do Usuário (API)
 
-% Seções antigas que foram incorporadas na Fundamentação Teórica e Arquitetura
-% \input{src/sections/definitions/definitions}
-% \input{src/sections/definitions/problem_statement}
-% \input{src/sections/definitions/solution_proposal}
-% \input{src/sections/definitions/technologies}
+\input{src/sections/conclusion/conclusion} % Capítulo de Conclusão (Novo)
 
+\input{src/sections/acknowledgements/acknowledgements} % Agradecimentos
+
+
+% --- Pós-Texto ---
 \bibliography{referencias}
-\cite{fastapi}
-\cite{vaswani2017attention}
-\cite{evans2004domain}
-\cite{young2010cqrs}
-\cite{gamma1995design}
-\cite{celery_documentation}
-\cite{lewis2019bart}
-\cite{radford2023robust}
 
 \end{document}

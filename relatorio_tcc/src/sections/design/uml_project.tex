@@ -1,16 +1,44 @@
-\usepackage{dot2texi}
-\subsection{Projeto UML}
+\subsection{Diagramas Visuais da Arquitetura}
+\label{sec:diagramas_uml}
 
-    [Insira os seguintes Diagramas de UML para o seu projeto: 
-    \begin{enumerate}
-        \item Diagrama de Classe
-        \begin{dot2texi}[dot,options=-tmath]
-        % Cole o conteúdo do .dot aqui
-        \end{dot2texi}
-        \item Diagrama de Atividades da principal atividade do sistema
-        \item Diagrama de Sequência da principal atividade do sistema
-        \item Diagrama de Estado do principal objeto do sistema
-        \item Diagrama de Componentes
-        \item Diagrama de Implantação
-    \end{enumerate}
-    OBS: Como cada sistema tem particularidades específicas, a escolha de qual a principal atividade e qual o principal objeto do sistema deve ser discutida com o orientador. Consideramos que existem alguns diagramas básicos que devem existir em qualquer projeto. São eles: Diagrama de Classes, Componentes e Implantação. A elaboração dos outros diagramas devem ser discutidos com seu orientador.]
+Para fornecer uma representação visual clara e tecnicamente precisa da arquitetura do sistema, foram gerados os diagramas a seguir. Eles ilustram a organização dos componentes de alto nível, o modelo de domínio e o fluxo de comunicação assíncrona que constitui o pipeline de processamento de mídias.
+
+\subsubsection{Diagrama de Componentes}
+
+O Diagrama de Componentes (Figura \ref{fig:component_diagram_detailed}) demonstra a arquitetura modular do sistema, onde cada componente representa um \textit{Bounded Context} com responsabilidades bem definidas. As setas indicam as principais dependências e os fluxos de comunicação, destacando a natureza desacoplada da arquitetura orientada a eventos.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{src/images/component_diagram_detailed.png}
+    \caption{Diagrama de Componentes Detalhado da Arquitetura}
+    \label{fig:component_diagram_detailed}
+\end{figure}
+
+O diagrama ilustra como a camada de API atua como a porta de entrada, delegando as operações para os módulos da camada de aplicação. A comunicação entre os módulos de processamento (\texttt{video}, \texttt{text}, \texttt{transcription}) é mediada pelo \texttt{Event Bus}, o que elimina dependências diretas entre eles. Os módulos de infraestrutura, como o banco de dados e o armazenamento, são consumidos pela camada de aplicação, conforme necessário.
+
+\subsubsection{Diagrama de Classes do Domínio Principal}
+
+O Diagrama de Classes (Figura \ref{fig:class_diagram}) foca no coração do sistema: o modelo de domínio. Ele ilustra as principais entidades e seus relacionamentos, utilizando a notação UML para representar agregação e composição.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{src/images/class_diagram.png}
+    \caption{Diagrama de Classes do Domínio de Mídia}
+    \label{fig:class_diagram}
+\end{figure}
+
+- \textbf{Agregação}: A relação entre \texttt{User} e \texttt{Media} é uma agregação (losango branco), indicando que um usuário "possui" várias mídias, mas a existência de uma mídia não depende da existência do usuário (e vice-versa).
+- \textbf{Composição}: A relação entre \texttt{Media} e suas partes, \texttt{Transcription} e \texttt{Summary}, é uma composição (losango preto). Isso significa que a transcrição e o resumo são partes integrantes da mídia; seu ciclo de vida está atrelado ao da entidade \texttt{Media}. Se uma mídia for removida, sua transcrição e resumo associados também devem ser.
+
+\subsubsection{Diagrama de Sequência do Pipeline de Processamento}
+
+O Diagrama de Sequência (Figura \ref{fig:sequence_diagram_detailed}) detalha o fluxo de interações assíncronas para o caso de uso mais complexo: o upload de um vídeo. Ele demonstra como a requisição inicial do usuário desencadeia uma cascata de eventos e tarefas em segundo plano, orquestradas pelo Celery e pelo Event Bus.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{src/images/sequence_diagram_detailed.png}
+    \caption{Diagrama de Sequência Detalhado para o Pipeline de Processamento}
+    \label{fig:sequence_diagram_detailed}
+\end{figure}
+
+Este diagrama evidencia a natureza assíncrona do sistema. A API responde imediatamente ao usuário com um \texttt{HTTP 202 Accepted}, enquanto o processamento real ocorre em segundo plano. Cada tarefa (\texttt{VideoProcTask}, \texttt{TranscriptionTask}, etc.) representa um worker Celery que consome um evento, executa sua lógica de negócio e publica um novo evento, acionando a próxima etapa do pipeline de forma totalmente desacoplada.
