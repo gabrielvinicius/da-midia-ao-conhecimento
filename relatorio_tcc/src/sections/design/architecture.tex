@@ -1,0 +1,7 @@
+\subsection{Visão arquitetural}
+
+    A arquitetura adotada no projeto segue o modelo híbrido entre Clean Architecture e Domain-Driven Design (DDD). A camada mais interna contém os domínios ricos com entidades, objetos valor e regras de negócio. As camadas intermediárias abstraem casos de uso e interfaces, enquanto as camadas externas lidam com detalhes técnicos como banco de dados, frameworks e protocolos HTTP.
+
+    Cada módulo do sistema (autenticação, transcrição, sumarização, etc.) é organizado verticalmente, com divisão clara entre API, Application, Domain, Infrastructure e Tasks. Além disso, foi utilizada injeção de dependências para facilitar testes e manutenção, juntamente com padrões como Repository, Factory e Event Dispatcher.
+
+    A arquitetura permite alta modularidade, baixo acoplamento e fácil substituição de tecnologias, tornando o sistema flexível e sustentável ao longo do tempo.

@@ -1,0 +1,16 @@
+\subsection{Modelo de Banco de Dados}
+
+    O sistema utiliza um banco de dados relacional para armazenar informações sobre usuários, vídeos, transcrições e resumos. Abaixo estão algumas das principais tabelas previstas:
+
+    
+        
+\textbf{Usuários}: id, nome, email, senha_hash, data_cadastro.
+        
+\textbf{Vídeos}: id, usuario_id, path_arquivo, status_processamento, data_upload.
+        
+\textbf{Transcrições}: id, video_id, texto_transcrito, data_geracao.
+        
+\textbf{Resumos}: id, transcrição_id, texto_resumo, modelo_usado, data_geracao.
+    
+
+    O modelo lógico foi projetado para garantir integridade referencial e eficiência nas consultas, com chaves estrangeiras interligando os registros. O modelo físico seguirá essa estrutura em um SGBD como PostgreSQL ou MySQL.

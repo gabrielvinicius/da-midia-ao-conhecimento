@@ -1,0 +1,19 @@
+\subsection{Projeto de implantação}
+\textcolor{blue}{
+    A plataforma será implantada em uma infraestrutura baseada em containers Docker, com orquestração via Docker Compose ou Kubernetes. O backend rodará em servidores Linux com Nginx como proxy reverso, e o frontend será hospedado em serviços estáticos como AWS S3 ou Netlify.
+
+    Para o processamento de vídeos e geração de transcrições/resumos, serão utilizados workers Celery conectados a uma fila Redis. O armazenamento de vídeos poderá ser feito localmente ou em serviços como Amazon S3, dependendo da configuração de produção.
+
+    Requisitos mínimos de hardware para ambiente de teste:
+    
+        
+- Processador: Intel i5 ou equivalente
+        
+- Memória RAM: 8 GB
+        
+- Disco: 256 GB SSD
+        
+- Sistema Operacional: Linux Ubuntu 20.04+
+    
+} \\
+\textcolor{red}{[Obrigatório]}
