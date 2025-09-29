@@ -5,7 +5,8 @@ from botocore.exceptions import ClientError
 
 from src.storage.application.storage_service import StorageService, StorageException
 from src.storage.infrastructure.dependencies import register_storage
-from src.shared.config.storage_settings import StorageSettings
+# Corrected import path
+from src.storage.config.settings import StorageSettings
 
 from pathlib import Path
 from typing import Union, Optional, Tuple

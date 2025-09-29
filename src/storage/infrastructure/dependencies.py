@@ -1,17 +1,16 @@
 # src/storage/infrastructure/dependencies.py
-
 from typing import Dict, Type, List, Callable
-
-from src.storage.application.storage_service import StorageService
 import importlib
 import pkgutil
 import pathlib
 
+from src.storage.application.storage_service import StorageService
+
 # Service registry
 _storage_registry: Dict[str, Type[StorageService]] = {}
-_plugins_loaded = False  # Ensures plugins are loaded only once
+_plugins_loaded = False
 
-# Type alias for the factory that creates a storage service instance
+# Type alias for the factory
 StorageServiceFactory = Callable[[str], StorageService]
 
 
@@ -25,7 +24,7 @@ def register_storage(provider: str):
 
 def get_available_storage_providers() -> List[str]:
     """Returns a list of all registered storage provider names."""
-    _load_storage_plugins()  # Ensure all providers are registered
+    _load_storage_plugins()
     return list(_storage_registry.keys())
 
 
@@ -52,7 +51,7 @@ def _load_storage_plugins():
     package_name = __name__.rsplit(".", 1)[0]
 
     for _, module_name, _ in pkgutil.iter_modules([str(package_path)]):
-        if module_name.startswith("_"):
+        if module_name.startswith("_") or module_name == "dependencies":
             continue
         full_module_name = f"{package_name}.{module_name}"
         importlib.import_module(full_module_name)
