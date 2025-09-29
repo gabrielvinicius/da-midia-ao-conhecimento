@@ -47,24 +47,48 @@ async def lifespan(app: FastAPI):
     # 3. Initialize Modules and Compose Application (Composition Root)
     print("⚙️ Initializing modules and composing application...")
     async with AsyncSessionLocal() as session:
-        # Create shared components and factories first
-        app_container = {
-            "event_bus": get_event_bus(),
-            "storage_service_factory": get_storage_service_factory(),
-            "speech_recognition_service_factory": get_speech_recognition_service_factory(),
-            "summarizer_service_factory": get_summarizer_service_factory(),
-        }
+        # Create a unified container dictionary
+        app_container = {}
 
-        # Bootstrap all modules, passing dependencies explicitly
+        # Bootstrap shared components and factories first
+        app_container["event_bus"] = get_event_bus()
+        app_container["storage_service_factory"] = get_storage_service_factory()
+        app_container["speech_recognition_service_factory"] = get_speech_recognition_service_factory()
+        app_container["summarizer_service_factory"] = get_summarizer_service_factory()
+
+        # Bootstrap independent modules
         app_container.update(bootstrap_metrics_module())
         app_container.update(bootstrap_auth_module(session))
         app_container.update(bootstrap_analytics_module(session))
         app_container.update(bootstrap_transcription_module(session))
-        app_container.update(bootstrap_media_module(session, app_container["storage_service_factory"], app_container["event_bus"]))
-        app_container.update(bootstrap_notification_module(session, auth_queries=app_container["auth_queries"], event_bus=app_container["event_bus"]))
-        app_container.update(bootstrap_video_processing_module(app_container["media_queries"], app_container["storage_service_factory"], app_container["event_bus"]))
-        app_container.update(bootstrap_text_processing_module(session, app_container["media_queries"], app_container["storage_service_factory"], app_container["event_bus"]))
-        app_container.update(bootstrap_summarization_module(session, app_container["event_bus"], app_container["analytics_queries"], app_container["metrics_service"]))
+
+        # Bootstrap modules with cross-context dependencies
+        app_container.update(bootstrap_media_module(
+            db_session=session,
+            storage_service_factory=app_container["storage_service_factory"],
+            event_bus=app_container["event_bus"],
+            metrics_service=app_container["metrics_service"]
+        ))
+        app_container.update(bootstrap_notification_module(
+            db_session=session,
+            auth_queries=app_container["auth_queries"],
+            event_bus=app_container["event_bus"]
+        ))
+        app_container.update(bootstrap_video_processing_module(
+            media_queries=app_container["media_queries"],
+            storage_service_factory=app_container["storage_service_factory"],
+            event_bus=app_container["event_bus"]
+        ))
+        app_container.update(bootstrap_text_processing_module(
+            session=session,
+            media_queries=app_container["media_queries"],
+            storage_service_factory=app_container["storage_service_factory"],
+            event_bus=app_container["event_bus"]
+        ))
+        app_container.update(bootstrap_summarization_module(
+            db_session=session,
+            event_bus=app_container["event_bus"]
+        ))
 
         app.state.container = app_container
 
@@ -74,7 +98,7 @@ async def lifespan(app: FastAPI):
         from src.transcription.application.event_handlers import register_event_handlers as register_transcription_handlers
         from src.summarization.application.event_handlers import register_event_handlers as register_summary_handlers
         from src.notifications.application.event_handlers import register_event_handlers as register_notification_handlers
-        
+
         await register_video_handlers(app_container["event_bus"])
         await register_text_handlers(app_container["event_bus"])
         await register_transcription_handlers(app_container["event_bus"])

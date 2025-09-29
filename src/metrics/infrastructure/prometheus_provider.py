@@ -16,10 +16,10 @@ class PrometheusMetricsProvider(MetricsProvider):
             ['method', 'endpoint']
         )
 
-        # --- Business Metrics ---
-        self.VIDEO_UPLOADS_TOTAL = Counter(
-            'video_uploads_total',
-            'Total videos uploaded',
+        # --- Business Metrics (Refactored for generic Media) ---
+        self.MEDIA_UPLOADS_TOTAL = Counter(
+            'media_uploads_total',
+            'Total media files uploaded',
             ['status']
         )
         self.TRANSCRIPTIONS_TOTAL = Counter(
@@ -33,21 +33,21 @@ class PrometheusMetricsProvider(MetricsProvider):
             ['status']
         )
 
-        # --- Service Duration Metrics with Provider Label ---
+        # --- Service Duration Metrics with Provider Label (Refactored for generic Media) ---
         self.UPLOAD_DURATION = Histogram(
             'upload_duration_seconds',
-            'Upload processing time per video',
-            ['video_id', 'provider']  # Added provider label
+            'Upload processing time per media item',
+            ['media_id', 'provider']
         )
         self.TRANSCRIPTION_DURATION = Histogram(
             'transcription_duration_seconds',
-            'Transcription processing time per video',
-            ['video_id', 'provider']  # Added provider label
+            'Transcription processing time per media item',
+            ['media_id', 'provider']
         )
         self.SUMMARIZATION_DURATION = Histogram(
             'summarization_duration_seconds',
-            'Summarization processing time per video',
-            ['video_id', 'provider']  # Added provider label
+            'Summarization processing time per media item',
+            ['media_id', 'provider']
         )
 
     def increment_counter(self, name: str, labels: dict = None):

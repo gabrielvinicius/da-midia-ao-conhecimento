@@ -55,7 +55,7 @@ class ProcessTranscriptionCommandHandler:
                 media.complete()
                 await self.media_repository.save(media)
                 logger.info("transcription.completed", media_id=command.media_id, from_cache=True)
-                await self.event_bus.publish(TextContentReady(media_id=media.id, text_content=transcription.text))
+                await self.event_bus.publish(TextContentReady(media_id=str(media.id), text_content=transcription.text))
                 return transcription
 
             if transcription is None:
@@ -81,7 +81,11 @@ class ProcessTranscriptionCommandHandler:
 
             duration = time.time() - start_time
             self.metrics_service.increment_transcription('success')
-            self.metrics_service.observe_transcription_duration(video_id=command.media_id, duration=duration, provider=self.speech_recognition.provider_name)
+            self.metrics_service.observe_transcription_duration(
+                media_id=command.media_id, # Corrected parameter name
+                duration=duration, 
+                provider=self.speech_recognition.provider_name
+            )
 
             logger.info("transcription.completed", media_id=command.media_id, duration=duration)
             return transcription

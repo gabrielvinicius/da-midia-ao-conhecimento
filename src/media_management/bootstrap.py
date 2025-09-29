@@ -4,6 +4,7 @@ from typing import Dict, Any
 
 from src.shared.events.event_bus import EventBus
 from src.storage.infrastructure.dependencies import StorageServiceFactory
+from src.metrics.application.metrics_service import MetricsService
 from src.media_management.application.commands.create_media_command_handler import CreateMediaCommandHandler
 from src.media_management.application.media_service import MediaService
 from src.media_management.application.queries.media_queries import MediaQueries
@@ -13,6 +14,7 @@ def bootstrap_media_module(
     db_session: AsyncSession,
     storage_service_factory: StorageServiceFactory,
     event_bus: EventBus,
+    metrics_service: MetricsService, # Added dependency
 ) -> Dict[str, Any]:
     """Constructs and returns the services for the media_management module."""
     media_repository = MediaRepository(db=db_session)
@@ -21,7 +23,8 @@ def bootstrap_media_module(
     create_media_handler = CreateMediaCommandHandler(
         media_repository=media_repository,
         storage_service_factory=storage_service_factory,
-        event_bus=event_bus
+        event_bus=event_bus,
+        metrics_service=metrics_service # Pass dependency
     )
 
     media_service = MediaService(create_media_handler=create_media_handler)

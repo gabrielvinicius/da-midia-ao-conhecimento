@@ -50,9 +50,9 @@ class ProcessSummaryCommandHandler:
             if not command.text_content:
                 raise ValueError("Text content is empty, cannot summarize.")
 
+            # Pass the raw text length as the content metric
             text_length = len(command.text_content)
-            video_duration_seconds = text_length / 100
-            estimate = await self.analytics_queries.estimate_processing_time(video_duration_seconds)
+            estimate = await self.analytics_queries.estimate_processing_time(content_metric=float(text_length))
 
             await self.event_bus.publish(SummarizationProgress(
                 media_id=command.media_id,
@@ -70,7 +70,7 @@ class ProcessSummaryCommandHandler:
             duration = time.time() - start_time
             self.metrics_service.increment_summarization('success')
             self.metrics_service.observe_summarization_duration(
-                video_id=command.media_id, # This label should be updated to media_id in the metric definition
+                media_id=command.media_id, 
                 duration=duration, 
                 provider=self.summarizer.provider_name
             )
