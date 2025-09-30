@@ -9,11 +9,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../../components/ui/DropdownMenu";
-import { useNotifications } from "../contexts/NotificationContext";
+import { useWebSocket } from "../../../contexts/WebSocketContext"; // Updated import
 import { formatDistanceToNow } from 'date-fns';
 
 export const NotificationBell = () => {
-  const { notifications, unreadCount, markAllAsRead } = useNotifications();
+  const { notifications, unreadCount, markAllAsRead } = useWebSocket(); // Use the new hook
 
   return (
     <DropdownMenu>

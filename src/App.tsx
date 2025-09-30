@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
-import { NotificationProvider } from "./features/notifications/contexts/NotificationContext";
+import { WebSocketProvider } from "./contexts/WebSocketContext"; // Updated import
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -12,7 +12,7 @@ import AppLayout from "./components/AppLayout";
 const App = () => {
   return (
     <AuthProvider>
-      <NotificationProvider> {/* Wrap with NotificationProvider */}
+      <WebSocketProvider> {/* Use the new provider */}
         <Router>
           <Routes>
             {/* Public routes */}
@@ -38,7 +38,7 @@ const App = () => {
             <Route path="*" element={<Navigate to="/login" />} />
           </Routes>
         </Router>
-      </NotificationProvider>
+      </WebSocketProvider>
     </AuthProvider>
   );
 };
