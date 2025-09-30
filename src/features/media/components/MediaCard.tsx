@@ -1,37 +1,38 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
-import { Badge } from "../../../components/ui/Badge"; // I will create this component next
+import { Badge } from "../../../components/ui/Badge";
 import { Media, MediaStatus } from "../../../types";
-import { File, Clock, CheckCircle, XCircle, Loader } from "lucide-react";
+import { FileText, CheckCircle, XCircle, Loader2, Clock } from "lucide-react";
 
 interface MediaCardProps {
   media: Media;
 }
 
-const statusConfig = {
-  [MediaStatus.PENDING]: { icon: <Clock className="h-4 w-4" />, color: "bg-yellow-500" },
-  [MediaStatus.PROCESSING]: { icon: <Loader className="h-4 w-4 animate-spin" />, color: "bg-blue-500" },
-  [MediaStatus.COMPLETED]: { icon: <CheckCircle className="h-4 w-4" />, color: "bg-green-500" },
-  [MediaStatus.FAILED]: { icon: <XCircle className="h-4 w-4" />, color: "bg-red-500" },
+// Status configuration for visual feedback
+const statusConfig: Record<MediaStatus, { icon: React.ReactNode; color: string; label: string }> = {
+  [MediaStatus.PENDING]: { icon: <Clock className="h-4 w-4" />, color: "text-yellow-500", label: "Pending" },
+  [MediaStatus.PROCESSING]: { icon: <Loader2 className="h-4 w-4 animate-spin" />, color: "text-blue-500", label: "Processing" },
+  [MediaStatus.COMPLETED]: { icon: <CheckCircle className="h-4 w-4" />, color: "text-green-500", label: "Completed" },
+  [MediaStatus.FAILED]: { icon: <XCircle className="h-4 w-4" />, color: "text-red-500", label: "Failed" },
 };
 
 export const MediaCard = ({ media }: MediaCardProps) => {
-  const { icon, color } = statusConfig[media.status] || statusConfig[MediaStatus.PENDING];
+  const { icon, color, label } = statusConfig[media.status] || statusConfig[MediaStatus.PENDING];
 
   return (
-    <Link to={`/media/${media.id}`}>
-      <Card className="hover:shadow-lg transition-shadow duration-200">
+    <Link to={`/media/${media.id}`} className="block">
+      <Card className="hover:border-primary/50 hover:shadow-md transition-all duration-200 h-full">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg truncate">
-            <File className="h-5 w-5 flex-shrink-0" />
-            <span className="truncate">{media.original_file_path}</span>
+          <CardTitle className="flex items-start gap-3 text-lg">
+            <FileText className="h-5 w-5 flex-shrink-0 translate-y-0.5" />
+            <span className="truncate flex-1">{media.original_file_path}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="flex justify-between items-center">
           <Badge variant="secondary">{media.media_type}</Badge>
-          <div className="flex items-center gap-2">
-            <div className={`h-2 w-2 rounded-full ${color}`} />
-            <span className="text-sm text-muted-foreground capitalize">{media.status.toLowerCase()}</span>
+          <div className={`flex items-center gap-2 font-medium ${color}`}>
+            {icon}
+            <span className="text-sm capitalize">{label}</span>
           </div>
         </CardContent>
       </Card>
