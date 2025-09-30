@@ -2,7 +2,8 @@ import { useParams } from "react-router-dom";
 import { useMediaDetail, useReprocessMedia } from "../features/media/hooks/useMedia";
 import { InteractiveTranscriptionPanel } from "../features/transcription/components/InteractiveTranscriptionPanel";
 import { SummaryPanel } from "../features/summarization/components/SummaryPanel";
-import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel"; // Re-enable v2 Feature
+import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel";
+import { TopicModelingResultPanel } from "@/features/topic_modeling/components/TopicModelingResultPanel"; // Re-enable v2 Feature
 import { Skeleton } from "../components/ui/Skeleton";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -38,6 +39,7 @@ const MediaDetailPage = () => {
             <Skeleton className="h-96 w-full" />
           </div>
           <div className="lg:col-span-1 space-y-8">
+            <Skeleton className="h-32 w-full" />
             <Skeleton className="h-32 w-full" />
             <Skeleton className="h-48 w-full" />
           </div>
@@ -94,6 +96,7 @@ const MediaDetailPage = () => {
         </div>
         <div className="lg:col-span-1 space-y-8">
           <SentimentResultPanel mediaId={id} />
+          <TopicModelingResultPanel mediaId={id} />
           <SummaryPanel mediaId={id} />
         </div>
       </div>
