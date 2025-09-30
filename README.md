@@ -1,17 +1,19 @@
-# Media Processing API
+# Media Processing API & Frontend
 
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-green.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
 [![Docker](https://img.shields.io/badge/Docker-20.10-blue.svg)](https://www.docker.com/)
 
-An asynchronous API for uploading, processing, and analyzing media files (video, audio, and text), built with a focus on a clean, event-driven, and modular architecture for high scalability, maintainability, and resilience.
+An asynchronous API and a modern frontend for uploading, processing, and analyzing media files (video, audio, and text). The project is built with a focus on a clean, event-driven, and modular architecture for high scalability, maintainability, and resilience.
 
 This project serves as a comprehensive example of applying modern software architecture patterns to a real-world problem.
 
 ## Key Features
 
 - **Generic Media Pipeline**: Abstracted beyond just video. Upload videos, audio files, or even PDFs, and the system automatically routes them through the correct processing pipeline.
-- **Asynchronous & Event-Driven**: All processing is non-blocking. Media uploads trigger events that are handled by a robust pipeline of Celery workers, ensuring the API remains fast and responsive.
+- **Asynchronous & Event-Driven**: All processing is non-blocking. Media uploads trigger events that are handled by a robust pipeline, ensuring the API remains fast and responsive.
+- **Modern Frontend**: A responsive and user-friendly interface built with React, TypeScript, and TailwindCSS to interact with the backend.
 - **Dynamic Provider Selection**: Choose at runtime which service provider to use for storage (`local`, `s3`), transcription (`whisper`, `fastwhisper`), and summarization (`huggingface`).
 - **Full Observability**: Integrated with the three pillars of observability:
   - **Logging**: Structured logging with `structlog`.
@@ -32,6 +34,7 @@ This project is a practical implementation of several advanced software architec
 ## Tech Stack
 
 - **Backend**: FastAPI, Python 3.11, Gunicorn, Uvicorn
+- **Frontend**: React, TypeScript, Vite, React Query, TailwindCSS
 - **Data Persistence**: PostgreSQL (with SQLAlchemy & Alembic)
 - **Asynchronous Tasks & Messaging**: Celery, Redis
 - **Object Storage**: MinIO (S3-compatible), Local File System
@@ -44,16 +47,23 @@ This project is a practical implementation of several advanced software architec
 
 - Docker
 - Docker Compose
+- Node.js & npm (for frontend development)
 
 ### 2. Environment Setup
 
-Copy the example environment file. The default values are configured to work with the local Docker Compose setup.
+Copy the example environment file for the backend. The default values are configured to work with the local Docker Compose setup.
 
 ```bash
 cp .env.example .env
 ```
 
+The frontend uses a `.env` file as well, but the defaults are sufficient for local development.
+
 ### 3. Run for Local Development
+
+The project is composed of a backend API and a frontend application.
+
+#### Backend
 
 This command starts the API with hot-reloading for development.
 
@@ -66,21 +76,34 @@ docker-compose up --build
 - **MinIO Console (S3)**: `http://localhost:9001`
 - **Jaeger UI (Tracing)**: `http://localhost:16686`
 
-### 4. Run for Production
+#### Frontend
+
+In a separate terminal, navigate to the `frontend` directory, install dependencies, and start the development server.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+- **Frontend App**: `http://localhost:5173` (or the port specified by Vite)
+
+### 4. Apply Database Migrations
+
+After starting the containers for the first time, open a new terminal and run the Alembic migrations to set up the database schema.
+
+```bash
+alembic upgrade head
+```
+
+### 5. Run for Production
 
 This command uses the `docker-compose.prod.yml` file, which runs the application with the production-optimized `Dockerfile.prod` and uses `gunicorn` for stability and performance.
 
 ```bash
 docker-compose -f docker-compose.prod.yml up -d --build
 ```
-
-### 5. Apply Database Migrations
-
-After starting the containers for the first time (for either dev or prod), open a new terminal and run the Alembic migrations to set up the database schema.
-
-```bash
-alembic upgrade head
-```
+*Note: The production setup does not include the frontend development server. You would need to build the frontend separately and serve the static files.*
 
 ## Running Tests
 
@@ -95,9 +118,9 @@ alembic upgrade head
 
 ## Core API Overview
 
-- **`POST /media/`**: The main entry point. Upload a new media file (video, audio, PDF) to start the processing pipeline. Use the `?storage_provider=s3` query parameter to choose the storage backend.
+- **`POST /media/`**: The main entry point. Upload a new media file (video, audio, PDF) to start the processing pipeline.
 - **`GET /media/{media_id}`**: Check the processing status of a media item.
 - **`GET /transcriptions/?media_id={media_id}`**: Retrieve the final transcription for a processed media item.
 - **`GET /summaries/?media_id={media_id}`**: Retrieve the final summary for a processed media item.
-- **`GET /providers/{type}`**: Discover available providers for `storage`, `transcription`, or `summarization`.
 - **`POST /auth/token`**: Log in to get a JWT access token.
+- **`POST /auth/register`**: Register a new user.
