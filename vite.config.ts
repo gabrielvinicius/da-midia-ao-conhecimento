@@ -1,28 +1,19 @@
-// vite.config.ts
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'path';
-//import tailwindcss from '@tailwindcss/vite'
+/// <reference types="vitest" />
+import path from "path"
+import { defineConfig } from "vite"
+import react from "@vitejs/plugin-react"
 
+// https://vitejs.dev/config/
 export default defineConfig({
-    plugins: [react()],
-    server: {
-        port: 3000,
-        open: true
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/setupTests.ts',
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
     },
-    preview: {
-        port: 8080
-    },
-    build: {
-        outDir: 'dist',
-        assetsDir: 'assets',
-        sourcemap: false,
-        minify: 'terser',
-    },
-    resolve: {
-        alias: {
-            '@': path.resolve(__dirname, 'src'),
-        },
-    },
-
+  },
 })
