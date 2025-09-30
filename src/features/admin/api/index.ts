@@ -48,3 +48,8 @@ export const updateUser = async (userId: string, payload: UserUpdatePayload): Pr
   const response = await api.put<User>(`/admin/users/${userId}`, payload);
   return response.data;
 };
+
+export const reprocessMedia = async (mediaId: string): Promise<{ message: string }> => {
+  const response = await api.post(`/admin/media/${mediaId}/reprocess`);
+  return response.data;
+};

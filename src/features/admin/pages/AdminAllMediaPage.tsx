@@ -1,11 +1,11 @@
 import * as React from "react";
 import { ColumnDef, PaginationState } from "@tanstack/react-table";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 
 import { Media, MediaStatus } from "@/types";
 import { useAllMedia } from "../hooks/useAdminQueries";
-import { useDeleteMedia } from "../hooks/useAdminMutations";
+import { useDeleteMedia, useReprocessMedia } from "../hooks/useAdminMutations";
 import { DataTable } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -32,7 +32,10 @@ import {
 
 // Action Cell Component for Media
 const MediaActionsCell = ({ media }: { media: Media }) => {
-  const { mutate: deleteMedia, isPending } = useDeleteMedia();
+  const { mutate: deleteMedia, isPending: isDeleting } = useDeleteMedia();
+  const { mutate: reprocessMedia, isPending: isReprocessing } = useReprocessMedia();
+
+  const canReprocess = media.status === MediaStatus.FAILED;
 
   return (
     <AlertDialog>
@@ -45,9 +48,16 @@ const MediaActionsCell = ({ media }: { media: Media }) => {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          <DropdownMenuItem
+            onClick={() => reprocessMedia(media.id)}
+            disabled={!canReprocess || isReprocessing}
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            {isReprocessing ? "Starting..." : "Reprocess"}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <AlertDialogTrigger asChild>
-            <DropdownMenuItem className="text-red-600" disabled={isPending}>
+            <DropdownMenuItem className="text-red-600" disabled={isDeleting}>
               Delete Media
             </DropdownMenuItem>
           </AlertDialogTrigger>
@@ -63,7 +73,7 @@ const MediaActionsCell = ({ media }: { media: Media }) => {
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={() => deleteMedia(media.id)} className="bg-red-600 hover:bg-red-700">
-            {isPending ? "Deleting..." : "Delete"}
+            {isDeleting ? "Deleting..." : "Delete"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
