@@ -11,6 +11,7 @@ from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.video_processing.application.commands.process_video_command import ProcessVideoCommand
 from src.video_processing.application.commands.process_video_command_handler import ProcessVideoCommandHandler
+from src.notifications.infrastructure.connection_manager import manager as connection_manager # Import manager
 
 logger = structlog.get_logger(__name__)
 
@@ -37,11 +38,13 @@ async def _run_video_processing(media_id: str, file_path: str):
         media_repo = MediaRepository(db=db_session)
         media_queries = MediaQueries(media_repository=media_repo)
 
-        # 1. Create the command handler
+        # 1. Create the command handler with all dependencies
         handler = ProcessVideoCommandHandler(
             media_queries=media_queries,
+            media_repository=media_repo, # Added dependency
             storage_service_factory=storage_factory,
-            event_bus=event_bus
+            event_bus=event_bus,
+            connection_manager=connection_manager # Added dependency
         )
 
         # 2. Create the command
