@@ -1,2 +1,2 @@
-# This file is part of the v2 architecture and is currently disabled.
-# It will be re-enabled in a future version to provide topic modeling.
+# This file is obsolete and can be removed.
+# The topic modeling logic has been moved to its own dedicated `topic_modeling` module.

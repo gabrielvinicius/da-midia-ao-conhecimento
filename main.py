@@ -16,7 +16,7 @@ from src.summarization.bootstrap import bootstrap_summarization_module
 from src.notifications.bootstrap import bootstrap_notification_module
 from src.analytics.bootstrap import bootstrap_analytics_module
 from src.metrics.bootstrap import bootstrap_metrics_module
-from src.sentiment_analysis.bootstrap import bootstrap_sentiment_analysis_module
+from src.sentiment_analysis.bootstrap import bootstrap_sentiment_analysis_module # Import new bootstrap
 
 # Shared Factories and DB
 from src.shared.events.event_bus import get_event_bus
@@ -34,8 +34,7 @@ from src.providers.api.routers import router as providers_router
 from src.summarization.api.routers import router as summary_router
 from src.transcription.api.routers import router as transcription_router
 from src.media_management.api.routers import router as media_router
-from src.sentiment_analysis.api.routers import router as sentiment_router # Import new router
-
+# Add the new sentiment analysis router later
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -114,4 +113,4 @@ app.include_router(transcription_router)
 app.include_router(summary_router)
 app.include_router(notification_router)
 app.include_router(metrics_router)
-app.include_router(sentiment_router) # Add the new router
+# Add the new sentiment analysis router here later
