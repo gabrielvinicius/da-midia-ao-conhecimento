@@ -3,8 +3,8 @@ import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
-  getPaginationRowModel, // Import pagination model
   useReactTable,
+  PaginationState,
 } from "@tanstack/react-table"
 
 import {
@@ -16,25 +16,65 @@ import {
   TableRow,
 } from "@/components/ui/Table"
 import { Button } from "./Button"
+import { Input } from "./Input"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
+  pageCount: number
+  pagination: PaginationState
+  onPaginationChange: (pagination: PaginationState) => void
+  onSearchChange: (search: string) => void
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  pageCount,
+  pagination,
+  onPaginationChange,
+  onSearchChange,
 }: DataTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
     columns,
+    pageCount: pageCount,
+    state: {
+      pagination,
+    },
+    onPaginationChange: (updater) => {
+      if (typeof updater === 'function') {
+        onPaginationChange(updater(pagination));
+      } else {
+        onPaginationChange(updater);
+      }
+    },
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(), // Enable pagination
+    manualPagination: true, // Crucial for server-side pagination
   })
+
+  // Debounce search input to avoid excessive API calls
+  const [searchValue, setSearchValue] = React.useState('');
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      onSearchChange(searchValue);
+    }, 500); // 500ms debounce delay
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchValue, onSearchChange]);
 
   return (
     <div>
+      <div className="flex items-center py-4">
+        <Input
+          placeholder="Filter by email or filename..."
+          value={searchValue}
+          onChange={(event) => setSearchValue(event.target.value)}
+          className="max-w-sm"
+        />
+      </div>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -80,23 +120,29 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
       {/* Pagination Controls */}
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          Next
-        </Button>
+      <div className="flex items-center justify-between space-x-2 py-4">
+        <div className="text-sm text-muted-foreground">
+          Page {table.getState().pagination.pageIndex + 1} of{" "}
+          {table.getPageCount()}
+        </div>
+        <div className="space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Next
+          </Button>
+        </div>
       </div>
     </div>
   )

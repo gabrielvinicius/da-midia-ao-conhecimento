@@ -84,3 +84,11 @@ export interface Notification {
   read: boolean;
   created_at: string;
 }
+
+// Generic type for paginated API responses
+export interface PaginatedResponse<T> {
+  total_items: number;
+  total_pages: number;
+  current_page: number;
+  items: T[];
+}

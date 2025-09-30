@@ -1,4 +1,5 @@
-import { ColumnDef } from "@tanstack/react-table";
+import * as React from "react";
+import { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { Media, MediaStatus } from "@/types";
 import { useAllMedia } from "../hooks/useAdminQueries";
 import { DataTable } from "@/components/ui/DataTable";
@@ -44,16 +45,24 @@ export const columns: ColumnDef<Media>[] = [
 ];
 
 export const AdminAllMediaPage = () => {
-  const { data: media, isLoading, isError } = useAllMedia();
+  const [{ pageIndex, pageSize }, setPagination] = React.useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [search, setSearch] = React.useState('');
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-1/4" />
-        <Skeleton className="h-48 w-full" />
-      </div>
-    );
-  }
+  const { data, isLoading, isError } = useAllMedia({
+    page: pageIndex + 1, // API is 1-indexed
+    limit: pageSize,
+    search,
+  });
+
+  const defaultData = React.useMemo(() => [], []);
+
+  const pagination = React.useMemo(
+    () => ({ pageIndex, pageSize }),
+    [pageIndex, pageSize]
+  );
 
   if (isError) {
     return <p className="text-destructive">Error loading media.</p>;
@@ -62,7 +71,21 @@ export const AdminAllMediaPage = () => {
   return (
     <div>
       <h1 className="text-3xl font-bold tracking-tight mb-6">All Media</h1>
-      <DataTable columns={columns} data={media ?? []} />
+      {isLoading && !data ? (
+        <div className="space-y-4">
+          <Skeleton className="h-12 w-1/3" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={data?.items ?? defaultData}
+          pageCount={data?.total_pages ?? 0}
+          pagination={pagination}
+          onPaginationChange={setPagination}
+          onSearchChange={setSearch}
+        />
+      )}
     </div>
   );
 };
