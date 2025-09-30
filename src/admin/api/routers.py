@@ -12,7 +12,7 @@ from src.admin.application.queries.admin_queries import AdminQueries
 from src.auth.api.schemas import UserResponse
 from src.media_management.api.schemas import MediaResponse
 from src.shared.api.schemas import PaginatedResponse
-from .schemas import UserUpdateRequest # Import the new request schema
+from .schemas import UserUpdateRequest
 
 from .dependencies import get_auth_queries, get_media_queries, get_admin_queries, get_auth_service, get_media_service
 
@@ -48,7 +48,6 @@ async def update_user(
     update_data: UserUpdateRequest,
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    """Updates a user's role."""
     try:
         updated_user = await auth_service.update_user(user_id, role=update_data.role)
         return updated_user
@@ -89,3 +88,17 @@ async def delete_media(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     return
+
+
+@router.post("/media/{media_id}/reprocess", status_code=status.HTTP_202_ACCEPTED, summary="Reprocess a failed media item")
+async def reprocess_media(
+    media_id: UUID,
+    media_service: MediaService = Depends(get_media_service),
+):
+    """Triggers the reprocessing pipeline for a media item that has previously failed."""
+    try:
+        await media_service.reprocess_media(media_id)
+        return {"message": "Reprocessing initiated."}
+    except ValueError as e:
+        # This could be 404 if not found, or 400/409 if not in a FAILED state.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
