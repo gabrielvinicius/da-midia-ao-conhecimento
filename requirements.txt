@@ -24,11 +24,12 @@ redis~=5.0.7
 
 # --- AI / Machine Learning ---
 torch~=2.8.0
-torchaudio~=2.3.0 # Added for audio processing
+torchaudio~=2.3.0
 transformers~=4.42.4
 faster-whisper~=1.0.3
 numpy~=2.0.0
-pyannote.audio~=3.1.1 # Added for speaker diarization
+pyannote.audio~=3.1.1
+scikit-learn~=1.5.0 # Added for topic modeling
 
 # --- Authentication & Security ---
 passlib[bcrypt]~=1.7.4
