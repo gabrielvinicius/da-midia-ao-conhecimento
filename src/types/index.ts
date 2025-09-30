@@ -114,14 +114,17 @@ export interface PaginatedResponse<T> {
 
 export enum AnalysisType {
   SENTIMENT = "SENTIMENT",
+  TOPIC_MODELING = "TOPIC_MODELING",
+}
+
+// A generic Analysis result type
+export interface AnalysisResult {
+  [key: string]: any;
 }
 
 export interface Analysis {
   id: string;
   media_id: string;
   type: AnalysisType;
-  result: {
-    label: string;
-    score: number;
-  };
+  result: AnalysisResult;
 }
