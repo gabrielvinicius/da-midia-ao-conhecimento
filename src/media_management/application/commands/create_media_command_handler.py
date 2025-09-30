@@ -57,13 +57,13 @@ class CreateMediaCommandHandler:
                 media_type=media_type,
                 status=MediaStatus.UPLOADED,
                 storage_provider=command.storage_provider,
-                # Save the user's provider choice
+                # Persist the user's provider choices
                 transcription_provider=command.transcription_provider,
                 summarization_provider=command.summarization_provider
             )
             saved_media = await self.media_repository.save(media)
 
-            # Publish the event with the provider choices
+            # The event now also carries the provider choices
             event = MediaUploaded(
                 media_id=str(saved_media.id),
                 user_id=str(saved_media.user_id),

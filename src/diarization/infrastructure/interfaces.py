@@ -3,17 +3,15 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any
 
 class IDiarizationService(ABC):
-    """Interface for a speaker diarization service."""
+    """Abstract interface for a speaker diarization service."""
+
+    @property
+    @abstractmethod
+    def provider_name(self) -> str:
+        """Returns the name of the diarization provider."""
+        pass
 
     @abstractmethod
     def diarize(self, audio_path: str) -> List[Dict[str, Any]]:
-        """Analyzes an audio file and returns a list of speaker segments.
-
-        Args:
-            audio_path: The local path to the audio file to be analyzed.
-
-        Returns:
-            A list of dictionaries, where each dictionary represents a speaker segment
-            and contains keys like 'speaker', 'start', and 'end'.
-        """
+        """Performs speaker diarization on the given audio file."""
         pass

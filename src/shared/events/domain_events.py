@@ -1,7 +1,7 @@
 # src/shared/events/domain_events.py
 from dataclasses import dataclass, asdict
 from abc import ABC
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 from src.media_management.domain.media import MediaType
 from src.notifications.domain.notification import NotificationType
@@ -13,72 +13,37 @@ class DomainEvent(ABC):
     def to_dict(self) -> dict:
         return asdict(self)
 
-# --- Media Pipeline Events ---
+# --- Media Pipeline Events (v1) ---
 
 @dataclass(frozen=True)
 class MediaUploaded(DomainEvent):
+    """A new media file has been uploaded and is ready for processing."""
     media_id: str
     user_id: str
     media_type: MediaType
     file_path: str
     storage_provider: str
-    transcription_provider: Optional[str] = None
-    summarization_provider: Optional[str] = None
-
-@dataclass(frozen=True)
-class MediaDeleted(DomainEvent):
-    media_id: str
 
 @dataclass(frozen=True)
 class AudioExtracted(DomainEvent):
+    """Audio has been successfully extracted from a video file."""
     media_id: str
     audio_file_path: str
     storage_provider: str
-    summarization_provider: Optional[str] = None
 
 @dataclass(frozen=True)
 class TextContentReady(DomainEvent):
-    media_id: str
-    text_content: str
-    summarization_provider: Optional[str] = None
-
-# --- Analysis Pipeline Events ---
-
-@dataclass(frozen=True)
-class FullTextReadyForAnalysis(DomainEvent):
-    """Event published when a full text is ready for any kind of analysis (sentiment, topics, etc.)."""
+    """Text content has been generated from a media file and is ready for downstream processing (e.g., summarization)."""
     media_id: str
     text_content: str
 
-# --- Transcription Events ---
+# --- Failure & Notification Events ---
 
 @dataclass(frozen=True)
-class TranscriptionWithTimestampsReady(DomainEvent):
-    media_id: str
-    audio_file_path: str
-    storage_provider: str
-    transcription_result: Dict[str, Any]
-
-@dataclass(frozen=True)
-class TranscriptionFailed(DomainEvent):
+class ProcessingFailed(DomainEvent):
+    """A generic event for when any part of the pipeline fails."""
     media_id: str
     error: str
-
-# --- Diarization Events ---
-
-@dataclass(frozen=True)
-class DiarizationCompleted(DomainEvent):
-    media_id: str
-    diarization_result: List[Dict[str, Any]]
-
-# --- Summarization Events ---
-
-@dataclass(frozen=True)
-class SummarizationRequested(DomainEvent):
-    media_id: str
-    provider: str
-
-# --- Notification Events ---
 
 @dataclass(frozen=True)
 class NotificationRequested(DomainEvent):

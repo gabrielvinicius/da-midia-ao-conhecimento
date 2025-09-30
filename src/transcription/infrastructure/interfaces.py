@@ -1,5 +1,6 @@
+# src/transcription/infrastructure/interfaces.py
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
+from typing import Optional
 
 
 class ISpeechRecognition(ABC):
@@ -11,6 +12,6 @@ class ISpeechRecognition(ABC):
         pass
 
     @abstractmethod
-    async def transcribe(self, file: bytes, language: str = "en") -> Optional[Dict[str, Any]]:
-        """Transcribes an audio file to text, returning a structured result with timestamps."""
+    async def transcribe(self, file: bytes, language: str = "en") -> Optional[str]:
+        """Transcribes an audio file to text, returning a simple string."""
         pass

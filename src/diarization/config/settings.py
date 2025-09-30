@@ -1,9 +1,10 @@
 # src/diarization/config/settings.py
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
+from pydantic import Field
 
 class DiarizationSettings(BaseSettings):
-    """Configuration settings for the diarization module."""
-    # To get a token, visit https://huggingface.co/settings/tokens
-    hf_token: str = ""
+    hf_token: str = Field(..., alias="HF_TOKEN", description="Hugging Face token for authenticated access to models like pyannote.")
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding='utf-8', extra='ignore')
+    class Config:
+        env_file = ".env"
+        extra = "ignore"

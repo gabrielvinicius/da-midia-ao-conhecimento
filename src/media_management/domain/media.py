@@ -2,6 +2,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
+from typing import Optional
 
 from sqlalchemy import Column, String, Enum as SqlEnum, DateTime, ForeignKey, event
 from sqlalchemy.dialects.postgresql import UUID
@@ -34,8 +35,9 @@ class Media(Base):
     status = Column(SqlEnum(MediaStatus), default=MediaStatus.UPLOADED, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     error_message = Column(String, nullable=True)
-
-    # New fields to store user's provider choice
+    
+    # Provider choices made at upload time
+    storage_provider = Column(String, nullable=False)
     transcription_provider = Column(String, nullable=True)
     summarization_provider = Column(String, nullable=True)
 
@@ -63,14 +65,7 @@ class Media(Base):
     def fail(self, reason: str):
         self.state.fail(reason)
     
-    def reset_status(self):
-        """Resets the media status to PENDING for reprocessing."""
-        self.status = MediaStatus.UPLOADED
-        self.error_message = None
-        self._reconstitute_state()
-
     def _reconstitute_state(self):
-        """Internal method to set the state object based on the status enum."""
         status = self.status
         if status == MediaStatus.UPLOADED:
             self._state = UploadedState(self)
@@ -81,10 +76,8 @@ class Media(Base):
         elif status == MediaStatus.FAILED:
             self._state = FailedState(self, self.error_message or "Unknown error")
         else:
-            self._state = UploadedState(self) # Default fallback
-
+            self._state = UploadedState(self)
 
 @event.listens_for(Media, 'load')
 def _reconstitute_media_state(media: Media, _):
-    """When a Media object is loaded from the DB, reconstitute its state object."""
     media._reconstitute_state()

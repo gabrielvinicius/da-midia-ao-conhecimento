@@ -1,9 +1,10 @@
+# src/transcription/infrastructure/whisper_speech_recognition.py
 import os
 import tempfile
 
 import whisper
 import numpy as np
-from typing import Optional, Dict, Any
+from typing import Optional
 import av
 import io
 import resampy
@@ -25,14 +26,14 @@ class WhisperTranscriber(ISpeechRecognition):
     def provider_name(self) -> str:
         return "whisper"
 
-    async def transcribe(self, file: bytes, language: str = "en") -> Optional[Dict[str, Any]]:
-        """Transcribes an audio file and returns the full structured result from Whisper."""
+    async def transcribe(self, file: bytes, language: str = "en") -> Optional[str]:
+        """Transcribes an audio file and returns the transcribed text as a string."""
         path = None
         try:
             path = await self._decode_file_bytes(file)
-            # The result object from Whisper contains the full transcription with timestamps.
             result = self.model.transcribe(path, language=language)
-            return result
+            # Return only the text content for the v1 pipeline
+            return result["text"]
         except Exception as e:
             logger.error(f"Transcription failed: {str(e)}")
             raise RuntimeError(f"Transcription error: {str(e)}")

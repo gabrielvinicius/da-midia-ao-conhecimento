@@ -2,7 +2,7 @@
 
 Revision ID: f2a5b4c3d1e0
 Revises: e9f8b7c6a5d4
-Create Date: 2024-08-01 12:00:00.000000
+Create Date: 2024-08-01 14:00:00.000000
 
 """
 from typing import Sequence, Union
@@ -29,6 +29,9 @@ def upgrade() -> None:
         sa.Column('status', sa.Enum('UPLOADED', 'PROCESSING', 'COMPLETED', 'FAILED', name='mediastatus'), nullable=False),
         sa.Column('created_at', sa.DateTime(), nullable=False),
         sa.Column('error_message', sa.String(), nullable=True),
+        sa.Column('storage_provider', sa.String(), server_default='local', nullable=False),
+        sa.Column('transcription_provider', sa.String(), nullable=True),
+        sa.Column('summarization_provider', sa.String(), nullable=True),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
@@ -37,8 +40,7 @@ def upgrade() -> None:
     op.add_column('transcriptions', sa.Column('media_id', sa.UUID(), nullable=True))
     op.add_column('summaries', sa.Column('media_id', sa.UUID(), nullable=True))
 
-    # NOTE: In a real-world migration with existing data, you would now write a data migration
-    # to populate 'media_id' based on the old 'video_id'. For a fresh setup, this is fine.
+    # NOTE: In a real-world migration with existing data, a data migration step would be needed here.
 
     # 3. Drop old foreign keys and columns
     op.drop_constraint('transcriptions_video_id_fkey', 'transcriptions', type_='foreignkey')
