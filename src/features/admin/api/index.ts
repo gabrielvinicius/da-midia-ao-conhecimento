@@ -1,5 +1,5 @@
 import api from "@/lib/api";
-import { User, Media, PaginatedResponse } from "@/types";
+import { User, Media, PaginatedResponse, UserRole } from "@/types";
 
 export interface SystemStats {
   total_users: number;
@@ -11,6 +11,10 @@ export interface GetPaginatedDataParams {
   page?: number;
   limit?: number;
   search?: string;
+}
+
+export interface UserUpdatePayload {
+  role?: UserRole;
 }
 
 export const getSystemStats = async (): Promise<SystemStats> => {
@@ -38,4 +42,9 @@ export const deleteUser = async (userId: string): Promise<void> => {
 
 export const deleteMedia = async (mediaId: string): Promise<void> => {
   await api.delete(`/admin/media/${mediaId}`);
+};
+
+export const updateUser = async (userId: string, payload: UserUpdatePayload): Promise<User> => {
+  const response = await api.put<User>(`/admin/users/${userId}`, payload);
+  return response.data;
 };
