@@ -13,11 +13,11 @@ This project serves as a comprehensive, real-world example of applying modern, e
 ## Key Features
 
 - **Event-Driven Media Pipeline**: Upload videos, audio files, or text, and the system automatically routes them through the correct, non-blocking processing pipeline.
-- **Real-Time Notifications (Observer Pattern)**: Receive instant updates on media processing status via WebSockets. The backend (`Subject`) actively pushes notifications to the frontend (`Observer`) for a fully reactive user experience.
+- **Interactive Transcription with Timestamps**: Play media files while the corresponding text segments are highlighted in real-time. Click on any text segment to jump to that precise moment in the audio/video.
+- **Real-Time UI (Observer Pattern)**: Receive instant updates on media processing status via WebSockets. The backend (`Subject`) actively pushes notifications and status changes to the frontend (`Observer`) for a fully reactive user experience.
+- **Feature-Rich Admin Panel**: A secure, dedicated administrative area to manage users and media, view system statistics, and reprocess failed jobs.
 - **Highly-Architected Frontend**: A fully-refactored, responsive interface built with TypeScript, React, and Vite. Its architecture is feature-based, modular, and highly scalable, featuring a custom design system built on **Shadcn/ui** and **TailwindCSS**.
-- **Dynamic Provider Selection**: Choose at runtime which service provider to use for storage (`local`, `s3`), transcription, and summarization.
-- **Full Observability**: Integrated with the three pillars of observability: structured logging, Prometheus metrics, and end-to-end distributed tracing with OpenTelemetry.
-- **Resilient by Design**: Implements the Circuit Breaker pattern to protect against failures in external services.
+- **Dynamic Provider Selection**: Choose at runtime which service provider to use for storage, transcription, and summarization.
 
 ## Architectural Deep Dive
 
@@ -69,7 +69,7 @@ docker-compose up --build
 
 #### Frontend
 
-In a separate terminal, navigate to the `frontend` directory, install the new dependencies, and start the development server.
+In a separate terminal, navigate to the `frontend` directory, install dependencies, and start the development server.
 
 ```bash
 cd frontend
@@ -90,8 +90,12 @@ docker-compose exec backend alembic upgrade head
 ## Core API Overview
 
 - **`POST /media/`**: Upload a new media file to start the processing pipeline.
-- **`GET /media/{media_id}`**: Check the processing status of a media item.
-- **`GET /transcriptions/?media_id={media_id}`**: Retrieve the final transcription.
-- **`GET /summaries/?media_id={media_id}`**: Retrieve the final summary.
+- **`GET /media/{media_id}/stream`**: Streams the content of a media file for playback.
+- **`GET /transcriptions/?media_id={media_id}`**: Retrieve the final transcription with timestamped segments.
 - **`POST /auth/token`**: Log in to get a JWT access token.
-- **`GET /notifications/ws`**: Establishes a WebSocket connection for real-time notifications (requires token in query param).
+- **`PUT /auth/me/password`**: Allows an authenticated user to change their password.
+- **`GET /admin/users`**: (Admin) Retrieves a paginated list of all users.
+- **`PUT /admin/users/{user_id}`**: (Admin) Updates a user's role.
+- **`DELETE /admin/users/{user_id}`**: (Admin) Deletes a user.
+- **`POST /admin/media/{media_id}/reprocess`**: (Admin) Re-triggers the processing for a failed media item.
+- **`GET /notifications/ws`**: Establishes a WebSocket connection for real-time notifications and status updates.
