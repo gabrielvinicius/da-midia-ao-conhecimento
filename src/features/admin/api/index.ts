@@ -1,4 +1,4 @@
-import api from "../../../lib/api";
+import api from "@/lib/api";
 import { User, Media, PaginatedResponse } from "@/types";
 
 export interface SystemStats {
@@ -30,4 +30,12 @@ export const getAllMedia = async ({ page = 1, limit = 10, search = '' }: GetPagi
     params: { page, limit, search },
   });
   return response.data;
+};
+
+export const deleteUser = async (userId: string): Promise<void> => {
+  await api.delete(`/admin/users/${userId}`);
+};
+
+export const deleteMedia = async (mediaId: string): Promise<void> => {
+  await api.delete(`/admin/media/${mediaId}`);
 };
