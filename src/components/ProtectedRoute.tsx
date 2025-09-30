@@ -1,14 +1,14 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { Loader2 } from "lucide-react";
 
 const ProtectedRoute = () => {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    // You can replace this with a beautiful spinner component later
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div>Loading...</div>
+      <div className="flex items-center justify-center h-screen bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }

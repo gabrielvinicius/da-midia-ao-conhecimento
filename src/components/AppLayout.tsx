@@ -3,6 +3,7 @@ import { Home, Upload, LogOut, UserCircle, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from './ui/Button';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
+import { ConnectionStatusIndicator } from './ConnectionStatusIndicator'; // Import the new component
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +50,7 @@ const AppLayout = () => {
         <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
           <div className="w-full flex-1"></div>
           <div className="flex items-center gap-4">
+            <ConnectionStatusIndicator /> {/* Add the indicator */}
             <NotificationBell />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

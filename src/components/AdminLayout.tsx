@@ -2,6 +2,7 @@ import { Outlet, Link, NavLink } from 'react-router-dom';
 import { Home, Users, FolderKanban, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/Button';
+import { ConnectionStatusIndicator } from './ConnectionStatusIndicator'; // Import the new component
 
 const AdminLayout = () => {
   const { user, logout } = useAuth();
@@ -46,6 +47,7 @@ const AdminLayout = () => {
             <h1 className="text-lg font-semibold">Admin</h1>
           </div>
           <div className="flex items-center gap-4">
+            <ConnectionStatusIndicator /> {/* Add the indicator */}
             <span className="text-sm text-muted-foreground hidden sm:inline-block">{user?.email}</span>
             <Button variant="ghost" size="icon" onClick={logout}>
               <LogOut className="h-5 w-5" />
