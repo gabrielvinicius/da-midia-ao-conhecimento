@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Download } from "lucide-react";
 import { TranscriptionSegment, MediaType, TranscriptionStatus } from '@/types';
+import { EditSpeakersDialog } from './EditSpeakersDialog'; // Import the new dialog
 
 interface InteractiveTranscriptionPanelProps {
   mediaId: string;
@@ -51,6 +52,7 @@ export const InteractiveTranscriptionPanel = ({ mediaId, mediaType }: Interactiv
   };
 
   const canDownload = transcription?.status === TranscriptionStatus.COMPLETED && !!transcription.result?.text;
+  const isDiarized = transcription?.result?.diarized === true;
 
   const renderContent = () => {
     if (isLoading) {
@@ -59,8 +61,6 @@ export const InteractiveTranscriptionPanel = ({ mediaId, mediaType }: Interactiv
     if (isError || !transcription || !transcription.result) {
       return <p className="text-muted-foreground">Transcription not available.</p>;
     }
-
-    const isDiarized = transcription.result.diarized === true;
 
     return (
       <div className="space-y-4">
@@ -76,8 +76,10 @@ export const InteractiveTranscriptionPanel = ({ mediaId, mediaType }: Interactiv
         <div className="h-96 overflow-y-auto space-y-2 rounded-md border p-4 bg-muted/20">
           {transcription.result.segments.map((segment, index) => {
             const isActive = currentTime >= segment.start && currentTime < segment.end;
-            const speakerLabel = segment.speaker || 'UNKNOWN';
-            const speakerColor = isDiarized ? getSpeakerColor(speakerLabel) : 'text-foreground';
+            const speakerId = segment.speaker || 'UNKNOWN';
+            // Use the alias if it exists, otherwise fall back to the speaker ID
+            const speakerLabel = transcription.speaker_aliases?.[speakerId] || speakerId;
+            const speakerColor = isDiarized ? getSpeakerColor(speakerId) : 'text-foreground';
 
             return (
               <div
@@ -102,10 +104,13 @@ export const InteractiveTranscriptionPanel = ({ mediaId, mediaType }: Interactiv
       <CardHeader>
         <CardTitle className="flex justify-between items-center">
           <span>Interactive Transcription</span>
-          <Button variant="outline" size="icon" onClick={handleDownload} disabled={!canDownload}>
-            <Download className="h-4 w-4" />
-            <span className="sr-only">Download Transcription</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            {isDiarized && <EditSpeakersDialog transcription={transcription!} />}
+            <Button variant="outline" size="icon" onClick={handleDownload} disabled={!canDownload}>
+              <Download className="h-4 w-4" />
+              <span className="sr-only">Download Transcription</span>
+            </Button>
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent>
