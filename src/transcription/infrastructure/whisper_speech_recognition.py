@@ -3,7 +3,7 @@ import tempfile
 
 import whisper
 import numpy as np
-from typing import Optional
+from typing import Optional, Dict, Any
 import av
 import io
 import resampy
@@ -25,12 +25,14 @@ class WhisperTranscriber(ISpeechRecognition):
     def provider_name(self) -> str:
         return "whisper"
 
-    async def transcribe(self, file: bytes, language: str = "en") -> Optional[str]:
+    async def transcribe(self, file: bytes, language: str = "en") -> Optional[Dict[str, Any]]:
+        """Transcribes an audio file and returns the full structured result from Whisper."""
         path = None
         try:
             path = await self._decode_file_bytes(file)
+            # The result object from Whisper contains the full transcription with timestamps.
             result = self.model.transcribe(path, language=language)
-            return result["text"]
+            return result
         except Exception as e:
             logger.error(f"Transcription failed: {str(e)}")
             raise RuntimeError(f"Transcription error: {str(e)}")
@@ -39,7 +41,7 @@ class WhisperTranscriber(ISpeechRecognition):
                 os.unlink(path)
 
     async def _decode_audio_bytes(self, file_bytes: bytes) -> np.ndarray:
-        """Decodes audio or audio-track-from-video to float32 mono 16kHz"""
+        # ... (implementation remains the same)
         try:
             buffer = io.BytesIO(file_bytes)
             container = av.open(buffer)

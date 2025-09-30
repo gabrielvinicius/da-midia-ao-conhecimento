@@ -5,7 +5,7 @@ import structlog
 from pydantic import BaseModel
 
 from src.metrics.application.metrics_service import MetricsService
-from src.shared.events.domain_events import TextContentReady, TranscriptionFailed, TranscriptionStarted
+from src.shared.events.domain_events import TextContentReady, TranscriptionFailed
 from src.shared.events.event_bus import EventBus
 from src.storage.application.storage_service import StorageService
 from src.transcription.domain.transcription import Transcription
@@ -13,7 +13,7 @@ from src.transcription.infrastructure.interfaces import ISpeechRecognition
 from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
-from src.notifications.infrastructure.connection_manager import ConnectionManager # Import the manager
+from src.notifications.infrastructure.connection_manager import ConnectionManager
 from .process_transcription_command import ProcessTranscriptionCommand
 from src.shared.resilience.circuit_breaker import get_circuit_breaker
 
@@ -30,7 +30,7 @@ class ProcessTranscriptionCommandHandler:
         media_queries: MediaQueries,
         media_repository: MediaRepository,
         metrics_service: MetricsService,
-        connection_manager: ConnectionManager, # Added dependency
+        connection_manager: ConnectionManager,
     ):
         self.speech_recognition = speech_recognition
         self.storage_service = storage_service
@@ -39,10 +39,9 @@ class ProcessTranscriptionCommandHandler:
         self.media_queries = media_queries
         self.media_repository = media_repository
         self.metrics_service = metrics_service
-        self.connection_manager = connection_manager # Store dependency
+        self.connection_manager = connection_manager
 
     async def _push_update(self, entity_name: str, entity: BaseModel, user_id: str):
-        """Helper method to push entity updates via WebSocket."""
         message = {
             "type": "entity_update",
             "entity": entity_name,
@@ -66,9 +65,8 @@ class ProcessTranscriptionCommandHandler:
             media.process()
             await self.media_repository.save(media)
             await self._push_update("media", media, user_id)
-            await self.event_bus.publish(TranscriptionStarted(media_id=command.media_id))
 
-            if transcription and transcription.text:
+            if transcription and transcription.result:
                 media.complete()
                 await self.media_repository.save(media)
                 await self._push_update("media", media, user_id)
@@ -87,9 +85,12 @@ class ProcessTranscriptionCommandHandler:
             audio_bytes, _ = await self.storage_service.download(command.file_path)
 
             breaker = get_circuit_breaker(f"transcription_{self.speech_recognition.provider_name}")
-            text = await breaker.call_async(self.speech_recognition.transcribe, audio_bytes, language=command.language)
+            result = await breaker.call_async(self.speech_recognition.transcribe, audio_bytes, language=command.language)
 
-            transcription.mark_as_completed(text)
+            if not result or "segments" not in result:
+                raise ValueError("Transcription service returned an invalid result.")
+
+            transcription.mark_as_completed(result)
             await self.transcription_repo.save(transcription)
             await self._push_update("transcription", transcription, user_id)
             
@@ -97,7 +98,7 @@ class ProcessTranscriptionCommandHandler:
             await self.media_repository.save(media)
             await self._push_update("media", media, user_id)
 
-            await self.event_bus.publish(TextContentReady(media_id=command.media_id, text_content=text))
+            await self.event_bus.publish(TextContentReady(media_id=command.media_id, text_content=transcription.text))
 
             duration = time.time() - start_time
             self.metrics_service.increment_transcription('success')
