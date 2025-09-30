@@ -54,10 +54,11 @@ export enum TranscriptionStatus {
 }
 
 export interface TranscriptionSegment {
-  id: number;
+  id?: number; // Optional as it comes from whisper, but not our aligned result
   start: number;
   end: number;
   text: string;
+  speaker?: string; // Add speaker field
 }
 
 export interface Transcription {
@@ -71,6 +72,7 @@ export interface Transcription {
   result: {
     text: string;
     segments: TranscriptionSegment[];
+    diarized?: boolean; // Flag to indicate if diarization is complete
   } | null;
 }
 

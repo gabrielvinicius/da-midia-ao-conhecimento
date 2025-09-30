@@ -15,6 +15,22 @@ interface InteractiveTranscriptionPanelProps {
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+// Helper to get a consistent color for each speaker
+const speakerColors: { [key: string]: string } = {};
+const colorPalette = [
+  'text-sky-500', 'text-emerald-500', 'text-amber-500', 
+  'text-indigo-500', 'text-rose-500', 'text-cyan-500'
+];
+let colorIndex = 0;
+
+const getSpeakerColor = (speaker: string) => {
+  if (!speakerColors[speaker]) {
+    speakerColors[speaker] = colorPalette[colorIndex % colorPalette.length];
+    colorIndex++;
+  }
+  return speakerColors[speaker];
+};
+
 export const InteractiveTranscriptionPanel = ({ mediaId, mediaType }: InteractiveTranscriptionPanelProps) => {
   const { data: transcription, isLoading, isError } = useTranscription(mediaId);
   const [currentTime, setCurrentTime] = React.useState(0);
@@ -44,6 +60,8 @@ export const InteractiveTranscriptionPanel = ({ mediaId, mediaType }: Interactiv
       return <p className="text-muted-foreground">Transcription not available.</p>;
     }
 
+    const isDiarized = transcription.result.diarized === true;
+
     return (
       <div className="space-y-4">
         <MediaPlayer
@@ -52,17 +70,26 @@ export const InteractiveTranscriptionPanel = ({ mediaId, mediaType }: Interactiv
           playerRef={playerRef}
           onTimeUpdate={setCurrentTime}
         />
+        {!isDiarized && transcription.status === TranscriptionStatus.COMPLETED && (
+          <div className="text-center text-sm text-muted-foreground p-2">Identifying speakers...</div>
+        )}
         <div className="h-96 overflow-y-auto space-y-2 rounded-md border p-4 bg-muted/20">
-          {transcription.result.segments.map((segment) => {
+          {transcription.result.segments.map((segment, index) => {
             const isActive = currentTime >= segment.start && currentTime < segment.end;
+            const speakerLabel = segment.speaker || 'UNKNOWN';
+            const speakerColor = isDiarized ? getSpeakerColor(speakerLabel) : 'text-foreground';
+
             return (
-              <p
-                key={segment.id}
+              <div
+                key={index}
                 onClick={() => handleSegmentClick(segment)}
                 className={`cursor-pointer rounded-md p-2 transition-colors ${isActive ? 'bg-primary/20' : 'hover:bg-accent'}`}>
-                <span className="font-semibold text-primary/80">[{new Date(segment.start * 1000).toISOString().substr(14, 5)}]</span>{" "}
-                {segment.text}
-              </p>
+                {isDiarized ? (
+                  <p><span className={`font-bold ${speakerColor}`}>{speakerLabel}:</span> {segment.text}</p>
+                ) : (
+                  <p>{segment.text}</p>
+                )}
+              </div>
             );
           })}
         </div>
