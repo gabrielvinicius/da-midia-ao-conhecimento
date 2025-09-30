@@ -45,6 +45,8 @@ class ProcessTranscriptionCommandHandler:
             raise ValueError(f"Media with id {command.media_id} not found.")
 
         try:
+            # Persist the language used for this media item
+            media.language = command.language
             media.process()
             await self.media_repository.save(media)
 
@@ -63,7 +65,6 @@ class ProcessTranscriptionCommandHandler:
             media.complete()
             await self.media_repository.save(media)
 
-            # Publish the single, clear event for the next stage
             await self.event_bus.publish(TextContentReady(media_id=command.media_id, text_content=text))
 
             duration = time.time() - start_time

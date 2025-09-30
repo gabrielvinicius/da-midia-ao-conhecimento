@@ -40,6 +40,7 @@ class Media(Base):
     storage_provider = Column(String, nullable=False)
     transcription_provider = Column(String, nullable=True)
     summarization_provider = Column(String, nullable=True)
+    language = Column(String, nullable=True) # Added language field
 
     _state: MediaState = None
 
