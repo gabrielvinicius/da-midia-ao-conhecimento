@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { listMedia, getMediaById, uploadMedia } from '../api';
+import { listMedia, getMediaById, uploadMedia, UploadMediaParams } from '../api';
 
 // Hook to get the list of all media items
 export const useMediaList = () => {
@@ -26,8 +26,7 @@ export const useUploadMedia = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ file, storageProvider }: { file: File; storageProvider: string }) => 
-      uploadMedia(file, storageProvider),
+    mutationFn: (params: UploadMediaParams) => uploadMedia(params),
     onSuccess: (data) => {
       toast.success(`Media "${data.original_file_path}" uploaded successfully! Processing has started.`);
       // Invalidate the media list to refetch and show the new item

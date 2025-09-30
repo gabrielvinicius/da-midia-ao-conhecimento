@@ -1,5 +1,12 @@
-import api from "../../../lib/api";
-import { Media } from "../../../types";
+import api from "@/lib/api";
+import { Media } from "@/types";
+
+export interface UploadMediaParams {
+  file: File;
+  storageProvider: string;
+  transcriptionProvider?: string;
+  summarizationProvider?: string;
+}
 
 export const listMedia = async (): Promise<Media[]> => {
   const response = await api.get<Media[]>("/media/");
@@ -11,14 +18,14 @@ export const getMediaById = async (id: string): Promise<Media> => {
   return response.data;
 };
 
-export const uploadMedia = async (file: File, storageProvider: string): Promise<Media> => {
+export const uploadMedia = async (params: UploadMediaParams): Promise<Media> => {
+  const { file, ...queryParams } = params;
   const formData = new FormData();
   formData.append("file", file);
 
-  // The backend endpoint for upload is POST /media/?storage_provider=...
-  const response = await api.post<Media>(`/media/?storage_provider=${storageProvider}`, formData, {
+  const response = await api.post<Media>("/media/", formData, {
+    params: queryParams,
     headers: {
-      // Axios will automatically set the correct Content-Type for FormData
       "Content-Type": "multipart/form-data",
     },
   });
