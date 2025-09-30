@@ -13,6 +13,7 @@ from src.notifications.infrastructure.notification_repository import Notificatio
 from src.notifications.infrastructure.smtp_adapter import SMTPAdapter
 from src.notifications.infrastructure.sms_adapter import SmsAdapter
 from src.notifications.infrastructure.webhook_adapter import WebhookAdapter
+from src.notifications.infrastructure.connection_manager import manager as connection_manager # Import the global manager
 
 logger = structlog.get_logger(__name__)
 
@@ -35,17 +36,18 @@ async def _run_notification_sending(user_id: str, message: str, notification_typ
 
         # --- Manual Dependency Injection for Celery Task ---
         smtp_settings = SmtpSettings()
-        email_adapter = SMTPAdapter(host=smtp_settings.smtp_host, port=smtp_settings.smtp_port, username=smtp_settings.smtp_user, password=smtp_settings.smtp_password)
-        sms_adapter = SmsAdapter()
-        webhook_adapter = WebhookAdapter()
+        adapter_map = {
+            "EMAIL": SMTPAdapter(host=smtp_settings.smtp_host, port=smtp_settings.smtp_port, username=smtp_settings.smtp_user, password=smtp_settings.smtp_password),
+            "SMS": SmsAdapter(),
+            "WEBHOOK": WebhookAdapter(),
+        }
         notification_repository = NotificationRepository(db=db_session)
 
-        # 1. Create the command handler
+        # 1. Create the command handler with all dependencies
         handler = SendNotificationCommandHandler(
-            email_adapter=email_adapter,
-            sms_adapter=sms_adapter,
-            webhook_adapter=webhook_adapter,
-            notification_repository=notification_repository
+            adapter_map=adapter_map,
+            notification_repository=notification_repository,
+            connection_manager=connection_manager # Inject the connection manager
         )
 
         # 2. Create the command

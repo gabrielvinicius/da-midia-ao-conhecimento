@@ -1,40 +1,38 @@
-# Media Processing API & Frontend
+# Media Processing API & Real-Time Frontend
 
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-green.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
-[![Docker](https://img.shields.io/badge/Docker-20.10-blue.svg)](https://www.docker.com/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue.svg)](https://www.typescriptlang.org/)
+[![WebSockets](https://img.shields.io/badge/WebSockets-✓-green.svg)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
 
-An asynchronous API and a modern frontend for uploading, processing, and analyzing media files (video, audio, and text). The project is built with a focus on a clean, event-driven, and modular architecture for high scalability, maintainability, and resilience.
+An advanced, asynchronous API and a feature-rich, real-time frontend for uploading, processing, and analyzing media files. The project is built with a focus on a clean, event-driven, and modular architecture for high scalability, maintainability, and resilience.
 
-This project serves as a comprehensive example of applying modern software architecture patterns to a real-world problem.
+This project serves as a comprehensive, real-world example of applying modern, end-to-end software architecture patterns.
 
 ## Key Features
 
-- **Generic Media Pipeline**: Abstracted beyond just video. Upload videos, audio files, or even PDFs, and the system automatically routes them through the correct processing pipeline.
-- **Asynchronous & Event-Driven**: All processing is non-blocking. Media uploads trigger events that are handled by a robust pipeline, ensuring the API remains fast and responsive.
-- **Modern Frontend**: A responsive and user-friendly interface built with React, TypeScript, and TailwindCSS to interact with the backend.
-- **Dynamic Provider Selection**: Choose at runtime which service provider to use for storage (`local`, `s3`), transcription (`whisper`, `fastwhisper`), and summarization (`huggingface`).
-- **Full Observability**: Integrated with the three pillars of observability:
-  - **Logging**: Structured logging with `structlog`.
-  - **Metrics**: Application and business metrics exposed in Prometheus format at `/metrics`.
-  - **Tracing**: End-to-end distributed tracing with OpenTelemetry and Jaeger to visualize the entire request lifecycle.
-- **Resilient by Design**: Implements the Circuit Breaker pattern to protect against failures in external AI/ML services.
+- **Event-Driven Media Pipeline**: Upload videos, audio files, or text, and the system automatically routes them through the correct, non-blocking processing pipeline.
+- **Real-Time Notifications (Observer Pattern)**: Receive instant updates on media processing status via WebSockets. The backend (`Subject`) actively pushes notifications to the frontend (`Observer`) for a fully reactive user experience.
+- **Highly-Architected Frontend**: A fully-refactored, responsive interface built with TypeScript, React, and Vite. Its architecture is feature-based, modular, and highly scalable, featuring a custom design system built on **Shadcn/ui** and **TailwindCSS**.
+- **Dynamic Provider Selection**: Choose at runtime which service provider to use for storage (`local`, `s3`), transcription, and summarization.
+- **Full Observability**: Integrated with the three pillars of observability: structured logging, Prometheus metrics, and end-to-end distributed tracing with OpenTelemetry.
+- **Resilient by Design**: Implements the Circuit Breaker pattern to protect against failures in external services.
 
 ## Architectural Deep Dive
 
 This project is a practical implementation of several advanced software architecture patterns:
 
-- **Modular Monolith & Domain-Driven Design (DDD)**: The application is organized into Bounded Contexts (e.g., `media_management`, `video_processing`, `transcription`), each with its own clear domain and boundaries.
-- **Event-Driven Pipeline**: The core business logic is an event-driven pipeline. For example, a `MediaUploaded` event can trigger the `video_processing` module, which in turn produces an `AudioExtracted` event, which then triggers the `transcription` module, and so on.
-- **CQRS (Command Query Responsibility Segregation)**: Each module separates its write operations (Commands and Handlers) from its read operations (Queries).
-- **State Pattern**: The `Media` entity's lifecycle (`UPLOADED` -> `PROCESSING` -> `COMPLETED`/`FAILED`) is managed by a formal State Machine.
-- **Explicit Composition Root**: The application's dependency injection is fully decentralized. Each module bootstraps its own services, and the `main.py` file acts as the final "Composition Root," explicitly composing the application.
+- **Modular Monolith & Domain-Driven Design (DDD)**: The application is organized into Bounded Contexts (e.g., `media_management`, `transcription`, `notifications`), each with its own clear domain.
+- **Event-Driven Architecture**: The core business logic is an event-driven pipeline. For example, a `MediaUploaded` event triggers `video_processing`, which produces an `AudioExtracted` event, which then triggers `transcription`.
+- **Observer Pattern & Real-Time Communication**: The system uses WebSockets to implement the Observer pattern, allowing the backend to push state changes to the frontend in real-time without polling.
+- **CQRS (Command Query Responsibility Segregation)**: Each module separates its write operations (Commands) from its read operations (Queries).
+- **Clean Frontend Architecture**: The frontend is organized by features, not types. Each feature encapsulates its own API calls, state management hooks (with React Query), and UI components, promoting high cohesion and low coupling.
 
 ## Tech Stack
 
-- **Backend**: FastAPI, Python 3.11, Gunicorn, Uvicorn
-- **Frontend**: React, TypeScript, Vite, React Query, TailwindCSS
+- **Backend**: FastAPI, Python 3.11, WebSockets, Gunicorn, Uvicorn
+- **Frontend**: React, TypeScript, Vite, React Query, TailwindCSS, Shadcn/ui, React Hook Form, Zod
 - **Data Persistence**: PostgreSQL (with SQLAlchemy & Alembic)
 - **Asynchronous Tasks & Messaging**: Celery, Redis
 - **Object Storage**: MinIO (S3-compatible), Local File System
@@ -45,9 +43,8 @@ This project is a practical implementation of several advanced software architec
 
 ### 1. Prerequisites
 
-- Docker
-- Docker Compose
-- Node.js & npm (for frontend development)
+- Docker & Docker Compose
+- Node.js & npm (v18+ recommended)
 
 ### 2. Environment Setup
 
@@ -57,28 +54,22 @@ Copy the example environment file for the backend. The default values are config
 cp .env.example .env
 ```
 
-The frontend uses a `.env` file as well, but the defaults are sufficient for local development.
-
 ### 3. Run for Local Development
-
-The project is composed of a backend API and a frontend application.
 
 #### Backend
 
-This command starts the API with hot-reloading for development.
+This command starts the entire backend infrastructure (API, database, Redis, etc.).
 
 ```bash
 docker-compose up --build
 ```
 
 - **API**: `http://localhost:8000`
-- **API Docs (Swagger)**: `http://localhost:8000/docs`
-- **MinIO Console (S3)**: `http://localhost:9001`
-- **Jaeger UI (Tracing)**: `http://localhost:16686`
+- **API Docs**: `http://localhost:8000/docs`
 
 #### Frontend
 
-In a separate terminal, navigate to the `frontend` directory, install dependencies, and start the development server.
+In a separate terminal, navigate to the `frontend` directory, install the new dependencies, and start the development server.
 
 ```bash
 cd frontend
@@ -93,34 +84,14 @@ npm run dev
 After starting the containers for the first time, open a new terminal and run the Alembic migrations to set up the database schema.
 
 ```bash
-alembic upgrade head
+docker-compose exec backend alembic upgrade head
 ```
-
-### 5. Run for Production
-
-This command uses the `docker-compose.prod.yml` file, which runs the application with the production-optimized `Dockerfile.prod` and uses `gunicorn` for stability and performance.
-
-```bash
-docker-compose -f docker-compose.prod.yml up -d --build
-```
-*Note: The production setup does not include the frontend development server. You would need to build the frontend separately and serve the static files.*
-
-## Running Tests
-
-- **Unit Tests**: Run directly on your host machine.
-  ```bash
-  pytest tests/unit
-  ```
-- **End-to-End Tests**: Run using the dedicated test environment.
-  ```bash
-  docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit
-  ```
 
 ## Core API Overview
 
-- **`POST /media/`**: The main entry point. Upload a new media file (video, audio, PDF) to start the processing pipeline.
+- **`POST /media/`**: Upload a new media file to start the processing pipeline.
 - **`GET /media/{media_id}`**: Check the processing status of a media item.
-- **`GET /transcriptions/?media_id={media_id}`**: Retrieve the final transcription for a processed media item.
-- **`GET /summaries/?media_id={media_id}`**: Retrieve the final summary for a processed media item.
+- **`GET /transcriptions/?media_id={media_id}`**: Retrieve the final transcription.
+- **`GET /summaries/?media_id={media_id}`**: Retrieve the final summary.
 - **`POST /auth/token`**: Log in to get a JWT access token.
-- **`POST /auth/register`**: Register a new user.
+- **`GET /notifications/ws`**: Establishes a WebSocket connection for real-time notifications (requires token in query param).

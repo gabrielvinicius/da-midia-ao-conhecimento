@@ -4,6 +4,7 @@ from typing import Annotated
 
 from src.notifications.application.notification_service import NotificationService
 from src.notifications.application.queries.notification_queries import NotificationQueries
+from src.notifications.infrastructure.connection_manager import ConnectionManager, manager
 
 # --- Service and Query Getters ---
 
@@ -15,3 +16,9 @@ def get_notification_service(container: Annotated[dict, Depends(get_container)])
 
 def get_notification_queries(container: Annotated[dict, Depends(get_container)]) -> NotificationQueries:
     return container["notification_queries"]
+
+# --- WebSocket Connection Manager Getter ---
+
+def get_connection_manager() -> ConnectionManager:
+    """Returns the global instance of the ConnectionManager."""
+    return manager
