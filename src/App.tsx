@@ -18,6 +18,7 @@ import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import MediaDetailPage from "./pages/MediaDetailPage";
 import UploadPage from "./pages/UploadPage";
+import SettingsPage from "./pages/SettingsPage"; // Import the new page
 
 // Admin Pages
 import { AdminDashboardPage } from "./features/admin/pages/AdminDashboardPage";
@@ -41,6 +42,7 @@ const App = () => {
                 <Route path="dashboard" element={<DashboardPage />} />
                 <Route path="upload" element={<UploadPage />} />
                 <Route path="media/:id" element={<MediaDetailPage />} />
+                <Route path="settings" element={<SettingsPage />} /> {/* Add the new route */}
               </Route>
             </Route>
 

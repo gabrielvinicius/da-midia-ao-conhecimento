@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { login, register } from '../api';
-import { useAuth } from '../../../contexts/AuthContext';
-import { UserCredentials, UserRegistration } from '../../../types';
+import { login, register, changePassword } from '../api';
+import { useAuth } from '@/contexts/AuthContext';
+import { UserCredentials, UserRegistration, ChangePasswordPayload } from '@/types';
 
 export const useLogin = () => {
   const navigate = useNavigate();
@@ -14,7 +14,6 @@ export const useLogin = () => {
     mutationFn: (credentials: UserCredentials) => login(credentials),
     onSuccess: async (data) => {
       localStorage.setItem('token', data.access_token);
-      // Manually refetch user data to update context
       const user = await queryClient.fetchQuery({ queryKey: ['currentUser'] });
       if (user) {
         setUser(user);
@@ -23,7 +22,6 @@ export const useLogin = () => {
       navigate('/dashboard');
     },
     onError: (error) => {
-      // The global error handler in `lib/api.ts` will already show a toast
       console.error('Login failed:', error);
     },
   });
@@ -40,6 +38,22 @@ export const useRegister = () => {
     },
     onError: (error) => {
       console.error('Registration failed:', error);
+    },
+  });
+};
+
+export const useChangePassword = () => {
+  const { logout } = useAuth();
+
+  return useMutation({
+    mutationFn: (payload: ChangePasswordPayload) => changePassword(payload),
+    onSuccess: () => {
+      toast.success('Password changed successfully. Please log in again.');
+      // For security, log the user out after a password change.
+      logout();
+    },
+    onError: (error) => {
+      console.error('Failed to change password:', error);
     },
   });
 };

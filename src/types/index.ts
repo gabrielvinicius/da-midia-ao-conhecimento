@@ -19,6 +19,11 @@ export interface UserCredentials {
   password: string;
 }
 
+export interface ChangePasswordPayload {
+  old_password: string;
+  new_password: string;
+}
+
 export enum MediaType {
   VIDEO = "VIDEO",
   AUDIO = "AUDIO",
@@ -48,7 +53,6 @@ export enum TranscriptionStatus {
   FAILED = "FAILED",
 }
 
-// Represents a single segment of the transcription with timestamps
 export interface TranscriptionSegment {
   id: number;
   start: number;
@@ -64,7 +68,6 @@ export interface Transcription {
   created_at: string;
   processed_at: string | null;
   error_message: string | null;
-  // The full transcription result, including segments with timestamps
   result: {
     text: string;
     segments: TranscriptionSegment[];

@@ -1,5 +1,5 @@
-import api from "../../../lib/api";
-import { User, UserCredentials, UserRegistration } from "../../../types";
+import api from "@/lib/api";
+import { User, UserCredentials, UserRegistration, ChangePasswordPayload } from "@/types";
 
 export interface LoginResponse {
   access_token: string;
@@ -22,4 +22,8 @@ export const register = async (userData: UserRegistration): Promise<User> => {
 export const getMe = async (): Promise<User> => {
   const response = await api.get<User>("/auth/me");
   return response.data;
+};
+
+export const changePassword = async (payload: ChangePasswordPayload): Promise<void> => {
+  await api.put("/auth/me/password", payload);
 };

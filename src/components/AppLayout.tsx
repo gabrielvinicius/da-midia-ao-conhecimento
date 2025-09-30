@@ -1,8 +1,16 @@
 import { Outlet, Link, NavLink } from 'react-router-dom';
-import { Home, Upload, LogOut } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { Home, Upload, LogOut, UserCircle, Settings } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from './ui/Button';
-import { NotificationBell } from '../features/notifications/components/NotificationBell';
+import { NotificationBell } from '@/features/notifications/components/NotificationBell';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/DropdownMenu";
 
 const AppLayout = () => {
   const { user, logout } = useAuth();
@@ -39,15 +47,32 @@ const AppLayout = () => {
       </div>
       <div className="flex flex-col">
         <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
-          <div className="w-full flex-1">
-            {/* Can add a global search here later */}
-          </div>
+          <div className="w-full flex-1"></div>
           <div className="flex items-center gap-4">
             <NotificationBell />
-            <span className="text-sm text-muted-foreground hidden sm:inline-block">{user?.email}</span>
-            <Button variant="ghost" size="icon" onClick={logout}>
-              <LogOut className="h-5 w-5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" size="icon" className="rounded-full">
+                  <UserCircle className="h-5 w-5" />
+                  <span className="sr-only">Toggle user menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={logout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
