@@ -2,16 +2,17 @@ import { useParams } from "react-router-dom";
 import { useMediaDetail, useReprocessMedia } from "../features/media/hooks/useMedia";
 import { InteractiveTranscriptionPanel } from "../features/transcription/components/InteractiveTranscriptionPanel";
 import { SummaryPanel } from "../features/summarization/components/SummaryPanel";
+import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel"; // Re-enable v2 Feature
 import { Skeleton } from "../components/ui/Skeleton";
 import { Badge } from "../components/ui/Badge";
-import { Button } from "../components/ui/Button"; // Import Button
-import { useAuth } from "../contexts/AuthContext"; // Import useAuth
+import { Button } from "../components/ui/Button";
+import { useAuth } from "../contexts/AuthContext";
 import { format } from "date-fns";
 import { MediaType, MediaStatus } from "@/types";
 
 const MediaDetailPage = () => {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth(); // Get user info
+  const { user } = useAuth();
 
   if (!id) {
     return <p>No media ID provided.</p>;
@@ -37,6 +38,7 @@ const MediaDetailPage = () => {
             <Skeleton className="h-96 w-full" />
           </div>
           <div className="lg:col-span-1 space-y-8">
+            <Skeleton className="h-32 w-full" />
             <Skeleton className="h-48 w-full" />
           </div>
         </div>
@@ -63,7 +65,6 @@ const MediaDetailPage = () => {
               <Badge variant={media.status === MediaStatus.FAILED ? "destructive" : "secondary"}>{media.status}</Badge>
             </div>
           </div>
-          {/* Conditional Reprocess Button for Admins */}
           {user?.role === 'admin' && media.status === MediaStatus.FAILED && (
             <Button 
               onClick={handleReprocess} 
@@ -92,6 +93,7 @@ const MediaDetailPage = () => {
           )}
         </div>
         <div className="lg:col-span-1 space-y-8">
+          <SentimentResultPanel mediaId={id} />
           <SummaryPanel mediaId={id} />
         </div>
       </div>

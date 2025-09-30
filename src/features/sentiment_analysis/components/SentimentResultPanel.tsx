@@ -1,4 +1,4 @@
-import { useSentimentAnalysis } from "../hooks/useSentimentAnalysis";
+import { useSentimentAnalysis } from "../hooks/useSentiment"; // Corrected import path
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ThumbsUp, ThumbsDown, Meh } from "lucide-react";
@@ -30,20 +30,21 @@ export const SentimentResultPanel = ({ mediaId }: SentimentResultPanelProps) => 
     }
 
     if (isError) {
-      return <p className="text-destructive text-center">Error loading sentiment analysis.</p>;
+      return <p className="text-destructive text-center text-xs">Error loading analysis.</p>;
     }
 
     if (!analysis) {
-      return <p className="text-muted-foreground text-center">Awaiting transcription to start analysis...</p>;
+      return <p className="text-muted-foreground text-center text-xs">Awaiting text content to start analysis...</p>;
     }
 
-    const config = sentimentConfig[analysis.result.label] || sentimentConfig.NEUTRAL;
+    // Correctly access the flat structure of the response
+    const config = sentimentConfig[analysis.label] || sentimentConfig.NEUTRAL;
 
     return (
       <div className={`flex flex-col items-center justify-center space-y-2 ${config.color}`}>
         {config.icon}
         <span className="text-xl font-bold">{config.label}</span>
-        <span className="text-sm text-muted-foreground">Score: {analysis.result.score.toFixed(2)}</span>
+        <span className="text-sm text-muted-foreground">Score: {analysis.score.toFixed(2)}</span>
       </div>
     );
   };
@@ -53,7 +54,7 @@ export const SentimentResultPanel = ({ mediaId }: SentimentResultPanelProps) => 
       <CardHeader>
         <CardTitle className="text-center">Sentiment Analysis</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-4">
         {renderContent()}
       </CardContent>
     </Card>
