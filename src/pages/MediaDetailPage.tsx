@@ -1,10 +1,11 @@
 import { useParams } from "react-router-dom";
 import { useMediaDetail } from "../features/media/hooks/useMedia";
-import { TranscriptionPanel } from "../features/transcription/components/TranscriptionPanel";
+import { InteractiveTranscriptionPanel } from "../features/transcription/components/InteractiveTranscriptionPanel";
 import { SummaryPanel } from "../features/summarization/components/SummaryPanel";
 import { Skeleton } from "../components/ui/Skeleton";
 import { Badge } from "../components/ui/Badge";
 import { format } from "date-fns";
+import { MediaType } from "@/types";
 
 const MediaDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,8 +21,8 @@ const MediaDetailPage = () => {
       <div className="space-y-4">
         <Skeleton className="h-8 w-3/4" />
         <Skeleton className="h-4 w-1/2" />
-        <div className="grid gap-8 mt-6 md:grid-cols-2">
-          <Skeleton className="h-48 w-full" />
+        <div className="mt-6 space-y-8">
+          <Skeleton className="h-64 w-full" />
           <Skeleton className="h-48 w-full" />
         </div>
       </div>
@@ -32,8 +33,10 @@ const MediaDetailPage = () => {
     return <p className="text-destructive">Error loading media details.</p>;
   }
 
+  const isPlayable = media.media_type === MediaType.AUDIO || media.media_type === MediaType.VIDEO;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header Section */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight truncate">{media.original_file_path}</h1>
@@ -44,10 +47,18 @@ const MediaDetailPage = () => {
         </div>
       </div>
 
-      {/* Panels Section */}
-      <div className="grid gap-8 md:grid-cols-2">
-        <TranscriptionPanel mediaId={id} />
-        <SummaryPanel mediaId={id} />
+      {/* Main Content Layout */}
+      <div className="grid gap-8 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-8">
+          {isPlayable ? (
+            <InteractiveTranscriptionPanel mediaId={id} mediaType={media.media_type} />
+          ) : (
+            <p className="text-center text-muted-foreground py-16">Interactive transcription is only available for audio and video files.</p>
+          )}
+        </div>
+        <div className="lg:col-span-1">
+          <SummaryPanel mediaId={id} />
+        </div>
       </div>
     </div>
   );

@@ -48,15 +48,27 @@ export enum TranscriptionStatus {
   FAILED = "FAILED",
 }
 
+// Represents a single segment of the transcription with timestamps
+export interface TranscriptionSegment {
+  id: number;
+  start: number;
+  end: number;
+  text: string;
+}
+
 export interface Transcription {
   id: string;
   media_id: string;
-  text: string | null;
   status: TranscriptionStatus;
   provider: string | null;
   created_at: string;
   processed_at: string | null;
   error_message: string | null;
+  // The full transcription result, including segments with timestamps
+  result: {
+    text: string;
+    segments: TranscriptionSegment[];
+  } | null;
 }
 
 export enum SummaryStatus {
@@ -85,7 +97,6 @@ export interface Notification {
   created_at: string;
 }
 
-// Generic type for paginated API responses
 export interface PaginatedResponse<T> {
   total_items: number;
   total_pages: number;
