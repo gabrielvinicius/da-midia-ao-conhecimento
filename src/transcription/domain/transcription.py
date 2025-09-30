@@ -29,6 +29,8 @@ class Transcription(Base):
     
     # Store the full, structured result from the AI provider
     result = Column(JSONB, nullable=True)
+    # Store the user-defined speaker names
+    speaker_aliases = Column(JSONB, nullable=True, default=lambda: {})
 
     @hybrid_property
     def text(self) -> str:
@@ -56,3 +58,7 @@ class Transcription(Base):
         self.status = TranscriptionStatus.FAILED
         self.error_message = error
         self.processed_at = datetime.utcnow()
+
+    def set_speaker_aliases(self, aliases: Dict[str, str]):
+        """Sets or updates the speaker alias map."""
+        self.speaker_aliases = aliases
