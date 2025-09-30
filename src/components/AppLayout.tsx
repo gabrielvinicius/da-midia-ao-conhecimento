@@ -1,7 +1,8 @@
 import { Outlet, Link, NavLink } from 'react-router-dom';
-import { Home, Upload, User, LogOut } from 'lucide-react';
+import { Home, Upload, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/Button';
+import { NotificationBell } from '../features/notifications/components/NotificationBell';
 
 const AppLayout = () => {
   const { user, logout } = useAuth();
@@ -41,8 +42,9 @@ const AppLayout = () => {
           <div className="w-full flex-1">
             {/* Can add a global search here later */}
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">{user?.email}</span>
+          <div className="flex items-center gap-4">
+            <NotificationBell />
+            <span className="text-sm text-muted-foreground hidden sm:inline-block">{user?.email}</span>
             <Button variant="ghost" size="icon" onClick={logout}>
               <LogOut className="h-5 w-5" />
             </Button>
