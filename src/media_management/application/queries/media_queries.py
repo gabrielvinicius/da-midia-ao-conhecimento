@@ -17,6 +17,8 @@ class MediaQueries:
 
     async def list_by_user(self, user_id: str) -> List[Media]:
         """Lists all media for a specific user."""
-        # This method would need to be implemented in the repository
-        # For now, we assume it exists.
         return await self.media_repository.list_by_user(user_id)
+
+    async def list_all(self) -> List[Media]:
+        """Lists all media in the system. For admin use."""
+        return await self.media_repository.list_all()

@@ -1,7 +1,7 @@
 # src/media_management/infrastructure/media_repository.py
 from typing import Optional, List
 from uuid import UUID
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.domain.media import Media
@@ -26,8 +26,15 @@ class MediaRepository:
         return result.scalar_one_or_none()
 
     async def list_by_user(self, user_id: str) -> List[Media]:
-        """Lists all media for a specific user."""
+        """Lists all media for a specific user, ordered by creation date."""
         result = await self.db.execute(
-            select(Media).where(Media.user_id == UUID(user_id))
+            select(Media).where(Media.user_id == UUID(user_id)).order_by(desc(Media.created_at))
+        )
+        return result.scalars().all()
+
+    async def list_all(self) -> List[Media]:
+        """Lists all media in the system, ordered by creation date. For admin use."""
+        result = await self.db.execute(
+            select(Media).order_by(desc(Media.created_at))
         )
         return result.scalars().all()
