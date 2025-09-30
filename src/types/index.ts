@@ -54,11 +54,11 @@ export enum TranscriptionStatus {
 }
 
 export interface TranscriptionSegment {
-  id?: number; // Optional as it comes from whisper, but not our aligned result
+  id?: number;
   start: number;
   end: number;
   text: string;
-  speaker?: string; // Add speaker field
+  speaker?: string;
 }
 
 export interface Transcription {
@@ -72,8 +72,9 @@ export interface Transcription {
   result: {
     text: string;
     segments: TranscriptionSegment[];
-    diarized?: boolean; // Flag to indicate if diarization is complete
+    diarized?: boolean;
   } | null;
+  speaker_aliases?: Record<string, string>;
 }
 
 export enum SummaryStatus {
@@ -107,4 +108,20 @@ export interface PaginatedResponse<T> {
   total_pages: number;
   current_page: number;
   items: T[];
+}
+
+// --- V2: Analysis Types ---
+
+export enum AnalysisType {
+  SENTIMENT = "SENTIMENT",
+}
+
+export interface Analysis {
+  id: string;
+  media_id: string;
+  type: AnalysisType;
+  result: {
+    label: string;
+    score: number;
+  };
 }

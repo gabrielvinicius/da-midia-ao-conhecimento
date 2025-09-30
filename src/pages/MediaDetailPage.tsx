@@ -2,6 +2,7 @@ import { useParams } from "react-router-dom";
 import { useMediaDetail } from "../features/media/hooks/useMedia";
 import { InteractiveTranscriptionPanel } from "../features/transcription/components/InteractiveTranscriptionPanel";
 import { SummaryPanel } from "../features/summarization/components/SummaryPanel";
+import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel"; // Import new panel
 import { Skeleton } from "../components/ui/Skeleton";
 import { Badge } from "../components/ui/Badge";
 import { format } from "date-fns";
@@ -21,9 +22,14 @@ const MediaDetailPage = () => {
       <div className="space-y-4">
         <Skeleton className="h-8 w-3/4" />
         <Skeleton className="h-4 w-1/2" />
-        <div className="mt-6 space-y-8">
-          <Skeleton className="h-64 w-full" />
-          <Skeleton className="h-48 w-full" />
+        <div className="mt-6 grid gap-8 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-8">
+            <Skeleton className="h-96 w-full" />
+          </div>
+          <div className="lg:col-span-1 space-y-8">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-48 w-full" />
+          </div>
         </div>
       </div>
     );
@@ -56,7 +62,8 @@ const MediaDetailPage = () => {
             <p className="text-center text-muted-foreground py-16">Interactive transcription is only available for audio and video files.</p>
           )}
         </div>
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 space-y-8">
+          <SentimentResultPanel mediaId={id} />
           <SummaryPanel mediaId={id} />
         </div>
       </div>
