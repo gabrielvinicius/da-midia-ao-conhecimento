@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { listMedia, getMediaById, uploadMedia, UploadMediaParams } from '../api';
+import { listMedia, getMediaById, uploadMedia, reprocessMedia, UploadMediaParams } from '../api';
 
 // Hook to get the list of all media items
 export const useMediaList = () => {
@@ -17,6 +17,11 @@ export const useMediaDetail = (id: string) => {
     queryKey: ['mediaDetail', id],
     queryFn: () => getMediaById(id),
     enabled: !!id, // Only run the query if the id is available
+    refetchInterval: (query) => {
+      // Poll for updates only if the media is in a processing state
+      const media = query.state.data;
+      return media?.status === 'PROCESSING' ? 5000 : false;
+    },
   });
 };
 
@@ -29,14 +34,29 @@ export const useUploadMedia = () => {
     mutationFn: (params: UploadMediaParams) => uploadMedia(params),
     onSuccess: (data) => {
       toast.success(`Media "${data.original_file_path}" uploaded successfully! Processing has started.`);
-      // Invalidate the media list to refetch and show the new item
       queryClient.invalidateQueries({ queryKey: ['mediaList'] });
-      // Navigate to the dashboard to see the new media
       navigate('/dashboard');
     },
     onError: (error) => {
-      // The global error handler in `lib/api.ts` will show a toast
       console.error('Upload failed:', error);
+    },
+  });
+};
+
+// Hook for the media reprocess mutation
+export const useReprocessMedia = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (mediaId: string) => reprocessMedia(mediaId),
+    onSuccess: (data, mediaId) => {
+      toast.info(data.message);
+      // Invalidate queries to refetch media status and list
+      queryClient.invalidateQueries({ queryKey: ['mediaDetail', mediaId] });
+      queryClient.invalidateQueries({ queryKey: ['mediaList'] });
+    },
+    onError: (error) => {
+      console.error('Reprocess failed:', error);
     },
   });
 };

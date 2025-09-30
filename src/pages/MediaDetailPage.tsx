@@ -1,24 +1,33 @@
 import { useParams } from "react-router-dom";
-import { useMediaDetail } from "../features/media/hooks/useMedia";
+import { useMediaDetail, useReprocessMedia } from "../features/media/hooks/useMedia";
 import { InteractiveTranscriptionPanel } from "../features/transcription/components/InteractiveTranscriptionPanel";
 import { SummaryPanel } from "../features/summarization/components/SummaryPanel";
-// import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel"; // v2 Feature
-// import { TopicModelingResultPanel } from "@/features/sentiment_analysis/components/TopicModelingResultPanel"; // v2 Feature
 import { Skeleton } from "../components/ui/Skeleton";
 import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button"; // Import Button
+import { useAuth } from "../contexts/AuthContext"; // Import useAuth
 import { format } from "date-fns";
-import { MediaType } from "@/types";
+import { MediaType, MediaStatus } from "@/types";
 
 const MediaDetailPage = () => {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth(); // Get user info
 
   if (!id) {
     return <p>No media ID provided.</p>;
   }
 
   const { data: media, isLoading, isError } = useMediaDetail(id);
+  const reprocessMutation = useReprocessMedia();
+
+  const handleReprocess = () => {
+    if (media) {
+      reprocessMutation.mutate(media.id);
+    }
+  };
 
   if (isLoading) {
+    // ... (Skeleton loading state remains the same)
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-3/4" />
@@ -45,12 +54,32 @@ const MediaDetailPage = () => {
     <div className="space-y-8">
       {/* Header Section */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight truncate">{media.original_file_path}</h1>
-        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-          <span>Uploaded on {format(new Date(media.created_at), "PPP")}</span>
-          <Badge variant="outline">{media.media_type}</Badge>
-          <Badge variant="secondary">{media.status}</Badge>
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight truncate">{media.original_file_path}</h1>
+            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+              <span>Uploaded on {format(new Date(media.created_at), "PPP")}</span>
+              <Badge variant="outline">{media.media_type}</Badge>
+              <Badge variant={media.status === MediaStatus.FAILED ? "destructive" : "secondary"}>{media.status}</Badge>
+            </div>
+          </div>
+          {/* Conditional Reprocess Button for Admins */}
+          {user?.role === 'admin' && media.status === MediaStatus.FAILED && (
+            <Button 
+              onClick={handleReprocess} 
+              disabled={reprocessMutation.isPending}
+              variant="outline"
+            >
+              {reprocessMutation.isPending ? "Reprocessing..." : "Reprocess"}
+            </Button>
+          )}
         </div>
+        {media.status === MediaStatus.FAILED && media.error_message && (
+          <div className="mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-md">
+            <p className="text-sm font-semibold text-destructive">Processing Failed</p>
+            <p className="text-xs text-destructive/80 mt-1">{media.error_message}</p>
+          </div>
+        )}
       </div>
 
       {/* Main Content Layout */}
@@ -63,9 +92,6 @@ const MediaDetailPage = () => {
           )}
         </div>
         <div className="lg:col-span-1 space-y-8">
-          {/* v2 Features - Commented out for v1 stability */}
-          {/* <SentimentResultPanel mediaId={id} /> */}
-          {/* <TopicModelingResultPanel mediaId={id} /> */}
           <SummaryPanel mediaId={id} />
         </div>
       </div>

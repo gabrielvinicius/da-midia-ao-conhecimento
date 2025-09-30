@@ -38,4 +38,9 @@ export const getMediaById = async (id: string): Promise<Media> => {
   return response.data;
 };
 
+export const reprocessMedia = async (id: string): Promise<{ message: string }> => {
+  const response = await mediaApi.post(`/${id}/reprocess`);
+  return response.data;
+};
+
 export default mediaApi;
