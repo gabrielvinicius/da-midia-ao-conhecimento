@@ -42,11 +42,18 @@ class TextContentReady(DomainEvent):
     text_content: str
     summarization_provider: Optional[str] = None
 
+# --- Analysis Pipeline Events ---
+
+@dataclass(frozen=True)
+class FullTextReadyForAnalysis(DomainEvent):
+    """Event published when a full text is ready for any kind of analysis (sentiment, topics, etc.)."""
+    media_id: str
+    text_content: str
+
 # --- Transcription Events ---
 
 @dataclass(frozen=True)
 class TranscriptionWithTimestampsReady(DomainEvent):
-    """Event published when transcription is complete, including timestamped data."""
     media_id: str
     audio_file_path: str
     storage_provider: str
@@ -61,7 +68,6 @@ class TranscriptionFailed(DomainEvent):
 
 @dataclass(frozen=True)
 class DiarizationCompleted(DomainEvent):
-    """Event published when speaker diarization is complete."""
     media_id: str
     diarization_result: List[Dict[str, Any]]
 
