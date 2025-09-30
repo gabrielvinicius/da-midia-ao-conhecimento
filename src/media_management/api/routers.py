@@ -27,16 +27,20 @@ router = APIRouter(
 async def create_media(
     file: UploadFile = File(...),
     storage_provider: Optional[str] = Query("local", description="The storage provider to use (e.g., 'local', 's3')."),
+    transcription_provider: Optional[str] = Query(None, description="The transcription provider to use."),
+    summarization_provider: Optional[str] = Query(None, description="The summarization provider to use."),
     current_user: User = Depends(get_current_user),
     media_service: MediaService = Depends(get_media_service),
 ):
-    """Uploads a new media file (video, audio, or text) to start a processing pipeline."""
+    """Uploads a new media file and specifies which AI providers to use."""
     try:
         command = CreateMediaCommand(
             user_id=str(current_user.id),
             file=await file.read(),
             filename=file.filename,
-            storage_provider=storage_provider
+            storage_provider=storage_provider,
+            transcription_provider=transcription_provider,
+            summarization_provider=summarization_provider
         )
         media = await media_service.create_media(command)
         return jsonable_encoder(media)
@@ -51,7 +55,6 @@ async def list_user_media(
     current_user: User = Depends(get_current_user),
     media_queries: MediaQueries = Depends(get_media_queries),
 ):
-    """Lists all media items uploaded by the currently authenticated user."""
     media_list = await media_queries.list_by_user(user_id=str(current_user.id))
     return jsonable_encoder(media_list)
 
@@ -62,7 +65,6 @@ async def get_media_by_id(
     current_user: User = Depends(get_current_user),
     media_queries: MediaQueries = Depends(get_media_queries),
 ):
-    """Retrieves a specific media item by its ID."""
     media = await media_queries.get_by_id(str(media_id))
     if not media or (str(media.user_id) != str(current_user.id) and current_user.role.value != "admin"):
         raise HTTPException(status_code=404, detail="Media not found or not authorized")

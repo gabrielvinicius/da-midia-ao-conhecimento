@@ -22,6 +22,9 @@ class MediaUploaded(DomainEvent):
     media_type: MediaType
     file_path: str
     storage_provider: str
+    # Add provider choices to the event payload
+    transcription_provider: Optional[str] = None
+    summarization_provider: Optional[str] = None
 
 @dataclass(frozen=True)
 class MediaDeleted(DomainEvent):
@@ -33,11 +36,15 @@ class AudioExtracted(DomainEvent):
     media_id: str
     audio_file_path: str
     storage_provider: str
+    # Carry over the provider choice to the next step
+    summarization_provider: Optional[str] = None
 
 @dataclass(frozen=True)
 class TextContentReady(DomainEvent):
     media_id: str
     text_content: str
+    # Carry over the provider choice to the final step
+    summarization_provider: Optional[str] = None
 
 # --- Transcription Events ---
 

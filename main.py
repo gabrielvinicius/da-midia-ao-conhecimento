@@ -109,8 +109,16 @@ async def lifespan(app: FastAPI):
 
         await register_video_handlers(app_container["event_bus"])
         await register_text_handlers(app_container["event_bus"])
-        await register_transcription_handlers(app_container["event_bus"], app_container["transcription_repository"])
-        await register_summary_handlers(app_container["event_bus"], app_container["summary_repository"]) # Pass repository
+        await register_transcription_handlers(
+            app_container["event_bus"], 
+            app_container["transcription_repository"], 
+            app_container["media_queries"]
+        )
+        await register_summary_handlers(
+            app_container["event_bus"], 
+            app_container["summary_repository"], 
+            app_container["media_queries"] # Pass MediaQueries
+        )
         await register_notification_handlers(app_container["event_bus"])
 
         # 5. Start Background Services

@@ -7,7 +7,6 @@ from sqlalchemy import Column, String, Enum as SqlEnum, DateTime, ForeignKey, ev
 from sqlalchemy.dialects.postgresql import UUID
 
 from src.shared.infrastructure.database import Base
-# Import state classes
 from .states.media_state import MediaState
 from .states.uploaded_state import UploadedState
 from .states.processing_state import ProcessingState
@@ -36,6 +35,10 @@ class Media(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     error_message = Column(String, nullable=True)
 
+    # New fields to store user's provider choice
+    transcription_provider = Column(String, nullable=True)
+    summarization_provider = Column(String, nullable=True)
+
     _state: MediaState = None
 
     def __init__(self, **kwargs):
@@ -60,6 +63,12 @@ class Media(Base):
     def fail(self, reason: str):
         self.state.fail(reason)
     
+    def reset_status(self):
+        """Resets the media status to PENDING for reprocessing."""
+        self.status = MediaStatus.UPLOADED
+        self.error_message = None
+        self._reconstitute_state()
+
     def _reconstitute_state(self):
         """Internal method to set the state object based on the status enum."""
         status = self.status

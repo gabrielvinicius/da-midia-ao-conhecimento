@@ -15,7 +15,6 @@ from .create_media_command import CreateMediaCommand
 logger = structlog.get_logger(__name__)
 
 def _get_media_type_from_filename(filename: str) -> MediaType:
-    # ... (implementation remains the same)
     _, ext = os.path.splitext(filename or "")
     ext = ext.lower()
     if ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
@@ -32,7 +31,7 @@ class CreateMediaCommandHandler:
         media_repository: MediaRepository,
         storage_service_factory: StorageServiceFactory,
         event_bus: EventBus,
-        metrics_service: MetricsService, # Added dependency
+        metrics_service: MetricsService,
     ):
         self.media_repository = media_repository
         self.storage_service_factory = storage_service_factory
@@ -57,16 +56,22 @@ class CreateMediaCommandHandler:
                 original_file_path=file_path,
                 media_type=media_type,
                 status=MediaStatus.UPLOADED,
-                storage_provider=command.storage_provider
+                storage_provider=command.storage_provider,
+                # Save the user's provider choice
+                transcription_provider=command.transcription_provider,
+                summarization_provider=command.summarization_provider
             )
             saved_media = await self.media_repository.save(media)
 
+            # Publish the event with the provider choices
             event = MediaUploaded(
                 media_id=str(saved_media.id),
                 user_id=str(saved_media.user_id),
                 media_type=saved_media.media_type,
                 file_path=saved_media.original_file_path,
-                storage_provider=saved_media.storage_provider
+                storage_provider=saved_media.storage_provider,
+                transcription_provider=saved_media.transcription_provider,
+                summarization_provider=saved_media.summarization_provider
             )
             await self.event_bus.publish(event)
 
@@ -85,5 +90,4 @@ class CreateMediaCommandHandler:
         except Exception as e:
             self.metrics_service.increment_media_upload('failure')
             logger.error("media.upload.failed", media_id=str(media_id), error=str(e))
-            # Optional: Cleanup failed upload
             raise ValueError(f"Media upload failed: {str(e)}") from e
