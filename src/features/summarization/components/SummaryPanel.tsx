@@ -1,8 +1,11 @@
+import { saveAs } from 'file-saver';
 import { useSummary } from "../hooks/useSummary";
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
-import { Skeleton } from "../../../components/ui/Skeleton";
-import { Badge } from "../../../components/ui/Badge";
-import { SummaryStatus } from "../../../types";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Download } from "lucide-react";
+import { SummaryStatus } from "@/types";
 
 interface SummaryPanelProps {
   mediaId: string;
@@ -10,6 +13,15 @@ interface SummaryPanelProps {
 
 export const SummaryPanel = ({ mediaId }: SummaryPanelProps) => {
   const { data: summary, isLoading, isError } = useSummary(mediaId);
+
+  const handleDownload = () => {
+    if (summary && summary.text) {
+      const blob = new Blob([summary.text], { type: "text/plain;charset=utf-8" });
+      saveAs(blob, `summary-${mediaId}.txt`);
+    }
+  };
+
+  const canDownload = summary?.status === SummaryStatus.COMPLETED && !!summary.text;
 
   const renderContent = () => {
     if (isLoading) {
@@ -56,8 +68,12 @@ export const SummaryPanel = ({ mediaId }: SummaryPanelProps) => {
       <CardHeader>
         <CardTitle className="flex justify-between items-center">
           <span>Summary</span>
-          {summary && <Badge variant="secondary">{summary.status}</Badge>}
+          <Button variant="outline" size="icon" onClick={handleDownload} disabled={!canDownload}>
+            <Download className="h-4 w-4" />
+            <span className="sr-only">Download Summary</span>
+          </Button>
         </CardTitle>
+        {summary && <Badge variant="secondary" className="w-fit mt-2">{summary.status}</Badge>}
       </CardHeader>
       <CardContent>
         {renderContent()}
