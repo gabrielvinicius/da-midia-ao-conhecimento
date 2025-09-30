@@ -16,13 +16,14 @@ from src.summarization.bootstrap import bootstrap_summarization_module
 from src.notifications.bootstrap import bootstrap_notification_module
 from src.analytics.bootstrap import bootstrap_analytics_module
 from src.metrics.bootstrap import bootstrap_metrics_module
-from src.diarization.bootstrap import bootstrap_diarization_module # Import new bootstrap
+from src.sentiment_analysis.bootstrap import bootstrap_sentiment_analysis_module
 
 # Shared Factories and DB
 from src.shared.events.event_bus import get_event_bus
 from src.storage.infrastructure.dependencies import get_storage_service_factory
 from src.transcription.infrastructure.dependencies import get_speech_recognition_service_factory
 from src.summarization.infrastructure.dependencies import get_summarizer_service_factory
+from src.sentiment_analysis.infrastructure.dependencies import get_sentiment_service_factory
 from src.shared.infrastructure.database import Base, engine, AsyncSessionLocal
 
 # API Routers
@@ -33,64 +34,57 @@ from src.providers.api.routers import router as providers_router
 from src.summarization.api.routers import router as summary_router
 from src.transcription.api.routers import router as transcription_router
 from src.media_management.api.routers import router as media_router
+from src.sentiment_analysis.api.routers import router as sentiment_router # Import new router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Configure Observability
+    # ... (lifespan logic remains the same)
     configure_tracer("video-summarizer-api")
-
-    # 2. Initialize Database
     print("⏳ Creating database tables...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
-    # 3. Initialize Modules and Compose Application (Composition Root)
     print("⚙️ Initializing modules and composing application...")
     async with AsyncSessionLocal() as session:
-        # Create shared components and factories first
         app_container = {
             "event_bus": get_event_bus(),
             "storage_service_factory": get_storage_service_factory(),
             "speech_recognition_service_factory": get_speech_recognition_service_factory(),
             "summarizer_service_factory": get_summarizer_service_factory(),
+            "sentiment_analysis_service_factory": get_sentiment_service_factory(),
         }
-
-        # Bootstrap all modules, passing dependencies explicitly
         app_container.update(bootstrap_metrics_module())
         app_container.update(bootstrap_auth_module(session))
         app_container.update(bootstrap_analytics_module(session))
         app_container.update(bootstrap_transcription_module(session))
-        app_container.update(bootstrap_diarization_module()) # Add diarization factory
         app_container.update(bootstrap_media_module(session, app_container["storage_service_factory"], app_container["event_bus"], app_container["metrics_service"]))
         app_container.update(bootstrap_notification_module(session, auth_queries=app_container["auth_queries"], event_bus=app_container["event_bus"]))
         app_container.update(bootstrap_video_processing_module(app_container["media_queries"], app_container["storage_service_factory"], app_container["event_bus"]))
         app_container.update(bootstrap_text_processing_module(session, app_container["media_queries"], app_container["storage_service_factory"], app_container["event_bus"]))
-        app_container.update(bootstrap_summarization_module(session, app_container["event_bus"], app_container["analytics_queries"], app_container["metrics_service"]))
+        app_container.update(bootstrap_summarization_module(session, app_container["event_bus"]))
+        app_container.update(bootstrap_sentiment_analysis_module(session))
 
         app.state.container = app_container
 
-        # 4. Register Event Handlers from all relevant modules
         from src.video_processing.application.event_handlers import register_event_handlers as register_video_handlers
         from src.text_processing.application.event_handlers import register_event_handlers as register_text_handlers
         from src.transcription.application.event_handlers import register_event_handlers as register_transcription_handlers
         from src.summarization.application.event_handlers import register_event_handlers as register_summary_handlers
         from src.notifications.application.event_handlers import register_event_handlers as register_notification_handlers
-        # Add diarization event handler registration here later
+        from src.sentiment_analysis.application.event_handlers import register_event_handlers as register_sentiment_handlers
         
         await register_video_handlers(app_container["event_bus"])
         await register_text_handlers(app_container["event_bus"])
         await register_transcription_handlers(app_container["event_bus"])
         await register_summary_handlers(app_container["event_bus"])
         await register_notification_handlers(app_container["event_bus"])
+        await register_sentiment_handlers(app_container["event_bus"])
 
-        # 5. Start Background Services
         print("🚀 Starting event bus...")
         await app.state.container["event_bus"].start_listener()
 
         yield
 
-        # 6. Clean up resources
         print("🛑 Shutting down resources...")
         await app.state.container["event_bus"].stop_listener()
         await engine.dispose()
@@ -107,7 +101,6 @@ app = FastAPI(
 
 FastAPIInstrumentor.instrument_app(app)
 
-# --- Dependency Injection Helper ---
 def get_service(service_name: str):
     async def _get_service(request: Request):
         return request.app.state.container[service_name]
@@ -121,3 +114,4 @@ app.include_router(transcription_router)
 app.include_router(summary_router)
 app.include_router(notification_router)
 app.include_router(metrics_router)
+app.include_router(sentiment_router) # Add the new router

@@ -2,12 +2,12 @@
 from fastapi import Request, Depends
 from typing import Annotated
 
-from src.sentiment_analysis.application.queries.analysis_queries import AnalysisQueries
+from src.sentiment_analysis.application.queries.sentiment_analysis_queries import SentimentAnalysisQueries
 
-# --- Service and Query Getters ---
+# --- Query Getter ---
 
 def get_container(request: Request) -> dict:
     return request.app.state.container
 
-def get_analysis_queries(container: Annotated[dict, Depends(get_container)]) -> AnalysisQueries:
-    return container["analysis_queries"]
+def get_sentiment_analysis_queries(container: Annotated[dict, Depends(get_container)]) -> SentimentAnalysisQueries:
+    return container["sentiment_analysis_queries"]
