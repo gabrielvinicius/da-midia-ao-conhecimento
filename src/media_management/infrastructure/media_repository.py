@@ -1,7 +1,7 @@
 # src/media_management/infrastructure/media_repository.py
 from typing import Optional, List, Tuple
 from uuid import UUID
-from sqlalchemy import select, desc, func
+from sqlalchemy import select, desc, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.domain.media import Media, MediaStatus
@@ -59,3 +59,10 @@ class MediaRepository:
         stmt = select(func.count()).where(Media.status == status)
         result = await self.db.execute(stmt)
         return result.scalar_one()
+
+    async def delete(self, media_id: str) -> bool:
+        """Deletes a media entity by its ID. Returns True if deleted, False otherwise."""
+        stmt = delete(Media).where(Media.id == UUID(media_id)).returning(Media.id)
+        result = await self.db.execute(stmt)
+        await self.db.commit()
+        return result.scalar_one_or_none() is not None
