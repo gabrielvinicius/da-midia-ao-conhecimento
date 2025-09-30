@@ -2,8 +2,8 @@ import { useParams } from "react-router-dom";
 import { useMediaDetail } from "../features/media/hooks/useMedia";
 import { InteractiveTranscriptionPanel } from "../features/transcription/components/InteractiveTranscriptionPanel";
 import { SummaryPanel } from "../features/summarization/components/SummaryPanel";
-import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel";
-import { TopicModelingResultPanel } from "@/features/sentiment_analysis/components/TopicModelingResultPanel"; // Import new panel
+// import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel"; // v2 Feature
+// import { TopicModelingResultPanel } from "@/features/sentiment_analysis/components/TopicModelingResultPanel"; // v2 Feature
 import { Skeleton } from "../components/ui/Skeleton";
 import { Badge } from "../components/ui/Badge";
 import { format } from "date-fns";
@@ -28,8 +28,6 @@ const MediaDetailPage = () => {
             <Skeleton className="h-96 w-full" />
           </div>
           <div className="lg:col-span-1 space-y-8">
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
             <Skeleton className="h-48 w-full" />
           </div>
         </div>
@@ -59,14 +57,15 @@ const MediaDetailPage = () => {
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-8">
           {isPlayable ? (
-            <InteractiveTranscriptionPanel mediaId={id} mediaType={media.media_type} />
+            <InteractiveTranscriptionPanel mediaId={id} />
           ) : (
             <p className="text-center text-muted-foreground py-16">Interactive transcription is only available for audio and video files.</p>
           )}
         </div>
         <div className="lg:col-span-1 space-y-8">
-          <SentimentResultPanel mediaId={id} />
-          <TopicModelingResultPanel mediaId={id} />
+          {/* v2 Features - Commented out for v1 stability */}
+          {/* <SentimentResultPanel mediaId={id} /> */}
+          {/* <TopicModelingResultPanel mediaId={id} /> */}
           <SummaryPanel mediaId={id} />
         </div>
       </div>
