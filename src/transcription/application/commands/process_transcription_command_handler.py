@@ -5,7 +5,7 @@ import structlog
 from pydantic import BaseModel
 
 from src.metrics.application.metrics_service import MetricsService
-from src.shared.events.domain_events import TextContentReady, TranscriptionFailed
+from src.shared.events.domain_events import TextContentReady, TranscriptionFailed, TranscriptionWithTimestampsReady
 from src.shared.events.event_bus import EventBus
 from src.storage.application.storage_service import StorageService
 from src.transcription.domain.transcription import Transcription
@@ -98,7 +98,16 @@ class ProcessTranscriptionCommandHandler:
             await self.media_repository.save(media)
             await self._push_update("media", media, user_id)
 
+            # Publish event for summarization pipeline
             await self.event_bus.publish(TextContentReady(media_id=command.media_id, text_content=transcription.text))
+            
+            # Publish new event for diarization pipeline
+            await self.event_bus.publish(TranscriptionWithTimestampsReady(
+                media_id=command.media_id,
+                audio_file_path=command.file_path,
+                storage_provider=command.storage_provider,
+                transcription_result=result
+            ))
 
             duration = time.time() - start_time
             self.metrics_service.increment_transcription('success')

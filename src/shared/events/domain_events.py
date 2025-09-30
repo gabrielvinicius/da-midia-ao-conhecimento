@@ -1,7 +1,7 @@
 # src/shared/events/domain_events.py
 from dataclasses import dataclass, asdict
 from abc import ABC
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from src.media_management.domain.media import MediaType
 from src.notifications.domain.notification import NotificationType
@@ -22,13 +22,11 @@ class MediaUploaded(DomainEvent):
     media_type: MediaType
     file_path: str
     storage_provider: str
-    # Add provider choices to the event payload
     transcription_provider: Optional[str] = None
     summarization_provider: Optional[str] = None
 
 @dataclass(frozen=True)
 class MediaDeleted(DomainEvent):
-    """Event published when a media item is deleted."""
     media_id: str
 
 @dataclass(frozen=True)
@@ -36,27 +34,36 @@ class AudioExtracted(DomainEvent):
     media_id: str
     audio_file_path: str
     storage_provider: str
-    # Carry over the provider choice to the next step
     summarization_provider: Optional[str] = None
 
 @dataclass(frozen=True)
 class TextContentReady(DomainEvent):
     media_id: str
     text_content: str
-    # Carry over the provider choice to the final step
     summarization_provider: Optional[str] = None
 
 # --- Transcription Events ---
 
 @dataclass(frozen=True)
-class TranscriptionRequested(DomainEvent):
+class TranscriptionWithTimestampsReady(DomainEvent):
+    """Event published when transcription is complete, including timestamped data."""
     media_id: str
-    provider: str
+    audio_file_path: str
+    storage_provider: str
+    transcription_result: Dict[str, Any]
 
 @dataclass(frozen=True)
 class TranscriptionFailed(DomainEvent):
     media_id: str
     error: str
+
+# --- Diarization Events ---
+
+@dataclass(frozen=True)
+class DiarizationCompleted(DomainEvent):
+    """Event published when speaker diarization is complete."""
+    media_id: str
+    diarization_result: List[Dict[str, Any]]
 
 # --- Summarization Events ---
 
@@ -65,18 +72,10 @@ class SummarizationRequested(DomainEvent):
     media_id: str
     provider: str
 
-@dataclass(frozen=True)
-class SummarizationProgress(DomainEvent):
-    media_id: str
-    progress: int
-    stage: str
-    estimated_total_seconds: Optional[float] = None
-
 # --- Notification Events ---
 
 @dataclass(frozen=True)
 class NotificationRequested(DomainEvent):
-    """An enriched event that contains all necessary data to send a notification."""
     user_id: str
     message: str
     notification_type: NotificationType
