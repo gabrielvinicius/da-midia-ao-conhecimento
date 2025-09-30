@@ -1,7 +1,7 @@
 # src/media_management/infrastructure/media_repository.py
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from uuid import UUID
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.domain.media import Media
@@ -32,9 +32,21 @@ class MediaRepository:
         )
         return result.scalars().all()
 
-    async def list_all(self) -> List[Media]:
-        """Lists all media in the system, ordered by creation date. For admin use."""
-        result = await self.db.execute(
-            select(Media).order_by(desc(Media.created_at))
-        )
-        return result.scalars().all()
+    async def list_all(self, page: int, limit: int, search: Optional[str] = None) -> Tuple[List[Media], int]:
+        """Lists all media in the system with pagination and search. For admin use."""
+        # Base query
+        stmt = select(Media)
+        if search:
+            stmt = stmt.where(Media.original_file_path.ilike(f"%{search}%"))
+
+        # Get total count for pagination metadata
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_items_result = await self.db.execute(count_stmt)
+        total_items = total_items_result.scalar_one()
+
+        # Get paginated items
+        paginated_stmt = stmt.offset((page - 1) * limit).limit(limit).order_by(desc(Media.created_at))
+        items_result = await self.db.execute(paginated_stmt)
+        items = items_result.scalars().all()
+
+        return items, total_items

@@ -1,8 +1,8 @@
 from uuid import UUID
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence, Union, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
-from sqlalchemy import select, delete
+from sqlalchemy import select, func, delete
 from src.auth.domain.user import User
 import logging
 
@@ -16,7 +16,6 @@ class UserRepository:
         return isinstance(self.db, AsyncSession)
 
     async def save(self, user: User) -> User:
-        """Saves a user to the database."""
         self.db.add(user)
         try:
             if self._is_async():
@@ -35,7 +34,6 @@ class UserRepository:
             raise
 
     async def find_by_email(self, email: str) -> Optional[User]:
-        """Finds a user by email."""
         stmt = select(User).where(User.email == email)
         if self._is_async():
             result = await self.db.execute(stmt)
@@ -45,7 +43,6 @@ class UserRepository:
             return result.scalar_one_or_none()
 
     async def find_by_id(self, user_id: UUID) -> Optional[User]:
-        """Finds a user by ID."""
         stmt = select(User).where(User.id == user_id)
         if self._is_async():
             result = await self.db.execute(stmt)
@@ -55,7 +52,6 @@ class UserRepository:
             return result.scalar_one_or_none()
 
     async def delete(self, user_id: UUID) -> bool:
-        """Deletes a user by ID. Returns True if deleted, False if not found."""
         stmt = delete(User).where(User.id == user_id).returning(User.id)
         try:
             if self._is_async():
@@ -75,12 +71,24 @@ class UserRepository:
             logger.error(f"Error deleting user {user_id}: {e}")
             raise
 
-    async def list_all(self) -> Sequence[User]:
-        """Returns all users."""
+    async def list_all(self, page: int, limit: int, search: Optional[str] = None) -> Tuple[Sequence[User], int]:
+        """Returns a paginated and searchable list of all users."""
+        if not self._is_async():
+            raise NotImplementedError("Pagination is only supported in async mode.")
+
+        # Base query
         stmt = select(User)
-        if self._is_async():
-            result = await self.db.execute(stmt)
-            return result.scalars().all()
-        else:
-            result = self.db.execute(stmt)
-            return result.scalars().all()
+        if search:
+            stmt = stmt.where(User.email.ilike(f"%{search}%"))
+
+        # Get total count for pagination metadata
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_items_result = await self.db.execute(count_stmt)
+        total_items = total_items_result.scalar_one()
+
+        # Get paginated items
+        paginated_stmt = stmt.offset((page - 1) * limit).limit(limit).order_by(User.created_at.desc())
+        items_result = await self.db.execute(paginated_stmt)
+        items = items_result.scalars().all()
+
+        return items, total_items

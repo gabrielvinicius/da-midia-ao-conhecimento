@@ -1,9 +1,11 @@
 # src/media_management/application/queries/media_queries.py
+import math
 from typing import Optional, List
 from uuid import UUID
 
 from src.media_management.domain.media import Media
 from src.media_management.infrastructure.media_repository import MediaRepository
+from src.shared.api.schemas import PaginatedResponse
 
 
 class MediaQueries:
@@ -19,6 +21,15 @@ class MediaQueries:
         """Lists all media for a specific user."""
         return await self.media_repository.list_by_user(user_id)
 
-    async def list_all(self) -> List[Media]:
-        """Lists all media in the system. For admin use."""
-        return await self.media_repository.list_all()
+    async def list_all(self, page: int, limit: int, search: Optional[str]) -> PaginatedResponse[Media]:
+        """Lists all media in the system with pagination and search. For admin use."""
+        items, total_items = await self.media_repository.list_all(page=page, limit=limit, search=search)
+
+        total_pages = math.ceil(total_items / limit) if total_items > 0 else 1
+
+        return PaginatedResponse(
+            total_items=total_items,
+            total_pages=total_pages,
+            current_page=page,
+            items=items
+        )
