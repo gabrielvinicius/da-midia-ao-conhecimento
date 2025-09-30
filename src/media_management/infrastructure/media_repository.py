@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import select, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.media_management.domain.media import Media
+from src.media_management.domain.media import Media, MediaStatus
 
 
 class MediaRepository:
@@ -34,19 +34,28 @@ class MediaRepository:
 
     async def list_all(self, page: int, limit: int, search: Optional[str] = None) -> Tuple[List[Media], int]:
         """Lists all media in the system with pagination and search. For admin use."""
-        # Base query
         stmt = select(Media)
         if search:
             stmt = stmt.where(Media.original_file_path.ilike(f"%{search}%"))
 
-        # Get total count for pagination metadata
         count_stmt = select(func.count()).select_from(stmt.subquery())
         total_items_result = await self.db.execute(count_stmt)
         total_items = total_items_result.scalar_one()
 
-        # Get paginated items
         paginated_stmt = stmt.offset((page - 1) * limit).limit(limit).order_by(desc(Media.created_at))
         items_result = await self.db.execute(paginated_stmt)
         items = items_result.scalars().all()
 
         return items, total_items
+
+    async def count_all(self) -> int:
+        """Returns the total count of all media items."""
+        stmt = select(func.count()).select_from(Media)
+        result = await self.db.execute(stmt)
+        return result.scalar_one()
+
+    async def count_by_status(self, status: MediaStatus) -> int:
+        """Returns the count of media items with a specific status."""
+        stmt = select(func.count()).where(Media.status == status)
+        result = await self.db.execute(stmt)
+        return result.scalar_one()

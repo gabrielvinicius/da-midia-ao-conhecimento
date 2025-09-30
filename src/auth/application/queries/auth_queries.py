@@ -29,3 +29,7 @@ class AuthQueries:
             current_page=page,
             items=items
         )
+
+    async def count_all(self) -> int:
+        """Returns the total number of users."""
+        return await self.user_repository.count_all()

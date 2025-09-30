@@ -5,11 +5,12 @@ from typing import Optional
 from src.auth.api.dependencies import get_current_admin_user
 from src.auth.application.queries.auth_queries import AuthQueries
 from src.media_management.application.queries.media_queries import MediaQueries
+from src.admin.application.queries.admin_queries import AdminQueries # Import AdminQueries
 from src.auth.api.schemas import UserResponse
 from src.media_management.api.schemas import MediaResponse
 from src.shared.api.schemas import PaginatedResponse
 
-from .dependencies import get_auth_queries, get_media_queries
+from .dependencies import get_auth_queries, get_media_queries, get_admin_queries # Import getter
 
 router = APIRouter(
     prefix="/admin",
@@ -19,9 +20,12 @@ router = APIRouter(
 
 
 @router.get("/stats", summary="Get system-wide statistics")
-async def get_system_stats():
+async def get_system_stats(
+    admin_queries: AdminQueries = Depends(get_admin_queries),
+):
     """Retrieves aggregated statistics for the entire system."""
-    return {"total_users": 0, "total_media": 0, "processing_media": 0}
+    stats = await admin_queries.get_global_stats()
+    return stats
 
 
 @router.get("/users", response_model=PaginatedResponse[UserResponse], summary="List all users in the system with pagination")

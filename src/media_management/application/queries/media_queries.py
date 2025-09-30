@@ -3,7 +3,7 @@ import math
 from typing import Optional, List
 from uuid import UUID
 
-from src.media_management.domain.media import Media
+from src.media_management.domain.media import Media, MediaStatus
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.shared.api.schemas import PaginatedResponse
 
@@ -33,3 +33,11 @@ class MediaQueries:
             current_page=page,
             items=items
         )
+
+    async def count_all(self) -> int:
+        """Returns the total number of media items."""
+        return await self.media_repository.count_all()
+
+    async def count_by_status(self, status: MediaStatus) -> int:
+        """Returns the number of media items with a specific status."""
+        return await self.media_repository.count_by_status(status)

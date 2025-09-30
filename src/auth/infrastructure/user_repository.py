@@ -26,7 +26,7 @@ class UserRepository:
                 self.db.refresh(user)
             return user
         except Exception as e:
-            if self._is_async():
+            if self._is_is_async():
                 await self.db.rollback()
             else:
                 self.db.rollback()
@@ -92,3 +92,12 @@ class UserRepository:
         items = items_result.scalars().all()
 
         return items, total_items
+
+    async def count_all(self) -> int:
+        """Returns the total count of all users."""
+        if not self._is_async():
+            raise NotImplementedError("Count all is only supported in async mode.")
+        
+        stmt = select(func.count()).select_from(User)
+        result = await self.db.execute(stmt)
+        return result.scalar_one()
