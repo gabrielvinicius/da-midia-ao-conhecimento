@@ -1,16 +1,19 @@
 # src/transcription/application/commands/process_transcription_command_handler.py
 import time
+import json
 import structlog
+from pydantic import BaseModel
 
 from src.metrics.application.metrics_service import MetricsService
 from src.shared.events.domain_events import TextContentReady, TranscriptionFailed, TranscriptionStarted
 from src.shared.events.event_bus import EventBus
 from src.storage.application.storage_service import StorageService
-from src.transcription.domain.transcription import Transcription, TranscriptionStatus
+from src.transcription.domain.transcription import Transcription
 from src.transcription.infrastructure.interfaces import ISpeechRecognition
 from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
+from src.notifications.infrastructure.connection_manager import ConnectionManager # Import the manager
 from .process_transcription_command import ProcessTranscriptionCommand
 from src.shared.resilience.circuit_breaker import get_circuit_breaker
 
@@ -27,6 +30,7 @@ class ProcessTranscriptionCommandHandler:
         media_queries: MediaQueries,
         media_repository: MediaRepository,
         metrics_service: MetricsService,
+        connection_manager: ConnectionManager, # Added dependency
     ):
         self.speech_recognition = speech_recognition
         self.storage_service = storage_service
@@ -35,6 +39,17 @@ class ProcessTranscriptionCommandHandler:
         self.media_queries = media_queries
         self.media_repository = media_repository
         self.metrics_service = metrics_service
+        self.connection_manager = connection_manager # Store dependency
+
+    async def _push_update(self, entity_name: str, entity: BaseModel, user_id: str):
+        """Helper method to push entity updates via WebSocket."""
+        message = {
+            "type": "entity_update",
+            "entity": entity_name,
+            "payload": json.loads(entity.model_dump_json())
+        }
+        await self.connection_manager.send_personal_message(json.dumps(message), user_id)
+        logger.info(f"{entity_name}.pushed_realtime_update", id=str(entity.id), user_id=user_id)
 
     async def handle(self, command: ProcessTranscriptionCommand) -> Transcription:
         start_time = time.time()
@@ -44,48 +59,49 @@ class ProcessTranscriptionCommandHandler:
         if not media:
             raise ValueError(f"Media with id {command.media_id} not found.")
 
+        user_id = str(media.user_id)
         transcription = await self.transcription_repo.find_by_media_id(command.media_id)
 
         try:
             media.process()
             await self.media_repository.save(media)
+            await self._push_update("media", media, user_id)
             await self.event_bus.publish(TranscriptionStarted(media_id=command.media_id))
 
-            if transcription and transcription.text and transcription.status == TranscriptionStatus.COMPLETED:
+            if transcription and transcription.text:
                 media.complete()
                 await self.media_repository.save(media)
+                await self._push_update("media", media, user_id)
                 logger.info("transcription.completed", media_id=command.media_id, from_cache=True)
                 await self.event_bus.publish(TextContentReady(media_id=str(media.id), text_content=transcription.text))
                 return transcription
 
             if transcription is None:
-                transcription = Transcription(media_id=command.media_id, status=TranscriptionStatus.PROCESSING, provider=command.transcription_provider)
-            else:
-                transcription.provider = command.transcription_provider
+                transcription = Transcription(media_id=command.media_id, provider=command.transcription_provider)
             
+            transcription.process()
+            transcription.provider = command.transcription_provider
             await self.transcription_repo.save(transcription)
+            await self._push_update("transcription", transcription, user_id)
 
             audio_bytes, _ = await self.storage_service.download(command.file_path)
 
-            breaker_key = f"transcription_{self.speech_recognition.provider_name}"
-            breaker = get_circuit_breaker(breaker_key)
+            breaker = get_circuit_breaker(f"transcription_{self.speech_recognition.provider_name}")
             text = await breaker.call_async(self.speech_recognition.transcribe, audio_bytes, language=command.language)
 
             transcription.mark_as_completed(text)
             await self.transcription_repo.save(transcription)
+            await self._push_update("transcription", transcription, user_id)
             
             media.complete()
             await self.media_repository.save(media)
+            await self._push_update("media", media, user_id)
 
             await self.event_bus.publish(TextContentReady(media_id=command.media_id, text_content=text))
 
             duration = time.time() - start_time
             self.metrics_service.increment_transcription('success')
-            self.metrics_service.observe_transcription_duration(
-                media_id=command.media_id, # Corrected parameter name
-                duration=duration, 
-                provider=self.speech_recognition.provider_name
-            )
+            self.metrics_service.observe_transcription_duration(media_id=command.media_id, duration=duration, provider=self.speech_recognition.provider_name)
 
             logger.info("transcription.completed", media_id=command.media_id, duration=duration)
             return transcription
@@ -98,10 +114,12 @@ class ProcessTranscriptionCommandHandler:
             if media:
                 media.fail(str(e)[:500])
                 await self.media_repository.save(media)
+                await self._push_update("media", media, user_id)
 
             if transcription:
                 transcription.mark_as_failed(str(e)[:500])
                 await self.transcription_repo.save(transcription)
+                await self._push_update("transcription", transcription, user_id)
 
             await self.event_bus.publish(TranscriptionFailed(media_id=command.media_id, error=str(e)))
             raise

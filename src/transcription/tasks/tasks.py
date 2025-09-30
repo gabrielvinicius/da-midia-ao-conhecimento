@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.shared.events.event_bus import get_event_bus
 from src.shared.infrastructure.database import get_db
 from src.storage.infrastructure.dependencies import get_storage_service_factory
-# Import the new CQRS components and their correct dependencies
 from src.transcription.application.commands.process_transcription_command import ProcessTranscriptionCommand
 from src.transcription.application.commands.process_transcription_command_handler import ProcessTranscriptionCommandHandler
 from src.transcription.infrastructure.dependencies import get_transcription_repository, create_speech_recognition_service
@@ -15,6 +14,7 @@ from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.metrics.application.metrics_service import MetricsService
 from src.metrics.infrastructure.prometheus_provider import PrometheusMetricsProvider
+from src.notifications.infrastructure.connection_manager import manager as connection_manager # Import the manager
 
 logger = structlog.get_logger(__name__)
 
@@ -28,7 +28,7 @@ def process_transcription_task(
     transcription_provider: str, 
     language: str = "en"
 ):
-    """Celery task to process media transcription with a specific provider."""
+    """Celery task to process media transcription with a specific provider.""""""Celery task to process media transcription with a specific provider."""
     try:
         return asyncio.run(_run_transcription(media_id, file_path, storage_provider, transcription_provider, language))
     except Exception as e:
@@ -37,7 +37,7 @@ def process_transcription_task(
 
 
 async def _run_transcription(media_id: str, file_path: str, storage_provider: str, transcription_provider: str, language: str):
-    """Helper to run transcription logic with dynamic dependency injection."""
+    """Helper to run transcription logic with dynamic dependency injection.""""""Helper to run transcription logic with dynamic dependency injection."""
     async for db_session in get_db():
         if not isinstance(db_session, AsyncSession):
             raise TypeError("Expected db_session to be an AsyncSession")
@@ -50,7 +50,6 @@ async def _run_transcription(media_id: str, file_path: str, storage_provider: st
         media_repository = MediaRepository(db=db_session)
         media_queries = MediaQueries(media_repository=media_repository)
 
-        # Dynamically create the correct services for this job
         storage_service = storage_service_factory(storage_provider)
         speech_recognition_service = create_speech_recognition_service(transcription_provider)
         transcription_repository = await get_transcription_repository(db_session)
@@ -63,7 +62,8 @@ async def _run_transcription(media_id: str, file_path: str, storage_provider: st
             transcription_repository=transcription_repository,
             media_queries=media_queries,
             media_repository=media_repository,
-            metrics_service=metrics_service
+            metrics_service=metrics_service,
+            connection_manager=connection_manager # Inject the manager
         )
         
         # 2. Create the command

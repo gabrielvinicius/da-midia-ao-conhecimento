@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.shared.infrastructure.database import get_db
 from src.shared.events.event_bus import get_event_bus
 
-# Import CQRS components and their dependencies
 from src.summarization.application.commands.process_summary_command import ProcessSummaryCommand
 from src.summarization.application.commands.process_summary_command_handler import ProcessSummaryCommandHandler
 from src.summarization.infrastructure.dependencies import create_summarizer_service
@@ -17,6 +16,9 @@ from src.analytics.infrastructure.analytics_repository import AnalyticsRepositor
 from src.analytics.config.settings import AnalyticsSettings
 from src.metrics.application.metrics_service import MetricsService
 from src.metrics.infrastructure.prometheus_provider import PrometheusMetricsProvider
+from src.media_management.application.queries.media_queries import MediaQueries
+from src.media_management.infrastructure.media_repository import MediaRepository
+from src.notifications.infrastructure.connection_manager import manager as connection_manager
 
 logger = structlog.get_logger(__name__)
 
@@ -45,6 +47,9 @@ async def _run_summarization(media_id: str, text_content: str, provider: str):
         analytics_settings = AnalyticsSettings()
         analytics_queries = AnalyticsQueries(analytics_repo=analytics_repo, settings=analytics_settings)
 
+        media_repo = MediaRepository(db=db_session)
+        media_queries = MediaQueries(media_repository=media_repo)
+
         summary_repo = SummaryRepository(db=db_session)
         summarizer_instance = create_summarizer_service(provider)
 
@@ -54,7 +59,9 @@ async def _run_summarization(media_id: str, text_content: str, provider: str):
             summary_repo=summary_repo,
             metrics_service=metrics_service,
             analytics_queries=analytics_queries,
-            event_bus=event_bus
+            event_bus=event_bus,
+            media_queries=media_queries,
+            connection_manager=connection_manager
         )
 
         # 2. Create the command
