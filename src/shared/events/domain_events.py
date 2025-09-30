@@ -24,6 +24,11 @@ class MediaUploaded(DomainEvent):
     storage_provider: str
 
 @dataclass(frozen=True)
+class MediaDeleted(DomainEvent):
+    """Event published when a media item is deleted."""
+    media_id: str
+
+@dataclass(frozen=True)
 class AudioExtracted(DomainEvent):
     media_id: str
     audio_file_path: str

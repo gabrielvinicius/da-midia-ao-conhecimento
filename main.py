@@ -31,7 +31,7 @@ from src.providers.api.routers import router as providers_router
 from src.summarization.api.routers import router as summary_router
 from src.transcription.api.routers import router as transcription_router
 from src.media_management.api.routers import router as media_router
-from src.admin.api.routers import router as admin_router # Import admin router
+from src.admin.api.routers import router as admin_router
 
 # Admin Queries
 from src.admin.application.queries.admin_queries import AdminQueries
@@ -109,8 +109,8 @@ async def lifespan(app: FastAPI):
 
         await register_video_handlers(app_container["event_bus"])
         await register_text_handlers(app_container["event_bus"])
-        await register_transcription_handlers(app_container["event_bus"])
-        await register_summary_handlers(app_container["event_bus"])
+        await register_transcription_handlers(app_container["event_bus"], app_container["transcription_repository"])
+        await register_summary_handlers(app_container["event_bus"], app_container["summary_repository"]) # Pass repository
         await register_notification_handlers(app_container["event_bus"])
 
         # 5. Start Background Services
@@ -144,4 +144,4 @@ app.include_router(transcription_router)
 app.include_router(summary_router)
 app.include_router(notification_router)
 app.include_router(metrics_router)
-app.include_router(admin_router) # Register admin router
+app.include_router(admin_router)

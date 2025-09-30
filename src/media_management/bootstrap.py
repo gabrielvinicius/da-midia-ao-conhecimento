@@ -6,7 +6,7 @@ from src.shared.events.event_bus import EventBus
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.metrics.application.metrics_service import MetricsService
 from src.media_management.application.commands.create_media_command_handler import CreateMediaCommandHandler
-from src.media_management.application.commands.delete_media_command_handler import DeleteMediaCommandHandler # Import new handler
+from src.media_management.application.commands.delete_media_command_handler import DeleteMediaCommandHandler
 from src.media_management.application.media_service import MediaService
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
@@ -31,13 +31,14 @@ def bootstrap_media_module(
     delete_media_handler = DeleteMediaCommandHandler(
         media_repository=media_repository,
         media_queries=media_queries,
-        storage_service_factory=storage_service_factory
+        storage_service_factory=storage_service_factory,
+        event_bus=event_bus # Inject EventBus
     )
 
     # Instantiate the facade service with all handlers
     media_service = MediaService(
         create_media_handler=create_media_handler,
-        delete_media_handler=delete_media_handler # Inject new handler
+        delete_media_handler=delete_media_handler
     )
 
     return {

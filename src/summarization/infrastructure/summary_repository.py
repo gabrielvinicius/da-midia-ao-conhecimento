@@ -2,7 +2,7 @@
 from typing import Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 
 from src.summarization.domain.interfaces import ISummaryRepository
 from src.summarization.domain.summary import Summary
@@ -29,3 +29,10 @@ class SummaryRepository(ISummaryRepository):
         stmt = select(Summary).where(Summary.id == UUID(summary_id))
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def delete_by_media_id(self, media_id: str) -> bool:
+        """Deletes a summary by its associated media ID. Returns True if deleted."""
+        stmt = delete(Summary).where(Summary.media_id == UUID(media_id)).returning(Summary.id)
+        result = await self.session.execute(stmt)
+        await self.session.commit()
+        return result.scalar_one_or_none() is not None

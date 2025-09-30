@@ -1,7 +1,7 @@
 # src/transcription/infrastructure/transcription_repository.py
 from typing import Optional
 from uuid import UUID
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.transcription.domain.transcription import Transcription
@@ -29,3 +29,10 @@ class TranscriptionRepository:
             select(Transcription).where(Transcription.media_id == UUID(media_id))
         )
         return result.scalar_one_or_none()
+
+    async def delete_by_media_id(self, media_id: str) -> bool:
+        """Deletes a transcription by its associated media ID. Returns True if deleted."""
+        stmt = delete(Transcription).where(Transcription.media_id == UUID(media_id)).returning(Transcription.id)
+        result = await self.db.execute(stmt)
+        await self.db.commit()
+        return result.scalar_one_or_none() is not None
