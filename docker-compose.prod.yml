@@ -4,6 +4,7 @@ version: '3.8'
 # Use with: docker-compose -f docker-compose.prod.yml up -d
 
 services:
+  # --- INFRASTRUCTURE SERVICES ---
   postgres:
     image: postgres:15-alpine
     environment:
@@ -46,13 +47,13 @@ services:
       - app-network
     restart: unless-stopped
 
-  api:
+  # --- APPLICATION SERVICES ---
+  backend: # Renamed from 'api' for clarity
     build:
       context: .
       dockerfile: Dockerfile.prod
     command: gunicorn -k uvicorn.workers.UvicornWorker -w 4 -b 0.0.0.0:8000 main:app
-    ports:
-      - "8000:8000"
+    # No ports exposed to the host. Communication is through the frontend proxy.
     env_file:
       - .env
     depends_on:
@@ -72,6 +73,18 @@ services:
     depends_on:
       - redis
       - postgres
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  frontend: # New frontend service, the single entry point to the application
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80" # Expose port 80 to the host machine
+    depends_on:
+      - backend
     networks:
       - app-network
     restart: unless-stopped
