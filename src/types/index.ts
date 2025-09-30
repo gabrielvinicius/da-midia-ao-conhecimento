@@ -1,7 +1,12 @@
+export enum UserRole {
+  USER = "USER",
+  ADMIN = "ADMIN",
+}
 
 export interface User {
   id: string;
   email: string;
+  role: UserRole;
 }
 
 export interface UserRegistration {
@@ -70,4 +75,12 @@ export interface Summary {
   created_at: string;
   processed_at: string | null;
   error_message: string | null;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  content: string;
+  read: boolean;
+  created_at: string;
 }
