@@ -1,0 +1,45 @@
+classDiagram
+    class Media {
+        +UUID id
+        +UUID user_id
+        +str original_file_path
+        +MediaType media_type
+        +MediaStatus status
+        +process()
+        +complete()
+        +fail()
+    }
+
+    class Transcription {
+        +UUID id
+        +str text
+        +TranscriptionStatus status
+    }
+
+    class Summary {
+        +UUID id
+        +str text
+        +SummaryStatus status
+    }
+
+    class SentimentAnalysisResult {
+        +UUID id
+        +str label
+        +float score
+    }
+
+    class TopicModelingResult {
+        +UUID id
+        +List~str~ topics
+    }
+
+    class User {
+        +UUID id
+        +str email
+    }
+
+    Media "1" *-- "0..1" Transcription : contains
+    Media "1" *-- "0..1" Summary : contains
+    Media "1" *-- "0..1" SentimentAnalysisResult : contains
+    Media "1" *-- "0..1" TopicModelingResult : contains
+    User "1" o-- "0..*" Media : owns

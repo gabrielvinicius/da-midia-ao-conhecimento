@@ -1,11 +1,9 @@
 # src/media_management/application/queries/media_queries.py
-import math
 from typing import Optional, List
 from uuid import UUID
 
-from src.media_management.domain.media import Media, MediaStatus
+from src.media_management.domain.media import Media
 from src.media_management.infrastructure.media_repository import MediaRepository
-from src.shared.api.schemas import PaginatedResponse
 
 
 class MediaQueries:
@@ -19,25 +17,9 @@ class MediaQueries:
 
     async def list_by_user(self, user_id: str) -> List[Media]:
         """Lists all media for a specific user."""
+        # This method needs to be updated in the repository to support pagination
         return await self.media_repository.list_by_user(user_id)
 
-    async def list_all(self, page: int, limit: int, search: Optional[str]) -> PaginatedResponse[Media]:
-        """Lists all media in the system with pagination and search. For admin use."""
-        items, total_items = await self.media_repository.list_all(page=page, limit=limit, search=search)
-
-        total_pages = math.ceil(total_items / limit) if total_items > 0 else 1
-
-        return PaginatedResponse(
-            total_items=total_items,
-            total_pages=total_pages,
-            current_page=page,
-            items=items
-        )
-
-    async def count_all(self) -> int:
-        """Returns the total number of media items."""
-        return await self.media_repository.count_all()
-
-    async def count_by_status(self, status: MediaStatus) -> int:
-        """Returns the number of media items with a specific status."""
-        return await self.media_repository.count_by_status(status)
+    async def list_all(self, page: int = 1, limit: int = 10, search: Optional[str] = None) -> List[Media]:
+        """Lists all media in the system with pagination and search."""
+        return await self.media_repository.list_all(page=page, limit=limit, search=search)

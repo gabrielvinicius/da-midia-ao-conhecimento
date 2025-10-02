@@ -5,9 +5,8 @@ from typing import Dict, Any
 from src.auth.application.auth_service import AuthService
 from src.auth.application.commands.create_user_command_handler import CreateUserCommandHandler
 from src.auth.application.commands.authenticate_user_command_handler import AuthenticateUserCommandHandler
-from src.auth.application.commands.delete_user_command_handler import DeleteUserCommandHandler
-from src.auth.application.commands.update_user_command_handler import UpdateUserCommandHandler
-from src.auth.application.commands.change_password_command_handler import ChangePasswordCommandHandler # Import new handler
+from src.admin.application.commands.update_user_role_command_handler import UpdateUserRoleCommandHandler
+from src.admin.application.commands.delete_user_command_handler import DeleteUserCommandHandler
 from src.auth.application.queries.auth_queries import AuthQueries
 from src.auth.config.settings import AuthSettings
 from src.auth.infrastructure.user_repository import UserRepository
@@ -17,23 +16,18 @@ def bootstrap_auth_module(db_session: AsyncSession) -> Dict[str, Any]:
     user_repository = UserRepository(db=db_session)
     auth_settings = AuthSettings()
 
-    # Instantiate all command handlers
+    # Instantiate all command handlers, including admin-related ones
     create_user_handler = CreateUserCommandHandler(user_repository=user_repository)
-    authenticate_user_handler = AuthenticateUserCommandHandler(
-        user_repository=user_repository, 
-        settings=auth_settings
-    )
+    authenticate_user_handler = AuthenticateUserCommandHandler(user_repository=user_repository, settings=auth_settings)
+    update_user_role_handler = UpdateUserRoleCommandHandler(user_repository=user_repository)
     delete_user_handler = DeleteUserCommandHandler(user_repository=user_repository)
-    update_user_handler = UpdateUserCommandHandler(user_repository=user_repository)
-    change_password_handler = ChangePasswordCommandHandler(user_repository=user_repository) # Instantiate new handler
 
     # Instantiate the facade service with all handlers
     auth_service = AuthService(
         create_user_handler=create_user_handler,
         authenticate_user_handler=authenticate_user_handler,
-        delete_user_handler=delete_user_handler,
-        update_user_handler=update_user_handler,
-        change_password_handler=change_password_handler # Inject new handler
+        update_user_role_handler=update_user_role_handler,
+        delete_user_handler=delete_user_handler
     )
     auth_queries = AuthQueries(user_repository=user_repository)
 
@@ -41,5 +35,4 @@ def bootstrap_auth_module(db_session: AsyncSession) -> Dict[str, Any]:
         "user_repository": user_repository,
         "auth_service": auth_service,
         "auth_queries": auth_queries,
-        "auth_settings": auth_settings,
     }

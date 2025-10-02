@@ -4,5 +4,4 @@ from uuid import UUID
 
 @dataclass(frozen=True)
 class DeleteMediaCommand:
-    """Command to delete a media item."""
     media_id: UUID

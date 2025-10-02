@@ -1,0 +1,24 @@
+graph TD
+    A[Client (Browser)] --> B[Nginx (Reverse Proxy)];
+
+    subgraph "Application Server (Docker)"
+        B --> C[API (Gunicorn + Uvicorn)];
+        D[Worker (Celery)];
+    end
+
+    subgraph "Infrastructure Services (Docker)"
+        E[Database (PostgreSQL)];
+        F[Message Broker (Redis)];
+        G[Object Storage (MinIO/S3)];
+    end
+
+    C -- Sends Tasks --> F;
+    D -- Consumes Tasks --> F;
+
+    C -- Reads/Writes --> E;
+    D -- Reads/Writes --> E;
+
+    C -- Reads/Writes --> G;
+    D -- Reads/Writes --> G;
+
+    classDef default fill:#2D2D2D,stroke:#FFF,stroke-width:2px,color:#FFF;
