@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 # Import dependencies from the local module file and other specific modules
 from src.auth.api.dependencies import get_current_user
 from src.auth.domain.user import User
-from .dependencies import get_summary_queries, get_media_queries
+from .dependencies import get_summary_queries
+from src.media_management.api.dependencies import get_media_queries
 
 from src.summarization.application.queries.summary_queries import SummaryQueries
 from src.media_management.application.queries.media_queries import MediaQueries

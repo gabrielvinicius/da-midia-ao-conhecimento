@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from src.auth.api.dependencies import get_current_user
 from src.auth.domain.user import User
 from src.media_management.application.queries.media_queries import MediaQueries
-from .dependencies import get_topic_modeling_queries, get_media_queries
+from src.media_management.api.dependencies import get_media_queries
+from .dependencies import get_topic_modeling_queries
 from .schemas import TopicModelingResponse
 from ..application.queries.topic_modeling_queries import TopicModelingQueries
 

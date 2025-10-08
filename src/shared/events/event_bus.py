@@ -24,6 +24,10 @@ celery.autodiscover_tasks([
     "src.transcription.tasks",
     "src.summarization.tasks",
     "src.notifications.tasks",
+    "src.sentiment_analysis.tasks",
+    "src.topic_modeling.tasks",
+    "src.video_processing.tasks",
+    "src.text_processing.tasks",
 ])
 
 # Instrument Celery with OpenTelemetry

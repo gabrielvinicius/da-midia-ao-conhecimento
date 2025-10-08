@@ -13,7 +13,8 @@ from src.auth.api.schemas import UserResponse
 from src.media_management.api.schemas import MediaResponse
 from .schemas import UserUpdateRequest, SystemStatsResponse
 
-from .dependencies import get_auth_queries, get_media_queries, get_admin_queries, get_auth_service, get_media_service
+from .dependencies import get_auth_queries, get_admin_queries, get_auth_service, get_media_service
+from src.media_management.api.dependencies import get_media_queries
 
 router = APIRouter(
     prefix="/admin",

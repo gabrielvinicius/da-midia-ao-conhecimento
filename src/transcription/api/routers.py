@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.auth.api.dependencies import get_current_user
 from src.auth.domain.user import User
-from .dependencies import get_transcription_queries, get_media_queries, get_transcription_service # Import service getter
+from .dependencies import get_transcription_queries, get_transcription_service # Import service getter
+from src.media_management.api.dependencies import get_media_queries
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.transcription.application.queries.transcription_queries import TranscriptionQueries
 from src.transcription.application.transcription_service import TranscriptionService # Import service

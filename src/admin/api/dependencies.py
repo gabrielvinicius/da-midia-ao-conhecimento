@@ -14,8 +14,6 @@ def get_container(request: Request) -> dict:
 def get_auth_queries(container: Annotated[dict, Depends(get_container)]) -> AuthQueries:
     return container["auth_queries"]
 
-def get_media_queries(container: Annotated[dict, Depends(get_container)]) -> MediaQueries:
-    return container["media_queries"]
 
 def get_admin_queries(container: Annotated[dict, Depends(get_container)]) -> AdminQueries:
     return container["admin_queries"]

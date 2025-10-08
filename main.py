@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 # OpenTelemetry Imports
@@ -17,6 +18,7 @@ from src.notifications.bootstrap import bootstrap_notification_module
 from src.analytics.bootstrap import bootstrap_analytics_module
 from src.metrics.bootstrap import bootstrap_metrics_module
 from src.sentiment_analysis.bootstrap import bootstrap_sentiment_analysis_module # Import new bootstrap
+from src.topic_modeling.bootstrap import bootstrap_topic_modeling_module
 
 # Shared Factories and DB
 from src.shared.events.event_bus import get_event_bus
@@ -34,7 +36,8 @@ from src.providers.api.routers import router as providers_router
 from src.summarization.api.routers import router as summary_router
 from src.transcription.api.routers import router as transcription_router
 from src.media_management.api.routers import router as media_router
-# Add the new sentiment analysis router later
+from src.sentiment_analysis.api.routers import router as sentiment_router
+from src.topic_modeling.api.routers import router as topic_modeling_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -62,6 +65,7 @@ async def lifespan(app: FastAPI):
         app_container.update(bootstrap_text_processing_module(session, app_container["media_queries"], app_container["storage_service_factory"], app_container["event_bus"]))
         app_container.update(bootstrap_summarization_module(session, app_container["event_bus"]))
         app_container.update(bootstrap_sentiment_analysis_module(session))
+        app_container.update(bootstrap_topic_modeling_module(session))
 
         app.state.container = app_container
 
@@ -71,6 +75,7 @@ async def lifespan(app: FastAPI):
         from src.summarization.application.event_handlers import register_event_handlers as register_summary_handlers
         from src.notifications.application.event_handlers import register_event_handlers as register_notification_handlers
         from src.sentiment_analysis.application.event_handlers import register_event_handlers as register_sentiment_handlers
+        from src.topic_modeling.application.event_handlers import register_event_handlers as register_topic_handlers
         
         await register_video_handlers(app_container["event_bus"])
         await register_text_handlers(app_container["event_bus"])
@@ -78,6 +83,7 @@ async def lifespan(app: FastAPI):
         await register_summary_handlers(app_container["event_bus"])
         await register_notification_handlers(app_container["event_bus"])
         await register_sentiment_handlers(app_container["event_bus"])
+        await register_topic_handlers(app_container["event_bus"])
 
         print("🚀 Starting event bus...")
         await app.state.container["event_bus"].start_listener()
@@ -100,6 +106,15 @@ app = FastAPI(
 
 FastAPIInstrumentor.instrument_app(app)
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],  # Frontend URLs
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 def get_service(service_name: str):
     async def _get_service(request: Request):
         return request.app.state.container[service_name]
@@ -111,6 +126,7 @@ app.include_router(auth_router)
 app.include_router(media_router)
 app.include_router(transcription_router)
 app.include_router(summary_router)
+app.include_router(sentiment_router)
+app.include_router(topic_modeling_router)
 app.include_router(notification_router)
 app.include_router(metrics_router)
-# Add the new sentiment analysis router here later
