@@ -17,7 +17,7 @@ interface WebSocketContextType {
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
 
-const WS_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/^http/, 'ws';
+const WS_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/^http/, 'ws');
 
 export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
   const { isAuthenticated } = useAuth();

@@ -128,3 +128,17 @@ export interface Analysis {
   type: AnalysisType;
   result: AnalysisResult;
 }
+
+// Specific analysis result types
+export interface SentimentAnalysisResult {
+  label: string;
+  score: number;
+}
+
+export interface TopicModelingResult {
+  topics: Array<{
+    id: number;
+    keywords: string[];
+    probability: number;
+  }>;
+}

@@ -29,13 +29,13 @@ export const TopicModelingResultPanel = ({ mediaId }: TopicModelingResultPanelPr
       return <p className="text-muted-foreground text-center text-xs">Awaiting text content to start analysis...</p>;
     }
 
-    const topics = analysis.topics as string[];
+    const topics = analysis.topics;
 
     return (
       <div className="flex flex-wrap gap-2 justify-center">
         {topics.map((topic, index) => (
           <Badge key={index} variant="secondary" className="text-sm">
-            {topic}
+            {topic.keywords.join(", ")} ({(topic.probability * 100).toFixed(1)}%)
           </Badge>
         ))}
       </div>

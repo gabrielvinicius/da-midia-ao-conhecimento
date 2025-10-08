@@ -1,4 +1,4 @@
-import { useSentimentAnalysis } from "../hooks/useSentiment"; // Corrected import path
+import { useSentimentAnalysis } from "../hooks/useSentimentAnalysis";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ThumbsUp, ThumbsDown, Meh } from "lucide-react";
