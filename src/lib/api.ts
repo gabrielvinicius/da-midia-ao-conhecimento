@@ -3,6 +3,10 @@ import { toast } from 'react-toastify';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+/**
+ * @deprecated Use secureApi from './secure-api.ts' instead
+ * This legacy API client is kept for backward compatibility
+ */
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -13,9 +17,13 @@ const api = axios.create({
 // Request interceptor to add the auth token to headers
 api.interceptors.request.use(
   (config) => {
+    // Legacy: ainda suporta localStorage para compatibilidade
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      
+      // Aviso de depreciação
+      console.warn('⚠️ Using deprecated localStorage-based authentication. Migrate to secureApi for better security.');
     }
     return config;
   },
@@ -28,7 +36,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message = error.response?.data?.detail || error.message || 'An unknown error occurred';
+    const message = error.response?.data?.message || error.response?.data?.detail || error.message || 'An unknown error occurred';
     
     // You can expand this to handle specific status codes
     if (error.response?.status === 401) {
