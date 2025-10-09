@@ -1,0 +1,53 @@
+# deployments/k8s/production/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: video-summarizer-prod
+  labels:
+    name: video-summarizer-prod
+    environment: production
+    app.kubernetes.io/name: video-summarizer
+    app.kubernetes.io/version: "2.0.0"
+---
+# Network policies para segurança
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: video-summarizer-network-policy
+  namespace: video-summarizer-prod
+spec:
+  podSelector:
+    matchLabels:
+      app: video-summarizer
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: nginx-ingress
+    - podSelector:
+        matchLabels:
+          app: video-summarizer
+    ports:
+    - protocol: TCP
+      port: 8000
+    - protocol: TCP
+      port: 80
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  - {} # Allow all egress for external APIs

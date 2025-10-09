@@ -1,0 +1,407 @@
+name: Advanced CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, 'feature/**', 'hotfix/**' ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # === Análise de Código ===
+  code-quality:
+    name: Code Quality & Security
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Para análise completa
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: latest
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+    
+    - name: Install dependencies
+      run: poetry install --no-interaction
+    
+    - name: Lint com Ruff
+      run: poetry run ruff check src/ --output-format=github
+    
+    - name: Type checking com MyPy
+      run: poetry run mypy src/
+    
+    - name: Security scan com Bandit
+      run: |
+        pip install bandit[toml]
+        bandit -r src/ -f json -o bandit-report.json
+        bandit -r src/ # Show results
+    
+    - name: Dependency security check
+      run: |
+        pip install safety
+        poetry export -f requirements.txt | safety check --stdin
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+
+  # === Testes Backend ===
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    needs: code-quality
+    
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+          POSTGRES_USER: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+    
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+    
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+    
+    - name: Install dependencies
+      run: poetry install --no-interaction
+    
+    - name: Run database migrations
+      run: poetry run alembic upgrade head
+      env:
+        DB_SCHEME: postgresql+asyncpg
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: test_db
+        DB_USER: postgres
+        DB_PASSWORD: postgres
+        SECRET_KEY: test-secret-key-for-ci
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+    
+    - name: Run unit tests
+      run: poetry run pytest tests/unit/ -v --cov=src --cov-report=xml --cov-report=html
+      env:
+        DB_SCHEME: postgresql+asyncpg
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: test_db
+        DB_USER: postgres
+        DB_PASSWORD: postgres
+        SECRET_KEY: test-secret-key-for-ci
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+    
+    - name: Run integration tests
+      run: poetry run pytest tests/integration/ -v
+      env:
+        DB_SCHEME: postgresql+asyncpg
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: test_db
+        DB_USER: postgres
+        DB_PASSWORD: postgres
+        SECRET_KEY: test-secret-key-for-ci
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: backend
+        name: backend-coverage
+    
+    - name: Store coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report-${{ matrix.python-version }}
+        path: htmlcov/
+
+  # === Testes Frontend ===
+  test-frontend:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install dependencies
+      working-directory: frontend
+      run: npm ci
+    
+    - name: Lint frontend
+      working-directory: frontend
+      run: npm run lint
+    
+    - name: Type checking
+      working-directory: frontend
+      run: npm run type-check
+    
+    - name: Run unit tests
+      working-directory: frontend
+      run: npm run test:coverage
+    
+    - name: Build frontend
+      working-directory: frontend
+      run: npm run build
+    
+    - name: Upload frontend coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./frontend/coverage/coverage-final.json
+        flags: frontend
+        name: frontend-coverage
+
+  # === Testes E2E ===
+  test-e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+    
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Start services
+      run: |
+        cp .env.example .env
+        docker-compose -f docker-compose.test.yml up -d
+        sleep 30  # Wait for services to be ready
+    
+    - name: Wait for services
+      run: |
+        timeout 60 bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
+    
+    - name: Run E2E tests
+      run: |
+        docker-compose -f docker-compose.test.yml exec -T api pytest tests/e2e/ -v
+    
+    - name: Collect logs
+      if: failure()
+      run: |
+        docker-compose -f docker-compose.test.yml logs > e2e-logs.txt
+    
+    - name: Upload E2E logs
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: e2e-logs
+        path: e2e-logs.txt
+    
+    - name: Cleanup
+      if: always()
+      run: docker-compose -f docker-compose.test.yml down -v
+
+  # === Build & Push Images ===
+  build-images:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend, test-e2e]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    
+    strategy:
+      matrix:
+        image: [backend, frontend, worker]
+    
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+    
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Login to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.image }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./deployments/docker/Dockerfile.${{ matrix.image }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+  # === Deploy para Staging ===
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+    
+    - name: Deploy to staging
+      run: |
+        export KUBECONFIG=kubeconfig
+        cd deployments/k8s/staging
+        ./deploy.sh ${{ github.sha }}
+    
+    - name: Run smoke tests
+      run: |
+        timeout 300 bash -c 'until curl -f https://staging-api.yourdomain.com/health; do sleep 5; done'
+        curl -f https://staging-api.yourdomain.com/metrics
+
+  # === Deploy para Produção ===
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+    
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'v1.28.0'
+    
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+    
+    - name: Blue-Green Deployment
+      run: |
+        export KUBECONFIG=kubeconfig
+        cd deployments/k8s/production
+        ./blue-green-deploy.sh ${{ github.sha }}
+    
+    - name: Health check
+      run: |
+        timeout 300 bash -c 'until curl -f https://api.yourdomain.com/health; do sleep 5; done'
+    
+    - name: Notify deployment
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: "🚀 Production deployment completed successfully!"
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      if: success()
+
+  # === Security Scan das Images ===
+  security-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.event_name == 'push'
+    
+    strategy:
+      matrix:
+        image: [backend, frontend, worker]
+    
+    steps:
+    - name: Login to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.image }}:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-results-${{ matrix.image }}.sarif'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results-${{ matrix.image }}.sarif'
