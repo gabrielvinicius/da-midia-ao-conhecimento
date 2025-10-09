@@ -9,6 +9,9 @@ from src.shared.infrastructure.tracing import configure_tracer
 from src.shared.infrastructure.logging_config import configure_logging, get_logger
 from src.shared.exceptions.api_errors import register_exception_handlers
 from src.shared.middleware.validation_middleware import register_validation_middleware
+from src.shared.middleware.performance_middleware import register_performance_middleware
+from src.shared.monitoring.metrics_collector import metrics_collector
+from src.shared.infrastructure.cache import cache
 
 # --- Module Bootstrapping and Composition Root ---
 from src.auth.bootstrap import bootstrap_auth_module
@@ -98,13 +101,30 @@ async def lifespan(app: FastAPI):
 
         logger.info("Iniciando event bus", component="event_bus")
         await app.state.container["event_bus"].start_listener()
+        
+        # Inicializar sistema de cache
+        logger.info("Conectando ao sistema de cache", component="cache")
+        await cache.connect()
+        
+        # Inicializar coleta de métricas
+        logger.info("Iniciando coleta de métricas", component="metrics")
+        await metrics_collector.start_collection(interval_seconds=30)
 
         logger.info("Aplicação iniciada com sucesso", component="startup")
         yield
 
         logger.info("Finalizando recursos", component="shutdown")
+        
+        # Parar coleta de métricas
+        await metrics_collector.stop_collection()
+        
+        # Desconectar cache
+        await cache.disconnect()
+        
+        # Finalizar event bus e banco
         await app.state.container["event_bus"].stop_listener()
         await engine.dispose()
+        
         logger.info("Aplicação finalizada", component="shutdown")
 
 
@@ -125,6 +145,9 @@ register_exception_handlers(app)
 
 # Registrar middlewares de validação e segurança
 register_validation_middleware(app)
+
+# Registrar middlewares de performance
+register_performance_middleware(app)
 
 # Add CORS middleware (configuração segura)
 app.add_middleware(
@@ -164,3 +187,17 @@ app.include_router(sentiment_router)
 app.include_router(topic_modeling_router)
 app.include_router(notification_router)
 app.include_router(metrics_router)
+
+# Endpoint para métricas Prometheus
+@app.get("/metrics", response_class=Response)
+async def get_metrics():
+    """Endpoint para coleta de métricas pelo Prometheus."""
+    from prometheus_client import CONTENT_TYPE_LATEST
+    metrics_data = metrics_collector.get_prometheus_metrics()
+    return Response(content=metrics_data, media_type=CONTENT_TYPE_LATEST)
+
+# Endpoint para dashboard de métricas
+@app.get("/health/dashboard")
+async def get_dashboard_metrics():
+    """Endpoint para dashboard interno de métricas."""
+    return await metrics_collector.get_dashboard_data()

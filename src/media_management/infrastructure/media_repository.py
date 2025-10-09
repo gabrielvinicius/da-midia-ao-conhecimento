@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload, joinedload
 
 from src.media_management.domain.media import Media, MediaStatus
 from src.shared.infrastructure.logging_config import get_logger
+from src.shared.infrastructure.cache import cache_manager, CacheConfig
 
 logger = get_logger("media_repository")
 
@@ -17,14 +18,28 @@ class MediaRepository:
         self.db = db
 
     async def save(self, media: Media) -> Media:
-        """Saves a media entity to the database."""
+        """Saves a media entity to the database and invalidates cache."""
         self.db.add(media)
         await self.db.commit()
         await self.db.refresh(media)
+        
+        # Invalidar cache relacionado a esta mídia
+        await cache_manager.invalidate_media(str(media.id))
+        
+        logger.debug("Media saved and cache invalidated", media_id=str(media.id))
         return media
 
     async def find_by_id(self, media_id: str, include_relations: bool = False) -> Optional[Media]:
-        """Finds a media entity by its ID with optional eager loading."""
+        """Finds a media entity by its ID with optional eager loading and caching."""
+        
+        # Tentar obter do cache primeiro
+        cached_media = await cache_manager.get_media(media_id, include_relations)
+        if cached_media:
+            logger.debug("Media found in cache", media_id=media_id, include_relations=include_relations)
+            # Converter dict de volta para Media object se necessário
+            return Media(**cached_media) if isinstance(cached_media, dict) else cached_media
+        
+        # Se não estiver no cache, buscar no banco
         query = select(Media).where(Media.id == UUID(media_id))
         
         # Eager loading para evitar N+1 queries
@@ -40,7 +55,24 @@ class MediaRepository:
         media = result.scalar_one_or_none()
         
         if media:
-            logger.debug("Media found", media_id=media_id, include_relations=include_relations)
+            logger.debug("Media found in database", media_id=media_id, include_relations=include_relations)
+            
+            # Cachear resultado
+            media_dict = {
+                "id": str(media.id),
+                "user_id": str(media.user_id),
+                "original_file_path": media.original_file_path,
+                "media_type": media.media_type,
+                "status": media.status,
+                "created_at": media.created_at.isoformat() if media.created_at else None,
+                "error_message": media.error_message,
+                "storage_provider": media.storage_provider,
+                "transcription_provider": media.transcription_provider,
+                "summarization_provider": media.summarization_provider,
+                "language": media.language
+            }
+            
+            await cache_manager.set_media(media_id, media_dict, include_relations)
         else:
             logger.warning("Media not found", media_id=media_id)
             

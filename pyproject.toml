@@ -27,6 +27,11 @@ asyncpg = "^0.29.0"          # For FastAPI async operations
 celery = "^5.4.0"
 redis = "^5.0.7"
 
+# --- Caching & Performance ---
+redis-py = "^5.0.7"
+aiocache = "^0.12.2"
+aiofiles = "^24.1.0"
+
 # --- AI / Machine Learning ---
 torch = "^2.4.0"
 transformers = "^4.42.4"
