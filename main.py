@@ -6,6 +6,9 @@ from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 # OpenTelemetry Imports
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from src.shared.infrastructure.tracing import configure_tracer
+from src.shared.infrastructure.logging_config import configure_logging, get_logger
+from src.shared.exceptions.api_errors import register_exception_handlers
+from src.shared.middleware.validation_middleware import register_validation_middleware
 
 # --- Module Bootstrapping and Composition Root ---
 from src.auth.bootstrap import bootstrap_auth_module
@@ -41,12 +44,20 @@ from src.topic_modeling.api.routers import router as topic_modeling_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # ... (lifespan logic remains the same)
+    # Configurar logging estruturado
+    configure_logging("video-summarizer-api", level="INFO", debug_mode=True)
+    logger = get_logger("main")
+    
+    # Configurar tracing
     configure_tracer("video-summarizer-api")
-    print("⏳ Creating database tables...")
+    
+    logger.info("Iniciando aplicação", component="lifespan")
+    logger.info("Criando tabelas do banco de dados", component="database")
+    
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print("⚙️ Initializing modules and composing application...")
+    
+    logger.info("Inicializando módulos e compondo aplicação", component="bootstrap")
     async with AsyncSessionLocal() as session:
         app_container = {
             "event_bus": get_event_bus(),
@@ -85,14 +96,16 @@ async def lifespan(app: FastAPI):
         await register_sentiment_handlers(app_container["event_bus"])
         await register_topic_handlers(app_container["event_bus"])
 
-        print("🚀 Starting event bus...")
+        logger.info("Iniciando event bus", component="event_bus")
         await app.state.container["event_bus"].start_listener()
 
+        logger.info("Aplicação iniciada com sucesso", component="startup")
         yield
 
-        print("🛑 Shutting down resources...")
+        logger.info("Finalizando recursos", component="shutdown")
         await app.state.container["event_bus"].stop_listener()
         await engine.dispose()
+        logger.info("Aplicação finalizada", component="shutdown")
 
 
 app = FastAPI(
@@ -104,15 +117,36 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+# Instrumentação OpenTelemetry
 FastAPIInstrumentor.instrument_app(app)
 
-# Add CORS middleware
+# Registrar handlers de exceção globais
+register_exception_handlers(app)
+
+# Registrar middlewares de validação e segurança
+register_validation_middleware(app)
+
+# Add CORS middleware (configuração segura)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],  # Frontend URLs
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "http://localhost:5173", 
+        "http://localhost:3000", 
+        "http://127.0.0.1:5173",
+        "https://yourdomain.com"  # Adicionar domínio de produção
+    ],
+    allow_credentials=True,  # Necessário para cookies httpOnly
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language", 
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-CSRF-Token",  # Permitir header CSRF
+        "X-Requested-With"
+    ],
+    expose_headers=["X-CSRF-Token"],  # Expor CSRF token para frontend
 )
 
 def get_service(service_name: str):

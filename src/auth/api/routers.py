@@ -1,7 +1,7 @@
 # src/auth/api/routers.py
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 
 from .dependencies import (
     get_auth_service,
@@ -10,6 +10,7 @@ from .dependencies import (
     get_current_admin_user,
 )
 from .schemas import Token, UserResponse, UserCreate, TokenRequest, ChangePasswordRequest # Import new schema
+from src.auth.infrastructure.secure_auth import token_manager, get_current_user_secure, verify_csrf_protection
 from src.auth.application.auth_service import AuthService
 from src.auth.application.queries.auth_queries import AuthQueries
 from src.auth.domain.user import User
@@ -38,13 +39,45 @@ async def register(
 @router.post(
     "/token", 
     response_model=Token, 
-    summary="Log in to get an access token",
+    summary="Log in with secure cookies",
     responses={401: {"description": "Invalid credentials"}}
 )
-async def login_json(
+async def login_secure(
+    response: Response,
     login_data: TokenRequest,
     auth_service: AuthService = Depends(get_auth_service),
 ):
+    """Login seguro que define cookies httpOnly ao invés de retornar tokens."""
+    # Autenticar usuário
+    user = await auth_service.authenticate_user(login_data.username, login_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+        )
+    
+    # Definir cookies seguros
+    tokens = token_manager.set_auth_cookies(response, str(user.id))
+    
+    return {
+        "access_token": "set_in_cookie", 
+        "token_type": "bearer",
+        "csrf_token": tokens["csrf_token"]  # CSRF token para o frontend
+    }
+
+
+@router.post(
+    "/token/legacy", 
+    response_model=Token, 
+    summary="Legacy login (returns token in response body)",
+    responses={401: {"description": "Invalid credentials"}},
+    deprecated=True
+)
+async def login_legacy(
+    login_data: TokenRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Login legacy para compatibilidade - use /token para autenticação segura."""
     token = await auth_service.authenticate_user_and_get_token(login_data.username, login_data.password)
     if not token:
         raise HTTPException(
@@ -54,14 +87,84 @@ async def login_json(
     return {"access_token": token, "token_type": "bearer"}
 
 
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Secure logout - clears all auth cookies"
+)
+async def logout_secure(response: Response):
+    """Logout seguro que remove todos os cookies de autenticação."""
+    token_manager.clear_auth_cookies(response)
+    return
+
+
+@router.post(
+    "/refresh",
+    response_model=Token,
+    summary="Refresh access token using refresh token",
+    responses={401: {"description": "Invalid refresh token"}}
+)
+async def refresh_token(
+    request: Request,
+    response: Response,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Renova o access token usando o refresh token."""
+    refresh_token = request.cookies.get(token_manager.REFRESH_COOKIE_NAME)
+    
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token not found"
+        )
+    
+    # Verificar refresh token
+    payload = token_manager.verify_token(refresh_token, "refresh")
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token"
+        )
+    
+    user_id = payload.get("sub")
+    
+    # Verificar se usuário ainda existe e está ativo
+    user = await auth_service.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+    
+    # Gerar novos tokens
+    tokens = token_manager.set_auth_cookies(response, user_id)
+    
+    return {
+        "access_token": "refreshed_in_cookie",
+        "token_type": "bearer",
+        "csrf_token": tokens["csrf_token"]
+    }
+
+
 @router.get(
     "/me", 
     response_model=UserResponse, 
     summary="Get current user details",
     responses={401: {"description": "Could not validate credentials"}}
 )
-async def read_current_user(current_user: User = Depends(get_current_user)):
-    return current_user
+async def read_current_user(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Obter detalhes do usuário atual com verificação CSRF para operações futuras."""
+    # Para GET não precisamos verificar CSRF, mas podemos retornar o token atual
+    csrf_token = token_manager.get_csrf_token_from_cookie(request)
+    
+    # Adicionar CSRF token nos headers da resposta para conveniência
+    response_data = current_user.dict() if hasattr(current_user, 'dict') else current_user.__dict__
+    response_data["csrf_token"] = csrf_token
+    
+    return response_data
 
 
 @router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT, summary="Change current user's password")
