@@ -32,6 +32,12 @@ class AudioExtracted(DomainEvent):
     storage_provider: str
 
 @dataclass(frozen=True)
+class MediaDeleted(DomainEvent):
+    """A media file has been deleted."""
+    media_id: str
+    user_id: str
+
+@dataclass(frozen=True)
 class TextContentReady(DomainEvent):
     """Text content has been generated from a media file and is ready for downstream processing (e.g., summarization)."""
     media_id: str
@@ -58,3 +64,46 @@ class SummarizationRequested(DomainEvent):
     media_id: str
     text_content: str
     provider: str
+
+@dataclass(frozen=True)
+class SummarizationProgress(DomainEvent):
+    """Event fired to indicate summarization progress."""
+    media_id: str
+    progress: int
+    status: str
+
+@dataclass(frozen=True)
+class SentimentAnalysisCompleted(DomainEvent):
+    """Event fired when sentiment analysis is completed."""
+    media_id: str
+    analysis_id: str
+
+@dataclass(frozen=True)
+class TranscriptionStarted(DomainEvent):
+    """Event fired when transcription processing starts."""
+    media_id: str
+    provider: str
+
+@dataclass(frozen=True)
+class TranscriptionCompleted(DomainEvent):
+    """Event fired when transcription is completed."""
+    media_id: str
+    transcription_id: str
+
+@dataclass(frozen=True)
+class TranscriptionFailed(DomainEvent):
+    """Event fired when transcription fails."""
+    media_id: str
+    error: str
+
+@dataclass(frozen=True)
+class TopicModelingCompleted(DomainEvent):
+    """Event fired when topic modeling is completed."""
+    media_id: str
+    analysis_id: str
+
+@dataclass(frozen=True)
+class SummaryCompleted(DomainEvent):
+    """Event fired when summary is completed."""
+    media_id: str
+    summary_id: str

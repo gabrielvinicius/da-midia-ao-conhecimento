@@ -25,6 +25,7 @@ from src.analytics.bootstrap import bootstrap_analytics_module
 from src.metrics.bootstrap import bootstrap_metrics_module
 from src.sentiment_analysis.bootstrap import bootstrap_sentiment_analysis_module # Import new bootstrap
 from src.topic_modeling.bootstrap import bootstrap_topic_modeling_module
+from src.notifications.infrastructure.connection_manager import manager
 
 # Shared Factories and DB
 from src.shared.events.event_bus import get_event_bus
@@ -72,10 +73,10 @@ async def lifespan(app: FastAPI):
         app_container.update(bootstrap_metrics_module())
         app_container.update(bootstrap_auth_module(session))
         app_container.update(bootstrap_analytics_module(session))
-        app_container.update(bootstrap_transcription_module(session))
         app_container.update(bootstrap_media_module(session, app_container["storage_service_factory"], app_container["event_bus"], app_container["metrics_service"]))
+        app_container.update(bootstrap_transcription_module(session, app_container["media_queries"], manager))
         app_container.update(bootstrap_notification_module(session, auth_queries=app_container["auth_queries"], event_bus=app_container["event_bus"]))
-        app_container.update(bootstrap_video_processing_module(app_container["media_queries"], app_container["storage_service_factory"], app_container["event_bus"]))
+        app_container.update(bootstrap_video_processing_module(app_container["media_queries"], app_container["media_repository"], app_container["storage_service_factory"], app_container["event_bus"]))
         app_container.update(bootstrap_text_processing_module(session, app_container["media_queries"], app_container["storage_service_factory"], app_container["event_bus"]))
         app_container.update(bootstrap_summarization_module(session, app_container["event_bus"]))
         app_container.update(bootstrap_sentiment_analysis_module(session))
@@ -93,8 +94,8 @@ async def lifespan(app: FastAPI):
         
         await register_video_handlers(app_container["event_bus"])
         await register_text_handlers(app_container["event_bus"])
-        await register_transcription_handlers(app_container["event_bus"])
-        await register_summary_handlers(app_container["event_bus"])
+        await register_transcription_handlers(app_container["event_bus"], app_container["transcription_repository"], app_container["media_queries"])
+        await register_summary_handlers(app_container["event_bus"], app_container["summary_repository"], app_container["media_queries"])
         await register_notification_handlers(app_container["event_bus"])
         await register_sentiment_handlers(app_container["event_bus"])
         await register_topic_handlers(app_container["event_bus"])
@@ -108,7 +109,7 @@ async def lifespan(app: FastAPI):
         
         # Inicializar coleta de métricas
         logger.info("Iniciando coleta de métricas", component="metrics")
-        await metrics_collector.start_collection(interval_seconds=30)
+        # await metrics_collector.start_collection(interval_seconds=30)  # Disabled due to psutil dependency
 
         logger.info("Aplicação iniciada com sucesso", component="startup")
         yield
@@ -116,7 +117,7 @@ async def lifespan(app: FastAPI):
         logger.info("Finalizando recursos", component="shutdown")
         
         # Parar coleta de métricas
-        await metrics_collector.stop_collection()
+        # await metrics_collector.stop_collection()  # Disabled due to psutil dependency
         
         # Desconectar cache
         await cache.disconnect()

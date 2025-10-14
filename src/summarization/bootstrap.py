@@ -12,7 +12,7 @@ def bootstrap_summarization_module(
     event_bus: EventBus,
 ) -> Dict[str, Any]:
     """Constructs and returns the services for the summarization module."""
-    summary_repository = SummaryRepository(db=db_session)
+    summary_repository = SummaryRepository(session=db_session)
     summary_queries = SummaryQueries(summary_repository=summary_repository)
     summarization_service = SummarizationService(event_bus=event_bus)
 

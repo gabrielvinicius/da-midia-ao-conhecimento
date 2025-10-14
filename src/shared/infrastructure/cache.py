@@ -5,6 +5,7 @@ Suporte a TTL, invalidação automática e cache distribuído.
 """
 
 import json
+import time
 import asyncio
 from typing import Any, Optional, Union, Dict, List, Callable
 from datetime import datetime, timedelta
@@ -196,6 +197,45 @@ class RedisCache:
         except Exception as e:
             logger.error("Cache pattern delete error", pattern=pattern, error=str(e))
             return 0
+    
+    async def check_rate_limit(self, key: str, limit: int, window: int = 60) -> dict:
+        """Check rate limit for a given key."""
+        if not self.is_connected:
+            await self.connect()
+        
+        try:
+            current_time = int(time.time())
+            window_start = current_time - window
+            
+            # Use a sliding window approach
+            pipe = self.redis_client.pipeline()
+            pipe.zremrangebyscore(key, 0, window_start)
+            pipe.zadd(key, {current_time: current_time})
+            pipe.zcard(key)
+            pipe.expire(key, window)
+            
+            results = await pipe.execute()
+            current_count = results[2]
+            
+            is_limited = current_count > limit
+            remaining = max(0, limit - current_count)
+            
+            return {
+                "allowed": not is_limited,
+                "count": current_count,
+                "remaining": remaining,
+                "reset_time": current_time + window
+            }
+            
+        except Exception as e:
+            logger.error("Rate limit check error", key=key, error=str(e))
+            # Fail open - allow the request if cache is down
+            return {
+                "allowed": True,
+                "count": 0,
+                "remaining": limit,
+                "reset_time": int(time.time()) + window
+            }
 
 
 # Instância global do cache

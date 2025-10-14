@@ -17,10 +17,10 @@ def bootstrap_media_module(
     storage_service_factory: StorageServiceFactory,
     event_bus: EventBus,
     metrics_service: MetricsService,
-    media_queries: MediaQueries, # Added dependency
 ) -> Dict[str, Any]:
     """Constructs and returns the services for the media_management module."""
     media_repository = MediaRepository(db=db_session)
+    media_queries = MediaQueries(media_repository=media_repository)
     
     # Instantiate all command handlers
     create_media_handler = CreateMediaCommandHandler(
