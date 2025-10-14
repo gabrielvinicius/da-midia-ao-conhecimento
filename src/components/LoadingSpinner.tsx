@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function LoadingSpinner({ className = "", size = 12 }: { className?: string; size?: number }) {
+function LoadingSpinner({ className = "", size = 12 }: { className?: string; size?: number }) {
     const spinnerSize = `h-${size} w-${size}`;
     return (
         <div className={`flex justify-center items-center p-8 ${className}`}>
@@ -12,3 +12,6 @@ export default function LoadingSpinner({ className = "", size = 12 }: { classNam
         </div>
     );
 }
+
+export default LoadingSpinner;
+export { LoadingSpinner };

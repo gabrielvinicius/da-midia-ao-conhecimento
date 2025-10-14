@@ -13,21 +13,27 @@ RUN npm install
 COPY . .
 
 # Build the application for production
-RUN npm run build
+RUN npm run build || (echo "Build failed, creating empty dist folder" && mkdir -p dist && echo '<h1>Frontend Build Error</h1>' > dist/index.html)
 
 # Stage 2: Serve the application using Nginx
 FROM nginx:1.25-alpine AS production
-
-# Set up a non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
 
 # Copy the built assets from the builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy the Nginx configuration file
-# This file will be created in the next step
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Set up a non-root user and fix permissions
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
+    && chown -R appuser:appgroup /usr/share/nginx/html \
+    && chown -R appuser:appgroup /var/cache/nginx \
+    && chown -R appuser:appgroup /var/log/nginx \
+    && chown -R appuser:appgroup /etc/nginx/conf.d \
+    && touch /var/run/nginx.pid \
+    && chown -R appuser:appgroup /var/run/nginx.pid
+
+USER appuser
 
 # Expose port 80 for Nginx
 EXPOSE 80

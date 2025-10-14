@@ -44,6 +44,13 @@ export interface Media {
   media_type: MediaType;
   status: MediaStatus;
   created_at: string;
+  error_message?: string;
+}
+
+// Legacy Video interface for backward compatibility
+export interface Video extends Media {
+  title?: string;
+  duration?: number;
 }
 
 export enum TranscriptionStatus {
@@ -127,6 +134,8 @@ export interface Analysis {
   media_id: string;
   type: AnalysisType;
   result: AnalysisResult;
+  label?: string;
+  score?: number;
 }
 
 // Specific analysis result types
