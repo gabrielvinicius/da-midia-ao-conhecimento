@@ -31,3 +31,8 @@ export const uploadMedia = async (params: UploadMediaParams): Promise<Media> => 
   });
   return response.data;
 };
+
+export const reprocessMedia = async (mediaId: string): Promise<{ message: string }> => {
+  const response = await api.post<{ message: string }>(`/media/${mediaId}/reprocess`);
+  return response.data;
+};
