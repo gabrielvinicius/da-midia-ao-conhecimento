@@ -1,4 +1,5 @@
 # src/media_management/api/routers.py
+import os
 from typing import Optional, List
 from uuid import UUID
 from fastapi import APIRouter, UploadFile, Depends, HTTPException, status, File, Query
