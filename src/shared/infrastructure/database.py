@@ -27,8 +27,8 @@ engine = create_async_engine(
     poolclass=NullPool,
 )
 
-# Instrument the SQLAlchemy async engine with OpenTelemetry
-SQLAlchemyInstrumentor().instrument(engine=engine)
+# Instrument only the sync engine with OpenTelemetry (async engine doesn't support instrumentation)
+SQLAlchemyInstrumentor().instrument(engine=engine_sync)
 
 
 # Session factories

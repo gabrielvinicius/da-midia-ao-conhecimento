@@ -3,6 +3,7 @@ import importlib
 import pkgutil
 import pathlib
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.transcription.infrastructure.interfaces import ISpeechRecognition
 from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
 

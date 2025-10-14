@@ -9,8 +9,8 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 import re
-from pydantic import BaseModel, Field, validator, EmailStr, HttpUrl, SecretStr
-from pydantic.types import constr, conint, confloat
+from pydantic import BaseModel, Field, validator, HttpUrl, SecretStr
+from pydantic.types import conint, confloat
 
 from src.shared.infrastructure.logging_config import get_logger
 
@@ -18,24 +18,12 @@ logger = get_logger("validation")
 
 
 # === Tipos Base Customizados ===
+from typing import Annotated
+from pydantic import StringConstraints
 
-class StrictStr(constr):
-    """String que não aceita apenas espaços em branco."""
-    min_length = 1
-    strip_whitespace = True
-
-
-class SafeFilename(constr):
-    """Filename seguro para sistemas de arquivos."""
-    regex = re.compile(r'^[a-zA-Z0-9._-]+$')
-    min_length = 1
-    max_length = 255
-
-
-class SecurePassword(constr):
-    """Senha segura com requisitos mínimos."""
-    min_length = 8
-    max_length = 128
+StrictStr = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+SafeFilename = Annotated[str, StringConstraints(pattern=r'^[a-zA-Z0-9._-]+$', min_length=1, max_length=255)]
+SecurePassword = Annotated[str, StringConstraints(min_length=8, max_length=128)]
 
 
 # === Enums de Validação ===
@@ -110,7 +98,7 @@ class SearchParams(BaseSchema):
 
 class UserBase(BaseSchema):
     """Esquema base para usuário."""
-    email: EmailStr = Field(..., description="Email do usuário")
+    email: str = Field(..., description="Email do usuário")
     
     @validator('email')
     def validate_email_domain(cls, v):
@@ -160,7 +148,7 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseSchema):
     """Esquema para atualização de usuário."""
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     role: Optional[UserRoleEnum] = None
 
 
@@ -240,7 +228,7 @@ class MediaListResponse(BaseSchema):
 
 class LoginRequest(BaseSchema):
     """Esquema para requisição de login."""
-    username: EmailStr = Field(..., description="Email do usuário")
+    username: str = Field(..., description="Email do usuário")
     password: str = Field(..., min_length=1, description="Senha do usuário")
 
 

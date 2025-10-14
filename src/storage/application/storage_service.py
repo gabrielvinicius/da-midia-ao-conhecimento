@@ -1,5 +1,5 @@
 # src/storage/application/storage_service.py
-from abc import ABC, abstractmethod, property_method
+from abc import ABC, abstractmethod
 from typing import Optional, Union, Tuple
 from pathlib import Path
 

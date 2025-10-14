@@ -14,16 +14,7 @@ from .states.processing_state import ProcessingState
 from .states.completed_state import CompletedState
 from .states.failed_state import FailedState
 
-class MediaType(str, Enum):
-    VIDEO = "VIDEO"
-    AUDIO = "AUDIO"
-    TEXT = "TEXT"
-
-class MediaStatus(str, Enum):
-    UPLOADED = "UPLOADED"
-    PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
+from .enums import MediaType, MediaStatus
 
 class Media(Base):
     __tablename__ = "media"
@@ -42,7 +33,7 @@ class Media(Base):
     summarization_provider = Column(String, nullable=True)
     language = Column(String, nullable=True) # Added language field
 
-    _state: MediaState = None
+    _state = None  # MediaState - not mapped to database
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

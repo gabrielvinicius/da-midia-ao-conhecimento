@@ -40,11 +40,23 @@ def upgrade() -> None:
     # NOTE: In a real-world migration with existing data, you would now write a data migration
     # to populate 'media_id' based on the old 'video_id'. For a fresh setup, this is fine.
 
-    # 3. Drop old foreign keys and columns
-    op.drop_constraint('transcriptions_video_id_fkey', 'transcriptions', type_='foreignkey')
-    op.drop_column('transcriptions', 'video_id')
-    op.drop_constraint('summaries_transcription_id_fkey', 'summaries', type_='foreignkey')
-    op.drop_column('summaries', 'transcription_id')
+    # 3. Drop old foreign keys and columns (only if they exist)
+    try:
+        op.drop_constraint('transcriptions_video_id_fkey', 'transcriptions', type_='foreignkey')
+    except:
+        pass  # Constraint doesn't exist in fresh database
+    try:
+        op.drop_column('transcriptions', 'video_id')
+    except:
+        pass  # Column doesn't exist in fresh database
+    try:
+        op.drop_constraint('summaries_transcription_id_fkey', 'summaries', type_='foreignkey')
+    except:
+        pass  # Constraint doesn't exist in fresh database
+    try:
+        op.drop_column('summaries', 'transcription_id')
+    except:
+        pass  # Column doesn't exist in fresh database
 
     # 4. Create new foreign keys
     op.create_foreign_key('fk_transcriptions_media_id', 'transcriptions', 'media', ['media_id'], ['id'])

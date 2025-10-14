@@ -12,11 +12,12 @@ from alembic import context
 from src.shared.infrastructure.database import Base  # Importar a Base
 
 # ---------- Importe todos os modelos aqui ----------
+# Import only the models that are needed and don't have circular dependencies
 from src.auth.domain.user import User
 from src.notifications.domain.notification import Notification
 from src.summarization.domain.summary import Summary
 from src.transcription.domain.transcription import Transcription
-from src.video_management.domain.video import Video
+# Note: Media model has circular imports, will be handled by separate migrations
 
 # ---------------------------------------------------
 

@@ -4,8 +4,8 @@ from typing import Dict, Any
 
 from src.shared.events.event_bus import EventBus
 from src.media_management.domain.media import MediaType
-from src.shared.events.domain_events import MediaUploaded, AudioExtracted, MediaDeleted, DiarizationCompleted # Import DiarizationCompleted
-from src.transcription.tasks.tasks import process_transcription_task, align_diarization_task # Import new task
+from src.shared.events.domain_events import MediaUploaded, AudioExtracted, MediaDeleted  # DiarizationCompleted removed
+from src.transcription.tasks.tasks import process_transcription_task  # Diarization removed
 from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
 from src.media_management.application.queries.media_queries import MediaQueries
 
@@ -32,23 +32,13 @@ async def register_event_handlers(
         # ... (implementation remains the same)
         pass
 
-    async def handle_diarization_completed(event_data: Dict[str, Any]) -> None:
-        """Handles DiarizationCompleted events by triggering the alignment task."""
-        try:
-            media_id = event_data["media_id"]
-            diarization_result = event_data["diarization_result"]
-            logger.info(f"Diarization completed for media {media_id}. Dispatching alignment task.")
-            align_diarization_task.delay(media_id=media_id, diarization_result=diarization_result)
-        except KeyError as e:
-            logger.error(f"Missing required field in DiarizationCompleted event: {e}")
-        except Exception as e:
-            logger.error(f"Failed to handle DiarizationCompleted event for alignment: {e}", exc_info=True)
+    # Diarization event handler removed
 
     try:
         event_bus.subscribe(MediaUploaded, handle_media_uploaded)
         event_bus.subscribe(AudioExtracted, handle_audio_extracted)
         event_bus.subscribe(MediaDeleted, handle_media_deleted)
-        event_bus.subscribe(DiarizationCompleted, handle_diarization_completed) # Subscribe to new event
+        # event_bus.subscribe(DiarizationCompleted, handle_diarization_completed) # Diarization removed
         logger.info("Successfully registered all transcription event handlers.")
     except Exception as e:
         logger.error(f"Failed to register transcription event handlers: {e}", exc_info=True)

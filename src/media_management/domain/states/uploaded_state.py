@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .media_state import MediaState
-from src.media_management.domain.media import MediaStatus
+from src.media_management.domain.enums import MediaStatus
 
 if TYPE_CHECKING:
     from .processing_state import ProcessingState

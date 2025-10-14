@@ -4,6 +4,7 @@ from typing import Annotated
 
 from src.media_management.application.media_service import MediaService
 from src.media_management.application.queries.media_queries import MediaQueries
+from src.media_management.config.settings import MediaSettings
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 # --- Service and Query Getters ---
@@ -19,3 +20,6 @@ def get_media_queries(container: Annotated[dict, Depends(get_container)]) -> Med
 
 def get_storage_service_factory(container: Annotated[dict, Depends(get_container)]) -> StorageServiceFactory:
     return container["storage_service_factory"]
+
+def get_media_settings(container: Annotated[dict, Depends(get_container)]) -> MediaSettings:
+    return container["media_settings"]

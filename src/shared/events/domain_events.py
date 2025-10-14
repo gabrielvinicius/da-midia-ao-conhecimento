@@ -51,3 +51,10 @@ class NotificationRequested(DomainEvent):
     message: str
     notification_type: NotificationType
     contact_info: Dict[str, Any]
+
+@dataclass(frozen=True)
+class SummarizationRequested(DomainEvent):
+    """Event fired when summarization is requested for a media."""
+    media_id: str
+    text_content: str
+    provider: str

@@ -10,7 +10,7 @@ from src.shared.infrastructure.logging_config import configure_logging, get_logg
 from src.shared.exceptions.api_errors import register_exception_handlers
 from src.shared.middleware.validation_middleware import register_validation_middleware
 from src.shared.middleware.performance_middleware import register_performance_middleware
-from src.shared.monitoring.metrics_collector import metrics_collector
+# from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
 from src.shared.infrastructure.cache import cache
 
 # --- Module Bootstrapping and Composition Root ---
