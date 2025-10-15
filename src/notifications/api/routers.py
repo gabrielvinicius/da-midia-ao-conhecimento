@@ -24,7 +24,7 @@ async def get_notifications(
     current_user: User = Depends(get_current_user),
 ):
     """Retrieves all notifications for the currently authenticated user."""
-    notifications = await queries.list_by_user_id(str(current_user.id))
+    notifications = await queries.list_by_user(str(current_user.id))
     return notifications
 
 

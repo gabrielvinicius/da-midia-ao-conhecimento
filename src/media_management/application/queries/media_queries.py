@@ -15,11 +15,12 @@ class MediaQueries:
         """Retrieves a media entity by its unique ID."""
         return await self.media_repository.find_by_id(media_id)
 
-    async def list_by_user(self, user_id: str) -> List[Media]:
+    async def list_by_user(self, user_id: str, page: int = 1, limit: int = 100) -> List[Media]:
         """Lists all media for a specific user."""
-        # This method needs to be updated in the repository to support pagination
-        return await self.media_repository.list_by_user(user_id)
+        media_list, total_count = await self.media_repository.list_by_user(user_id, page=page, limit=limit)
+        return media_list
 
     async def list_all(self, page: int = 1, limit: int = 10, search: Optional[str] = None) -> List[Media]:
         """Lists all media in the system with pagination and search."""
-        return await self.media_repository.list_all(page=page, limit=limit, search=search)
+        media_list, total_count = await self.media_repository.list_all(page=page, limit=limit, search=search)
+        return media_list

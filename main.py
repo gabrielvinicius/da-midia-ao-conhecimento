@@ -64,9 +64,13 @@ async def lifespan(app: FastAPI):
     
     logger.info("Inicializando módulos e compondo aplicação", component="bootstrap")
     async with AsyncSessionLocal() as session:
+        # Create storage service factory instance
+        from src.storage.infrastructure.dependencies import StorageServiceFactory
+        storage_factory = StorageServiceFactory()
+        
         app_container = {
             "event_bus": get_event_bus(),
-            "storage_service_factory": get_storage_service_factory(),
+            "storage_service_factory": storage_factory,
             "speech_recognition_service_factory": get_speech_recognition_service_factory(),
             "summarizer_service_factory": get_summarizer_service_factory(),
             "sentiment_analysis_service_factory": get_sentiment_service_factory(),
