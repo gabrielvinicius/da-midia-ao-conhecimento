@@ -11,6 +11,7 @@ from src.media_management.application.commands.reprocess_media_command_handler i
 from src.media_management.application.media_service import MediaService
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
+from src.media_management.config.settings import MediaSettings
 
 def bootstrap_media_module(
     db_session: AsyncSession,
@@ -21,6 +22,7 @@ def bootstrap_media_module(
     """Constructs and returns the services for the media_management module."""
     media_repository = MediaRepository(db=db_session)
     media_queries = MediaQueries(media_repository=media_repository)
+    media_settings = MediaSettings()
     
     # Instantiate all command handlers
     create_media_handler = CreateMediaCommandHandler(
@@ -51,4 +53,5 @@ def bootstrap_media_module(
         "media_repository": media_repository,
         "media_queries": media_queries,
         "media_service": media_service,
+        "media_settings": media_settings,
     }
