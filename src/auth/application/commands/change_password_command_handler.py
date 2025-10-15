@@ -1,13 +1,12 @@
 # src/auth/application/commands/change_password_command_handler.py
 import structlog
-from passlib.context import CryptContext
 
 from src.auth.infrastructure.user_repository import UserRepository
 from src.auth.domain.user import User
+from src.shared.utils.password_utils import hash_password, verify_password
 from .change_password_command import ChangePasswordCommand
 
 logger = structlog.get_logger(__name__)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class ChangePasswordCommandHandler:
     def __init__(self, user_repository: UserRepository):
@@ -22,12 +21,12 @@ class ChangePasswordCommandHandler:
             raise ValueError(f"User with id {command.user_id} not found.")
 
         # 1. Verify the old password
-        if not pwd_context.verify(command.old_password, user.password_hash):
+        if not verify_password(command.old_password, user.password_hash):
             logger.warning("user.password_change.failed", user_id=str(command.user_id), reason="Invalid old password")
             raise ValueError("Invalid old password.")
 
         # 2. Hash the new password
-        new_hashed_password = pwd_context.hash(command.new_password)
+        new_hashed_password = hash_password(command.new_password)
         user.password_hash = new_hashed_password
 
         # 3. Save the updated user

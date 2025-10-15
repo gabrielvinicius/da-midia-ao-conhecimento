@@ -1,12 +1,9 @@
 # src/auth/application/commands/create_user_command_handler.py
-from passlib.context import CryptContext
-
 from src.auth.domain.user import User, UserRole
 from src.auth.infrastructure.user_repository import UserRepository
 from src.shared.utils.id_generator import generate_id
+from src.shared.utils.password_utils import hash_password
 from .create_user_command import CreateUserCommand
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class CreateUserCommandHandler:
@@ -18,7 +15,7 @@ class CreateUserCommandHandler:
         if await self.user_repository.find_by_email(command.email):
             raise ValueError("Email already registered")
 
-        hashed_password = pwd_context.hash(command.password)
+        hashed_password = hash_password(command.password)
         user = User(
             id=generate_id(),
             email=command.email,

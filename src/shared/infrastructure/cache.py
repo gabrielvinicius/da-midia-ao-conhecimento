@@ -236,6 +236,29 @@ class RedisCache:
                 "remaining": limit,
                 "reset_time": int(time.time()) + window
             }
+    
+    async def increment(self, prefix: str, key: str, amount: int = 1, ttl: int = CacheConfig.DEFAULT_TTL, **kwargs) -> int:
+        """Incrementa um contador no cache."""
+        if not self.is_connected:
+            await self.connect()
+        
+        cache_key = self._generate_key(prefix, key, **kwargs)
+        
+        try:
+            # Usar pipeline para operação atômica
+            pipe = self.redis_client.pipeline()
+            pipe.incr(cache_key, amount)
+            pipe.expire(cache_key, ttl)
+            
+            results = await pipe.execute()
+            new_value = results[0]
+            
+            logger.debug("Cache increment", key=cache_key, amount=amount, new_value=new_value)
+            return new_value
+            
+        except Exception as e:
+            logger.error("Cache increment error", key=cache_key, error=str(e))
+            return 0
 
 
 # Instância global do cache
@@ -291,6 +314,12 @@ class CacheManager:
         """Invalida todo cache relacionado a uma mídia."""
         pattern = f"{CacheConfig.PREFIXES['media']}{media_id}*"
         return await self.cache.delete_pattern(pattern)
+    
+    # === Rate Limiting ===
+    
+    async def check_rate_limit(self, identifier: str, limit: int, window: int = 60) -> dict:
+        """Check rate limit using the underlying cache's rate limiting functionality."""
+        return await self.cache.check_rate_limit(identifier, limit, window)
 
 
 # Instância global do gerenciador
