@@ -27,7 +27,8 @@ def bootstrap_auth_module(db_session: AsyncSession) -> Dict[str, Any]:
         create_user_handler=create_user_handler,
         authenticate_user_handler=authenticate_user_handler,
         update_user_handler=update_user_handler,
-        delete_user_handler=delete_user_handler
+        delete_user_handler=delete_user_handler,
+        user_repository=user_repository
     )
     auth_queries = AuthQueries(user_repository=user_repository)
 

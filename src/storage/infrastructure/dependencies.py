@@ -10,8 +10,27 @@ from src.storage.application.storage_service import StorageService
 _storage_registry: Dict[str, Type[StorageService]] = {}
 _plugins_loaded = False
 
-# Type alias for the factory
-StorageServiceFactory = Callable[[str], StorageService]
+# Factory class instead of type alias to avoid abstract class issues
+class StorageServiceFactory:
+    """Factory class for creating storage service instances."""
+    
+    def __init__(self):
+        self._load_plugins()
+    
+    def _load_plugins(self):
+        """Load storage plugins."""
+        _load_storage_plugins()
+    
+    def create_storage_service(self, provider: str = None) -> StorageService:
+        """Factory method to create a storage service instance by provider name."""
+        import os
+        if provider is None:
+            provider = os.getenv("STORAGE_PROVIDER", "local")
+        return create_storage_service(provider)
+    
+    def get_available_providers(self) -> List[str]:
+        """Returns available storage providers."""
+        return get_available_storage_providers()
 
 
 def register_storage(provider: str):
@@ -37,8 +56,8 @@ def create_storage_service(provider: str) -> StorageService:
 
 
 def get_storage_service_factory() -> StorageServiceFactory:
-    """Dependency provider that returns the factory function itself."""
-    return create_storage_service
+    """Dependency provider that returns the factory instance."""
+    return StorageServiceFactory()
 
 
 def _load_storage_plugins():

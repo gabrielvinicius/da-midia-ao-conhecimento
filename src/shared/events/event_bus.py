@@ -48,9 +48,13 @@ class EventBus:
         self.subscribers: Dict[str, list[Callable[[Dict], Union[None, Coroutine]]]] = {}
         self._listener_task: Optional[asyncio.Task] = None
 
-    def subscribe(self, event_type: Type[DomainEvent], handler: Callable[[Dict], Union[None, Coroutine]]):
+    def subscribe(self, event_type: Union[str, Type[DomainEvent]], handler: Callable[[Dict], Union[None, Coroutine]]):
         """Registers a local handler for a domain event type."""
-        event_name = event_type.__name__
+        if isinstance(event_type, str):
+            event_name = event_type
+        else:
+            event_name = event_type.__name__
+        
         if event_name not in self.subscribers:
             self.subscribers[event_name] = []
         self.subscribers[event_name].append(handler)

@@ -81,6 +81,12 @@ def get_sync_db() -> Generator[Session, None, None]:
             logger.debug("Fechando sessão síncrona do banco de dados", operation="sync_session_close")
 
 
+# Alias for compatibility (get_session)
+def get_session() -> AsyncGenerator[AsyncSession, None]:
+    """Alias for get_db() for compatibility."""
+    return get_db()
+
+
 # Context manager para gerenciamento manual de sessões
 @asynccontextmanager
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
