@@ -14,6 +14,11 @@ class MediaSettings(BaseSettings):
     default_transcription_provider: str = "whisper"
     default_summarization_provider: str = "huggingface"
     
+    @property
+    def max_file_size_bytes(self) -> int:
+        """Convert MB to bytes for file size validation."""
+        return self.max_file_size_mb * 1024 * 1024
+    
     class Config:
         env_prefix = "MEDIA_"
         case_sensitive = False
