@@ -1,44 +1,73 @@
-# === Stage 1: Build Stage ===
-# Use a full Python image to ensure build tools are available for dependencies.
-FROM python:3.11 as builder
+# Multi-stage Dockerfile otimizado para Video Summarizer
+FROM python:3.11-slim as base
 
-# Set the working directory
+# Definir variáveis de ambiente
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Stage 1: Builder
+FROM base as builder
+
 WORKDIR /app
 
-# Install poetry for dependency management (optional but good practice)
-# For now, we stick to pip to keep it simple.
-RUN pip install --upgrade pip
+# Instalar dependências do sistema necessárias para build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    build-essential \
+    pkg-config \
+    libffi-dev \
+    libssl-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy only the requirements file first to leverage Docker cache
+# Instalar dependências Python
 COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install --user --no-warn-script-location -r requirements.txt
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Stage 2: Runtime
+FROM base as runtime
 
+WORKDIR /app
 
-# === Stage 2: Final Stage ===
-# Use a slim image for a smaller final image size.
-FROM python:3.11-slim
+# Instalar apenas dependências runtime necessárias
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    libfontconfig1 \
+    libxrender1 \
+    libgomp1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user for security
+# Criar usuário não-root
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Set the working directory
-WORKDIR /app
+# Copiar dependências Python do builder
+COPY --from=builder /root/.local /home/appuser/.local
 
-# Copy the installed dependencies from the builder stage
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copiar código da aplicação
+COPY --chown=appuser:appuser . .
 
-# Copy the application source code
-COPY . .
+# Criar diretórios necessários
+RUN mkdir -p /app/logs /app/media /app/data && \
+    chown -R appuser:appuser /app
 
-# Change ownership of the app directory to the non-root user
-RUN chown -R appuser:appuser /app
+# Adicionar o diretório local do usuário ao PATH
+ENV PATH=/home/appuser/.local/bin:$PATH
 
-# Switch to the non-root user
+# Mudar para usuário não-root
 USER appuser
 
-# The CMD is defined in docker-compose.yml, but we can set a default here.
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
 EXPOSE 8000
+
+# Comando padrão
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

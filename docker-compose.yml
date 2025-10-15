@@ -1,23 +1,42 @@
 services:
   postgres:
     image: postgres:15-alpine
+    container_name: video_summarizer_postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-video_summarizer}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups:rw
     networks:
       - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-video_summarizer}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
+    container_name: video_summarizer_redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
       - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   minio:
     image: minio/minio:latest
@@ -41,61 +60,96 @@ services:
     networks:
       - app-network
   
-  mongodb:
-    image: mongo:latest
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-    networks:
-      - app-network
 
-  api:
+  backend:
     build:
       context: .
       dockerfile: Dockerfile
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      target: runtime
+    container_name: video_summarizer_backend
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --log-level info
     ports:
       - "8000:8000"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DB_HOST=postgres
+      - REDIS_HOST=redis
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
     env_file:
       - .env
     depends_on:
-      - postgres
-      - redis
-      - mongodb
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src:ro
+      - ./main.py:/app/main.py:ro
+      - ./alembic:/app/alembic:ro
+      - ./alembic.ini:/app/alembic.ini:ro
+      - media_data:/app/media
+      - ./logs:/app/logs
     networks:
       - app-network
+    restart: unless-stopped
 
   worker:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A src.shared.events.event_bus.celery worker --loglevel=info
+      target: runtime
+    container_name: video_summarizer_worker
+    command: celery -A src.shared.events.event_bus.celery worker --loglevel=info --concurrency=2
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DB_HOST=postgres
+      - REDIS_HOST=redis
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
     env_file:
       - .env
     depends_on:
-      - redis
-      - postgres
-      - mongodb
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    volumes:
+      - ./src:/app/src:ro
+      - media_data:/app/media
+      - ./logs:/app/logs
     networks:
       - app-network
+    restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    container_name: video_summarizer_frontend
     ports:
       - "3000:80"
     depends_on:
-      - api
+      - backend
     networks:
       - app-network
+    restart: unless-stopped
+    profiles:
+      - frontend
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local
   minio_data:
-  mongo_data:
+    driver: local
+  media_data:
+    driver: local
 
 networks:
   app-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

@@ -36,4 +36,5 @@ def bootstrap_auth_module(db_session: AsyncSession) -> Dict[str, Any]:
         "user_repository": user_repository,
         "auth_service": auth_service,
         "auth_queries": auth_queries,
+        "auth_settings": auth_settings,
     }
