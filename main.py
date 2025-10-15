@@ -16,7 +16,7 @@ from src.shared.infrastructure.cache import cache
 # --- Module Bootstrapping and Composition Root ---
 from src.auth.bootstrap import bootstrap_auth_module
 from src.media_management.bootstrap import bootstrap_media_module
-from src.shared.monitoring.metrics_collector import metrics_collector
+# from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
 from src.video_processing.bootstrap import bootstrap_video_processing_module
 from src.text_processing.bootstrap import bootstrap_text_processing_module
 from src.transcription.bootstrap import bootstrap_transcription_module
