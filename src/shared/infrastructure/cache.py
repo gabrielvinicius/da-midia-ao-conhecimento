@@ -199,7 +199,7 @@ class RedisCache:
             return 0
     
     async def check_rate_limit(self, key: str, limit: int, window: int = 60) -> dict:
-        """Check rate limit for a given key."""
+        """Check rate limit for a given key using sliding window."""
         if not self.is_connected:
             await self.connect()
         
@@ -207,10 +207,10 @@ class RedisCache:
             current_time = int(time.time())
             window_start = current_time - window
             
-            # Use a sliding window approach
+            # Use a sliding window approach with sorted sets
             pipe = self.redis_client.pipeline()
             pipe.zremrangebyscore(key, 0, window_start)
-            pipe.zadd(key, {current_time: current_time})
+            pipe.zadd(key, {str(current_time): current_time})
             pipe.zcard(key)
             pipe.expire(key, window)
             
