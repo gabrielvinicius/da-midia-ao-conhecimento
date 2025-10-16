@@ -26,7 +26,7 @@ export const TranscriptionPanel = ({ mediaId }: TranscriptionPanelProps) => {
     }
 
     if (!transcription) {
-      return <p className="text-muted-foreground">Transcription has not started yet.</p>;
+      return <p className="text-muted-foreground">A transcrição ainda não foi iniciada.</p>;
     }
 
     switch (transcription.status) {
@@ -35,19 +35,19 @@ export const TranscriptionPanel = ({ mediaId }: TranscriptionPanelProps) => {
         return (
           <div className="flex items-center gap-2 text-muted-foreground">
             <Skeleton className="h-4 w-4 rounded-full" />
-            <span>Processing transcription... This may take a few minutes.</span>
+            <span>Processando transcrição... Isso pode levar alguns minutos.</span>
           </div>
         );
       case TranscriptionStatus.COMPLETED:
-        return <p className="whitespace-pre-wrap">{transcription.text}</p>;
+        return <p className="whitespace-pre-wrap">{transcription.result?.text || transcription.text}</p>;
       case TranscriptionStatus.FAILED:
         return (
           <p className="text-destructive">
-            Transcription failed: {transcription.error_message || "Unknown error"}
+            Falha na transcrição: {transcription.error_message || "Erro desconhecido"}
           </p>
         );
       default:
-        return <p className="text-muted-foreground">Unknown transcription status.</p>;
+        return <p className="text-muted-foreground">Status de transcrição desconhecido.</p>;
     }
   };
 
@@ -55,7 +55,7 @@ export const TranscriptionPanel = ({ mediaId }: TranscriptionPanelProps) => {
     <Card>
       <CardHeader>
         <CardTitle className="flex justify-between items-center">
-          <span>Transcription</span>
+          <span>Transcrição</span>
           {transcription && <Badge variant="secondary">{transcription.status}</Badge>}
         </CardTitle>
       </CardHeader>

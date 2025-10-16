@@ -38,7 +38,7 @@ export const SummaryPanel = ({ mediaId }: SummaryPanelProps) => {
     }
 
     if (!summary) {
-      return <p className="text-muted-foreground">Summary has not started yet.</p>;
+      return <p className="text-muted-foreground">O resumo ainda não foi iniciado.</p>;
     }
 
     switch (summary.status) {
@@ -47,7 +47,7 @@ export const SummaryPanel = ({ mediaId }: SummaryPanelProps) => {
         return (
           <div className="flex items-center gap-2 text-muted-foreground">
             <Skeleton className="h-4 w-4 rounded-full" />
-            <span>Processing summary...</span>
+            <span>Processando resumo...</span>
           </div>
         );
       case SummaryStatus.COMPLETED:
@@ -55,11 +55,11 @@ export const SummaryPanel = ({ mediaId }: SummaryPanelProps) => {
       case SummaryStatus.FAILED:
         return (
           <p className="text-destructive">
-            Summary failed: {summary.error_message || "Unknown error"}
+            Falha no resumo: {summary.error_message || "Erro desconhecido"}
           </p>
         );
       default:
-        return <p className="text-muted-foreground">Unknown summary status.</p>;
+        return <p className="text-muted-foreground">Status de resumo desconhecido.</p>;
     }
   };
 
@@ -67,10 +67,10 @@ export const SummaryPanel = ({ mediaId }: SummaryPanelProps) => {
     <Card>
       <CardHeader>
         <CardTitle className="flex justify-between items-center">
-          <span>Summary</span>
-          <Button variant="outline" size="icon" onClick={handleDownload} disabled={!canDownload}>
+          <span>Resumo</span>
+          <Button variant="outline" size="icon" onClick={handleDownload} disabled={!canDownload} title="Baixar Resumo">
             <Download className="h-4 w-4" />
-            <span className="sr-only">Download Summary</span>
+            <span className="sr-only">Baixar Resumo</span>
           </Button>
         </CardTitle>
         {summary && <Badge variant="secondary" className="w-fit mt-2">{summary.status}</Badge>}
