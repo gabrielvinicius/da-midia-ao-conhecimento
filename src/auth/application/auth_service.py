@@ -58,3 +58,29 @@ class AuthService:
         """Dispatches the DeleteUserCommand."""
         command = DeleteUserCommand(user_id=user_id)
         await self.delete_user_handler.handle(command)
+
+    async def get_user_by_id(self, user_id: str) -> Optional[User]:
+        """Get user by ID."""
+        try:
+            return await self.user_repository.find_by_id(UUID(user_id))
+        except ValueError:
+            return None
+
+    async def change_password(self, user_id: UUID, old_password: str, new_password: str) -> None:
+        """Change user password."""
+        from .commands.change_password_command import ChangePasswordCommand
+        from .commands.change_password_command_handler import ChangePasswordCommandHandler
+        
+        # For now, we'll implement this directly
+        user = await self.user_repository.find_by_id(user_id)
+        if not user:
+            raise ValueError("User not found")
+        
+        # Verify old password
+        from src.shared.utils.password_utils import verify_password, hash_password
+        if not verify_password(old_password, user.hashed_password):
+            raise ValueError("Invalid old password")
+        
+        # Update password
+        user.hashed_password = hash_password(new_password)
+        await self.user_repository.save(user)

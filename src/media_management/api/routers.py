@@ -147,3 +147,34 @@ async def get_media_by_id(
         "created_at": media.created_at.isoformat() if hasattr(media.created_at, 'isoformat') else str(media.created_at),
         "user_id": str(media.user_id)
     }
+
+
+@router.post("/{media_id}/reprocess", summary="Reprocess a media item")
+async def reprocess_media(
+    media_id: UUID,
+    current_user: User = Depends(get_current_user),
+    media_service: MediaService = Depends(get_media_service),
+    media_queries: MediaQueries = Depends(get_media_queries),
+):
+    """Reprocess a media item to regenerate transcription, summary, etc."""
+    try:
+        # Verificar se o media existe e pertence ao usuário
+        media = await media_queries.get_by_id(str(media_id))
+        if not media or (str(media.user_id) != str(current_user.id) and current_user.role.value != "admin"):
+            raise HTTPException(status_code=404, detail="Media not found or not authorized")
+        
+        # Chamar o serviço de reprocessamento
+        await media_service.reprocess_media(media_id)
+        
+        return {"message": f"Media {media_id} has been queued for reprocessing"}
+        
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Reprocess error for media {media_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Reprocessing failed: {type(e).__name__}: {str(e)}"
+        ) from e
