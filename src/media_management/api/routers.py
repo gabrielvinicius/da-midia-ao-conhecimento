@@ -63,6 +63,6 @@ async def get_media_by_id(
     media_queries: MediaQueries = Depends(get_media_queries),
 ):
     media = await media_queries.get_by_id(str(media_id))
-    if not media or (str(media.user_id) != str(current_user.id) and media.user_id != "admin"): # Simplified role check
+    if not media or (str(media.user_id) != str(current_user.id) and current_user.role.value != "admin"):
         raise HTTPException(status_code=404, detail="Media not found or not authorized")
     return jsonable_encoder(media)

@@ -22,7 +22,7 @@ async def get_transcription_by_media_id(
     current_user: User = Depends(get_current_user),
 ):
     media = await media_queries.get_by_id(str(media_id))
-    if not media or (str(media.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN):
+    if not media or (str(media.user_id) != str(current_user.id) and current_user.role.value != "admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this media's transcription")
     transcription = await queries.get_by_media_id(str(media_id))
     if not transcription:
@@ -40,6 +40,6 @@ async def get_transcription_by_id(
     if not transcription:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcription not found")
     media = await media_queries.get_by_id(str(transcription.media_id))
-    if not media or (str(media.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN):
+    if not media or (str(media.user_id) != str(current_user.id) and current_user.role.value != "admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this transcription")
     return transcription

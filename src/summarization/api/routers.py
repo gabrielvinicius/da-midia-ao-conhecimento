@@ -22,7 +22,7 @@ async def get_summary_by_media_id(
     current_user: User = Depends(get_current_user),
 ):
     media = await media_queries.get_by_id(str(media_id))
-    if not media or (str(media.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN):
+    if not media or (str(media.user_id) != str(current_user.id) and current_user.role.value != "admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this media's summary")
     summary = await queries.get_by_media_id(str(media_id))
     if not summary:
@@ -40,6 +40,6 @@ async def get_summary_by_id(
     if not summary:
         raise HTTPException(status_code=404, detail="Summary not found")
     media = await media_queries.get_by_id(str(summary.media_id))
-    if not media or (str(media.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN):
+    if not media or (str(media.user_id) != str(current_user.id) and current_user.role.value != "admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this summary")
     return summary

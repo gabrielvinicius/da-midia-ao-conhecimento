@@ -23,7 +23,7 @@ async def get_topic_modeling_result_by_media_id(
 ):
     """Retrieves the topic modeling result for a specific media ID."""
     media = await media_queries.get_by_id(str(media_id))
-    if not media or (str(media.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN):
+    if not media or (str(media.user_id) != str(current_user.id) and current_user.role.value != "admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this media's analysis")
 
     analysis_result = await queries.get_by_media_id(str(media_id))
