@@ -10,20 +10,10 @@ from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.shared.events.event_bus import EventBus
 from src.shared.events.domain_events import MediaUploaded
 from src.metrics.application.metrics_service import MetricsService
+from ..config.settings import MediaSettings
 from .create_media_command import CreateMediaCommand
 
 logger = structlog.get_logger(__name__)
-
-def _get_media_type_from_filename(filename: str) -> MediaType:
-    _, ext = os.path.splitext(filename or "")
-    ext = ext.lower()
-    if ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
-        return MediaType.VIDEO
-    if ext in [".mp3", ".wav", ".m4a", ".flac"]:
-        return MediaType.AUDIO
-    if ext in [".pdf", ".txt", ".md"]:
-        return MediaType.TEXT
-    raise ValueError(f"Unsupported file type: {ext}")
 
 class CreateMediaCommandHandler:
     def __init__(
@@ -32,19 +22,43 @@ class CreateMediaCommandHandler:
         storage_service_factory: StorageServiceFactory,
         event_bus: EventBus,
         metrics_service: MetricsService,
+        settings: MediaSettings,
     ):
         self.media_repository = media_repository
         self.storage_service_factory = storage_service_factory
         self.event_bus = event_bus
         self.metrics_service = metrics_service
+        self.settings = settings
+
+    def _get_media_type(self, filename: str) -> MediaType:
+        _, ext = os.path.splitext(filename or "")
+        ext = ext.lower()
+        if ext in self.settings.video_extensions:
+            return MediaType.VIDEO
+        if ext in self.settings.audio_extensions:
+            return MediaType.AUDIO
+        if ext in self.settings.text_extensions:
+            return MediaType.TEXT
+        raise ValueError(f"Unsupported file type: {ext}")
 
     async def handle(self, command: CreateMediaCommand) -> Media:
         start_time = time.time()
         media_id = uuid4()
-        storage_service = self.storage_service_factory.create_storage_service(command.storage_provider)
-
+        
         try:
-            media_type = _get_media_type_from_filename(command.filename)
+            # 1. Validation Logic now lives in the handler
+            if not command.filename:
+                raise ValueError("File must have a filename.")
+            if not command.file:
+                raise ValueError("File content is empty.")
+
+            media_type = self._get_media_type(command.filename)
+
+            if len(command.file) > self.settings.max_file_size_bytes:
+                raise ValueError(f"File too large. Max size is {self.settings.max_file_size_mb}MB")
+
+            # 2. Process and Persist
+            storage_service = self.storage_service_factory(command.storage_provider)
             file_path = f"media/{command.user_id}/{media_id}/{command.filename}"
             logger.info("media.upload.started", media_id=str(media_id), provider=command.storage_provider)
 
@@ -57,13 +71,12 @@ class CreateMediaCommandHandler:
                 media_type=media_type,
                 status=MediaStatus.UPLOADED,
                 storage_provider=command.storage_provider,
-                # Persist the user's provider choices
                 transcription_provider=command.transcription_provider,
                 summarization_provider=command.summarization_provider
             )
             saved_media = await self.media_repository.save(media)
 
-            # The event now also carries the provider choices
+            # 3. Publish Event
             event = MediaUploaded(
                 media_id=str(saved_media.id),
                 user_id=str(saved_media.user_id),
@@ -75,16 +88,12 @@ class CreateMediaCommandHandler:
             )
             await self.event_bus.publish(event)
 
+            # 4. Record Metrics
             duration = time.time() - start_time
-            logger.info("media.upload.completed", media_id=str(saved_media.id), duration=duration)
-
             self.metrics_service.increment_media_upload('success')
-            self.metrics_service.observe_upload_duration(
-                media_id=str(saved_media.id),
-                duration=duration,
-                provider=storage_service.provider_name
-            )
+            self.metrics_service.observe_upload_duration(media_id=str(saved_media.id), duration=duration, provider=storage_service.provider_name)
 
+            logger.info("media.upload.completed", media_id=str(saved_media.id), duration=duration)
             return saved_media
 
         except Exception as e:

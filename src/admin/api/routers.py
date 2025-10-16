@@ -38,6 +38,7 @@ async def list_all_users(
     search: Optional[str] = Query(None, description="Search term for user email")
 ):
     """Lists all users with pagination and search capabilities."""
+    # The query logic is now correctly encapsulated in the queries class
     return await auth_queries.list_all(page=page, limit=limit, search=search)
 
 
@@ -50,7 +51,7 @@ async def update_user(
     """Updates a user's role. Requires admin privileges."""
     try:
         # Delegate the entire action to the application service
-        return await auth_service.update_user(user_id, role=update_data.role)
+        return await auth_service.update_user(user_id=user_id, role=update_data.role)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -76,6 +77,7 @@ async def list_all_media(
     search: Optional[str] = Query(None, description="Search term for media filename")
 ):
     """Lists all media items with pagination and search capabilities."""
+    # The query logic is now correctly encapsulated in the queries class
     return await media_queries.list_all(page=page, limit=limit, search=search)
 
 
