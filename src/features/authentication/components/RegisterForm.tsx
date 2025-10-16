@@ -10,8 +10,8 @@ import { useRegister } from '../hooks/useAuthMutations';
 import { UserRegistration } from '../../../types';
 
 const registerSchema = z.object({
-  email: z.string().email({ message: 'Invalid email address' }),
-  password: z.string().min(8, { message: 'Password must be at least 8 characters' }),
+  email: z.string().email({ message: 'Endereço de email inválido' }),
+  password: z.string().min(8, { message: 'Senha deve ter pelo menos 8 caracteres' }),
 });
 
 export const RegisterForm = () => {
@@ -36,7 +36,7 @@ export const RegisterForm = () => {
         <Input
           id="email"
           type="email"
-          placeholder="m@example.com"
+          placeholder="seu@email.com"
           {...form.register('email')}
           disabled={isPending}
         />
@@ -45,10 +45,11 @@ export const RegisterForm = () => {
         )}
       </div>
       <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
+        <Label htmlFor="password">Senha</Label>
         <Input
           id="password"
           type="password"
+          placeholder="Mínimo 8 caracteres"
           {...form.register('password')}
           disabled={isPending}
         />
@@ -57,7 +58,7 @@ export const RegisterForm = () => {
         )}
       </div>
       <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? 'Registering...' : 'Create an account'}
+        {isPending ? 'Criando conta...' : 'Criar conta'}
       </Button>
     </form>
   );

@@ -7,15 +7,15 @@ const RegisterPage = () => {
     <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Create an account</CardTitle>
-          <CardDescription>Enter your email and password to get started</CardDescription>
+          <CardTitle className="text-2xl">Criar conta</CardTitle>
+          <CardDescription>Digite seu email e senha para começar</CardDescription>
         </CardHeader>
         <CardContent>
           <RegisterForm />
           <div className="mt-4 text-center text-sm">
-            Already have an account?{" "}
+            Já tem uma conta?{" "}
             <Link to="/login" className="underline">
-              Login
+              Entrar
             </Link>
           </div>
         </CardContent>

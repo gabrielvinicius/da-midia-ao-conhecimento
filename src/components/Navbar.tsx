@@ -10,7 +10,7 @@ export default function Navbar({ className = "" }: { className?: string }) {
         <nav className={`bg-white dark:bg-gray-800 shadow-sm ${className}`}>
             <div className="container mx-auto px-4 py-3 flex justify-between items-center">
                 <Link to="/" className="text-xl font-bold" aria-label="Página inicial">
-                    VideoSummarizer
+                    Resumidor de Vídeos
                 </Link>
                 <div className="flex items-center gap-4">
                     <DarkModeToggle />
@@ -29,10 +29,10 @@ export default function Navbar({ className = "" }: { className?: string }) {
                     ) : (
                         <>
                             <Link to="/login" className="hover:underline" aria-label="Fazer login">
-                                Login
+                                Entrar
                             </Link>
                             <Link to="/register" className="hover:underline" aria-label="Registrar">
-                                Registrar
+                                Cadastrar
                             </Link>
                         </>
                     )}

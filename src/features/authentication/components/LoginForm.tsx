@@ -10,8 +10,8 @@ import { useLogin } from '../hooks/useAuthMutations';
 import { UserCredentials } from '../../../types';
 
 const loginSchema = z.object({
-  email: z.string().email({ message: 'Invalid email address' }),
-  password: z.string().min(1, { message: 'Password is required' }),
+  email: z.string().email({ message: 'Endereço de email inválido' }),
+  password: z.string().min(1, { message: 'Senha é obrigatória' }),
 });
 
 export const LoginForm = () => {
@@ -36,7 +36,7 @@ export const LoginForm = () => {
         <Input
           id="email"
           type="email"
-          placeholder="m@example.com"
+          placeholder="seu@email.com"
           {...form.register('email')}
           disabled={isPending}
         />
@@ -45,10 +45,11 @@ export const LoginForm = () => {
         )}
       </div>
       <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
+        <Label htmlFor="password">Senha</Label>
         <Input
           id="password"
           type="password"
+          placeholder="Digite sua senha"
           {...form.register('password')}
           disabled={isPending}
         />
@@ -57,7 +58,7 @@ export const LoginForm = () => {
         )}
       </div>
       <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? 'Logging in...' : 'Login'}
+        {isPending ? 'Entrando...' : 'Entrar'}
       </Button>
     </form>
   );
