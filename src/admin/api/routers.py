@@ -13,9 +13,7 @@ from src.auth.api.schemas import UserResponse
 from src.media_management.api.schemas import MediaResponse
 from .schemas import UserUpdateRequest, SystemStatsResponse
 
-from .dependencies import get_auth_queries, get_admin_queries
-from src.media_management.api.dependencies import get_media_queries, get_media_service
-from src.auth.api.dependencies import get_auth_service
+from .dependencies import get_auth_queries, get_media_queries, get_admin_queries, get_auth_service, get_media_service
 
 router = APIRouter(
     prefix="/admin",
@@ -51,6 +49,7 @@ async def update_user(
 ):
     """Updates a user's role. Requires admin privileges."""
     try:
+        # Delegate the entire action to the application service
         return await auth_service.update_user(user_id, role=update_data.role)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -63,6 +62,7 @@ async def delete_user(
 ):
     """Deletes a user from the system. Requires admin privileges."""
     try:
+        # Delegate the entire action to the application service
         await auth_service.delete_user(user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -86,6 +86,7 @@ async def delete_media(
 ):
     """Deletes a media item and its associated files from storage."""
     try:
+        # Delegate the entire action to the application service
         await media_service.delete_media(media_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -98,6 +99,7 @@ async def reprocess_media(
 ):
     """Triggers the reprocessing pipeline for a media item that has previously failed."""
     try:
+        # Delegate the entire action to the application service
         await media_service.reprocess_media(media_id)
         return {"message": "Reprocessing initiated."}
     except ValueError as e:
