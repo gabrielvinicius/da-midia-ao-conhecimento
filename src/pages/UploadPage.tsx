@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { UploadForm } from "../features/media/components/UploadForm";
 import { DebugUpload } from "../components/DebugUpload";
 import { SimpleUpload } from "../components/SimpleUpload";
+import { TokenTest } from "../components/TokenTest";
 
 const UploadPage = () => {
   return (
@@ -21,6 +22,7 @@ const UploadPage = () => {
         </Card>
 
         {/* Componentes de Teste - Remover em produção */}
+        <TokenTest />
         <SimpleUpload />
         <DebugUpload />
 

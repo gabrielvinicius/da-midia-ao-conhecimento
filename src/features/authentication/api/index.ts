@@ -1,39 +1,78 @@
-import api from "@/lib/api";
+import authService, { LoginData, RegisterData, ChangePasswordData } from '@/services/auth.service';
 import { User, UserCredentials, UserRegistration, ChangePasswordPayload } from "@/types";
 
 export interface LoginResponse {
   access_token: string;
   token_type: string;
+  csrf_token?: string;
 }
 
 export const login = async (credentials: UserCredentials): Promise<LoginResponse> => {
-  console.log('Tentando login com:', { email: credentials.email });
+  console.log('🔐 Fazendo login via AuthService:', { email: credentials.email });
   
   try {
-    // Primeiro tenta o endpoint legacy que retorna token no body
-    const response = await api.post<LoginResponse>("/auth/token/legacy", {
-      username: credentials.email, // The backend expects 'username'
+    const loginData: LoginData = {
+      username: credentials.email, // Backend espera 'username'
       password: credentials.password,
-    });
+    };
     
-    console.log('Login response:', response.data);
-    return response.data;
+    // Usar o novo AuthService
+    const response = await authService.loginLegacy(loginData);
+    
+    console.log('✅ Login bem-sucedido:', response);
+    return response;
   } catch (error) {
-    console.error('Erro no login:', error);
+    console.error('❌ Erro no login:', error);
+    throw error;
+  }
+};
+
+export const loginSecure = async (credentials: UserCredentials): Promise<LoginResponse> => {
+  console.log('🛡️ Fazendo login seguro via AuthService:', { email: credentials.email });
+  
+  try {
+    const loginData: LoginData = {
+      username: credentials.email,
+      password: credentials.password,
+    };
+    
+    const response = await authService.loginSecure(loginData);
+    console.log('✅ Login seguro bem-sucedido:', response);
+    return response;
+  } catch (error) {
+    console.error('❌ Erro no login seguro:', error);
     throw error;
   }
 };
 
 export const register = async (userData: UserRegistration): Promise<User> => {
-  const response = await api.post<User>("/auth/register", userData);
-  return response.data;
+  console.log('📝 Registrando usuário via AuthService:', { email: userData.email });
+  
+  const registerData: RegisterData = {
+    email: userData.email,
+    password: userData.password,
+  };
+  
+  const response = await authService.register(registerData);
+  console.log('✅ Registro bem-sucedido:', response);
+  return response;
 };
 
 export const getMe = async (): Promise<User> => {
-  const response = await api.get<User>("/auth/me");
-  return response.data;
+  console.log('👤 Buscando dados do usuário via AuthService');
+  const response = await authService.getCurrentUser();
+  console.log('✅ Dados do usuário obtidos:', response);
+  return response;
 };
 
 export const changePassword = async (payload: ChangePasswordPayload): Promise<void> => {
-  await api.put("/auth/me/password", payload);
+  console.log('🔒 Alterando senha via AuthService');
+  
+  const changeData: ChangePasswordData = {
+    old_password: payload.old_password,
+    new_password: payload.new_password,
+  };
+  
+  await authService.changePassword(changeData);
+  console.log('✅ Senha alterada com sucesso');
 };

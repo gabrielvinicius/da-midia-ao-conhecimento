@@ -1,19 +1,25 @@
 import { useQuery } from '@tanstack/react-query';
-import { getAnalysis } from '../api';
-import { AnalysisType } from '@/types';
+import { getSentimentAnalysis } from '../api';
 
 export const useSentimentAnalysis = (mediaId: string) => {
   return useQuery({
-    queryKey: ['analysis', mediaId, AnalysisType.SENTIMENT],
-    queryFn: () => getAnalysis(mediaId, AnalysisType.SENTIMENT),
+    queryKey: ['sentiment-analysis', mediaId],
+    queryFn: () => getSentimentAnalysis(mediaId),
     enabled: !!mediaId,
-    // Poll for updates if the analysis is not yet available.
-    // A 404 from the API will be treated as `data: null` and will trigger a refetch.
-    refetchInterval: (query) => {
-      if (query.state.data === null) {
-        return 5000; // Refetch every 5 seconds until found
+    retry: (failureCount, error: any) => {
+      // Não fazer retry se for 404 (análise ainda não processada)
+      if (error?.response?.status === 404) {
+        return false;
       }
-      return false; // Stop refetching once data is available
+      return failureCount < 3;
+    },
+    refetchInterval: (query) => {
+      // Se deu erro 404, tentar novamente a cada 10 segundos
+      if (query.state.error?.response?.status === 404) {
+        return 10000;
+      }
+      // Se não tem dados ainda, verificar a cada 10 segundos
+      return !query.state.data ? 10000 : false;
     },
   });
 };

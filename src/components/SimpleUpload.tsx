@@ -23,16 +23,35 @@ export const SimpleUpload = () => {
 
     try {
       console.log('🧪 Iniciando upload simples...');
+      console.log('📁 Arquivo selecionado:', {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        constructor: file.constructor.name,
+        isFile: file instanceof File
+      });
+      
+      // Verificar se é realmente um File
+      if (!(file instanceof File)) {
+        throw new Error('Arquivo selecionado não é uma instância válida de File');
+      }
       
       const uploadData = {
         file: file,
         storageProvider: 'local', // Será convertido para storage_provider na API
-        // Não definir providers opcionais se não especificados
-        // transcriptionProvider: undefined,
-        // summarizationProvider: undefined,
       };
 
       console.log('📤 Dados do upload:', uploadData);
+
+      // Teste manual de FormData
+      console.log('🧪 Testando FormData manualmente:');
+      const testFormData = new FormData();
+      testFormData.append('file', file, file.name);
+      
+      console.log('FormData entries:');
+      for (let [key, value] of testFormData.entries()) {
+        console.log(`${key}:`, value);
+      }
 
       const response = await uploadMedia(uploadData);
       

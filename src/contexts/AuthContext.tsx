@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { User } from '../types';
-import api from '../lib/api';
+import authService from '../services/auth.service';
 
 // Define the shape of the context value
 interface AuthContextType {
@@ -10,6 +10,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   logout: () => void;
+  refreshToken: () => Promise<void>;
 }
 
 // Create the context
@@ -17,15 +18,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Function to fetch the current user
 const fetchCurrentUser = async (): Promise<User | null> => {
-  const token = localStorage.getItem('token');
-  if (!token) return null;
+  if (!authService.isAuthenticated()) {
+    console.log('🔍 Usuário não autenticado');
+    return null;
+  }
 
   try {
-    const response = await api.get<User>('/auth/me');
-    return response.data;
+    console.log('👤 Buscando dados do usuário atual...');
+    const user = await authService.getCurrentUser();
+    console.log('✅ Dados do usuário obtidos via AuthService:', user);
+    return user;
   } catch (error) {
-    // Token is invalid or expired
-    localStorage.removeItem('token');
+    console.error('❌ Erro ao buscar usuário:', error);
+    // Limpar dados de auth se token inválido
+    authService.clearLocalAuth();
     return null;
   }
 };
@@ -40,28 +46,53 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     queryFn: fetchCurrentUser,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: false, // Don't retry on failure, as it means user is not logged in
-    enabled: !!localStorage.getItem('token'), // Only run if token exists
+    enabled: authService.isAuthenticated(), // Only run if authenticated
+    refetchOnWindowFocus: false, // Não refetch automaticamente
   });
 
   useEffect(() => {
     if (currentUser) {
       setUser(currentUser);
+      console.log('✅ Usuário definido no contexto:', currentUser);
+    } else if (currentUser === null && authService.isAuthenticated()) {
+      // Se a query retornou null mas ainda há token, pode ser erro temporário
+      console.warn('⚠️ Query retornou null mas usuário está autenticado');
     }
   }, [currentUser]);
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('token');
-    queryClient.clear(); // Clear all query cache on logout
-    window.location.href = '/login'; // Redirect to login
+  const logout = async () => {
+    console.log('🚪 Fazendo logout...');
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.warn('Erro no logout:', error);
+    } finally {
+      setUser(null);
+      queryClient.clear(); // Clear all query cache on logout
+      console.log('✅ Logout concluído');
+      window.location.href = '/login';
+    }
+  };
+
+  const refreshToken = async () => {
+    console.log('🔄 Refresh token solicitado pelo contexto...');
+    try {
+      await authService.refreshToken();
+      // Invalidar query para buscar dados atualizados
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+    } catch (error) {
+      console.error('❌ Erro no refresh token:', error);
+      throw error;
+    }
   };
 
   const value = {
     user,
     setUser,
-    isAuthenticated: !!user,
+    isAuthenticated: !!user && authService.isAuthenticated(),
     isLoading,
     logout,
+    refreshToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

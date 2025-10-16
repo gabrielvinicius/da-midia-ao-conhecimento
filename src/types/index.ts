@@ -44,6 +44,11 @@ export interface Media {
   media_type: MediaType;
   status: MediaStatus;
   created_at: string;
+  storage_provider?: string;
+  transcription_provider?: string;
+  summarization_provider?: string;
+  processing_pipeline?: string[];
+  file_size_mb?: number;
   error_message?: string;
 }
 
@@ -68,6 +73,13 @@ export interface TranscriptionSegment {
   speaker?: string;
 }
 
+export interface TranscriptionResult {
+  text: string;
+  segments: TranscriptionSegment[];
+  diarized?: boolean;
+  [key: string]: any; // Para campos adicionais do provider
+}
+
 export interface Transcription {
   id: string;
   media_id: string;
@@ -76,12 +88,11 @@ export interface Transcription {
   created_at: string;
   processed_at: string | null;
   error_message: string | null;
-  result: {
-    text: string;
-    segments: TranscriptionSegment[];
-    diarized?: boolean;
-  } | null;
+  result: TranscriptionResult | null;
   speaker_aliases?: Record<string, string>;
+  
+  // Legacy support - para compatibilidade com código antigo
+  text?: string; // Deprecated: usar result.text
 }
 
 export enum SummaryStatus {
@@ -138,16 +149,42 @@ export interface Analysis {
   score?: number;
 }
 
-// Specific analysis result types
+// Specific analysis result types baseados no backend
 export interface SentimentAnalysisResult {
+  id: string;
+  media_id: string;
   label: string;
   score: number;
+  full_result: Record<string, any>;
+  created_at: string;
 }
 
 export interface TopicModelingResult {
-  topics: Array<{
-    id: number;
-    keywords: string[];
-    probability: number;
-  }>;
+  id: string;
+  media_id: string;
+  topics: string[]; // Array de strings conforme backend: ["Topic #1: tech, software", "Topic #2: design"]
+  created_at: string;
+}
+
+// Admin types
+export interface SystemStats {
+  total_users: number;
+  total_media: number;
+  total_transcriptions: number;
+  total_summaries: number;
+  active_tasks: number;
+  system_uptime: string;
+  database_status: string;
+  redis_status: string;
+}
+
+export interface UserResponse {
+  id: string;
+  email: string;
+  role: UserRole;
+  created_at: string;
+}
+
+export interface UserUpdateRequest {
+  role?: UserRole;
 }
