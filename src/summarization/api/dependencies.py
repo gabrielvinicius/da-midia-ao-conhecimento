@@ -1,2 +1,12 @@
-# This file is now obsolete.
-# The dependency injection logic has been moved directly into the router file.
+# src/summarization/api/dependencies.py
+from typing import Annotated, Any
+from fastapi import Depends, Request
+
+def get_container(request: Request) -> dict:
+    return request.app.state.container
+
+def get_summary_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
+    return container["summary_queries"]
+
+def get_media_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
+    return container["media_queries"]

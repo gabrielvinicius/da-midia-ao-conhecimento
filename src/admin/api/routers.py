@@ -3,10 +3,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from typing import Optional, List
 from uuid import UUID
 
-# Import dependencies from their correct, decoupled locations
 from src.shared.api.dependencies import get_current_admin_user
-from .dependencies import get_auth_queries, get_media_queries, get_admin_queries, get_auth_service, get_media_service
-
 from src.auth.application.auth_service import AuthService
 from src.auth.application.queries.auth_queries import AuthQueries
 from src.media_management.application.media_service import MediaService
@@ -15,6 +12,8 @@ from src.admin.application.queries.admin_queries import AdminQueries
 from src.auth.api.schemas import UserResponse
 from src.media_management.api.schemas import MediaResponse
 from .schemas import UserUpdateRequest, SystemStatsResponse
+
+from .dependencies import get_auth_queries, get_media_queries, get_admin_queries, get_auth_service, get_media_service
 
 router = APIRouter(
     prefix="/admin",
@@ -27,16 +26,19 @@ router = APIRouter(
 async def get_system_stats(
     admin_queries: AdminQueries = Depends(get_admin_queries),
 ):
+    """Retrieves global statistics about the system, such as total users, media, etc."""
     return await admin_queries.get_global_stats()
 
 
 @router.get("/users", response_model=List[UserResponse], summary="List all users in the system")
 async def list_all_users(
     auth_queries: AuthQueries = Depends(get_auth_queries),
-    page: int = Query(1, ge=1), 
-    limit: int = Query(10, ge=1, le=100), 
-    search: Optional[str] = None
+    page: int = Query(1, ge=1, description="Page number"), 
+    limit: int = Query(10, ge=1, le=100, description="Items per page"), 
+    search: Optional[str] = Query(None, description="Search term for user email")
 ):
+    """Lists all users with pagination and search capabilities."""
+    # The query logic is now correctly encapsulated in the queries class
     return await auth_queries.list_all(page=page, limit=limit, search=search)
 
 
@@ -46,7 +48,9 @@ async def update_user(
     update_data: UserUpdateRequest,
     auth_service: AuthService = Depends(get_auth_service),
 ):
+    """Updates a user's role. Requires admin privileges."""
     try:
+        # Delegate the entire action to the application service
         return await auth_service.update_user(user_id=user_id, role=update_data.role)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -57,7 +61,9 @@ async def delete_user(
     user_id: UUID,
     auth_service: AuthService = Depends(get_auth_service),
 ):
+    """Deletes a user from the system. Requires admin privileges."""
     try:
+        # Delegate the entire action to the application service
         await auth_service.delete_user(user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -68,8 +74,10 @@ async def list_all_media(
     media_queries: MediaQueries = Depends(get_media_queries),
     page: int = Query(1, ge=1), 
     limit: int = Query(10, ge=1, le=100), 
-    search: Optional[str] = None
+    search: Optional[str] = Query(None, description="Search term for media filename")
 ):
+    """Lists all media items with pagination and search capabilities."""
+    # The query logic is now correctly encapsulated in the queries class
     return await media_queries.list_all(page=page, limit=limit, search=search)
 
 
@@ -78,7 +86,9 @@ async def delete_media(
     media_id: UUID,
     media_service: MediaService = Depends(get_media_service),
 ):
+    """Deletes a media item and its associated files from storage."""
     try:
+        # Delegate the entire action to the application service
         await media_service.delete_media(media_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -89,7 +99,9 @@ async def reprocess_media(
     media_id: UUID,
     media_service: MediaService = Depends(get_media_service),
 ):
+    """Triggers the reprocessing pipeline for a media item that has previously failed."""
     try:
+        # Delegate the entire action to the application service
         await media_service.reprocess_media(media_id)
         return {"message": "Reprocessing initiated."}
     except ValueError as e:
