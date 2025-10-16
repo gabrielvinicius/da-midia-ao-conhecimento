@@ -1,86 +1,106 @@
-# src/auth/application/auth_service.py
+# src/auth/application/auth_service.py - REFACTORED for SRP
 from typing import Optional
 from uuid import UUID
 
-from src.auth.domain.user import User, UserRole
-from src.auth.infrastructure.user_repository import UserRepository
-# Import all commands and handlers
-from .commands.create_user_command import CreateUserCommand
-from .commands.create_user_command_handler import CreateUserCommandHandler
-from .commands.authenticate_user_command import AuthenticateUserCommand
-from .commands.authenticate_user_command_handler import AuthenticateUserCommandHandler
-from .commands.update_user_command import UpdateUserCommand
-from .commands.update_user_command_handler import UpdateUserCommandHandler
-from .commands.delete_user_command import DeleteUserCommand
-from .commands.delete_user_command_handler import DeleteUserCommandHandler
+from src.auth.domain.user import User
+from src.auth.application.services.authentication_service import AuthenticationService
+from src.auth.application.services.user_registration_service import UserRegistrationService
+from src.auth.application.services.user_administration_service import UserAdministrationService
+from src.auth.application.services.password_service import PasswordService
+from src.auth.application.queries.auth_queries import AuthQueries
 
 
 class AuthService:
-    """Facade service to dispatch authentication and user management commands."""
+    """
+    REFACTORED AuthService - Now follows Single Responsibility Principle.
+    
+    This service acts as a FACADE that coordinates specialized services.
+    Each service has a single responsibility.
+    
+    Responsibilities:
+    - Coordinate between specialized services
+    - Provide unified interface for auth operations
+    - Handle cross-cutting concerns (logging, metrics)
+    """
+    
     def __init__(
         self,
-        create_user_handler: CreateUserCommandHandler,
-        authenticate_user_handler: AuthenticateUserCommandHandler,
-        update_user_handler: UpdateUserCommandHandler, # Admin action
-        delete_user_handler: DeleteUserCommandHandler,       # Admin action
-        user_repository: UserRepository,
+        authentication_service: AuthenticationService,
+        registration_service: UserRegistrationService,
+        administration_service: UserAdministrationService,
+        password_service: PasswordService,
+        auth_queries: AuthQueries,
     ):
-        self.create_user_handler = create_user_handler
-        self.authenticate_user_handler = authenticate_user_handler
-        self.update_user_handler = update_user_handler
-        self.delete_user_handler = delete_user_handler
-        self.user_repository = user_repository
+        # Specialized services - each with single responsibility
+        self.authentication_service = authentication_service
+        self.registration_service = registration_service
+        self.administration_service = administration_service
+        self.password_service = password_service
+        self.auth_queries = auth_queries
 
+    # ===================================================================
+    # USER REGISTRATION - Delegates to UserRegistrationService
+    # ===================================================================
+    
     async def create_user(self, email: str, password: str) -> User:
-        command = CreateUserCommand(email=email, password=password)
-        return await self.create_user_handler.handle(command)
+        """Create a new user. Delegates to specialized registration service."""
+        return await self.registration_service.register_user(email, password)
+    
+    async def validate_registration_data(self, email: str, password: str) -> None:
+        """Validate registration data. Delegates to registration service."""
+        return await self.registration_service.validate_registration_data(email, password)
 
-    async def authenticate_user(self, email: str, password: str) -> Optional[User]:
-        """Authenticates a user and returns the user object if successful."""
-        command = AuthenticateUserCommand(email=email, password=password)
-        token = await self.authenticate_user_handler.handle(command)
-        if token:
-            return await self.user_repository.find_by_email(email)
-        return None
+    # ===================================================================
+    # AUTHENTICATION - Delegates to AuthenticationService  
+    # ===================================================================
 
-    async def authenticate_user_and_get_token(self, email: str, password: str) -> Optional[str]:
-        command = AuthenticateUserCommand(email=email, password=password)
-        return await self.authenticate_user_handler.handle(command)
+    async def authenticate_user(self, email: str, password: str) -> dict:
+        """Authenticates a user and returns token info. Delegates to auth service."""
+        return await self.authentication_service.authenticate(email, password)
 
-    # --- Admin Methods ---
+    async def authenticate_user_and_get_token(self, email: str, password: str) -> dict:
+        """Legacy method - same as authenticate_user."""
+        return await self.authenticate_user(email, password)
 
-    async def update_user(self, user_id: UUID, **kwargs) -> User:
-        """Dispatches the UpdateUserCommand."""
-        command = UpdateUserCommand(user_id=user_id, **kwargs)
-        return await self.update_user_handler.handle(command)
-
-    async def delete_user(self, user_id: UUID) -> None:
-        """Dispatches the DeleteUserCommand."""
-        command = DeleteUserCommand(user_id=user_id)
-        await self.delete_user_handler.handle(command)
-
-    async def get_user_by_id(self, user_id: str) -> Optional[User]:
-        """Get user by ID."""
-        try:
-            return await self.user_repository.find_by_id(UUID(user_id))
-        except ValueError:
-            return None
+    # ===================================================================
+    # PASSWORD MANAGEMENT - Delegates to PasswordService
+    # ===================================================================
 
     async def change_password(self, user_id: UUID, old_password: str, new_password: str) -> None:
-        """Change user password."""
-        from .commands.change_password_command import ChangePasswordCommand
-        from .commands.change_password_command_handler import ChangePasswordCommandHandler
-        
-        # For now, we'll implement this directly
-        user = await self.user_repository.find_by_id(user_id)
-        if not user:
-            raise ValueError("User not found")
-        
-        # Verify old password
-        from src.shared.utils.password_utils import verify_password, hash_password
-        if not verify_password(old_password, user.hashed_password):
-            raise ValueError("Invalid old password")
-        
-        # Update password
-        user.hashed_password = hash_password(new_password)
-        await self.user_repository.save(user)
+        """Change user password. Delegates to specialized password service."""
+        await self.password_service.change_password(user_id, old_password, new_password)
+    
+    async def validate_password_strength(self, password: str) -> None:
+        """Validate password strength. Delegates to password service."""
+        self.password_service.validate_password_strength(password)
+
+    # ===================================================================
+    # USER ADMINISTRATION - Delegates to UserAdministrationService
+    # ===================================================================
+
+    async def update_user(self, user_id: UUID, **kwargs) -> User:
+        """Update user (admin operation). Delegates to administration service."""
+        return await self.administration_service.update_user(user_id, **kwargs)
+
+    async def delete_user(self, user_id: UUID) -> None:
+        """Delete user (admin operation). Delegates to administration service."""
+        await self.administration_service.delete_user(user_id)
+    
+    async def update_user_role(self, user_id: UUID, new_role: str) -> User:
+        """Update user role (admin operation). Delegates to administration service."""
+        return await self.administration_service.update_user_role(user_id, new_role)
+
+    # ===================================================================
+    # USER QUERIES - Delegates to AuthQueries
+    # ===================================================================
+
+    async def get_user_by_id(self, user_id: str) -> Optional[User]:
+        """Get user by ID. Delegates to query service."""
+        try:
+            return await self.auth_queries.find_by_id(UUID(user_id))
+        except ValueError:
+            return None
+    
+    async def get_user_by_email(self, email: str) -> Optional[User]:
+        """Get user by email. Delegates to query service."""
+        return await self.auth_queries.find_by_email(email)
