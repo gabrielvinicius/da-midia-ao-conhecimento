@@ -7,7 +7,7 @@ class MediaSettings(BaseSettings):
     
     # File upload settings
     max_file_size_mb: int = 200
-    allowed_extensions: List[str] = [".mp4", ".mov", ".avi", ".mkv", ".webm", ".mp3", ".wav"]
+    allowed_extensions: List[str] = [".mp4", ".mov", ".avi", ".mkv", ".webm", ".mp3", ".wav", ".txt", ".pdf"]
     
     # Default providers
     default_storage_provider: str = "local"

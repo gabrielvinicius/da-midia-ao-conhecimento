@@ -7,6 +7,19 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
+# Stage
+
+
+
+
+
+
+
+
+
+
+
+
 # Stage 1: Builder
 FROM base as builder
 

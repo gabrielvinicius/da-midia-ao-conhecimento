@@ -32,7 +32,10 @@ async def list_summaries(
 
         summary = await queries.get_by_media_id(str(media_id))
         if not summary:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Summary not found for the given media ID")
+            raise HTTPException(
+                status_code=status.HTTP_202_ACCEPTED, 
+                detail="Summary is being processed. Please check back later."
+            )
 
         return [summary]
     else:

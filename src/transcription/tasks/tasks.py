@@ -60,7 +60,7 @@ async def _run_transcription(media_id: str, file_path: str, storage_provider: st
         storage_service_factory = get_storage_service_factory()
         media_repository = MediaRepository(db=db_session)
         media_queries = MediaQueries(media_repository=media_repository)
-        storage_service = storage_service_factory(storage_provider)
+        storage_service = storage_service_factory.create_storage_service(storage_provider)
         speech_recognition_service = create_speech_recognition_service(transcription_provider)
         transcription_repository = await get_transcription_repository(db_session)
 

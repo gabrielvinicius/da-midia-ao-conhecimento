@@ -41,7 +41,7 @@ class CreateMediaCommandHandler:
     async def handle(self, command: CreateMediaCommand) -> Media:
         start_time = time.time()
         media_id = uuid4()
-        storage_service = self.storage_service_factory(command.storage_provider)
+        storage_service = self.storage_service_factory.create_storage_service(command.storage_provider)
 
         try:
             media_type = _get_media_type_from_filename(command.filename)

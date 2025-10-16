@@ -1,5 +1,5 @@
 # src/notifications/api/routers.py
-from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Query
 from typing import List
 
 from src.auth.api.dependencies import get_current_user, get_current_user_from_token
@@ -47,17 +47,57 @@ async def mark_as_read(
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
+    token: str = Query(...),
     manager: ConnectionManager = Depends(get_connection_manager),
-    user: User = Depends(get_current_user_from_token),
 ):
     """Establishes a WebSocket connection for real-time notifications for the authenticated user."""
-    user_id = str(user.id)
-    await manager.connect(user_id, websocket)
     try:
-        while True:
-            # Keep the connection alive. The client can send pings or the server can.
-            # For this implementation, we just wait for the client to disconnect.
-            await websocket.receive_text() 
-    except WebSocketDisconnect:
-        manager.disconnect(user_id, websocket)
-        print(f"Client #{user_id} disconnected from notifications WebSocket.")
+        # Manually authenticate user for WebSocket
+        from src.auth.api.dependencies import get_auth_settings, get_auth_queries
+        from jose import jwt, JWTError
+        
+        # Get dependencies manually since WebSocket doesn't support Depends for user auth
+        container = websocket.app.state.container
+        settings = container.get("auth_settings")
+        queries = container.get("auth_queries")
+        
+        if not settings or not queries:
+            await websocket.close(code=1011, reason="Service dependencies not available")
+            return
+        
+        # Validate token
+        try:
+            payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+            user_id = payload.get("sub")
+            if not user_id:
+                await websocket.close(code=1008, reason="Invalid token")
+                return
+        except JWTError:
+            await websocket.close(code=1008, reason="Invalid token")
+            return
+        
+        # Verify user exists
+        user = await queries.get_by_id(user_id)
+        if not user:
+            await websocket.close(code=1008, reason="User not found")
+            return
+        
+        # Accept connection and connect to manager
+        await manager.connect(user_id, websocket)
+        
+        try:
+            while True:
+                # Keep the connection alive and handle client messages
+                data = await websocket.receive_text()
+                # Echo ping messages or handle other client requests
+                if data == "ping":
+                    await websocket.send_text("pong")
+        except WebSocketDisconnect:
+            manager.disconnect(user_id, websocket)
+            print(f"Client #{user_id} disconnected from notifications WebSocket.")
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        try:
+            await websocket.close(code=1011, reason="Internal server error")
+        except:
+            pass

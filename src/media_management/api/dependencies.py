@@ -19,7 +19,10 @@ def get_media_queries(container: Annotated[dict, Depends(get_container)]) -> Med
     return container["media_queries"]
 
 def get_storage_service_factory(container: Annotated[dict, Depends(get_container)]) -> StorageServiceFactory:
-    return container["storage_service_factory"]
+    storage_factory = container.get("storage_service_factory")
+    if storage_factory is None:
+        raise RuntimeError("StorageServiceFactory not found in container. Check application bootstrap.")
+    return storage_factory
 
 def get_media_settings(container: Annotated[dict, Depends(get_container)]) -> MediaSettings:
     return container["media_settings"]

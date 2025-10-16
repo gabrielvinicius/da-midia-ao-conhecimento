@@ -58,7 +58,7 @@ class ProcessVideoCommandHandler:
             await self.media_repository.save(media)
             await self._push_update("media", media, user_id)
 
-            storage_service = self.storage_service_factory(media.storage_provider)
+            storage_service = self.storage_service_factory.create_storage_service(media.storage_provider)
             video_bytes, _ = await storage_service.download(command.file_path)
 
             # 2. Extract audio using PyAV

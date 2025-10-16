@@ -12,12 +12,14 @@ from alembic import context
 from src.shared.infrastructure.database import Base  # Importar a Base
 
 # ---------- Importe todos os modelos aqui ----------
-# Import only the models that are needed and don't have circular dependencies
+# Import all models to ensure they are registered with SQLAlchemy
 from src.auth.domain.user import User
+from src.media_management.domain.media import Media
 from src.notifications.domain.notification import Notification
 from src.summarization.domain.summary import Summary
 from src.transcription.domain.transcription import Transcription
-# Note: Media model has circular imports, will be handled by separate migrations
+from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysisResult
+from src.topic_modeling.domain.topic_modeling import TopicModelingResult
 
 # ---------------------------------------------------
 

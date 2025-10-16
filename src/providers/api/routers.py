@@ -12,6 +12,16 @@ router = APIRouter(
 )
 
 
+@router.get("/", summary="List all available providers")
+async def list_all_providers():
+    """Returns all available providers organized by category."""
+    return {
+        "storage": get_available_storage_providers(),
+        "transcription": get_available_speech_recognition_providers(),
+        "summarization": get_available_summarizer_providers()
+    }
+
+
 @router.get("/storage", response_model=List[str], summary="List available storage providers")
 async def list_storage_providers() -> List[str]:
     """Returns a list of available storage providers (e.g., 'local', 's3')."""

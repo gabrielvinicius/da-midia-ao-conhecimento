@@ -29,7 +29,7 @@ class DeleteMediaCommandHandler:
 
         # First, try to delete the file from storage
         try:
-            storage_service = self.storage_service_factory(media.storage_provider)
+            storage_service = self.storage_service_factory.create_storage_service(media.storage_provider)
             await storage_service.delete(media.original_file_path)
             logger.info("media.file.deleted", path=media.original_file_path)
         except Exception as e:

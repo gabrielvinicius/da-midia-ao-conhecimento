@@ -31,7 +31,10 @@ async def list_transcriptions(
 
         transcription = await queries.get_by_media_id(str(media_id))
         if not transcription:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcription not found for the given media ID")
+            raise HTTPException(
+                status_code=status.HTTP_202_ACCEPTED, 
+                detail="Transcription is being processed. Please check back later."
+            )
 
         return [transcription]
     else:

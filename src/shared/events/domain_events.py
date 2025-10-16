@@ -23,6 +23,8 @@ class MediaUploaded(DomainEvent):
     media_type: MediaType
     file_path: str
     storage_provider: str
+    transcription_provider: Optional[str] = None
+    summarization_provider: Optional[str] = None
 
 @dataclass(frozen=True)
 class AudioExtracted(DomainEvent):

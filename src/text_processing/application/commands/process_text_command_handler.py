@@ -38,7 +38,7 @@ class ProcessTextCommandHandler:
             media.process()
             await self.media_repository.save(media)
 
-            storage_service = self.storage_service_factory(command.storage_provider)
+            storage_service = self.storage_service_factory.create_storage_service(command.storage_provider)
             file_bytes, _ = await storage_service.download(command.file_path)
 
             # Extract text from PDF

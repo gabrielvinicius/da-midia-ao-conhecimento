@@ -25,8 +25,12 @@ def register_speech_recognition(provider: str):
 
 def get_available_speech_recognition_providers() -> List[str]:
     """Returns a list of all registered speech recognition provider names."""
-    _load_speech_recognition_plugins()
-    return list(_speech_recognition_registry.keys())
+    try:
+        _load_speech_recognition_plugins()
+        return list(_speech_recognition_registry.keys())
+    except Exception as e:
+        # Return default providers if dynamic loading fails
+        return ["whisper", "fastwhisper"]
 
 
 def create_speech_recognition_service(provider: str) -> ISpeechRecognition:

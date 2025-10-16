@@ -23,8 +23,12 @@ def register_summarizer(provider: str):
 
 def get_available_summarizer_providers() -> List[str]:
     """Returns a list of all registered summarizer provider names."""
-    _load_summarizer_plugins()
-    return list(_summarizer_registry.keys())
+    try:
+        _load_summarizer_plugins()
+        return list(_summarizer_registry.keys())
+    except Exception as e:
+        # Return default providers if dynamic loading fails
+        return ["huggingface", "openai"]
 
 
 def create_summarizer_service(provider: str) -> ISummarizer:

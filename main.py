@@ -26,6 +26,7 @@ from src.analytics.bootstrap import bootstrap_analytics_module
 from src.metrics.bootstrap import bootstrap_metrics_module
 from src.sentiment_analysis.bootstrap import bootstrap_sentiment_analysis_module # Import new bootstrap
 from src.topic_modeling.bootstrap import bootstrap_topic_modeling_module
+from src.admin.bootstrap import bootstrap_admin_module
 from src.notifications.infrastructure.connection_manager import manager
 
 # Shared Factories and DB
@@ -46,6 +47,7 @@ from src.transcription.api.routers import router as transcription_router
 from src.media_management.api.routers import router as media_router
 from src.sentiment_analysis.api.routers import router as sentiment_router
 from src.topic_modeling.api.routers import router as topic_modeling_router
+from src.admin.api.routers import router as admin_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -86,6 +88,7 @@ async def lifespan(app: FastAPI):
         app_container.update(bootstrap_summarization_module(session, app_container["event_bus"]))
         app_container.update(bootstrap_sentiment_analysis_module(session))
         app_container.update(bootstrap_topic_modeling_module(session))
+        app_container.update(bootstrap_admin_module(session, app_container["media_queries"]))
 
         app.state.container = app_container
 
@@ -192,7 +195,20 @@ app.include_router(summary_router)
 app.include_router(sentiment_router)
 app.include_router(topic_modeling_router)
 app.include_router(notification_router)
+app.include_router(admin_router)
 app.include_router(metrics_router)
+
+# Root endpoint
+@app.get("/")
+async def root():
+    """Root endpoint with API information."""
+    return {
+        "message": "Media Processing API",
+        "version": "2.0.0",
+        "status": "operational",
+        "docs": "/docs",
+        "health": "/health"
+    }
 
 # Health Check Endpoint
 @app.get("/health")

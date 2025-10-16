@@ -1,6 +1,6 @@
 # src/sentiment_analysis/api/routers.py
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from src.auth.api.dependencies import get_current_user
 from src.auth.domain.user import User
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/sentiment-analysis", tags=["Sentiment Analysis"])
 
 @router.get("/", response_model=SentimentAnalysisResponse, summary="Get sentiment analysis result by Media ID")
 async def get_sentiment_analysis_by_media_id(
-    media_id: UUID,
+    media_id: UUID = Query(..., description="Media ID to get sentiment analysis for"),
     queries: SentimentAnalysisQueries = Depends(get_sentiment_analysis_queries),
     media_queries: MediaQueries = Depends(get_media_queries),
     current_user: User = Depends(get_current_user),
@@ -29,6 +29,9 @@ async def get_sentiment_analysis_by_media_id(
     # Fetch the analysis result
     analysis_result = await queries.get_by_media_id(str(media_id))
     if not analysis_result:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sentiment analysis result not found for the given media ID.")
+        raise HTTPException(
+            status_code=status.HTTP_202_ACCEPTED, 
+            detail="Sentiment analysis is being processed. Please check back later."
+        )
 
     return analysis_result
