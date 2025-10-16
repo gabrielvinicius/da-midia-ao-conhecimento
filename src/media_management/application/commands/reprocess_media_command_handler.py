@@ -3,48 +3,39 @@ import structlog
 
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
-from src.media_management.domain.media import MediaStatus
-from src.shared.events.event_bus import EventBus
-from src.shared.events.domain_events import MediaUploaded
+from ..services.media_state_service import MediaStateService
+from ..services.media_event_manager import MediaEventManager
 from .reprocess_media_command import ReprocessMediaCommand
 
 logger = structlog.get_logger(__name__)
+
 
 class ReprocessMediaCommandHandler:
     def __init__(
         self,
         media_queries: MediaQueries,
         media_repository: MediaRepository,
-        event_bus: EventBus,
+        media_state_service: MediaStateService,
+        media_event_manager: MediaEventManager,
     ):
         self.media_queries = media_queries
         self.media_repository = media_repository
-        self.event_bus = event_bus
+        self.media_state_service = media_state_service
+        self.media_event_manager = media_event_manager
 
     async def handle(self, command: ReprocessMediaCommand) -> None:
-        """Handles the media reprocessing request."""
+        """Orchestrates the media reprocessing workflow."""
         media = await self.media_queries.get_by_id(str(command.media_id))
         if not media:
             raise ValueError("Media not found.")
 
-        if media.status != MediaStatus.FAILED:
-            raise ValueError(f"Media is not in a FAILED state. Current status: {media.status}")
+        # 1. Delegate state change and validation
+        updated_media = self.media_state_service.reset_for_reprocessing(media)
 
-        # Reset status to re-trigger processing
-        media.status = MediaStatus.UPLOADED
-        media.error_message = None
-        await self.media_repository.save(media)
+        # 2. Persist the change
+        await self.media_repository.save(updated_media)
 
-        # Re-publish the original MediaUploaded event to trigger the pipeline again
-        event = MediaUploaded(
-            media_id=str(media.id),
-            user_id=str(media.user_id),
-            media_type=media.media_type,
-            file_path=media.original_file_path,
-            storage_provider=media.storage_provider,
-            transcription_provider=media.transcription_provider,
-            summarization_provider=media.summarization_provider
-        )
-        
-        await self.event_bus.publish(event)
-        logger.info("media.reprocessing.initiated", media_id=command.media_id)
+        # 3. Delegate event publishing
+        await self.media_event_manager.publish_media_uploaded(updated_media)
+
+        logger.info("media.reprocessing.initiated", media_id=str(command.media_id))
