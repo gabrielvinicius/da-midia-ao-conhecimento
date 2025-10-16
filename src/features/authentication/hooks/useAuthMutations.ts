@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { login, register, changePassword } from '../api';
+import { login, register, changePassword, getMe } from '../api';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserCredentials, UserRegistration, ChangePasswordPayload } from '@/types';
 
@@ -13,16 +13,33 @@ export const useLogin = () => {
   return useMutation({
     mutationFn: (credentials: UserCredentials) => login(credentials),
     onSuccess: async (data) => {
-      localStorage.setItem('token', data.access_token);
-      const user = await queryClient.fetchQuery({ queryKey: ['currentUser'] });
-      if (user) {
-        setUser(user);
+      console.log('Login response:', data);
+      
+      // Salvar token no localStorage
+      if (data.access_token && data.access_token !== 'set_in_cookie') {
+        localStorage.setItem('token', data.access_token);
       }
-      toast.success('Login successful!');
-      navigate('/dashboard');
+      
+      try {
+        // Buscar dados do usuário
+        const user = await getMe();
+        console.log('User data:', user);
+        
+        // Atualizar contexto e cache
+        setUser(user);
+        queryClient.setQueryData(['currentUser'], user);
+        
+        toast.success('Login realizado com sucesso!');
+        navigate('/dashboard');
+      } catch (userError) {
+        console.error('Erro ao buscar dados do usuário:', userError);
+        toast.error('Erro ao carregar dados do usuário');
+      }
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Login failed:', error);
+      const message = error?.response?.data?.detail || error?.message || 'Credenciais inválidas';
+      toast.error(message);
     },
   });
 };

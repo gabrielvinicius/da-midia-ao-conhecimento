@@ -38,8 +38,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { data: currentUser, isLoading } = useQuery({
     queryKey: ['currentUser'],
     queryFn: fetchCurrentUser,
-    staleTime: Infinity, // User data is stable, no need to refetch often
+    staleTime: 5 * 60 * 1000, // 5 minutes
     retry: false, // Don't retry on failure, as it means user is not logged in
+    enabled: !!localStorage.getItem('token'), // Only run if token exists
   });
 
   useEffect(() => {

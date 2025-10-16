@@ -1,41 +1,129 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
-import { Media, MediaStatus } from "../../../types";
-import { FileText, CheckCircle, XCircle, Loader2, Clock } from "lucide-react";
+import { Button } from "../../../components/ui/Button";
+import { Media, MediaStatus, MediaType } from "../../../types";
+import { FileText, CheckCircle, XCircle, Loader2, Clock, Video, Music, FileImage, MoreVertical, Eye, RotateCcw } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { useReprocessMedia } from "../hooks/useMedia";
 
 interface MediaCardProps {
   media: Media;
 }
 
 // Status configuration for visual feedback
-const statusConfig: Record<MediaStatus, { icon: React.ReactNode; color: string; label: string }> = {
-  [MediaStatus.PENDING]: { icon: <Clock className="h-4 w-4" />, color: "text-yellow-500", label: "Pending" },
-  [MediaStatus.PROCESSING]: { icon: <Loader2 className="h-4 w-4 animate-spin" />, color: "text-blue-500", label: "Processing" },
-  [MediaStatus.COMPLETED]: { icon: <CheckCircle className="h-4 w-4" />, color: "text-green-500", label: "Completed" },
-  [MediaStatus.FAILED]: { icon: <XCircle className="h-4 w-4" />, color: "text-red-500", label: "Failed" },
+const statusConfig: Record<MediaStatus, { icon: React.ReactNode; color: string; label: string; bgColor: string }> = {
+  [MediaStatus.PENDING]: { 
+    icon: <Clock className="h-4 w-4" />, 
+    color: "text-yellow-600", 
+    label: "Pendente",
+    bgColor: "bg-yellow-100 dark:bg-yellow-900/20"
+  },
+  [MediaStatus.PROCESSING]: { 
+    icon: <Loader2 className="h-4 w-4 animate-spin" />, 
+    color: "text-blue-600", 
+    label: "Processando",
+    bgColor: "bg-blue-100 dark:bg-blue-900/20"
+  },
+  [MediaStatus.COMPLETED]: { 
+    icon: <CheckCircle className="h-4 w-4" />, 
+    color: "text-green-600", 
+    label: "Concluído",
+    bgColor: "bg-green-100 dark:bg-green-900/20"
+  },
+  [MediaStatus.FAILED]: { 
+    icon: <XCircle className="h-4 w-4" />, 
+    color: "text-red-600", 
+    label: "Falhou",
+    bgColor: "bg-red-100 dark:bg-red-900/20"
+  },
+};
+
+// Media type icons
+const mediaTypeConfig: Record<MediaType, { icon: React.ReactNode; label: string; color: string }> = {
+  [MediaType.VIDEO]: { icon: <Video className="h-5 w-5" />, label: "Vídeo", color: "text-purple-600" },
+  [MediaType.AUDIO]: { icon: <Music className="h-5 w-5" />, label: "Áudio", color: "text-blue-600" },
+  [MediaType.TEXT]: { icon: <FileText className="h-5 w-5" />, label: "Texto", color: "text-green-600" },
 };
 
 export const MediaCard = ({ media }: MediaCardProps) => {
-  const { icon, color, label } = statusConfig[media.status] || statusConfig[MediaStatus.PENDING];
+  const { mutate: reprocess, isPending: isReprocessing } = useReprocessMedia();
+  const { icon: statusIcon, color: statusColor, label: statusLabel, bgColor: statusBgColor } = statusConfig[media.status] || statusConfig[MediaStatus.PENDING];
+  const { icon: typeIcon, label: typeLabel, color: typeColor } = mediaTypeConfig[media.media_type] || mediaTypeConfig[MediaType.TEXT];
+
+  const filename = media.original_file_path?.split('/').pop() || 'Arquivo';
+  const createdAt = new Date(media.created_at);
+
+  const handleReprocess = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    reprocess(media.id);
+  };
 
   return (
-    <Link to={`/media/${media.id}`} className="block">
-      <Card className="hover:border-primary/50 hover:shadow-md transition-all duration-200 h-full">
-        <CardHeader>
-          <CardTitle className="flex items-start gap-3 text-lg">
-            <FileText className="h-5 w-5 flex-shrink-0 translate-y-0.5" />
-            <span className="truncate flex-1">{media.original_file_path}</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex justify-between items-center">
-          <Badge variant="secondary">{media.media_type}</Badge>
-          <div className={`flex items-center gap-2 font-medium ${color}`}>
-            {icon}
-            <span className="text-sm capitalize">{label}</span>
+    <Card className="group hover:border-primary/50 hover:shadow-md transition-all duration-200 h-full">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <div className={`${typeColor} flex-shrink-0 translate-y-0.5`}>
+              {typeIcon}
+            </div>
+            <div className="min-w-0 flex-1">
+              <CardTitle className="text-base truncate" title={filename}>
+                {filename}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {typeLabel} • {formatDistanceToNow(createdAt, { addSuffix: true, locale: ptBR })}
+              </p>
+            </div>
           </div>
-        </CardContent>
-      </Card>
-    </Link>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="pt-0">
+        <div className="flex items-center justify-between mb-4">
+          <Badge variant="outline" className={`${statusBgColor} ${statusColor} border-current`}>
+            <span className="flex items-center gap-1">
+              {statusIcon}
+              {statusLabel}
+            </span>
+          </Badge>
+          
+          {media.status === MediaStatus.FAILED && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleReprocess}
+              disabled={isReprocessing}
+              className="opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
+        {/* Providers info */}
+        {(media.transcription_provider || media.summarization_provider) && (
+          <div className="text-xs text-muted-foreground space-y-1">
+            {media.transcription_provider && (
+              <div>Transcrição: {media.transcription_provider}</div>
+            )}
+            {media.summarization_provider && (
+              <div>Sumarização: {media.summarization_provider}</div>
+            )}
+          </div>
+        )}
+
+        <div className="mt-4 pt-3 border-t">
+          <Link to={`/media/${media.id}`} className="block">
+            <Button variant="ghost" className="w-full">
+              <Eye className="mr-2 h-4 w-4" />
+              Ver Detalhes
+            </Button>
+          </Link>
+        </div>
+      </CardContent>
+    </Card>
   );
 };

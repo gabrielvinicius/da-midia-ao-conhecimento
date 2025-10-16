@@ -33,12 +33,27 @@ export const useUploadMedia = () => {
   return useMutation({
     mutationFn: (params: UploadMediaParams) => uploadMedia(params),
     onSuccess: (data) => {
-      toast.success(`Media "${data.original_file_path}" uploaded successfully! Processing has started.`);
+      console.log('Upload successful:', data);
+      const filename = data.original_file_path?.split('/').pop() || 'arquivo';
+      toast.success(`Arquivo "${filename}" enviado com sucesso! O processamento foi iniciado.`);
       queryClient.invalidateQueries({ queryKey: ['mediaList'] });
       navigate('/dashboard');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Upload failed:', error);
+      
+      // Extrai a mensagem de erro mais específica
+      let errorMessage = 'Erro ao fazer upload do arquivo';
+      
+      if (error?.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     },
   });
 };
