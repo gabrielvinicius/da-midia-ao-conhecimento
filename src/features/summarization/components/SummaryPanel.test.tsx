@@ -48,11 +48,22 @@ describe('SummaryPanel Component', () => {
 
     // Assert: Check if saveAs was called correctly
     expect(saveAs).toHaveBeenCalledTimes(1);
-    const blob = (saveAs as vi.Mock).mock.calls[0][0];
-    const filename = (saveAs as vi.Mock).mock.calls[0][1];
+    const callArgs = (saveAs as vi.Mock).mock.calls[0];
+    const blob = callArgs[0];
+    const filename = callArgs[1];
 
-    expect(await blob.text()).toBe(mockSummary.text);
+    // Verify the blob content by checking its constructor arguments
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.type).toBe('text/plain;charset=utf-8');
     expect(filename).toBe(`summary-media123.txt`);
+    
+    // Read the blob content properly in test environment
+    const blobText = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsText(blob);
+    });
+    expect(blobText).toBe(mockSummary.text);
   });
 
   it('should have a disabled download button when summary is not completed', () => {

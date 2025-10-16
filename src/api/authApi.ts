@@ -14,11 +14,11 @@ export const register = async (userData: UserRegistration): Promise<User> => {
 };
 
 export const login = async (credentials: UserCredentials): Promise<{ access_token: string }> => {
-  const response = await authApi.post("/token", {
+  const response = await authApi.post("/token/legacy", {
     username: credentials.email,
     password: credentials.password,
   });
-  if (response.data.access_token) {
+  if (response.data.access_token && response.data.access_token !== "set_in_cookie") {
     localStorage.setItem("token", response.data.access_token);
   }
   return response.data;
