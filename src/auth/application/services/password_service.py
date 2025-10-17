@@ -2,8 +2,8 @@
 Password Service - Single Responsibility: Password Management
 """
 from uuid import UUID
-from src.auth.application.commands.change_password_command import ChangePasswordCommand
-from src.auth.application.commands.change_password_command_handler import ChangePasswordCommandHandler
+from src.auth.application.commands.commands import ChangePasswordCommand
+from src.auth.application.commands.handlers import ChangePasswordCommandHandler
 from src.shared.utils.password_utils import verify_password, hash_password
 
 
