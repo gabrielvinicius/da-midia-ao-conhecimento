@@ -16,11 +16,11 @@ def get_auth_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
 def get_media_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
     return container["media_queries"]
 
-def get_user_administration_service(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["user_administration_service"]
+def get_admin_user_service(container: Annotated[dict, Depends(get_container)]) -> Any:
+    return container["admin_user_service"]
 
-def get_delete_media_handler(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["delete_media_handler"]
+def get_admin_media_service(container: Annotated[dict, Depends(get_container)]) -> Any:
+    return container["admin_media_service"]
 
-def get_reprocess_media_handler(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["reprocess_media_handler"]
+def get_admin_audit_service(container: Annotated[dict, Depends(get_container)]) -> Any:
+    return container["admin_audit_service"]
