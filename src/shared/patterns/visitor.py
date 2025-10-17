@@ -441,10 +441,5 @@ class AsyncVisitableElement(IVisitable):
         return await visitor.dispatch_async(self)
     
     def accept(self, visitor: IVisitor) -> Any:
-        """Synchronous accept for compatibility"""
-        if isinstance(visitor, AsyncVisitor):
-            # Convert to sync execution
-            import asyncio
-            return asyncio.run(self.accept_async(visitor))
-        else:
-            return visitor.dispatch(self)
+        """Accept visitor"""
+        return visitor.dispatch(self)

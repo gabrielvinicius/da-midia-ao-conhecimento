@@ -422,49 +422,18 @@ class CommandQueue:
         return self.results.get(command_id)
 
 
-# Command registry for managing command types
+# Simplified command registry
 class CommandRegistry:
-    """Registry for managing command types and their handlers"""
+    """Simple registry for command types"""
     
     _commands: Dict[str, Type[ICommand]] = {}
-    _handlers: Dict[Type[ICommand], Type[ICommandHandler]] = {}
     
     @classmethod
-    def register_command(
-        cls, 
-        name: str, 
-        command_class: Type[ICommand],
-        handler_class: Type[ICommandHandler] = None
-    ):
+    def register_command(cls, name: str, command_class: Type[ICommand]):
         """Register a command type"""
         cls._commands[name] = command_class
-        if handler_class:
-            cls._handlers[command_class] = handler_class
-        
-        logger.info(f"Registered command: {name}")
     
     @classmethod
     def get_command_class(cls, name: str) -> Optional[Type[ICommand]]:
         """Get command class by name"""
         return cls._commands.get(name)
-    
-    @classmethod
-    def get_handler_class(cls, command_class: Type[ICommand]) -> Optional[Type[ICommandHandler]]:
-        """Get handler class for command"""
-        return cls._handlers.get(command_class)
-    
-    @classmethod
-    def create_invoker(cls) -> CommandInvoker:
-        """Create command invoker with registered handlers"""
-        invoker = CommandInvoker()
-        
-        for command_class, handler_class in cls._handlers.items():
-            handler = handler_class()
-            invoker.register_handler(command_class, handler)
-        
-        return invoker
-    
-    @classmethod
-    def get_available_commands(cls) -> List[str]:
-        """Get list of available command names"""
-        return list(cls._commands.keys())
