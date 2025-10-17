@@ -1,25 +1,35 @@
 # src/auth/application/commands/create_user_command_handler.py
-from src.auth.domain.user import User, UserRole
+from src.auth.domain.user import User
 from src.auth.infrastructure.user_repository import UserRepository
-from src.shared.utils.id_generator import generate_id
-from src.shared.utils.password_utils import hash_password
+from ..services.user_validator import UserValidator
+from ..services.password_service import PasswordService
+from ..services.user_factory import UserFactory
 from .create_user_command import CreateUserCommand
 
 
 class CreateUserCommandHandler:
-    def __init__(self, user_repository: UserRepository):
+    def __init__(
+        self,
+        user_repository: UserRepository,
+        user_validator: UserValidator,
+        password_service: PasswordService,
+        user_factory: UserFactory,
+    ):
         self.user_repository = user_repository
+        self.user_validator = user_validator
+        self.password_service = password_service
+        self.user_factory = user_factory
 
     async def handle(self, command: CreateUserCommand) -> User:
-        """Handles the user creation process."""
-        if await self.user_repository.find_by_email(command.email):
-            raise ValueError("Email already registered")
+        """Orchestrates the user creation workflow."""
+        # 1. Validate
+        await self.user_validator.validate_new_user(command.email)
 
-        hashed_password = hash_password(command.password)
-        user = User(
-            id=generate_id(),
-            email=command.email,
-            password_hash=hashed_password,
-            role=UserRole.USER
-        )
+        # 2. Hash Password
+        hashed_password = self.password_service.hash_password(command.password)
+
+        # 3. Create Entity
+        user = self.user_factory.create(command.email, hashed_password)
+
+        # 4. Persist
         return await self.user_repository.save(user)
