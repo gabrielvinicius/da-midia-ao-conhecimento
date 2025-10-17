@@ -1,5 +1,109 @@
 # src/summarization/domain/interfaces.py
 """
+Domain interfaces for summarization module.
+Follows Interface Segregation and Dependency Inversion principles.
+"""
+from abc import ABC, abstractmethod
+from typing import Optional, List, Dict, Any
+from uuid import UUID
+from src.summarization.domain.summary import Summary
+
+
+class ISummarizationService(ABC):
+    """Interface for core summarization operations."""
+    
+    @abstractmethod
+    async def summarize(
+        self, 
+        text_content: str, 
+        summary_id: Optional[UUID] = None,
+        options: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Summarize text content."""
+        pass
+    
+    @abstractmethod
+    async def batch_summarize(
+        self, 
+        texts: Dict[UUID, str], 
+        options: Optional[Dict[str, Any]] = None
+    ) -> Dict[UUID, str]:
+        """Summarize multiple texts in batch."""
+        pass
+
+
+class ISummaryValidator(ABC):
+    """Interface for summary validation operations."""
+    
+    @abstractmethod
+    def validate_input_text(self, text: str) -> None:
+        """Validate input text for summarization."""
+        pass
+    
+    @abstractmethod
+    def validate_summary_quality(self, summary: str, original_text: str) -> None:
+        """Validate generated summary quality."""
+        pass
+    
+    @abstractmethod
+    def validate_summary_length(self, summary: str, max_length: int) -> None:
+        """Validate summary length constraints."""
+        pass
+
+
+class ISummaryMetricsService(ABC):
+    """Interface for summary metrics operations."""
+    
+    @abstractmethod
+    def record_processing_start(self, summary_id: UUID) -> None:
+        """Record start of summary processing."""
+        pass
+    
+    @abstractmethod
+    def record_processing_success(
+        self, 
+        summary_id: UUID, 
+        input_length: int, 
+        output_length: int,
+        provider: str
+    ) -> None:
+        """Record successful summary processing."""
+        pass
+    
+    @abstractmethod
+    def record_processing_failure(self, summary_id: UUID, error: str) -> None:
+        """Record failed summary processing."""
+        pass
+    
+    @abstractmethod
+    def get_processing_stats(self, provider: Optional[str] = None) -> Dict[str, Any]:
+        """Get processing statistics."""
+        pass
+
+
+class ISummaryStateManager(ABC):
+    """Interface for summary state management."""
+    
+    @abstractmethod
+    async def update_status(
+        self, 
+        summary_id: UUID, 
+        status: str, 
+        error_message: Optional[str] = None
+    ) -> None:
+        """Update summary processing status."""
+        pass
+    
+    @abstractmethod
+    async def get_status(self, summary_id: UUID) -> Optional[str]:
+        """Get current summary processing status."""
+        pass
+    
+    @abstractmethod
+    async def cleanup_old_states(self, days_to_keep: int = 7) -> int:
+        """Clean up old processing states."""
+        pass
+"""
 Domain interfaces for summarization module following SOLID principles.
 """
 from abc import ABC, abstractmethod

@@ -41,6 +41,94 @@ class VideoOrchestrator(ABC):
         pass
 
 
+class IVideoProcessor(ABC):
+    """Enhanced interface for video processing operations."""
+    
+    @abstractmethod
+    async def process_video(
+        self, 
+        video_data: bytes, 
+        target_format: str = "mp4",
+        options: Optional[Dict[str, Any]] = None
+    ) -> bytes:
+        """Process video data to target format."""
+        pass
+    
+    @abstractmethod
+    async def extract_metadata(self, video_data: bytes) -> Dict[str, Any]:
+        """Extract metadata from video data."""
+        pass
+    
+    @abstractmethod
+    async def validate_video(self, video_data: bytes) -> bool:
+        """Validate if the video data is in a supported format."""
+        pass
+
+
+class IVideoValidator(ABC):
+    """Interface for video validation operations."""
+    
+    @abstractmethod
+    def validate_video_data(self, video_data: bytes) -> None:
+        """Validate video data for processing."""
+        pass
+    
+    @abstractmethod
+    def validate_format_support(self, format_name: str) -> None:
+        """Validate if format is supported for conversion."""
+        pass
+    
+    @abstractmethod
+    def validate_processing_options(self, options: Dict[str, Any]) -> None:
+        """Validate processing options."""
+        pass
+
+
+class IVideoMetricsService(ABC):
+    """Interface for video processing metrics operations."""
+    
+    @abstractmethod
+    def record_processing_start(self, media_id: str) -> None:
+        """Record start of video processing."""
+        pass
+    
+    @abstractmethod
+    def record_processing_success(
+        self, 
+        media_id: str, 
+        input_size: int, 
+        output_size: int,
+        format_conversion: str,
+        duration: float
+    ) -> None:
+        """Record successful video processing."""
+        pass
+    
+    @abstractmethod
+    def record_processing_failure(self, media_id: str, error: str) -> None:
+        """Record failed video processing."""
+        pass
+
+
+class IVideoStateManager(ABC):
+    """Interface for video processing state management."""
+    
+    @abstractmethod
+    async def update_status(
+        self, 
+        media_id: str, 
+        status: str, 
+        error_message: Optional[str] = None
+    ) -> None:
+        """Update video processing status."""
+        pass
+    
+    @abstractmethod
+    async def get_status(self, media_id: str) -> Optional[str]:
+        """Get current video processing status."""
+        pass
+
+
 class VideoNotificationService(ABC):
     """Interface for video processing notification services."""
     
@@ -58,3 +146,7 @@ class VideoNotificationService(ABC):
     async def notify_video_processing_failed(self, user_id: str, media_id: str, error: str):
         """Notify user that video processing has failed."""
         pass
+
+
+# Backward compatibility
+VideoProcessor = IVideoProcessor

@@ -8,13 +8,96 @@ from typing import Dict, Any, Optional
 from src.transcription.domain.transcription import Transcription
 
 
-class SpeechRecognitionService(ABC):
-    """Interface for speech recognition services."""
+class ISpeechRecognitionService(ABC):
+    """Interface for core speech recognition operations."""
     
     @abstractmethod
-    async def transcribe(self, audio_data: bytes, language: str = "en") -> Dict[str, Any]:
-        """Transcribe audio data and return structured result."""
+    async def transcribe(
+        self, 
+        audio_bytes: bytes, 
+        language: str = "en",
+        transcription_id: Optional[UUID] = None,
+        options: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Transcribe audio data."""
         pass
+    
+    @abstractmethod
+    async def batch_transcribe(
+        self, 
+        audio_batches: Dict[UUID, bytes],
+        language: str = "en",
+        options: Optional[Dict[str, Any]] = None
+    ) -> Dict[UUID, str]:
+        """Transcribe multiple audio files in batch."""
+        pass
+
+
+class ITranscriptionValidator(ABC):
+    """Interface for transcription validation operations."""
+    
+    @abstractmethod
+    def validate_audio_data(self, audio_data: bytes) -> None:
+        """Validate audio data for transcription."""
+        pass
+    
+    @abstractmethod
+    def validate_language_code(self, language: str) -> None:
+        """Validate language code is supported."""
+        pass
+    
+    @abstractmethod
+    def validate_transcription_quality(self, transcription: str, audio_data: bytes) -> None:
+        """Validate transcription quality."""
+        pass
+
+
+class ITranscriptionMetricsService(ABC):
+    """Interface for transcription metrics operations."""
+    
+    @abstractmethod
+    def record_processing_start(self, transcription_id: UUID) -> None:
+        """Record start of transcription processing."""
+        pass
+    
+    @abstractmethod
+    def record_processing_success(
+        self, 
+        transcription_id: UUID, 
+        audio_size: int, 
+        text_length: int,
+        provider: str
+    ) -> None:
+        """Record successful transcription processing."""
+        pass
+    
+    @abstractmethod
+    def record_processing_failure(self, transcription_id: UUID, error: str) -> None:
+        """Record failed transcription processing."""
+        pass
+
+
+class ITranscriptionStateManager(ABC):
+    """Interface for transcription state management."""
+    
+    @abstractmethod
+    async def update_status(
+        self, 
+        transcription_id: UUID, 
+        status: str, 
+        error_message: Optional[str] = None
+    ) -> None:
+        """Update transcription processing status."""
+        pass
+    
+    @abstractmethod
+    async def get_status(self, transcription_id: UUID) -> Optional[str]:
+        """Get current transcription processing status."""
+        pass
+
+
+# Backward compatibility
+SpeechRecognitionService = ISpeechRecognitionService
 
 
 class AudioProcessor(ABC):

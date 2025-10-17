@@ -100,13 +100,61 @@ class IMediaMetricsService(ABC):
         pass
     
     @abstractmethod
-    def record_upload_failure(self) -> None:
+    def record_upload_failure(self, media_id: UUID, error: str) -> None:
         """Record upload failure metrics."""
         pass
     
     @abstractmethod
     def record_processing_duration(self, media_id: UUID, duration: float, operation: str) -> None:
         """Record processing duration metrics."""
+        pass
+    
+    @abstractmethod
+    def get_upload_stats(self, time_range: str) -> dict:
+        """Get upload statistics."""
+        pass
+
+
+class IMediaStateManager(ABC):
+    """Interface for media state management."""
+    
+    @abstractmethod
+    async def update_upload_status(
+        self, 
+        media_id: UUID, 
+        status: str, 
+        error_message: Optional[str] = None
+    ) -> None:
+        """Update media upload status."""
+        pass
+    
+    @abstractmethod
+    async def get_upload_status(self, media_id: UUID) -> Optional[str]:
+        """Get current media upload status."""
+        pass
+    
+    @abstractmethod
+    async def cleanup_old_states(self, days_to_keep: int = 7) -> int:
+        """Clean up old processing states."""
+        pass
+
+
+class IEnhancedMediaValidator(ABC):
+    """Enhanced interface for comprehensive media validation."""
+    
+    @abstractmethod
+    def validate_upload_request(self, file: bytes, filename: str, user_id: UUID) -> None:
+        """Validate complete upload request."""
+        pass
+    
+    @abstractmethod
+    def validate_media_metadata(self, metadata: dict) -> None:
+        """Validate media metadata."""
+        pass
+    
+    @abstractmethod
+    def validate_storage_configuration(self, provider: str, config: dict) -> None:
+        """Validate storage provider configuration."""
         pass
 
 

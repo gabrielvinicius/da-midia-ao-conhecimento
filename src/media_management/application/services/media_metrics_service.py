@@ -13,5 +13,5 @@ class MediaMetricsService:
             "UPLOAD_DURATION", duration, {"media_id": str(media_id), "provider": provider}
         )
 
-    def record_upload_failure(self) -> None:
+    def record_upload_failure(self, media_id: UUID, error: str) -> None:
         self.metrics_provider.increment_counter("MEDIA_UPLOADS_TOTAL", {"status": "failure"})

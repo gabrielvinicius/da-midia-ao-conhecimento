@@ -23,21 +23,31 @@ from src.transcription.application.services.transcription_notification_service i
 from src.transcription.application.services.transcription_orchestration_service import TranscriptionOrchestrationService
 from src.transcription.application.services.transcription_metrics_service import TranscriptionMetricsService
 
+# Enhanced SOLID Services
+from src.transcription.application.services.speech_recognition_service import SpeechRecognitionService
+from src.transcription.application.services.transcription_validator import TranscriptionValidator
+from src.transcription.application.services.transcription_metrics_service_impl import TranscriptionMetricsServiceImpl
+from src.transcription.application.services.transcription_state_manager_impl import TranscriptionStateManagerImpl
+
 # External Dependencies
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.notifications.infrastructure.connection_manager import ConnectionManager
-from src.metrics.domain.metrics import MetricsProvider
+from src.shared.monitoring.metrics_collector import MetricsCollector
+from src.shared.infrastructure.cache import CacheService
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.shared.events.event_bus import EventBus
+from src.transcription.infrastructure.interfaces import ISpeechRecognition
 
 
 def bootstrap_transcription_module(
     db_session: AsyncSession, 
     media_queries: MediaQueries, 
     connection_manager: ConnectionManager,
-    metrics_provider: MetricsProvider,
+    metrics_collector: MetricsCollector,
+    cache_service: CacheService,
     storage_service_factory: StorageServiceFactory,
     event_bus: EventBus,
+    speech_recognition_provider: ISpeechRecognition,
 ) -> Dict[str, Any]:
     """Constructs and returns the services for the transcription module following SOLID principles."""
     
@@ -56,9 +66,32 @@ def bootstrap_transcription_module(
         transcription_repository=transcription_repository
     )
     
-    # --- Specialized Services ---
+    # --- SOLID Services (Following SRP) ---
+    transcription_validator = TranscriptionValidator(
+        min_audio_size=1024,
+        max_audio_size=100 * 1024 * 1024,
+        supported_languages={"en", "es", "fr", "de", "it", "pt", "ru", "zh", "ja", "ko"}
+    )
+    
+    transcription_metrics_service_enhanced = TranscriptionMetricsServiceImpl(
+        metrics_collector=metrics_collector
+    )
+    
+    transcription_state_manager = TranscriptionStateManagerImpl(
+        cache_service=cache_service
+    )
+    
+    # Enhanced Speech Recognition Service (SOLID compliant)
+    enhanced_speech_recognition_service = SpeechRecognitionService(
+        speech_recognition_provider=speech_recognition_provider,
+        validator=transcription_validator,
+        metrics_service=transcription_metrics_service_enhanced,
+        state_manager=transcription_state_manager
+    )
+    
+    # --- Legacy Services ---
     notification_service = TranscriptionNotificationService(connection_manager=connection_manager)
-    metrics_service = TranscriptionMetricsService(metrics_provider=metrics_provider)
+    metrics_service = TranscriptionMetricsService(metrics_provider=None)  # Legacy
     
     orchestration_service = TranscriptionOrchestrationService(
         transcription_processor=transcription_processor,
@@ -82,8 +115,17 @@ def bootstrap_transcription_module(
     )
 
     return {
+        # Infrastructure
         "transcription_repository": transcription_repository,
         "transcription_queries": transcription_queries,
+        
+        # SOLID Services
+        "transcription_validator": transcription_validator,
+        "transcription_metrics_service_enhanced": transcription_metrics_service_enhanced,
+        "transcription_state_manager": transcription_state_manager,
+        "enhanced_speech_recognition_service": enhanced_speech_recognition_service,
+        
+        # Legacy Services (for backward compatibility)
         "transcription_factory": transcription_factory,
         "audio_processor": audio_processor,
         "provider_factory": provider_factory,
@@ -91,6 +133,8 @@ def bootstrap_transcription_module(
         "notification_service": notification_service,
         "metrics_service": metrics_service,
         "orchestration_service": orchestration_service,
+        
+        # Command Handlers
         "set_speaker_aliases_handler": set_speaker_aliases_handler,
         "process_transcription_handler": process_transcription_handler,
     }
