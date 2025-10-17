@@ -16,3 +16,8 @@ class TopicModelingResult(Base):
     topics = Column(JSONB, nullable=False)
     
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    @staticmethod
+    def _get_current_timestamp():
+        """Get current timestamp for metadata."""
+        return datetime.utcnow().isoformat()

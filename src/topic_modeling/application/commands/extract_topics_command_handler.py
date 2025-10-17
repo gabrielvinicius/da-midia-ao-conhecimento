@@ -1,56 +1,77 @@
 # src/topic_modeling/application/commands/extract_topics_command_handler.py
+"""
+Extract topics command handler following SOLID principles.
+"""
 import structlog
-from typing import List
 
 from src.topic_modeling.domain.topic_modeling import TopicModelingResult
-from src.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
-from src.topic_modeling.infrastructure.dependencies import TopicServiceFactory
-from src.media_management.application.queries.media_queries import MediaQueries # Import dependency
-from .extract_topics_command import ExtractTopicsCommand
+from src.topic_modeling.domain.interfaces import TopicModelingOrchestrator
+from src.media_management.application.queries.media_queries import MediaQueries
+from src.topic_modeling.application.commands.extract_topics_command import ExtractTopicsCommand
 
 logger = structlog.get_logger(__name__)
 
 
 class ExtractTopicsCommandHandler:
+    """
+    Command handler for extracting topics following SOLID principles.
+    SRP: Only handles command processing and delegation.
+    DIP: Depends on abstractions, not concretions.
+    """
+    
     def __init__(
         self,
-        topic_service_factory: TopicServiceFactory,
-        repository: TopicModelingRepository,
-        media_queries: MediaQueries, # Add dependency
+        orchestrator: TopicModelingOrchestrator,
+        media_queries: MediaQueries
     ):
-        self.topic_service_factory = topic_service_factory
-        self.repository = repository
-        self.media_queries = media_queries
+        self._orchestrator = orchestrator
+        self._media_queries = media_queries
 
     async def handle(self, command: ExtractTopicsCommand) -> TopicModelingResult:
-        """Handles the topic modeling process, now with language awareness."""
-        logger.info("topic_modeling.started", media_id=command.media_id, provider=command.provider)
+        """Handle topic modeling command."""
+        logger.info(
+            "topic_modeling.command.extract_started",
+            media_id=command.media_id,
+            provider=command.provider
+        )
 
         try:
-            # Fetch the media to get its language
-            media = await self.media_queries.get_by_id(command.media_id)
-            if not media or not media.language:
-                # If language is not set, default to English or skip.
-                logger.warn("media.language.not_found", media_id=command.media_id, fallback_language="english")
-                language = "english"
-            else:
-                language = media.language
-
-            service = self.topic_service_factory(command.provider)
+            # Get media information for language and user context
+            media = await self._media_queries.get_by_id(command.media_id)
+            if not media:
+                raise ValueError(f"Media with id {command.media_id} not found.")
             
-            # Pass the language to the service
-            topics = service.extract_topics(command.text_content, language=language)
-
-            result = TopicModelingResult(
+            # Determine language
+            language = getattr(media, 'language', None) or "en"
+            if not language or language == "unknown":
+                language = "en"  # Default to English
+            
+            # Get user ID for notifications
+            user_id = str(media.user_id)
+            
+            # Delegate to orchestrator (follows DIP)
+            result = await self._orchestrator.process_topic_modeling(
                 media_id=command.media_id,
-                topics=topics
+                text_content=command.text_content,
+                language=language,
+                provider=command.provider,
+                user_id=user_id,
+                num_topics=5  # Default number of topics
             )
 
-            saved_result = await self.repository.save(result)
-
-            logger.info("topic_modeling.completed", media_id=command.media_id)
-            return saved_result
+            logger.info(
+                "topic_modeling.command.extract_completed",
+                media_id=command.media_id,
+                result_id=str(result.id),
+                num_topics=len(result.topics.get("topics", []))
+            )
+            
+            return result
 
         except Exception as e:
-            logger.error("topic_modeling.failed", media_id=command.media_id, error=str(e))
+            logger.error(
+                "topic_modeling.command.extract_failed",
+                media_id=command.media_id,
+                error=str(e)
+            )
             raise
