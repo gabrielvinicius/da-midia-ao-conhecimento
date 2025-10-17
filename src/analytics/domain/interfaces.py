@@ -249,3 +249,96 @@ class IAnalyticsExporter(ABC):
     ) -> str:
         """Schedule recurring analytics reports."""
         pass
+
+
+class IAnalyticsValidator(ABC):
+    """Interface for analytics validation operations - SRP compliance."""
+    
+    @abstractmethod
+    async def validate_date_range(self, start_date: datetime, end_date: datetime) -> bool:
+        """Validate analytics date range."""
+        pass
+    
+    @abstractmethod
+    async def validate_metric_request(self, metric_type: str, parameters: Dict) -> bool:
+        """Validate analytics metric request."""
+        pass
+    
+    @abstractmethod
+    async def validate_dashboard_config(self, config: Dict[str, Any]) -> bool:
+        """Validate dashboard configuration."""
+        pass
+
+
+class IAnalyticsLogger(ABC):
+    """Interface for analytics logging operations - SRP compliance."""
+    
+    @abstractmethod
+    async def log_analytics_request(
+        self,
+        user_id: UUID,
+        request_type: str,
+        parameters: Dict[str, Any],
+        duration: float
+    ) -> None:
+        """Log analytics request."""
+        pass
+    
+    @abstractmethod
+    async def log_analytics_error(
+        self,
+        user_id: UUID,
+        error_type: str,
+        error_details: Dict[str, Any]
+    ) -> None:
+        """Log analytics error."""
+        pass
+
+
+class IAnalyticsMetrics(ABC):
+    """Interface for analytics metrics collection - SRP compliance."""
+    
+    @abstractmethod
+    async def record_query_performance(
+        self,
+        query_type: str,
+        duration: float,
+        data_points: int,
+        success: bool
+    ) -> None:
+        """Record analytics query performance."""
+        pass
+    
+    @abstractmethod
+    async def record_dashboard_usage(
+        self,
+        user_id: UUID,
+        dashboard_type: str,
+        interaction_time: float
+    ) -> None:
+        """Record dashboard usage metrics."""
+        pass
+
+
+class IAnalyticsFactory(ABC):
+    """Factory interface for creating analytics services - DIP compliance."""
+    
+    @abstractmethod
+    def create_performance_service(self) -> IPerformanceAnalytics:
+        """Create performance analytics service."""
+        pass
+    
+    @abstractmethod
+    def create_quality_service(self) -> IQualityAnalytics:
+        """Create quality analytics service."""
+        pass
+    
+    @abstractmethod
+    def create_business_service(self) -> IBusinessAnalytics:
+        """Create business analytics service."""
+        pass
+    
+    @abstractmethod
+    def create_realtime_service(self) -> IRealtimeAnalytics:
+        """Create realtime analytics service."""
+        pass

@@ -114,7 +114,7 @@ from datetime import datetime
 from src.summarization.domain.summary import Summary
 
 
-class SummaryReader(ABC):
+class ISummaryReader(ABC):
     """Interface for read operations - ISP compliance."""
     
     @abstractmethod
@@ -133,7 +133,7 @@ class SummaryReader(ABC):
         pass
 
 
-class SummaryWriter(ABC):
+class ISummaryWriter(ABC):
     """Interface for write operations - ISP compliance."""
     
     @abstractmethod
@@ -152,7 +152,7 @@ class ISummaryRepository(SummaryReader, SummaryWriter):
     pass
 
 
-class SummaryProvider(ABC):
+class ISummaryProvider(ABC):
     """Interface for summarization providers - ISP compliance."""
     
     @property
@@ -172,7 +172,7 @@ class SummaryProvider(ABC):
         pass
 
 
-class SummaryConfiguration(ABC):
+class ISummaryConfiguration(ABC):
     """Interface for summarization configuration - SRP compliance."""
     
     @abstractmethod
@@ -196,7 +196,7 @@ class SummaryConfiguration(ABC):
         pass
 
 
-class SummaryHealthCheck(ABC):
+class ISummaryHealthCheck(ABC):
     """Interface for health checks - SRP compliance."""
     
     @abstractmethod
@@ -210,7 +210,7 @@ class SummaryHealthCheck(ABC):
         pass
 
 
-class SummaryOperationLogger(ABC):
+class ISummaryOperationLogger(ABC):
     """Interface for operation logging - SRP compliance."""
     
     @abstractmethod
@@ -227,7 +227,7 @@ class SummaryOperationLogger(ABC):
         pass
 
 
-class SummaryMetrics(ABC):
+class ISummaryMetrics(ABC):
     """Interface for metrics collection - SRP compliance."""
     
     @abstractmethod
@@ -244,7 +244,7 @@ class SummaryMetrics(ABC):
         pass
 
 
-class SummaryNotificationService(ABC):
+class ISummaryNotificationService(ABC):
     """Interface for notifications - SRP compliance."""
     
     @abstractmethod
@@ -263,7 +263,7 @@ class SummaryNotificationService(ABC):
         pass
 
 
-class SummaryStateManager(ABC):
+class ISummaryStateManager(ABC):
     """Interface for state management - SRP compliance."""
     
     @abstractmethod
@@ -282,7 +282,7 @@ class SummaryStateManager(ABC):
         pass
 
 
-class SummaryProviderFactory(ABC):
+class ISummaryProviderFactory(ABC):
     """Factory interface for creating summarization providers - DIP compliance."""
     
     @abstractmethod
@@ -296,7 +296,7 @@ class SummaryProviderFactory(ABC):
         pass
 
 
-class SummaryOrchestrator(ABC):
+class ISummaryOrchestrator(ABC):
     """High-level orchestrator interface - DIP compliance."""
     
     @abstractmethod

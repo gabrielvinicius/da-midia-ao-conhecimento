@@ -233,3 +233,27 @@ class IEnhancedAuthenticationService(ABC):
     async def logout_all_sessions(self, user_id: UUID) -> int:
         """Logout user from all sessions."""
         pass
+
+
+class IAuthFactory(ABC):
+    """Factory interface for creating auth services - DIP compliance."""
+    
+    @abstractmethod
+    def create_authentication_service(self) -> IAuthenticationService:
+        """Create authentication service instance."""
+        pass
+    
+    @abstractmethod
+    def create_user_service(self) -> IUserService:
+        """Create user service instance."""
+        pass
+    
+    @abstractmethod
+    def create_security_service(self) -> ISecurityService:
+        """Create security service instance."""
+        pass
+    
+    @abstractmethod
+    def create_enhanced_auth_service(self) -> IEnhancedAuthenticationService:
+        """Create enhanced authentication service instance."""
+        pass

@@ -393,3 +393,99 @@ class INotificationDeliveryService(ABC):
     async def batch_deliver(self, notifications: List[Notification]) -> Dict[UUID, Dict[str, Any]]:
         """Deliver multiple notifications efficiently."""
         pass
+
+
+class INotificationValidator(ABC):
+    """Interface for notification validation operations - SRP compliance."""
+    
+    @abstractmethod
+    async def validate_notification_content(self, notification: Notification) -> bool:
+        """Validate notification content."""
+        pass
+    
+    @abstractmethod
+    async def validate_delivery_channel(self, channel: DeliveryChannel, user_id: UUID) -> bool:
+        """Validate delivery channel for user."""
+        pass
+    
+    @abstractmethod
+    async def validate_template(self, template_id: str, variables: Dict[str, Any]) -> bool:
+        """Validate notification template."""
+        pass
+
+
+class INotificationLogger(ABC):
+    """Interface for notification logging operations - SRP compliance."""
+    
+    @abstractmethod
+    async def log_notification_sent(
+        self,
+        notification_id: UUID,
+        user_id: UUID,
+        channel: DeliveryChannel,
+        success: bool,
+        duration: float
+    ) -> None:
+        """Log notification delivery attempt."""
+        pass
+    
+    @abstractmethod
+    async def log_delivery_failure(
+        self,
+        notification_id: UUID,
+        channel: DeliveryChannel,
+        error: str,
+        retry_count: int
+    ) -> None:
+        """Log notification delivery failure."""
+        pass
+
+
+class INotificationMetrics(ABC):
+    """Interface for notification metrics collection - SRP compliance."""
+    
+    @abstractmethod
+    async def record_delivery_metrics(
+        self,
+        channel: DeliveryChannel,
+        delivery_time: float,
+        success: bool,
+        retry_count: int
+    ) -> None:
+        """Record notification delivery metrics."""
+        pass
+    
+    @abstractmethod
+    async def record_user_engagement(
+        self,
+        user_id: UUID,
+        notification_id: UUID,
+        action: str,
+        timestamp: datetime
+    ) -> None:
+        """Record user engagement with notification."""
+        pass
+
+
+class INotificationFactory(ABC):
+    """Factory interface for creating notification services - DIP compliance."""
+    
+    @abstractmethod
+    def create_delivery_service(self) -> INotificationDeliveryService:
+        """Create notification delivery service."""
+        pass
+    
+    @abstractmethod
+    def create_template_service(self) -> INotificationTemplateService:
+        """Create notification template service."""
+        pass
+    
+    @abstractmethod
+    def create_channel_service(self, channel_type: str) -> INotificationChannel:
+        """Create notification channel service."""
+        pass
+    
+    @abstractmethod
+    def create_preference_service(self) -> INotificationPreferenceService:
+        """Create notification preference service."""
+        pass

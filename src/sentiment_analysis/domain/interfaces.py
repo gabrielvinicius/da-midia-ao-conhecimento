@@ -440,3 +440,27 @@ class ISentimentModelManager(ABC):
     async def update_model(self, provider: SentimentProvider, model_path: str) -> bool:
         """Update model for a provider."""
         pass
+
+
+class ISentimentAnalysisFactory(ABC):
+    """Factory interface for creating sentiment analysis services - DIP compliance."""
+    
+    @abstractmethod
+    def create_analyzer_service(self) -> ISentimentAnalyzer:
+        """Create sentiment analyzer service instance."""
+        pass
+    
+    @abstractmethod
+    def create_orchestrator_service(self) -> ISentimentOrchestrator:
+        """Create sentiment orchestrator service instance."""
+        pass
+    
+    @abstractmethod
+    def create_model_manager(self) -> ISentimentModelManager:
+        """Create sentiment model manager instance."""
+        pass
+    
+    @abstractmethod
+    def create_config_manager(self) -> ISentimentConfigurationManager:
+        """Create sentiment configuration manager instance."""
+        pass

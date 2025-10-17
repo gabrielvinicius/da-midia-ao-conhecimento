@@ -17,7 +17,7 @@ class TextFormat(str, Enum):
     MARKDOWN = "md"
 
 
-class TextExtractor(ABC):
+class ITextExtractor(ABC):
     """Interface for text extraction - ISP compliance."""
     
     @property
@@ -37,7 +37,7 @@ class TextExtractor(ABC):
         pass
 
 
-class TextValidator(ABC):
+class ITextValidator(ABC):
     """Interface for text validation - ISP compliance."""
     
     @abstractmethod
@@ -56,7 +56,7 @@ class TextValidator(ABC):
         pass
 
 
-class TextProcessor(ABC):
+class ITextProcessor(ABC):
     """Interface for text processing - ISP compliance."""
     
     @abstractmethod
@@ -75,7 +75,7 @@ class TextProcessor(ABC):
         pass
 
 
-class TextConfiguration(ABC):
+class ITextConfiguration(ABC):
     """Interface for text processing configuration - SRP compliance."""
     
     @abstractmethod
@@ -99,7 +99,7 @@ class TextConfiguration(ABC):
         pass
 
 
-class TextHealthCheck(ABC):
+class ITextHealthCheck(ABC):
     """Interface for health checks - SRP compliance."""
     
     @abstractmethod
@@ -113,7 +113,7 @@ class TextHealthCheck(ABC):
         pass
 
 
-class TextOperationLogger(ABC):
+class ITextOperationLogger(ABC):
     """Interface for operation logging - SRP compliance."""
     
     @abstractmethod
@@ -131,7 +131,7 @@ class TextOperationLogger(ABC):
         pass
 
 
-class TextMetrics(ABC):
+class ITextMetrics(ABC):
     """Interface for metrics collection - SRP compliance."""
     
     @abstractmethod
@@ -148,7 +148,7 @@ class TextMetrics(ABC):
         pass
 
 
-class TextNotificationService(ABC):
+class ITextNotificationService(ABC):
     """Interface for notifications - SRP compliance."""
     
     @abstractmethod
@@ -177,7 +177,7 @@ class TextNotificationService(ABC):
         pass
 
 
-class TextExtractorFactory(ABC):
+class ITextExtractorFactory(ABC):
     """Factory interface for creating text extractors - DIP compliance."""
     
     @abstractmethod
@@ -191,7 +191,7 @@ class TextExtractorFactory(ABC):
         pass
 
 
-class TextProcessingOrchestrator(ABC):
+class ITextProcessingOrchestrator(ABC):
     """High-level orchestrator interface - DIP compliance."""
     
     @abstractmethod

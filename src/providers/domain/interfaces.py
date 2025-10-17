@@ -440,3 +440,27 @@ class IProviderCostManager(ABC):
     ) -> str:
         """Set cost alert thresholds."""
         pass
+
+
+class IProvidersFactory(ABC):
+    """Factory interface for creating provider services - DIP compliance."""
+    
+    @abstractmethod
+    def create_registry_service(self) -> IProviderRegistry:
+        """Create provider registry service instance."""
+        pass
+    
+    @abstractmethod
+    def create_selector_service(self) -> IProviderSelector:
+        """Create provider selector service instance."""
+        pass
+    
+    @abstractmethod
+    def create_health_service(self) -> IProviderHealthService:
+        """Create provider health service instance."""
+        pass
+    
+    @abstractmethod
+    def create_cost_manager(self) -> IProviderCostManager:
+        """Create provider cost manager instance."""
+        pass

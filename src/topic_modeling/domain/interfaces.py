@@ -10,7 +10,7 @@ from datetime import datetime
 from src.topic_modeling.domain.topic_modeling import TopicModelingResult
 
 
-class TopicModelingReader(ABC):
+class ITopicModelingReader(ABC):
     """Interface for read operations - ISP compliance."""
     
     @abstractmethod
@@ -29,7 +29,7 @@ class TopicModelingReader(ABC):
         pass
 
 
-class TopicModelingWriter(ABC):
+class ITopicModelingWriter(ABC):
     """Interface for write operations - ISP compliance."""
     
     @abstractmethod
@@ -48,7 +48,7 @@ class ITopicModelingRepository(TopicModelingReader, TopicModelingWriter):
     pass
 
 
-class TopicModelingProvider(ABC):
+class ITopicModelingProvider(ABC):
     """Interface for topic modeling providers - ISP compliance."""
     
     @property
@@ -79,7 +79,7 @@ class TopicModelingProvider(ABC):
         pass
 
 
-class TextPreprocessor(ABC):
+class ITextPreprocessor(ABC):
     """Interface for text preprocessing - ISP compliance."""
     
     @abstractmethod
@@ -98,7 +98,7 @@ class TextPreprocessor(ABC):
         pass
 
 
-class TopicValidator(ABC):
+class ITopicValidator(ABC):
     """Interface for topic validation - ISP compliance."""
     
     @abstractmethod
@@ -121,7 +121,7 @@ class TopicValidator(ABC):
         pass
 
 
-class TopicModelingConfiguration(ABC):
+class ITopicModelingConfiguration(ABC):
     """Interface for topic modeling configuration - SRP compliance."""
     
     @abstractmethod
@@ -145,7 +145,7 @@ class TopicModelingConfiguration(ABC):
         pass
 
 
-class TopicModelingHealthCheck(ABC):
+class ITopicModelingHealthCheck(ABC):
     """Interface for health checks - SRP compliance."""
     
     @abstractmethod
@@ -159,7 +159,7 @@ class TopicModelingHealthCheck(ABC):
         pass
 
 
-class TopicModelingOperationLogger(ABC):
+class ITopicModelingOperationLogger(ABC):
     """Interface for operation logging - SRP compliance."""
     
     @abstractmethod
@@ -179,7 +179,7 @@ class TopicModelingOperationLogger(ABC):
         pass
 
 
-class TopicModelingMetrics(ABC):
+class ITopicModelingMetrics(ABC):
     """Interface for metrics collection - SRP compliance."""
     
     @abstractmethod
@@ -198,7 +198,7 @@ class TopicModelingMetrics(ABC):
         pass
 
 
-class TopicModelingNotificationService(ABC):
+class ITopicModelingNotificationService(ABC):
     """Interface for notifications - SRP compliance."""
     
     @abstractmethod
@@ -227,7 +227,7 @@ class TopicModelingNotificationService(ABC):
         pass
 
 
-class TopicModelingStateManager(ABC):
+class ITopicModelingStateManager(ABC):
     """Interface for state management - SRP compliance."""
     
     @abstractmethod
@@ -259,7 +259,7 @@ class TopicModelingStateManager(ABC):
         pass
 
 
-class TopicModelingProviderFactory(ABC):
+class ITopicModelingProviderFactory(ABC):
     """Factory interface for creating topic modeling providers - DIP compliance."""
     
     @abstractmethod
@@ -277,7 +277,7 @@ class TopicModelingProviderFactory(ABC):
         pass
 
 
-class TopicModelingOrchestrator(ABC):
+class ITopicModelingOrchestrator(ABC):
     """High-level orchestrator interface - DIP compliance."""
     
     @abstractmethod

@@ -185,3 +185,92 @@ class IAdminNotificationService(ABC):
     ) -> List[Dict]:
         """Get notification history."""
         pass
+
+
+class IAdminValidator(ABC):
+    """Interface for admin validation operations - SRP compliance."""
+    
+    @abstractmethod
+    async def validate_admin_permissions(self, admin_user: User, operation: str) -> bool:
+        """Validate admin permissions for operation."""
+        pass
+    
+    @abstractmethod
+    async def validate_user_update(self, user_id: UUID, updates: Dict) -> bool:
+        """Validate user update request."""
+        pass
+    
+    @abstractmethod
+    async def validate_media_operation(self, media_id: UUID, operation: str) -> bool:
+        """Validate media operation request."""
+        pass
+
+
+class IAdminMetrics(ABC):
+    """Interface for admin metrics collection - SRP compliance."""
+    
+    @abstractmethod
+    async def record_admin_operation(
+        self, 
+        admin_id: UUID,
+        operation: str,
+        target_type: str,
+        duration: float,
+        success: bool
+    ) -> None:
+        """Record admin operation metrics."""
+        pass
+    
+    @abstractmethod
+    async def get_admin_performance_metrics(self, admin_id: UUID) -> Dict[str, Any]:
+        """Get performance metrics for admin."""
+        pass
+
+
+class IAdminLogger(ABC):
+    """Interface for admin logging operations - SRP compliance."""
+    
+    @abstractmethod
+    async def log_admin_operation(
+        self,
+        admin_id: UUID,
+        operation: str,
+        details: Dict[str, Any],
+        level: str = "INFO"
+    ) -> None:
+        """Log admin operation."""
+        pass
+    
+    @abstractmethod
+    async def log_security_event(
+        self,
+        admin_id: UUID,
+        event_type: str,
+        details: Dict[str, Any]
+    ) -> None:
+        """Log security-related event."""
+        pass
+
+
+class IAdminFactory(ABC):
+    """Factory interface for creating admin services - DIP compliance."""
+    
+    @abstractmethod
+    def create_user_service(self) -> IAdminUserService:
+        """Create admin user service instance."""
+        pass
+    
+    @abstractmethod
+    def create_media_service(self) -> IAdminMediaService:
+        """Create admin media service instance."""
+        pass
+    
+    @abstractmethod
+    def create_audit_service(self) -> IAdminAuditService:
+        """Create admin audit service instance."""
+        pass
+    
+    @abstractmethod
+    def create_system_service(self) -> IAdminSystemService:
+        """Create admin system service instance."""
+        pass

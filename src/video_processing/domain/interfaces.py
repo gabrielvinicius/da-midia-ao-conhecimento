@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
 
-class VideoProcessor(ABC):
+class IVideoProcessor(ABC):
     """Interface for video processing services."""
     
     @abstractmethod
@@ -26,7 +26,7 @@ class VideoProcessor(ABC):
         pass
 
 
-class VideoOrchestrator(ABC):
+class IVideoOrchestrator(ABC):
     """Interface for video processing orchestration services."""
     
     @abstractmethod
@@ -129,7 +129,7 @@ class IVideoStateManager(ABC):
         pass
 
 
-class VideoNotificationService(ABC):
+class IVideoNotificationService(ABC):
     """Interface for video processing notification services."""
     
     @abstractmethod
@@ -150,3 +150,32 @@ class VideoNotificationService(ABC):
 
 # Backward compatibility
 VideoProcessor = IVideoProcessor
+
+
+class IVideoProcessingFactory(ABC):
+    """Factory interface for creating video processing services - DIP compliance."""
+    
+    @abstractmethod
+    def create_processor_service(self) -> IVideoProcessor:
+        """Create video processor service instance."""
+        pass
+    
+    @abstractmethod
+    def create_validator_service(self) -> IVideoValidator:
+        """Create video validator service instance."""
+        pass
+    
+    @abstractmethod
+    def create_metrics_service(self) -> IVideoMetricsService:
+        """Create video metrics service instance."""
+        pass
+    
+    @abstractmethod
+    def create_state_manager(self) -> IVideoStateManager:
+        """Create video state manager instance."""
+        pass
+    
+    @abstractmethod
+    def create_notification_service(self) -> VideoNotificationService:
+        """Create video notification service instance."""
+        pass

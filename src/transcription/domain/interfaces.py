@@ -100,7 +100,7 @@ class ITranscriptionStateManager(ABC):
 SpeechRecognitionService = ISpeechRecognitionService
 
 
-class AudioProcessor(ABC):
+class IAudioProcessor(ABC):
     """Interface for audio processing services."""
     
     @abstractmethod
@@ -114,7 +114,7 @@ class AudioProcessor(ABC):
         pass
 
 
-class NotificationService(ABC):
+class INotificationService(ABC):
     """Interface for transcription notification services."""
     
     @abstractmethod
@@ -133,7 +133,7 @@ class NotificationService(ABC):
         pass
 
 
-class TranscriptionOrchestrator(ABC):
+class ITranscriptionOrchestrator(ABC):
     """Interface for transcription orchestration services."""
     
     @abstractmethod
@@ -181,7 +181,7 @@ class AudioFormat(str, Enum):
     WMA = "wma"
 
 
-class TranscriptionReader(ABC):
+class ITranscriptionReader(ABC):
     """Interface for read operations - ISP compliance."""
     
     @abstractmethod
@@ -200,7 +200,7 @@ class TranscriptionReader(ABC):
         pass
 
 
-class TranscriptionWriter(ABC):
+class ITranscriptionWriter(ABC):
     """Interface for write operations - ISP compliance."""
     
     @abstractmethod
@@ -219,7 +219,7 @@ class ITranscriptionRepository(TranscriptionReader, TranscriptionWriter):
     pass
 
 
-class SpeechRecognitionProvider(ABC):
+class ISpeechRecognitionProvider(ABC):
     """Interface for speech recognition providers - ISP compliance."""
     
     @property
@@ -244,7 +244,7 @@ class SpeechRecognitionProvider(ABC):
         pass
 
 
-class AudioProcessor(ABC):
+class IAudioProcessor(ABC):
     """Interface for audio processing - ISP compliance."""
     
     @abstractmethod
@@ -268,7 +268,7 @@ class AudioProcessor(ABC):
         pass
 
 
-class TranscriptionValidator(ABC):
+class ITranscriptionValidator(ABC):
     """Interface for transcription validation - ISP compliance."""
     
     @abstractmethod
@@ -287,7 +287,7 @@ class TranscriptionValidator(ABC):
         pass
 
 
-class TranscriptionConfiguration(ABC):
+class ITranscriptionConfiguration(ABC):
     """Interface for transcription configuration - SRP compliance."""
     
     @abstractmethod
@@ -311,7 +311,7 @@ class TranscriptionConfiguration(ABC):
         pass
 
 
-class TranscriptionHealthCheck(ABC):
+class ITranscriptionHealthCheck(ABC):
     """Interface for health checks - SRP compliance."""
     
     @abstractmethod
@@ -325,7 +325,7 @@ class TranscriptionHealthCheck(ABC):
         pass
 
 
-class TranscriptionOperationLogger(ABC):
+class ITranscriptionOperationLogger(ABC):
     """Interface for operation logging - SRP compliance."""
     
     @abstractmethod
@@ -344,7 +344,7 @@ class TranscriptionOperationLogger(ABC):
         pass
 
 
-class TranscriptionMetrics(ABC):
+class ITranscriptionMetrics(ABC):
     """Interface for metrics collection - SRP compliance."""
     
     @abstractmethod
@@ -362,7 +362,7 @@ class TranscriptionMetrics(ABC):
         pass
 
 
-class TranscriptionNotificationService(ABC):
+class ITranscriptionNotificationService(ABC):
     """Interface for notifications - SRP compliance."""
     
     @abstractmethod
@@ -396,7 +396,7 @@ class TranscriptionNotificationService(ABC):
         pass
 
 
-class TranscriptionStateManager(ABC):
+class ITranscriptionStateManager(ABC):
     """Interface for state management - SRP compliance."""
     
     @abstractmethod
@@ -437,7 +437,7 @@ class TranscriptionStateManager(ABC):
         pass
 
 
-class SpeechRecognitionProviderFactory(ABC):
+class ISpeechRecognitionProviderFactory(ABC):
     """Factory interface for creating speech recognition providers - DIP compliance."""
     
     @abstractmethod
@@ -455,7 +455,7 @@ class SpeechRecognitionProviderFactory(ABC):
         pass
 
 
-class TranscriptionOrchestrator(ABC):
+class ITranscriptionOrchestrator(ABC):
     """High-level orchestrator interface - DIP compliance."""
     
     @abstractmethod

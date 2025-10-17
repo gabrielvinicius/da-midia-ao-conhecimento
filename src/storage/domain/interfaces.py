@@ -10,7 +10,7 @@ from src.storage.domain.entities.file_metadata import FileMetadata
 from src.storage.domain.value_objects.file_path import FilePath
 
 
-class StorageReader(ABC):
+class IStorageReader(ABC):
     """Interface for read operations - ISP compliance."""
     
     @abstractmethod
@@ -29,7 +29,7 @@ class StorageReader(ABC):
         pass
 
 
-class StorageWriter(ABC):
+class IStorageWriter(ABC):
     """Interface for write operations - ISP compliance."""
     
     @abstractmethod
@@ -58,7 +58,7 @@ class StorageProvider(StorageReader, StorageWriter):
         pass
 
 
-class StorageConfiguration(ABC):
+class IStorageConfiguration(ABC):
     """Interface for storage configuration - SRP compliance."""
     
     @abstractmethod
@@ -72,7 +72,7 @@ class StorageConfiguration(ABC):
         pass
 
 
-class StorageHealthCheck(ABC):
+class IStorageHealthCheck(ABC):
     """Interface for health checks - SRP compliance."""
     
     @abstractmethod
@@ -86,7 +86,7 @@ class StorageHealthCheck(ABC):
         pass
 
 
-class StorageOperationLogger(ABC):
+class IStorageOperationLogger(ABC):
     """Interface for operation logging - SRP compliance."""
     
     @abstractmethod
@@ -102,7 +102,7 @@ class StorageOperationLogger(ABC):
         pass
 
 
-class StorageMetrics(ABC):
+class IStorageMetrics(ABC):
     """Interface for metrics collection - SRP compliance."""
     
     @abstractmethod
@@ -117,7 +117,7 @@ class StorageMetrics(ABC):
         pass
 
 
-class StorageProviderFactory(ABC):
+class IStorageProviderFactory(ABC):
     """Factory interface for creating storage providers - DIP compliance."""
     
     @abstractmethod
@@ -131,7 +131,7 @@ class StorageProviderFactory(ABC):
         pass
 
 
-class StorageRepository(ABC):
+class IStorageRepository(ABC):
     """High-level repository interface - DIP compliance."""
     
     @abstractmethod
