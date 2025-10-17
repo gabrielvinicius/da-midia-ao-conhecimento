@@ -2,8 +2,8 @@
 User Registration Service - Single Responsibility: User Registration
 """
 from src.auth.domain.user import User
-from src.auth.application.commands.create_user_command import CreateUserCommand
-from src.auth.application.commands.create_user_command_handler import CreateUserCommandHandler
+from src.auth.application.commands.commands import CreateUserCommand
+from src.auth.application.commands.handlers import CreateUserCommandHandler
 
 
 class UserRegistrationService:

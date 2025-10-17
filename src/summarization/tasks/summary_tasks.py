@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.shared.infrastructure.database import get_db
 from src.shared.events.event_bus import get_event_bus
 
-from src.summarization.application.commands.process_summary_command import ProcessSummaryCommand
-from src.summarization.application.commands.process_summary_command_handler import ProcessSummaryCommandHandler
+from src.summarization.application.commands.commands import ProcessSummaryCommand
+from src.summarization.application.commands.handlers import ProcessSummaryCommandHandler
 from src.summarization.infrastructure.dependencies import create_summarizer_service
 from src.summarization.infrastructure.summary_repository import SummaryRepository
 from src.analytics.application.queries.analytics_queries import AnalyticsQueries

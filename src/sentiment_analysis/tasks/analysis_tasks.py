@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.infrastructure.database import get_db
 from src.shared.events.event_bus import get_event_bus
-from src.sentiment_analysis.application.commands.analyze_sentiment_command import AnalyzeSentimentCommand
-from src.sentiment_analysis.application.commands.analyze_sentiment_command_handler import AnalyzeSentimentCommandHandler
+from src.sentiment_analysis.application.commands.commands import AnalyzeSentimentCommand
+from src.sentiment_analysis.application.commands.handlers import AnalyzeSentimentCommandHandler
 from src.sentiment_analysis.infrastructure.dependencies import create_sentiment_analysis_service
 from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import SentimentAnalysisRepository
 

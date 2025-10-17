@@ -10,9 +10,11 @@ from src.metrics.application.metrics_service import MetricsService
 from src.media_management.application.queries.media_queries import MediaQueries
 
 # Command Handlers
-from src.media_management.application.commands.create_media_command_handler import CreateMediaCommandHandler
-from src.media_management.application.commands.delete_media_command_handler import DeleteMediaCommandHandler
-from src.media_management.application.commands.reprocess_media_command_handler import ReprocessMediaCommandHandler
+from src.media_management.application.commands.handlers import (
+    CreateMediaCommandHandler,
+    DeleteMediaCommandHandler,
+    ReprocessMediaCommandHandler
+)
 
 # Enhanced SOLID Services
 from src.media_management.application.services.media_validator import MediaValidator

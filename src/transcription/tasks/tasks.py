@@ -8,8 +8,8 @@ from typing import List, Dict, Any
 from src.shared.events.event_bus import get_event_bus
 from src.shared.infrastructure.database import get_db
 from src.storage.infrastructure.dependencies import get_storage_service_factory
-from src.transcription.application.commands.process_transcription_command import ProcessTranscriptionCommand
-from src.transcription.application.commands.process_transcription_command_handler import ProcessTranscriptionCommandHandler
+from src.transcription.application.commands.commands import ProcessTranscriptionCommand
+from src.transcription.application.commands.handlers import ProcessTranscriptionCommandHandler
 # Diarization removed
 # from src.transcription.application.commands.align_diarization_command import AlignDiarizationCommand
 # from src.transcription.application.commands.align_diarization_command_handler import AlignDiarizationCommandHandler

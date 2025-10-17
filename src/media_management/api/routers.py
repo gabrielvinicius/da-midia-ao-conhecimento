@@ -13,12 +13,12 @@ from .dependencies import (
     get_media_authorization_service
 )
 
-from ..application.commands.create_media_command_handler import CreateMediaCommandHandler
+from ..application.commands.commands import CreateMediaCommand
+from ..application.commands.handlers import CreateMediaCommandHandler
 from ..application.queries.media_queries import MediaQueries
 from ..application.services.media_authorization_service import MediaAuthorizationService
 from .schemas import MediaResponse
 from ..config.settings import MediaSettings
-from ..application.commands.create_media_command import CreateMediaCommand
 
 router = APIRouter(
     prefix="/media",

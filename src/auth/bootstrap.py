@@ -13,11 +13,13 @@ from src.auth.domain.interfaces import ITokenService, IUserSessionService, IUser
 from src.auth.application.queries.auth_queries import AuthQueries
 
 # Command Handlers
-from src.auth.application.commands.create_user_command_handler import CreateUserCommandHandler
-from src.auth.application.commands.authenticate_user_command_handler import AuthenticateUserCommandHandler
-from src.auth.application.commands.change_password_command_handler import ChangePasswordCommandHandler
-from src.auth.application.commands.update_user_command_handler import UpdateUserCommandHandler
-from src.auth.application.commands.delete_user_command_handler import DeleteUserCommandHandler
+from src.auth.application.commands.handlers import (
+    CreateUserCommandHandler,
+    AuthenticateUserCommandHandler,
+    ChangePasswordCommandHandler,
+    UpdateUserCommandHandler,
+    DeleteUserCommandHandler
+)
 
 # SRP Services (Factories, Validators, etc.)
 from src.auth.application.services.user_validator import UserValidator

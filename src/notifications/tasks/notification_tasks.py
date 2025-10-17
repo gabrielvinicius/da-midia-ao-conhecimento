@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any
 
 from src.shared.infrastructure.database import get_db
-from src.notifications.application.commands.send_notification_command import SendNotificationCommand
-from src.notifications.application.commands.send_notification_command_handler import SendNotificationCommandHandler
+from src.notifications.application.commands.commands import SendNotificationCommand
+from src.notifications.application.commands.handlers import SendNotificationCommandHandler
 from src.notifications.config.settings import SmtpSettings
 from src.notifications.infrastructure.notification_repository import NotificationRepository
 from src.notifications.infrastructure.smtp_adapter import SMTPAdapter

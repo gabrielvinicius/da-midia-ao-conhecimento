@@ -8,8 +8,8 @@ from .dependencies import get_transcription_queries, get_media_queries, get_set_
 
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.transcription.application.queries.transcription_queries import TranscriptionQueries
-from src.transcription.application.commands.set_speaker_aliases_command import SetSpeakerAliasesCommand
-from src.transcription.application.commands.set_speaker_aliases_command_handler import SetSpeakerAliasesCommandHandler
+from src.transcription.application.commands.commands import SetSpeakerAliasesCommand
+from src.transcription.application.commands.handlers import SetSpeakerAliasesCommandHandler
 from .schemas import TranscriptionResponse, SpeakerAliasesUpdateRequest
 
 router = APIRouter(prefix="/transcriptions", tags=["Transcriptions"])

@@ -7,8 +7,8 @@ from uuid import UUID
 from datetime import datetime
 import structlog
 
-from src.auth.application.commands.authenticate_user_command import AuthenticateUserCommand
-from src.auth.application.commands.authenticate_user_command_handler import AuthenticateUserCommandHandler
+from src.auth.application.commands.commands import AuthenticateUserCommand
+from src.auth.application.commands.handlers import AuthenticateUserCommandHandler
 from src.auth.domain.interfaces import (
     IEnhancedAuthenticationService,
     IAuthenticationValidator,

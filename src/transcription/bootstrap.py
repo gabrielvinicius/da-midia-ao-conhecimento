@@ -9,8 +9,10 @@ from src.transcription.infrastructure.transcription_repository import Transcript
 from src.transcription.application.queries.transcription_queries import TranscriptionQueries
 
 # Command Handlers
-from src.transcription.application.commands.set_speaker_aliases_command_handler import SetSpeakerAliasesCommandHandler
-from src.transcription.application.commands.process_transcription_command_handler import ProcessTranscriptionCommandHandler
+from src.transcription.application.commands.handlers import (
+    SetSpeakerAliasesCommandHandler,
+    ProcessTranscriptionCommandHandler
+)
 
 # SRP Services (Factories, Processors, etc.)
 from src.transcription.application.services.transcription_factory import TranscriptionFactory
