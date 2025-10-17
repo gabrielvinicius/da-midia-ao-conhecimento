@@ -16,6 +16,7 @@ from src.summarization.domain.interfaces import (
     ISummaryStateManager
 )
 from src.summarization.domain.summary import Summary
+from src.shared.decorators.decorator_factory import processing_operation, read_operation
 
 logger = structlog.get_logger(__name__)
 
@@ -43,6 +44,7 @@ class SummarizationService(ISummarizationService):
         self._metrics_service = metrics_service
         self._state_manager = state_manager
 
+    @processing_operation("summarization", "generate_text_summary")
     async def summarize(
         self, 
         text_content: str, 
@@ -116,6 +118,7 @@ class SummarizationService(ISummarizationService):
             )
             raise
 
+    @processing_operation("summarization", "batch_summarize_texts")
     async def batch_summarize(
         self, 
         texts: Dict[UUID, str], 

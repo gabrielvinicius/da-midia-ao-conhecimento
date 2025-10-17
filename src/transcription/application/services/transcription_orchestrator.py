@@ -12,6 +12,7 @@ from src.transcription.domain.interfaces import (
 )
 from src.transcription.domain.transcription import Transcription
 from src.transcription.domain.services.transcription_coordinator import TranscriptionCoordinator
+from src.shared.decorators.decorator_factory import processing_operation, read_operation
 
 logger = structlog.get_logger(__name__)
 
@@ -32,6 +33,7 @@ class TranscriptionOrchestratorImpl(TranscriptionOrchestrator):
         self._state_manager = state_manager
         self._coordinator = coordinator
     
+    @processing_operation("transcription", "process_audio_transcription")
     async def process_transcription(
         self, 
         media_id: str, 
@@ -109,6 +111,7 @@ class TranscriptionOrchestratorImpl(TranscriptionOrchestrator):
             
             raise
     
+    @processing_operation("transcription", "process_video_transcription")
     async def process_video_transcription(
         self, 
         media_id: str, 
@@ -173,6 +176,7 @@ class TranscriptionOrchestratorImpl(TranscriptionOrchestrator):
             
             raise
     
+    @read_operation("transcription", "get_transcription")
     async def get_transcription(self, media_id: str) -> Optional[Transcription]:
         """Get existing transcription."""
         return await self._state_manager.get_transcription_state(media_id)

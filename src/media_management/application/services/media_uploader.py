@@ -4,6 +4,7 @@ import structlog
 
 from src.media_management.domain.interfaces import IMediaUploader
 from src.storage.infrastructure.dependencies import StorageServiceFactory
+from src.shared.decorators.decorator_factory import write_operation
 
 logger = structlog.get_logger(__name__)
 
@@ -20,6 +21,7 @@ class MediaUploader(IMediaUploader):
     def __init__(self, storage_service_factory: StorageServiceFactory):
         self.storage_service_factory = storage_service_factory
 
+    @write_operation("media_management", "upload_media_file")
     async def upload(
         self,
         file: bytes,
