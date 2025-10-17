@@ -22,6 +22,7 @@ from src.media_management.application.services.media_event_manager import MediaE
 from src.media_management.application.services.media_metrics_service import MediaMetricsService
 from src.media_management.application.services.media_storage_manager import MediaStorageManager
 from src.media_management.application.services.media_state_service import MediaStateService
+from src.media_management.application.services.media_authorization_service import MediaAuthorizationService
 
 # Infrastructure & Config
 from src.media_management.infrastructure.media_repository import MediaRepository
@@ -46,6 +47,7 @@ def bootstrap_media_module(
     media_metrics = MediaMetricsService(metrics_service=metrics_service)
     media_storage_manager = MediaStorageManager(storage_service_factory=storage_service_factory)
     media_state_service = MediaStateService()
+    media_authorization_service = MediaAuthorizationService()
 
     # Instantiate command handlers with new dependencies
     create_media_handler = CreateMediaCommandHandler(
@@ -75,4 +77,5 @@ def bootstrap_media_module(
         "create_media_handler": create_media_handler,
         "delete_media_handler": delete_media_handler,
         "reprocess_media_handler": reprocess_media_handler,
+        "media_authorization_service": media_authorization_service,
     }

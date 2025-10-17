@@ -2,7 +2,7 @@
 from fastapi import Request, Depends
 from typing import Annotated
 
-from src.notifications.application.notification_service import NotificationService
+from src.notifications.application.commands.request_notification_command_handler import RequestNotificationCommandHandler
 from src.notifications.application.queries.notification_queries import NotificationQueries
 from src.notifications.infrastructure.connection_manager import ConnectionManager, manager
 
@@ -11,8 +11,8 @@ from src.notifications.infrastructure.connection_manager import ConnectionManage
 def get_container(request: Request) -> dict:
     return request.app.state.container
 
-def get_notification_service(container: Annotated[dict, Depends(get_container)]) -> NotificationService:
-    return container["notification_service"]
+def get_request_notification_handler(container: Annotated[dict, Depends(get_container)]) -> RequestNotificationCommandHandler:
+    return container["request_notification_handler"]
 
 def get_notification_queries(container: Annotated[dict, Depends(get_container)]) -> NotificationQueries:
     return container["notification_queries"]

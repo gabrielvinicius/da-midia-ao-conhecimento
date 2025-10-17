@@ -1,9 +1,11 @@
 """
 User Administration Service - Single Responsibility: User Administration
+Refactored to follow SOLID principles better.
 """
 from typing import Optional
 from uuid import UUID
 from src.auth.domain.user import User
+from src.auth.domain.interfaces import IUserPermissionService
 from src.auth.application.commands.update_user_command import UpdateUserCommand
 from src.auth.application.commands.update_user_command_handler import UpdateUserCommandHandler
 from src.auth.application.commands.delete_user_command import DeleteUserCommand
@@ -15,13 +17,16 @@ class UserAdministrationService:
     Service responsible ONLY for user administration operations.
     
     Single Responsibility: Handle admin operations on users (update, delete, etc).
+    Dependency Inversion: Depends on abstractions, not concretions.
     """
     
     def __init__(self, 
                  update_user_handler: UpdateUserCommandHandler,
-                 delete_user_handler: DeleteUserCommandHandler):
+                 delete_user_handler: DeleteUserCommandHandler,
+                 permission_service: IUserPermissionService):
         self.update_user_handler = update_user_handler
         self.delete_user_handler = delete_user_handler
+        self.permission_service = permission_service
     
     async def update_user(self, user_id: UUID, **kwargs) -> User:
         """
@@ -94,6 +99,8 @@ class UserAdministrationService:
         """
         Validate if admin operation is allowed.
         
+        Delegates to permission service following SRP.
+        
         Args:
             admin_user: User performing the operation
             target_user_id: Target user ID
@@ -101,8 +108,4 @@ class UserAdministrationService:
         Raises:
             PermissionError: If operation not allowed
         """
-        if not admin_user.role or admin_user.role.value != "admin":
-            raise PermissionError("Only administrators can perform this operation")
-        
-        if str(admin_user.id) == str(target_user_id):
-            raise PermissionError("Cannot perform admin operations on yourself")
+        self.permission_service.validate_admin_operation(admin_user, target_user_id)

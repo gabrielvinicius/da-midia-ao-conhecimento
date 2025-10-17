@@ -1,40 +1,57 @@
+# src/notifications/infrastructure/connection_manager.py
 from fastapi import WebSocket
-from typing import Dict, List
+
+from .connection_registry import WebSocketConnectionRegistry
+from .websocket_logger import WebSocketLogger
+
 
 class ConnectionManager:
-    """Manages active WebSocket connections for real-time notifications."""
-
-    def __init__(self):
-        # Stores active connections, mapping user IDs to a list of their WebSocket connections
-        self.active_connections: Dict[str, List[WebSocket]] = {}
+    """
+    Orchestrates WebSocket connections and logging.
+    Acts as a facade, delegating connection storage to a registry and logging to a logger.
+    """
+    def __init__(self, registry: WebSocketConnectionRegistry, logger: WebSocketLogger):
+        self.registry = registry
+        self.logger = logger
 
     async def connect(self, user_id: str, websocket: WebSocket):
-        """Accepts a new WebSocket connection for a given user."""
+        """Accepts and registers a new WebSocket connection, then logs the event."""
         await websocket.accept()
-        if user_id not in self.active_connections:
-            self.active_connections[user_id] = []
-        self.active_connections[user_id].append(websocket)
-        print(f"New connection for user {user_id}. Total connections for user: {len(self.active_connections[user_id])}")
+        self.registry.add(user_id, websocket)
+        total = len(self.registry.get_connections(user_id))
+        self.logger.log_connect(user_id, total)
 
     def disconnect(self, user_id: str, websocket: WebSocket):
-        """Removes a WebSocket connection for a given user."""
-        if user_id in self.active_connections:
-            self.active_connections[user_id].remove(websocket)
-            if not self.active_connections[user_id]:
-                del self.active_connections[user_id]
-            print(f"Disconnected user {user_id}. Remaining connections: {len(self.active_connections.get(user_id, []))}")
+        """Removes a WebSocket connection and logs the event."""
+        self.registry.remove(user_id, websocket)
+        remaining = len(self.registry.get_connections(user_id))
+        self.logger.log_disconnect(user_id, remaining)
 
     async def send_personal_message(self, message: str, user_id: str):
-        """Sends a message to all active WebSocket connections for a specific user."""
-        if user_id in self.active_connections:
-            connections = self.active_connections[user_id]
-            for connection in connections:
+        """Sends a message to all connections of a specific user."""
+        connections = self.registry.get_connections(user_id)
+        for connection in connections:
+            try:
                 await connection.send_text(message)
+            except Exception as e:
+                self.logger.log_error(user_id, e, "Failed to send personal message")
+                # Optionally, handle dead connections here
+                self.disconnect(user_id, connection)
 
     async def broadcast(self, message: str):
-        """Sends a message to all active WebSocket connections."""
-        for user_id in self.active_connections:
-            await self.send_personal_message(message, user_id)
+        """Sends a message to all active connections."""
+        all_connections = self.registry.get_all_connections()
+        for connection in all_connections:
+            try:
+                await connection.send_text(message)
+            except Exception as e:
+                # Need a way to map connection back to user_id if we want to log this better
+                self.logger.log_error("broadcast", e, "Failed to broadcast message")
 
-# Create a single, globally accessible instance of the ConnectionManager
-manager = ConnectionManager()
+
+# --- Singleton Instance ---
+# Create a single, globally accessible instance of the ConnectionManager,
+# injecting its dependencies.
+registry_instance = WebSocketConnectionRegistry()
+logger_instance = WebSocketLogger()
+manager = ConnectionManager(registry=registry_instance, logger=logger_instance)

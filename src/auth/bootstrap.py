@@ -20,15 +20,11 @@ from src.auth.application.commands.delete_user_command_handler import DeleteUser
 from src.auth.application.services.user_validator import UserValidator
 from src.auth.application.services.user_factory import UserFactory
 
-# Specialized Services (for Facade)
+# Specialized Services
 from src.auth.application.services.password_service import PasswordService
 from src.auth.application.services.user_registration_service import UserRegistrationService
 from src.auth.application.services.authentication_service import AuthenticationService
 from src.auth.application.services.user_administration_service import UserAdministrationService
-
-# Main Facade Service
-from src.auth.application.auth_service import AuthService
-
 
 def bootstrap_auth_module(db_session: AsyncSession) -> Dict[str, Any]:
     """Constructs and returns the services for the auth module."""
@@ -51,7 +47,6 @@ def bootstrap_auth_module(db_session: AsyncSession) -> Dict[str, Any]:
     user_validator = UserValidator(user_repository=user_repository)
     user_factory = UserFactory()
 
-    # Refactored CreateUserCommandHandler with its new dependencies
     create_user_handler = CreateUserCommandHandler(
         user_repository=user_repository,
         user_validator=user_validator,
@@ -59,7 +54,7 @@ def bootstrap_auth_module(db_session: AsyncSession) -> Dict[str, Any]:
         user_factory=user_factory,
     )
 
-    # --- Specialized Services for Facade ---
+    # --- Specialized Services ---
     registration_service = UserRegistrationService(create_user_handler=create_user_handler)
     authentication_service = AuthenticationService(
         authenticate_user_handler=authenticate_user_handler,
@@ -71,18 +66,12 @@ def bootstrap_auth_module(db_session: AsyncSession) -> Dict[str, Any]:
         user_repository=user_repository
     )
 
-    # --- Main Facade Service ---
-    auth_service = AuthService(
-        authentication_service=authentication_service,
-        registration_service=registration_service,
-        administration_service=administration_service,
-        password_service=password_service,
-        auth_queries=auth_queries,
-    )
-
     return {
         "user_repository": user_repository,
-        "auth_service": auth_service,
         "auth_queries": auth_queries,
         "auth_settings": auth_settings,
+        "user_registration_service": registration_service,
+        "authentication_service": authentication_service,
+        "user_administration_service": administration_service,
+        "password_service": password_service,
     }

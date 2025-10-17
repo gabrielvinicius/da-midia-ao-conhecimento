@@ -7,10 +7,15 @@ from fastapi.encoders import jsonable_encoder
 # Import dependencies from their correct, decoupled locations
 from src.shared.api.dependencies import get_current_user
 from src.auth.domain.user import User
-from .dependencies import get_create_media_handler, get_media_queries, get_media_settings
+from .dependencies import (
+    get_create_media_handler, 
+    get_media_queries, 
+    get_media_authorization_service
+)
 
 from ..application.commands.create_media_command_handler import CreateMediaCommandHandler
 from ..application.queries.media_queries import MediaQueries
+from ..application.services.media_authorization_service import MediaAuthorizationService
 from .schemas import MediaResponse
 from ..config.settings import MediaSettings
 from ..application.commands.create_media_command import CreateMediaCommand
@@ -61,8 +66,9 @@ async def get_media_by_id(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
     media_queries: MediaQueries = Depends(get_media_queries),
+    auth_service: MediaAuthorizationService = Depends(get_media_authorization_service),
 ):
     media = await media_queries.get_by_id(str(media_id))
-    if not media or (str(media.user_id) != str(current_user.id) and current_user.role.value != "admin"):
+    if not media or not auth_service.authorize_media_access(media, current_user):
         raise HTTPException(status_code=404, detail="Media not found or not authorized")
     return jsonable_encoder(media)

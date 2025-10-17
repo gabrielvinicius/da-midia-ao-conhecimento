@@ -5,8 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.domain.user import User
+from src.auth.domain.interfaces import IUserRepository
 
-class UserRepository:
+
+class UserRepository(IUserRepository):
     def __init__(self, db: AsyncSession):
         self.db = db
 

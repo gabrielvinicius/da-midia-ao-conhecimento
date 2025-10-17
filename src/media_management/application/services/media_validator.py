@@ -1,45 +1,81 @@
 # src/media_management/application/services/media_validator.py
-import os
 from src.media_management.domain.media import MediaType
-from src.media_management.application.config.settings import MediaSettings
+from src.media_management.domain.interfaces import IMediaValidator
+from .file_type_detector import FileTypeDetector
+from .file_size_validator import FileSizeValidator
 
 
-class MediaValidator:
-    def __init__(self, settings: MediaSettings):
-        self.settings = settings
+class MediaValidator(IMediaValidator):
+    """
+    Media validation service following SRP and composition over inheritance.
+    
+    Delegates specific validation responsibilities to specialized services.
+    """
+    
+    def __init__(
+        self, 
+        file_type_detector: FileTypeDetector,
+        file_size_validator: FileSizeValidator
+    ):
+        self.file_type_detector = file_type_detector
+        self.file_size_validator = file_size_validator
 
-    def validate(self, file: bytes, filename: str) -> None:
+    def validate_file_content(self, file: bytes, filename: str) -> None:
+        """
+        Validate complete file content and metadata.
+        
+        Args:
+            file: File content as bytes
+            filename: Name of the file
+            
+        Raises:
+            ValueError: If validation fails
+        """
         if not filename:
             raise ValueError("File must have a filename.")
         if not file:
             raise ValueError("File content is empty.")
 
-        self._validate_file_type(filename)
-        self._validate_file_size(file)
+        self.validate_file_type(filename)
+        self.validate_file_size(file)
 
-    def _validate_file_type(self, filename: str) -> None:
-        _, ext = os.path.splitext(filename or "")
-        ext = ext.lower()
-        supported = (
-            ext in self.settings.video_extensions
-            or ext in self.settings.audio_extensions
-            or ext in self.settings.text_extensions
-        )
-        if not supported:
+    def validate_file_type(self, filename: str) -> None:
+        """
+        Validate file type is supported.
+        
+        Args:
+            filename: Name of the file
+            
+        Raises:
+            ValueError: If file type is not supported
+        """
+        if not self.file_type_detector.is_supported_type(filename):
+            ext = self.file_type_detector.get_file_extension(filename)
             raise ValueError(f"Unsupported file type: {ext}")
 
-    def _validate_file_size(self, file: bytes) -> None:
-        if len(file) > self.settings.max_file_size_bytes:
-            raise ValueError(f"File too large. Max size is {self.settings.max_file_size_mb}MB")
+    def validate_file_size(self, file: bytes) -> None:
+        """
+        Validate file size constraints.
+        
+        Args:
+            file: File content as bytes
+            
+        Raises:
+            ValueError: If file size exceeds limits
+        """
+        self.file_size_validator.validate_size(file)
 
     def get_media_type(self, filename: str) -> MediaType:
-        _, ext = os.path.splitext(filename or "")
-        ext = ext.lower()
-        if ext in self.settings.video_extensions:
-            return MediaType.VIDEO
-        if ext in self.settings.audio_extensions:
-            return MediaType.AUDIO
-        if ext in self.settings.text_extensions:
-            return MediaType.TEXT
-        # This should not be reached if validate() is called first
-        raise ValueError(f"Cannot determine media type for: {ext}")
+        """
+        Determine media type from filename.
+        
+        Args:
+            filename: Name of the file
+            
+        Returns:
+            MediaType: The detected media type
+            
+        Raises:
+            ValueError: If media type cannot be determined
+        """
+        return self.file_type_detector.get_media_type(filename)

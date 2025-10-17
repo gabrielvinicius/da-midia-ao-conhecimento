@@ -3,40 +3,39 @@ import time
 import structlog
 
 from src.metrics.application.metrics_service import MetricsService
-from src.shared.events.domain_events import TextContentReady, ProcessingFailed
-from src.shared.events.event_bus import EventBus
-from src.storage.application.storage_service import StorageService
-from src.transcription.domain.transcription import Transcription, TranscriptionStatus
-from src.transcription.infrastructure.interfaces import ISpeechRecognition
-from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
 from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_management.infrastructure.media_repository import MediaRepository
 from .process_transcription_command import ProcessTranscriptionCommand
-from src.shared.resilience.circuit_breaker import get_circuit_breaker
+
+# Import the new SRP-compliant services
+from ..services.transcription_state_service import TranscriptionStateService
+from ..services.transcription_file_service import TranscriptionFileService
+from ..services.speech_recognition_service import SpeechRecognitionService
+from ..services.transcription_event_service import TranscriptionEventService
 
 logger = structlog.get_logger(__name__)
 
 
 class ProcessTranscriptionCommandHandler:
+    """
+    Orchestrates the transcription process by coordinating with specialized services.
+    """
     def __init__(
         self,
-        speech_recognition: ISpeechRecognition,
-        storage_service: StorageService,
-        event_bus: EventBus,
-        transcription_repository: TranscriptionRepository,
         media_queries: MediaQueries,
-        media_repository: MediaRepository,
+        state_service: TranscriptionStateService,
+        file_service: TranscriptionFileService,
+        recognition_service: SpeechRecognitionService,
+        event_service: TranscriptionEventService,
         metrics_service: MetricsService,
     ):
-        self.speech_recognition = speech_recognition
-        self.storage_service = storage_service
-        self.event_bus = event_bus
-        self.transcription_repo = transcription_repository
         self.media_queries = media_queries
-        self.media_repository = media_repository
+        self.state_service = state_service
+        self.file_service = file_service
+        self.recognition_service = recognition_service
+        self.event_service = event_service
         self.metrics_service = metrics_service
 
-    async def handle(self, command: ProcessTranscriptionCommand) -> Transcription:
+    async def handle(self, command: ProcessTranscriptionCommand):
         start_time = time.time()
         logger.info("transcription.started", media_id=command.media_id, provider=command.transcription_provider)
 
@@ -45,43 +44,42 @@ class ProcessTranscriptionCommandHandler:
             raise ValueError(f"Media with id {command.media_id} not found.")
 
         try:
-            # Persist the language used for this media item
-            media.language = command.language
-            media.process()
-            await self.media_repository.save(media)
+            # 1. Set initial state
+            transcription = await self.state_service.start_processing(
+                media, command.language, command.transcription_provider
+            )
 
-            transcription = Transcription(media_id=command.media_id, status=TranscriptionStatus.PROCESSING, provider=command.transcription_provider)
-            await self.transcription_repo.save(transcription)
+            # 2. Download audio file
+            audio_bytes = await self.file_service.download_audio(command.file_path)
 
-            audio_bytes, _ = await self.storage_service.download(command.file_path)
+            # 3. Perform speech-to-text
+            text = await self.recognition_service.transcribe(audio_bytes, command.language)
 
-            breaker_key = f"transcription_{self.speech_recognition.provider_name}"
-            breaker = get_circuit_breaker(breaker_key)
-            text = await breaker.call_async(self.speech_recognition.transcribe, audio_bytes, language=command.language)
+            # 4. Set final state
+            await self.state_service.complete_processing(media, transcription, text)
 
-            transcription.mark_as_completed(text)
-            await self.transcription_repo.save(transcription)
-            
-            media.complete()
-            await self.media_repository.save(media)
+            # 5. Publish completion event
+            await self.event_service.publish_completion_event(command.media_id, text)
 
-            await self.event_bus.publish(TextContentReady(media_id=command.media_id, text_content=text))
-
+            # 6. Record metrics
             duration = time.time() - start_time
             self.metrics_service.increment_transcription('success')
-            self.metrics_service.observe_transcription_duration(media_id=command.media_id, duration=duration, provider=self.speech_recognition.provider_name)
-
+            self.metrics_service.observe_transcription_duration(
+                media_id=command.media_id, 
+                duration=duration, 
+                provider=command.transcription_provider
+            )
             logger.info("transcription.completed", media_id=command.media_id, duration=duration)
-            return transcription
 
         except Exception as e:
             duration = time.time() - start_time
             self.metrics_service.increment_transcription('failure')
             logger.error("transcription.failed", media_id=command.media_id, error=str(e), duration=duration)
 
-            if media:
-                media.fail(str(e)[:500])
-                await self.media_repository.save(media)
+            # 4a. Set failure state
+            await self.state_service.fail_processing(media, str(e))
 
-            await self.event_bus.publish(ProcessingFailed(media_id=command.media_id, error=str(e)))
+            # 5a. Publish failure event
+            await self.event_service.publish_failure_event(command.media_id, str(e))
+            
             raise

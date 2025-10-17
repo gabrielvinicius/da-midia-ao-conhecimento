@@ -4,7 +4,6 @@ from typing import Optional, List
 from uuid import UUID
 
 from src.shared.api.dependencies import get_current_admin_user
-from src.auth.application.auth_service import AuthService
 from src.auth.application.queries.auth_queries import AuthQueries
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.admin.application.queries.admin_queries import AdminQueries
@@ -13,9 +12,10 @@ from src.media_management.api.schemas import MediaResponse
 from .schemas import UserUpdateRequest, SystemStatsResponse
 
 from .dependencies import (
-    get_auth_queries, get_media_queries, get_admin_queries, get_auth_service, 
-    get_delete_media_handler, get_reprocess_media_handler
+    get_auth_queries, get_media_queries, get_admin_queries, 
+    get_user_administration_service, get_delete_media_handler, get_reprocess_media_handler
 )
+from src.auth.application.services.user_administration_service import UserAdministrationService
 from src.media_management.application.commands.delete_media_command import DeleteMediaCommand
 from src.media_management.application.commands.delete_media_command_handler import DeleteMediaCommandHandler
 from src.media_management.application.commands.reprocess_media_command import ReprocessMediaCommand
@@ -51,11 +51,11 @@ async def list_all_users(
 async def update_user(
     user_id: UUID,
     update_data: UserUpdateRequest,
-    auth_service: AuthService = Depends(get_auth_service),
+    admin_service: UserAdministrationService = Depends(get_user_administration_service),
 ):
     """Updates a user's role. Requires admin privileges."""
     try:
-        return await auth_service.update_user(user_id=user_id, role=update_data.role)
+        return await admin_service.update_user_role(user_id=user_id, new_role=update_data.role)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -63,11 +63,11 @@ async def update_user(
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a user")
 async def delete_user(
     user_id: UUID,
-    auth_service: AuthService = Depends(get_auth_service),
+    admin_service: UserAdministrationService = Depends(get_user_administration_service),
 ):
     """Deletes a user from the system. Requires admin privileges."""
     try:
-        await auth_service.delete_user(user_id)
+        await admin_service.delete_user(user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 

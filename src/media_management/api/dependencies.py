@@ -13,3 +13,6 @@ def get_media_queries(container: Annotated[dict, Depends(get_container)]) -> Any
 
 def get_media_settings(container: Annotated[dict, Depends(get_container)]) -> Any:
     return container["media_settings"]
+
+def get_media_authorization_service(container: Annotated[dict, Depends(get_container)]) -> Any:
+    return container["media_authorization_service"]

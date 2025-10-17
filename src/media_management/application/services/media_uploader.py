@@ -2,12 +2,21 @@
 from uuid import UUID
 import structlog
 
+from src.media_management.domain.interfaces import IMediaUploader
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 logger = structlog.get_logger(__name__)
 
 
-class MediaUploader:
+class MediaUploader(IMediaUploader):
+    """
+    Media upload service following SOLID principles.
+    
+    Single Responsibility: Handle media file uploads to storage.
+    Open/Closed: Open for extension via storage providers.
+    Dependency Inversion: Depends on storage service abstraction.
+    """
+    
     def __init__(self, storage_service_factory: StorageServiceFactory):
         self.storage_service_factory = storage_service_factory
 

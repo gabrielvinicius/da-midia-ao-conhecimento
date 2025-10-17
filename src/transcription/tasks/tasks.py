@@ -14,6 +14,10 @@ from src.transcription.application.commands.process_transcription_command_handle
 # from src.transcription.application.commands.align_diarization_command import AlignDiarizationCommand
 # from src.transcription.application.commands.align_diarization_command_handler import AlignDiarizationCommandHandler
 from src.transcription.application.services.alignment_service import AlignmentService
+from src.transcription.application.services.transcription_state_service import TranscriptionStateService
+from src.transcription.application.services.transcription_file_service import TranscriptionFileService
+from src.transcription.application.services.speech_recognition_service import SpeechRecognitionService
+from src.transcription.application.services.transcription_event_service import TranscriptionEventService
 from src.transcription.infrastructure.dependencies import get_transcription_repository, create_speech_recognition_service
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
@@ -55,24 +59,33 @@ async def _run_transcription(media_id: str, file_path: str, storage_provider: st
 # The _run_transcription implementation needs to be brought back
 async def _run_transcription(media_id: str, file_path: str, storage_provider: str, transcription_provider: str, language: str):
     async for db_session in get_db():
+        # --- Dependency Instantiation ---
         event_bus = get_event_bus()
         metrics_service = MetricsService(provider=PrometheusMetricsProvider())
         storage_service_factory = get_storage_service_factory()
+        storage_service = storage_service_factory.create_storage_service(storage_provider)
+        
         media_repository = MediaRepository(db=db_session)
         media_queries = MediaQueries(media_repository=media_repository)
-        storage_service = storage_service_factory.create_storage_service(storage_provider)
-        speech_recognition_service = create_speech_recognition_service(transcription_provider)
         transcription_repository = await get_transcription_repository(db_session)
+        
+        # Instantiate the specific speech recognition provider
+        speech_recognition_provider = create_speech_recognition_service(transcription_provider)
 
+        # --- Instantiate New SRP Services ---
+        state_service = TranscriptionStateService(media_repository, transcription_repository)
+        file_service = TranscriptionFileService(storage_service)
+        recognition_service = SpeechRecognitionService(speech_recognition_provider)
+        event_service = TranscriptionEventService(event_bus)
+
+        # --- Instantiate the Orchestrator (Command Handler) ---
         handler = ProcessTranscriptionCommandHandler(
-            speech_recognition=speech_recognition_service,
-            storage_service=storage_service,
-            event_bus=event_bus,
-            transcription_repository=transcription_repository,
             media_queries=media_queries,
-            media_repository=media_repository,
+            state_service=state_service,
+            file_service=file_service,
+            recognition_service=recognition_service,
+            event_service=event_service,
             metrics_service=metrics_service,
-            connection_manager=connection_manager
         )
         
         command = ProcessTranscriptionCommand(

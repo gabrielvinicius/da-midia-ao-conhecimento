@@ -8,8 +8,11 @@ from fastapi import Depends, Request
 def get_container(request: Request) -> dict:
     return request.app.state.container
 
-def get_auth_service(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["auth_service"]
+def get_user_registration_service(container: Annotated[dict, Depends(get_container)]) -> Any:
+    return container["user_registration_service"]
+
+def get_authentication_service(container: Annotated[dict, Depends(get_container)]) -> Any:
+    return container["authentication_service"]
 
 def get_auth_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
     return container["auth_queries"]
