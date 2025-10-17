@@ -12,8 +12,8 @@ from src.auth.domain.user import User, UserRole
 from src.media_management.domain.media import Media, MediaType, MediaStatus
 from src.transcription.domain.transcription import Transcription, TranscriptionStatus
 from src.summarization.domain.summary import Summary
-from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysis
-from src.topic_modeling.domain.topic_modeling import TopicModeling
+from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysisResult
+from src.topic_modeling.domain.topic_modeling import TopicModelingResult
 
 
 class TestDataFactory:
@@ -51,7 +51,6 @@ class TestDataFactory:
             password_hash=password_hash or "hashed_password_123",
             role=role,
             is_active=is_active,
-            created_at=datetime.utcnow(),
             **kwargs
         )
     
@@ -240,12 +239,12 @@ class TestDataFactory:
         self,
         media_id: Optional[str] = None,
         **kwargs
-    ) -> SentimentAnalysis:
+    ) -> SentimentAnalysisResult:
         """Create a test SentimentAnalysis entity."""
         sentiments = ["positive", "negative", "neutral"]
         emotions = ["joy", "sadness", "anger", "fear", "surprise", "neutral"]
         
-        return SentimentAnalysis(
+        return SentimentAnalysisResult(
             id=self._unique_id(),
             media_id=media_id or self._unique_id(),
             overall_sentiment=random.choice(sentiments),
@@ -281,7 +280,7 @@ class TestDataFactory:
         self,
         media_id: Optional[str] = None,
         **kwargs
-    ) -> TopicModeling:
+    ) -> TopicModelingResult:
         """Create a test TopicModeling entity."""
         sample_topics = [
             {
@@ -298,7 +297,7 @@ class TestDataFactory:
             }
         ]
         
-        return TopicModeling(
+        return TopicModelingResult(
             id=self._unique_id(),
             media_id=media_id or self._unique_id(),
             topics=random.sample(sample_topics, random.randint(1, 2)),

@@ -10,7 +10,7 @@ from datetime import datetime
 from src.auth.application.commands.create_user_command import CreateUserCommand
 from src.auth.application.commands.create_user_command_handler import CreateUserCommandHandler
 from src.auth.domain.user import User, UserRole
-from src.shared.exceptions.domain_exceptions import ValidationError, ConflictError
+from src.shared.exceptions.domain_exceptions import ValidationError, ResourceAlreadyExistsError
 
 
 class TestCreateUserCommandHandler:
@@ -26,9 +26,37 @@ class TestCreateUserCommandHandler:
         return repository
 
     @pytest.fixture
-    def handler(self, user_repository):
+    def user_validator(self):
+        """Mock user validator."""
+        validator = AsyncMock()
+        validator.validate_new_user = AsyncMock()
+        return validator
+
+    @pytest.fixture
+    def password_service(self):
+        """Mock password service."""
+        from unittest.mock import Mock
+        service = Mock()
+        service.hash_password = Mock(return_value="hashed_password_123")
+        return service
+
+    @pytest.fixture
+    def user_factory(self):
+        """Mock user factory."""
+        from unittest.mock import Mock
+        factory = Mock()
+        factory.create = Mock()
+        return factory
+
+    @pytest.fixture
+    def handler(self, user_repository, user_validator, password_service, user_factory):
         """CreateUserCommandHandler instance with mocked dependencies."""
-        return CreateUserCommandHandler(user_repository=user_repository)
+        return CreateUserCommandHandler(
+            user_repository=user_repository,
+            user_validator=user_validator,
+            password_service=password_service,
+            user_factory=user_factory
+        )
 
     @pytest.fixture
     def valid_command(self, test_data_factory):
@@ -36,23 +64,19 @@ class TestCreateUserCommandHandler:
         user_data = test_data_factory.create_user_data()
         return CreateUserCommand(
             email=user_data["email"],
-            password=user_data["password"],
-            role=user_data.get("role", "USER")
+            password=user_data["password"]
         )
 
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_create_user_success_with_default_role(self, handler, user_repository, valid_command):
+    async def test_create_user_success_with_default_role(self, handler, user_repository, user_validator, password_service, user_factory, valid_command, test_data_factory):
         """Test successful user creation with default USER role."""
         # Arrange
-        user_repository.find_by_email.return_value = None
-        expected_user = User(
-            id="test_user_id",
+        expected_user = test_data_factory.create_user(
             email=valid_command.email,
-            password_hash="hashed_password",
-            role=UserRole.USER,
-            created_at=datetime.utcnow()
+            role=UserRole.USER
         )
+        user_factory.create.return_value = expected_user
         user_repository.save.return_value = expected_user
 
         # Act
@@ -62,24 +86,22 @@ class TestCreateUserCommandHandler:
         assert result.email == valid_command.email
         assert result.role == UserRole.USER
         assert result.is_active is True
-        user_repository.find_by_email.assert_awaited_once_with(valid_command.email)
-        user_repository.save.assert_awaited_once()
         
-        # Verify password was hashed
-        saved_user_call = user_repository.save.await_args.args[0]
-        assert saved_user_call.password_hash != valid_command.password
-        assert len(saved_user_call.password_hash) > 20  # BCrypt hash length check
+        # Verify all services were called correctly
+        user_validator.validate_new_user.assert_awaited_once_with(valid_command.email)
+        password_service.hash_password.assert_called_once_with(valid_command.password)
+        user_factory.create.assert_called_once_with(valid_command.email, "hashed_password_123")
+        user_repository.save.assert_awaited_once_with(expected_user)
 
     @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_create_admin_user_success(self, handler, user_repository, test_data_factory):
         """Test successful admin user creation."""
         # Arrange
-        admin_data = test_data_factory.create_user_data(role="ADMIN")
+        admin_data = test_data_factory.create_user_data()
         command = CreateUserCommand(
             email=admin_data["email"],
-            password=admin_data["password"],
-            role="ADMIN"
+            password=admin_data["password"]
         )
         user_repository.find_by_email.return_value = None
         expected_user = test_data_factory.create_admin_user(email=command.email)
@@ -97,13 +119,13 @@ class TestCreateUserCommandHandler:
     @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_create_user_email_already_exists(self, handler, user_repository, valid_command, test_data_factory):
-        """Test that ConflictError is raised when email already exists."""
+        """Test that ResourceAlreadyExistsError is raised when email already exists."""
         # Arrange
         existing_user = test_data_factory.create_user(email=valid_command.email)
         user_repository.find_by_email.return_value = existing_user
 
         # Act & Assert
-        with pytest.raises(ConflictError, match="Email already registered"):
+        with pytest.raises(ResourceAlreadyExistsError, match="Email already registered"):
             await handler.handle(valid_command)
         
         user_repository.find_by_email.assert_awaited_once_with(valid_command.email)
@@ -116,8 +138,7 @@ class TestCreateUserCommandHandler:
         # Arrange
         invalid_command = CreateUserCommand(
             email="invalid_email_format",
-            password="ValidPassword123!",
-            role="USER"
+            password="ValidPassword123!"
         )
 
         # Act & Assert
@@ -135,8 +156,7 @@ class TestCreateUserCommandHandler:
         user_data = test_data_factory.create_user_data()
         weak_password_command = CreateUserCommand(
             email=user_data["email"],
-            password="123",  # Too weak
-            role="USER"
+            password="123"  # Too weak
         )
 
         # Act & Assert
@@ -154,8 +174,7 @@ class TestCreateUserCommandHandler:
         user_data = test_data_factory.create_user_data()
         invalid_role_command = CreateUserCommand(
             email=user_data["email"],
-            password=user_data["password"],
-            role="INVALID_ROLE"
+            password=user_data["password"]
         )
 
         # Act & Assert
@@ -235,12 +254,11 @@ class TestCreateUserCommandHandler:
         
         command = CreateUserCommand(
             email=user_data["email"].lower(),
-            password=user_data["password"],
-            role="USER"
+            password=user_data["password"]
         )
 
         # Act & Assert
-        with pytest.raises(ConflictError, match="Email already registered"):
+        with pytest.raises(ResourceAlreadyExistsError, match="Email already registered"):
             await handler.handle(command)
 
     @pytest.mark.asyncio
