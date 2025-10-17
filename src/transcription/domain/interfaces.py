@@ -1,5 +1,81 @@
 # src/transcription/domain/interfaces.py
 """
+Domain interfaces for transcription module following DIP principle.
+All high-level modules depend on these abstractions, not concrete implementations.
+"""
+from abc import ABC, abstractmethod
+from typing import Dict, Any, Optional
+from src.transcription.domain.transcription import Transcription
+
+
+class SpeechRecognitionService(ABC):
+    """Interface for speech recognition services."""
+    
+    @abstractmethod
+    async def transcribe(self, audio_data: bytes, language: str = "en") -> Dict[str, Any]:
+        """Transcribe audio data and return structured result."""
+        pass
+
+
+class AudioProcessor(ABC):
+    """Interface for audio processing services."""
+    
+    @abstractmethod
+    async def process_audio(self, audio_data: bytes, target_format: str = "wav") -> bytes:
+        """Process audio data to target format."""
+        pass
+    
+    @abstractmethod
+    async def extract_audio_from_video(self, video_data: bytes) -> bytes:
+        """Extract audio track from video data."""
+        pass
+
+
+class NotificationService(ABC):
+    """Interface for transcription notification services."""
+    
+    @abstractmethod
+    async def notify_transcription_started(self, user_id: str, media_id: str):
+        """Notify user that transcription has started."""
+        pass
+    
+    @abstractmethod
+    async def notify_transcription_completed(self, user_id: str, media_id: str, transcription: Transcription):
+        """Notify user that transcription has completed."""
+        pass
+    
+    @abstractmethod
+    async def notify_transcription_failed(self, user_id: str, media_id: str, error: str):
+        """Notify user that transcription has failed."""
+        pass
+
+
+class TranscriptionOrchestrator(ABC):
+    """Interface for transcription orchestration services."""
+    
+    @abstractmethod
+    async def process_transcription(
+        self,
+        media_id: str,
+        audio_data: bytes,
+        language: str,
+        provider: str,
+        user_id: str
+    ) -> Transcription:
+        """Orchestrate audio transcription workflow."""
+        pass
+    
+    @abstractmethod
+    async def process_video_transcription(
+        self,
+        media_id: str,
+        video_data: bytes,
+        language: str,
+        provider: str,
+        user_id: str
+    ) -> Transcription:
+        """Orchestrate video transcription workflow."""
+"""
 Domain interfaces for transcription module following SOLID principles.
 """
 from abc import ABC, abstractmethod

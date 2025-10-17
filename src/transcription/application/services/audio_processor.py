@@ -5,7 +5,7 @@ Audio processing service implementation - SRP compliance.
 import asyncio
 import numpy as np
 from typing import Dict, Any
-import magic
+# import magic  # Optional dependency
 import struct
 
 from src.transcription.domain.interfaces import AudioProcessor
