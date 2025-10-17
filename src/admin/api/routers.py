@@ -6,14 +6,20 @@ from uuid import UUID
 from src.shared.api.dependencies import get_current_admin_user
 from src.auth.application.auth_service import AuthService
 from src.auth.application.queries.auth_queries import AuthQueries
-from src.media_management.application.media_service import MediaService
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.admin.application.queries.admin_queries import AdminQueries
 from src.auth.api.schemas import UserResponse
 from src.media_management.api.schemas import MediaResponse
 from .schemas import UserUpdateRequest, SystemStatsResponse
 
-from .dependencies import get_auth_queries, get_media_queries, get_admin_queries, get_auth_service, get_media_service
+from .dependencies import (
+    get_auth_queries, get_media_queries, get_admin_queries, get_auth_service, 
+    get_delete_media_handler, get_reprocess_media_handler
+)
+from src.media_management.application.commands.delete_media_command import DeleteMediaCommand
+from src.media_management.application.commands.delete_media_command_handler import DeleteMediaCommandHandler
+from src.media_management.application.commands.reprocess_media_command import ReprocessMediaCommand
+from src.media_management.application.commands.reprocess_media_command_handler import ReprocessMediaCommandHandler
 
 router = APIRouter(
     prefix="/admin",
@@ -38,7 +44,6 @@ async def list_all_users(
     search: Optional[str] = Query(None, description="Search term for user email")
 ):
     """Lists all users with pagination and search capabilities."""
-    # The query logic is now correctly encapsulated in the queries class
     return await auth_queries.list_all(page=page, limit=limit, search=search)
 
 
@@ -50,7 +55,6 @@ async def update_user(
 ):
     """Updates a user's role. Requires admin privileges."""
     try:
-        # Delegate the entire action to the application service
         return await auth_service.update_user(user_id=user_id, role=update_data.role)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -63,7 +67,6 @@ async def delete_user(
 ):
     """Deletes a user from the system. Requires admin privileges."""
     try:
-        # Delegate the entire action to the application service
         await auth_service.delete_user(user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -77,19 +80,18 @@ async def list_all_media(
     search: Optional[str] = Query(None, description="Search term for media filename")
 ):
     """Lists all media items with pagination and search capabilities."""
-    # The query logic is now correctly encapsulated in the queries class
     return await media_queries.list_all(page=page, limit=limit, search=search)
 
 
 @router.delete("/media/{media_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a media item")
 async def delete_media(
     media_id: UUID,
-    media_service: MediaService = Depends(get_media_service),
+    delete_media_handler: DeleteMediaCommandHandler = Depends(get_delete_media_handler),
 ):
     """Deletes a media item and its associated files from storage."""
     try:
-        # Delegate the entire action to the application service
-        await media_service.delete_media(media_id)
+        command = DeleteMediaCommand(media_id=media_id)
+        await delete_media_handler.handle(command)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -97,12 +99,12 @@ async def delete_media(
 @router.post("/media/{media_id}/reprocess", status_code=status.HTTP_202_ACCEPTED, summary="Reprocess a failed media item")
 async def reprocess_media(
     media_id: UUID,
-    media_service: MediaService = Depends(get_media_service),
+    reprocess_media_handler: ReprocessMediaCommandHandler = Depends(get_reprocess_media_handler),
 ):
     """Triggers the reprocessing pipeline for a media item that has previously failed."""
     try:
-        # Delegate the entire action to the application service
-        await media_service.reprocess_media(media_id)
+        command = ReprocessMediaCommand(media_id=media_id)
+        await reprocess_media_handler.handle(command)
         return {"message": "Reprocessing initiated."}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -19,5 +19,8 @@ def get_media_queries(container: Annotated[dict, Depends(get_container)]) -> Any
 def get_auth_service(container: Annotated[dict, Depends(get_container)]) -> Any:
     return container["auth_service"]
 
-def get_media_service(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["media_service"]
+def get_delete_media_handler(container: Annotated[dict, Depends(get_container)]) -> Any:
+    return container["delete_media_handler"]
+
+def get_reprocess_media_handler(container: Annotated[dict, Depends(get_container)]) -> Any:
+    return container["reprocess_media_handler"]

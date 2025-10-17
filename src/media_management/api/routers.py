@@ -7,9 +7,9 @@ from fastapi.encoders import jsonable_encoder
 # Import dependencies from their correct, decoupled locations
 from src.shared.api.dependencies import get_current_user
 from src.auth.domain.user import User
-from .dependencies import get_media_service, get_media_queries, get_media_settings
+from .dependencies import get_create_media_handler, get_media_queries, get_media_settings
 
-from ..application.media_service import MediaService
+from ..application.commands.create_media_command_handler import CreateMediaCommandHandler
 from ..application.queries.media_queries import MediaQueries
 from .schemas import MediaResponse
 from ..config.settings import MediaSettings
@@ -32,7 +32,7 @@ async def create_media(
     transcription_provider: Optional[str] = Query(None),
     summarization_provider: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
-    media_service: MediaService = Depends(get_media_service),
+    create_media_handler: CreateMediaCommandHandler = Depends(get_create_media_handler),
 ):
     try:
         command = CreateMediaCommand(
@@ -43,7 +43,7 @@ async def create_media(
             transcription_provider=transcription_provider,
             summarization_provider=summarization_provider
         )
-        media = await media_service.create_media(command)
+        media = await create_media_handler.handle(command)
         return jsonable_encoder(media)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

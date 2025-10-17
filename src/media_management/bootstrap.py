@@ -7,7 +7,6 @@ from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.metrics.application.metrics_service import MetricsService
 
 # Application Services
-from src.media_management.application.media_service import MediaService
 from src.media_management.application.queries.media_queries import MediaQueries
 
 # Command Handlers
@@ -27,7 +26,6 @@ from src.media_management.application.services.media_state_service import MediaS
 # Infrastructure & Config
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.config.settings import MediaSettings
-
 
 def bootstrap_media_module(
     db_session: AsyncSession,
@@ -70,16 +68,11 @@ def bootstrap_media_module(
         media_event_manager=media_event_manager,
     )
 
-    # Instantiate the facade service with all handlers
-    media_service = MediaService(
-        create_media_handler=create_media_handler,
-        delete_media_handler=delete_media_handler,
-        reprocess_media_handler=reprocess_media_handler
-    )
-
     return {
         "media_repository": media_repository,
         "media_queries": media_queries,
-        "media_service": media_service,
         "media_settings": media_settings,
+        "create_media_handler": create_media_handler,
+        "delete_media_handler": delete_media_handler,
+        "reprocess_media_handler": reprocess_media_handler,
     }

@@ -4,7 +4,6 @@ from typing import Dict, Any
 
 from src.transcription.application.queries.transcription_queries import TranscriptionQueries
 from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
-from src.transcription.application.transcription_service import TranscriptionService
 from src.transcription.application.commands.set_speaker_aliases_command_handler import SetSpeakerAliasesCommandHandler
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.notifications.infrastructure.connection_manager import ConnectionManager
@@ -25,13 +24,8 @@ def bootstrap_transcription_module(
         connection_manager=connection_manager
     )
 
-    # Instantiate the facade service
-    transcription_service = TranscriptionService(
-        set_speaker_aliases_handler=set_speaker_aliases_handler
-    )
-
     return {
         "transcription_repository": transcription_repository,
         "transcription_queries": transcription_queries,
-        "transcription_service": transcription_service,
+        "set_speaker_aliases_handler": set_speaker_aliases_handler,
     }
