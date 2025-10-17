@@ -1,85 +1,101 @@
 # src/transcription/application/commands/process_transcription_command_handler.py
-import time
+"""
+Process transcription command handler following SOLID principles.
+"""
 import structlog
 
-from src.metrics.application.metrics_service import MetricsService
 from src.media_management.application.queries.media_queries import MediaQueries
-from .process_transcription_command import ProcessTranscriptionCommand
-
-# Import the new SRP-compliant services
-from ..services.transcription_state_service import TranscriptionStateService
-from ..services.transcription_file_service import TranscriptionFileService
-from ..services.speech_recognition_service import SpeechRecognitionService
-from ..services.transcription_event_service import TranscriptionEventService
+from src.storage.infrastructure.dependencies import get_storage_service_factory
+from src.shared.events.event_bus import EventBus
+from src.shared.events.domain_events import TextContentReady
+from src.transcription.application.commands.process_transcription_command import ProcessTranscriptionCommand
+from src.transcription.domain.interfaces import TranscriptionOrchestrator
 
 logger = structlog.get_logger(__name__)
 
 
 class ProcessTranscriptionCommandHandler:
     """
-    Orchestrates the transcription process by coordinating with specialized services.
+    Command handler for processing transcriptions following SOLID principles.
+    SRP: Only handles command processing and delegation.
+    DIP: Depends on abstractions, not concretions.
     """
+    
     def __init__(
         self,
+        orchestrator: TranscriptionOrchestrator,
         media_queries: MediaQueries,
-        state_service: TranscriptionStateService,
-        file_service: TranscriptionFileService,
-        recognition_service: SpeechRecognitionService,
-        event_service: TranscriptionEventService,
-        metrics_service: MetricsService,
+        storage_service_factory,
+        event_bus: EventBus
     ):
-        self.media_queries = media_queries
-        self.state_service = state_service
-        self.file_service = file_service
-        self.recognition_service = recognition_service
-        self.event_service = event_service
-        self.metrics_service = metrics_service
+        self._orchestrator = orchestrator
+        self._media_queries = media_queries
+        self._storage_service_factory = storage_service_factory
+        self._event_bus = event_bus
 
     async def handle(self, command: ProcessTranscriptionCommand):
-        start_time = time.time()
-        logger.info("transcription.started", media_id=command.media_id, provider=command.transcription_provider)
+        """Handle transcription command."""
+        logger.info(
+            "transcription.command.process_started",
+            media_id=command.media_id,
+            provider=command.transcription_provider,
+            language=command.language
+        )
 
-        media = await self.media_queries.get_by_id(command.media_id)
+        media = await self._media_queries.get_by_id(command.media_id)
         if not media:
             raise ValueError(f"Media with id {command.media_id} not found.")
 
         try:
-            # 1. Set initial state
-            transcription = await self.state_service.start_processing(
-                media, command.language, command.transcription_provider
+            # Download audio/video file
+            storage_service = self._storage_service_factory.create_storage_service("local")  # or from command
+            audio_bytes, _ = await storage_service.download(command.file_path)
+
+            if not audio_bytes:
+                raise ValueError("Failed to download audio file or file is empty")
+
+            # Get user ID for notifications
+            user_id = str(media.user_id)
+
+            # Determine if this is video or audio
+            if media.media_type.value in ["VIDEO", "video"]:
+                # Process video transcription
+                transcription = await self._orchestrator.process_video_transcription(
+                    media_id=command.media_id,
+                    video_data=audio_bytes,
+                    language=command.language,
+                    provider=command.transcription_provider,
+                    user_id=user_id
+                )
+            else:
+                # Process audio transcription
+                transcription = await self._orchestrator.process_transcription(
+                    media_id=command.media_id,
+                    audio_data=audio_bytes,
+                    language=command.language,
+                    provider=command.transcription_provider,
+                    user_id=user_id
+                )
+
+            # Publish completion event for next pipeline stage
+            if transcription.text:
+                event = TextContentReady(
+                    media_id=command.media_id,
+                    text_content=transcription.text
+                )
+                await self._event_bus.publish(event)
+
+            logger.info(
+                "transcription.command.process_completed",
+                media_id=command.media_id,
+                transcription_id=str(transcription.id),
+                text_length=len(transcription.text) if transcription.text else 0
             )
-
-            # 2. Download audio file
-            audio_bytes = await self.file_service.download_audio(command.file_path)
-
-            # 3. Perform speech-to-text
-            text = await self.recognition_service.transcribe(audio_bytes, command.language)
-
-            # 4. Set final state
-            await self.state_service.complete_processing(media, transcription, text)
-
-            # 5. Publish completion event
-            await self.event_service.publish_completion_event(command.media_id, text)
-
-            # 6. Record metrics
-            duration = time.time() - start_time
-            self.metrics_service.increment_transcription('success')
-            self.metrics_service.observe_transcription_duration(
-                media_id=command.media_id, 
-                duration=duration, 
-                provider=command.transcription_provider
-            )
-            logger.info("transcription.completed", media_id=command.media_id, duration=duration)
 
         except Exception as e:
-            duration = time.time() - start_time
-            self.metrics_service.increment_transcription('failure')
-            logger.error("transcription.failed", media_id=command.media_id, error=str(e), duration=duration)
-
-            # 4a. Set failure state
-            await self.state_service.fail_processing(media, str(e))
-
-            # 5a. Publish failure event
-            await self.event_service.publish_failure_event(command.media_id, str(e))
-            
+            logger.error(
+                "transcription.command.process_failed",
+                media_id=command.media_id,
+                error=str(e)
+            )
             raise
