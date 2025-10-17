@@ -1,0 +1,1 @@
+# Shared design patterns implementations

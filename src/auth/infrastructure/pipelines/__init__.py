@@ -1,0 +1,1 @@
+# Authentication and authorization pipelines using Chain of Responsibility
