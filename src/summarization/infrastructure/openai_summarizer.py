@@ -1,15 +1,21 @@
 # src/summarization/infrastructure/openai_summarizer.py
-from src.summarization.infrastructure.interfaces import ISummarizer
 import openai
+from typing import Dict, Any, Optional
+
+from src.summarization.domain.interfaces import ISummarizer # Corrigir importação
 
 
 class OpenAISummarizer(ISummarizer):
-    async def summarize(self, text: str) -> str:
+    async def summarize(self, text_content: str, options: Optional[Dict[str, Any]] = None) -> str: # Atualizar assinatura
+        # Usar opções se fornecidas, caso contrário, usar defaults
+        model = options.get("model", "gpt-4") if options else "gpt-4"
+        
         response = await openai.ChatCompletion.acreate(
-            model="gpt-4",
+            model=model,
             messages=[
                 {"role": "system", "content": "Resuma o seguinte texto:"},
-                {"role": "user", "content": text}
-            ]
+                {"role": "user", "content": text_content}
+            ],
+            **options.get("api_params", {}) if options else {} # Passar parâmetros adicionais da API
         )
         return response.choices[0].message["content"].strip()

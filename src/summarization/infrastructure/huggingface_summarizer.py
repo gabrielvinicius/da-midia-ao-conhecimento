@@ -2,12 +2,11 @@ from transformers import pipeline, AutoTokenizer
 import torch
 import asyncio
 from threading import Lock
+from typing import Dict, Any, Optional
 
-from src.summarization.infrastructure.interfaces import ISummarizer
-from src.summarization.infrastructure.dependencies import register_summarizer
+from src.summarization.domain.interfaces import ISummarizer # Corrigir importação
 
 
-@register_summarizer("huggingface")
 class HuggingFaceSummarizer(ISummarizer):
     def __init__(self, model_name="google-t5/t5-base"):
         """
@@ -61,39 +60,43 @@ class HuggingFaceSummarizer(ISummarizer):
             for chunk in chunks
         ]
 
-    async def summarize(self, text: str) -> str:
+    async def summarize(self, text_content: str, options: Optional[Dict[str, Any]] = None) -> str: # Atualizar assinatura
         """Processes the text in chunks and returns the concatenated summary"""
-        if not text.strip():
+        if not text_content.strip():
             return ""
 
         self.empty_device_cache()
 
-        chunks = self.split_text_into_chunks(text)
+        chunks = self.split_text_into_chunks(text_content)
         summaries = []
 
         for chunk in chunks:
-            summary = await self._summarize_chunk(chunk)
+            summary = await self._summarize_chunk(chunk, options)
             summaries.append(summary)
 
         self.empty_device_cache()
 
         return " ".join(summaries)
 
-    async def _summarize_chunk(self, chunk: str) -> str:
+    async def _summarize_chunk(self, chunk: str, options: Optional[Dict[str, Any]] = None) -> str: # Atualizar assinatura
         """Processes an individual chunk with robust error handling"""
         with self.lock:
             loop = asyncio.get_event_loop()
             try:
+                # Usar opções se fornecidas, caso contrário, usar defaults
+                max_length = options.get("max_length", self.max_summary_length) if options else self.max_summary_length
+                min_length = options.get("min_length", self.min_summary_length) if options else self.min_summary_length
+
                 return await loop.run_in_executor(
                     None,
                     lambda: self.summarizer(
                         chunk,
-                        max_length=self.max_summary_length,
-                        min_length=self.min_summary_length,
-                        do_sample=False,
-                        num_beams=4,
-                        truncation=True,
-                        no_repeat_ngram_size=3
+                        max_length=max_length,
+                        min_length=min_length,
+                        do_sample=options.get("do_sample", False) if options else False,
+                        num_beams=options.get("num_beams", 4) if options else 4,
+                        truncation=options.get("truncation", True) if options else True,
+                        no_repeat_ngram_size=options.get("no_repeat_ngram_size", 3) if options else 3
                     )[0]['summary_text']
                 )
             except Exception as e:

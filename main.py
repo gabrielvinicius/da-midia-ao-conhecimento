@@ -21,7 +21,7 @@ from src.media_management.bootstrap import bootstrap_media_module
 from src.video_processing.bootstrap import bootstrap_video_processing_module
 from src.text_processing.bootstrap import bootstrap_text_processing_module, TextProcessingContainer
 from src.transcription.bootstrap import bootstrap_transcription_module
-from src.summarization.bootstrap import bootstrap_summarization_module
+from src.summarization.bootstrap import SummarizationContainer
 from src.notifications.bootstrap import bootstrap_notification_module
 
 from src.sentiment_analysis.bootstrap import bootstrap_sentiment_analysis_module # Import new bootstrap
@@ -94,7 +94,12 @@ async def lifespan(app: FastAPI):
         app_container["text_processing_container"] = text_processing_container
         app_container["process_text_command_handler"] = text_processing_container.process_text_command_handler()
         app_container["extract_text_command_handler"] = text_processing_container.extract_text_command_handler()
-        app_container.update(bootstrap_summarization_module(session, app_container["event_bus"]))
+        summarization_container = SummarizationContainer()
+        summarization_container.db.override(session)
+        app_container["summarization_container"] = summarization_container
+        app_container["summarization_service"] = summarization_container.summarization_service()
+        app_container["process_summary_command_handler"] = summarization_container.process_summary_command_handler()
+        app_container["request_summary_command_handler"] = summarization_container.request_summary_command_handler()
         app_container.update(bootstrap_sentiment_analysis_module(session))
         app_container.update(bootstrap_topic_modeling_module(session))
         app_container.update(bootstrap_admin_module(session, app_container["media_queries"]))
