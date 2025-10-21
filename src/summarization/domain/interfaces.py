@@ -43,3 +43,37 @@ class ISummarizationTaskScheduler(ABC):
     async def schedule_summarization_task(self, media_id: str, text_content: str, provider: str) -> Any:
         """Schedules a summarization task."""
         pass
+
+
+class SummaryOperationLogger(ABC):
+    """Interface for logging summarization operations."""
+
+    @abstractmethod
+    async def log_operation(
+        self,
+        operation: str,
+        media_id: str,
+        provider: str,
+        success: bool,
+        duration: float,
+        error: Optional[Exception] = None
+    ) -> None:
+        """Log summarization operation with structured data."""
+        pass
+
+
+class SummaryMetrics(ABC):
+    """Interface for recording summarization metrics."""
+
+    @abstractmethod
+    async def record_operation(
+        self,
+        operation: str,
+        provider: str,
+        duration: float,
+        success: bool,
+        input_length: int,
+        output_length: int
+    ) -> None:
+        """Record summarization operation metrics."""
+        pass
