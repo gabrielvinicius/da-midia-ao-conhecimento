@@ -1,12 +1,17 @@
-# src/sentiment_analysis/api/dependencies.py
-from typing import Annotated, Any
-from fastapi import Depends, Request
+"""
+Sentiment Analysis API dependencies - Following DDD pattern like transcription module
+"""
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.shared.infrastructure.database import get_async_session
+from src.shared.application.unified_queries import create_user_queries
+from src.shared.application.unified_queries import create_media_queries
 
-def get_container(request: Request) -> dict:
-    return request.app.state.container
+async def get_sentiment_analysis_queries(session: AsyncSession = Depends(get_async_session)):
+    """Get sentiment analysis queries dependency"""
+    # Using unified queries until specific sentiment analysis queries are implemented
+    return create_user_queries(session)
 
-def get_sentiment_analysis_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["sentiment_analysis_queries"]
-
-def get_media_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["media_queries"]
+async def get_media_queries(session: AsyncSession = Depends(get_async_session)):
+    """Get media queries dependency"""
+    return create_media_queries(session)

@@ -1,15 +1,18 @@
-# src/topic_modeling/api/schemas.py
-from pydantic import BaseModel, Field
-from uuid import UUID
+"""
+Topic Modeling API schemas - Following DDD pattern like transcription module
+"""
+from pydantic import BaseModel
 from datetime import datetime
-from typing import List
+from typing import Optional, List, Dict, Any
+from uuid import UUID
 
 class TopicModelingResponse(BaseModel):
-    """Schema for returning topic modeling results."""
-    id: UUID = Field(..., description="The unique identifier for the analysis record.")
-    media_id: UUID = Field(..., description="The ID of the media item that was analyzed.")
-    topics: List[str] = Field(..., description="A list of extracted topics or keywords.", example=["Topic #1: technology, software, engineering", "Topic #2: architecture, design, patterns"])
-    created_at: datetime = Field(..., description="The timestamp when the analysis was completed.")
-
+    """Topic modeling response schema - following same pattern as transcription"""
+    id: str
+    media_id: UUID
+    topics: List[Dict[str, Any]]
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
     class Config:
         from_attributes = True

@@ -5,7 +5,8 @@ from typing import Dict, Any
 from src.shared.events.event_bus import EventBus
 from src.media_management.domain.media import MediaType
 from src.shared.events.domain_events import MediaUploaded
-from src.video_processing.tasks.video_tasks import process_video_task
+# FIXED: Application should not import Tasks directly (Infrastructure concern)
+from src.shared.application.task_orchestrator import schedule_video_processing
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,8 @@ from typing import Dict, Any
 
 from src.shared.events.event_bus import EventBus
 from src.shared.events.domain_events import TextContentReady
-from src.sentiment_analysis.tasks.analysis_tasks import analyze_sentiment_task
+# FIXED: Application should not import Tasks directly (Infrastructure concern)
+from src.shared.application.task_orchestrator import schedule_sentiment_analysis
 
 logger = logging.getLogger(__name__)
 

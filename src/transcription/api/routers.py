@@ -1,8 +1,10 @@
 # src/transcription/api/routers.py
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from typing import Optional
 
 from src.shared.api.dependencies import get_current_user
+from src.shared.api.unified_schemas import create_success_response, create_error_response, BaseResponseSchema
 from src.auth.domain.user import User
 from .dependencies import get_transcription_queries, get_media_queries, get_set_speaker_aliases_handler
 
@@ -11,6 +13,7 @@ from src.transcription.application.queries.transcription_queries import Transcri
 from src.transcription.application.commands.commands import SetSpeakerAliasesCommand
 from src.transcription.application.commands.handlers import SetSpeakerAliasesCommandHandler
 from .schemas import TranscriptionResponse, SpeakerAliasesUpdateRequest
+from ..application.services.provider_selector import transcription_provider_selector
 
 router = APIRouter(prefix="/transcriptions", tags=["Transcriptions"])
 

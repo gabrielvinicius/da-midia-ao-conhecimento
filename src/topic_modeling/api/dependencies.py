@@ -1,12 +1,16 @@
-# src/topic_modeling/api/dependencies.py
-from typing import Annotated, Any
-from fastapi import Depends, Request
+"""
+Topic Modeling API dependencies - Following DDD pattern like transcription module
+"""
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.shared.infrastructure.database import get_async_session
+from src.shared.application.unified_queries import create_topic_modeling_queries
+from src.shared.application.unified_queries import create_media_queries
 
-def get_container(request: Request) -> dict:
-    return request.app.state.container
+async def get_topic_modeling_queries(session: AsyncSession = Depends(get_async_session)):
+    """Get topic modeling queries dependency"""
+    return create_topic_modeling_queries(session)
 
-def get_topic_modeling_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["topic_modeling_queries"]
-
-def get_media_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["media_queries"]
+async def get_media_queries(session: AsyncSession = Depends(get_async_session)):
+    """Get media queries dependency"""
+    return create_media_queries(session)

@@ -6,6 +6,7 @@ from jose import JWTError, jwt
 # This file only imports from the domain layer of auth, which is acceptable
 # as it defines the core User object contract.
 from src.auth.domain.user import User, UserRole
+# This is acceptable as it's auth infrastructure used by shared API
 from src.auth.infrastructure.oauth2_scheme import oauth2_scheme
 
 # --- Helper functions to get dependencies from the container ---

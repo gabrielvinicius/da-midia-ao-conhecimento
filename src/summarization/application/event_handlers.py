@@ -4,8 +4,10 @@ from typing import Dict, Any
 
 from src.shared.events.event_bus import EventBus
 from src.shared.events.domain_events import TextContentReady, MediaDeleted
-from src.summarization.tasks.summary_tasks import process_summary_task
-from src.summarization.infrastructure.summary_repository import SummaryRepository
+# FIXED: Application should not import Tasks directly (Infrastructure concern)
+# Tasks should be handled through Application Services, not direct imports
+# FIXED: Application should not import Infrastructure directly
+from src.shared.application.dependency_injection import get_summary_repository
 from src.media_management.application.queries.media_queries import MediaQueries # Import MediaQueries
 
 logger = logging.getLogger(__name__)

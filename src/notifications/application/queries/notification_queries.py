@@ -3,7 +3,8 @@ from typing import Optional, List
 from uuid import UUID
 
 from src.notifications.domain.notification import Notification
-from src.notifications.infrastructure.notification_repository import NotificationRepository
+# FIXED: Application should not import Infrastructure directly
+from src.shared.application.dependency_injection import get_notification_repository
 
 
 class NotificationQueries:

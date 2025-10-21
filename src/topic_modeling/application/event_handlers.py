@@ -4,7 +4,8 @@ from typing import Dict, Any
 
 from src.shared.events.event_bus import EventBus
 from src.shared.events.domain_events import TextContentReady
-from src.topic_modeling.tasks.topic_tasks import extract_topics_task
+# FIXED: Application should not import Tasks directly (Infrastructure concern)
+from src.shared.application.task_orchestrator import schedule_topic_modeling
 
 logger = logging.getLogger(__name__)
 

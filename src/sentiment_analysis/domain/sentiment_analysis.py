@@ -5,7 +5,8 @@ from typing import Dict, Any, Optional, List
 from sqlalchemy import Column, String, DateTime, ForeignKey, Float, Integer, Boolean, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
-from src.shared.infrastructure.database import Base
+# FIXED: Domain should not import Infrastructure - Critical DDD violation
+from src.shared.domain.base_entity import BaseEntity
 from .interfaces import SentimentLabel, SentimentProvider, AnalysisGranularity
 
 

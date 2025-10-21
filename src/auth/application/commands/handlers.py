@@ -6,7 +6,8 @@ from typing import Dict, Any
 
 from src.auth.config.settings import AuthSettings
 from src.auth.domain.user import User
-from src.auth.infrastructure.user_repository import UserRepository
+# FIXED: Application should not import Infrastructure directly
+from src.shared.application.dependency_injection import get_user_repository
 from src.auth.utils.token import create_access_token
 from src.auth.application.services.user_validator import UserValidator
 from src.auth.application.services.password_service import PasswordService

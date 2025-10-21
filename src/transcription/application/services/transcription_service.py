@@ -7,7 +7,8 @@ from typing import Dict, Any, List, Optional, Set
 from uuid import UUID
 
 from src.transcription.domain.transcription import Transcription
-from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
+# FIXED: Application should not import Infrastructure directly
+from src.shared.application.dependency_injection import get_transcription_repository, ITranscriptionRepository
 from src.transcription.application.commands.commands import (
     ProcessTranscriptionCommand,
     SetSpeakerAliasesCommand
@@ -28,7 +29,7 @@ class TranscriptionService:
     
     def __init__(
         self,
-        transcription_repository: TranscriptionRepository,
+        transcription_repository: ITranscriptionRepository,
         process_transcription_handler: ProcessTranscriptionCommandHandler,
         set_speaker_aliases_handler: SetSpeakerAliasesCommandHandler
     ):

@@ -7,7 +7,8 @@ from typing import Dict, Any, List, Optional
 from uuid import UUID
 
 from src.media_management.domain.media import Media, MediaStatus, MediaType
-from src.media_management.infrastructure.media_repository import MediaRepository
+# FIXED: Application should not import Infrastructure directly
+from src.shared.application.dependency_injection import get_media_repository
 from src.media_management.application.commands.commands import (
     CreateMediaCommand,
     DeleteMediaCommand,

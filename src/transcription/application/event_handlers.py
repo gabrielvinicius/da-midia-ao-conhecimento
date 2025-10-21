@@ -5,8 +5,10 @@ from typing import Dict, Any
 from src.shared.events.event_bus import EventBus
 from src.media_management.domain.media import MediaType
 from src.shared.events.domain_events import MediaUploaded, AudioExtracted, MediaDeleted  # DiarizationCompleted removed
-from src.transcription.tasks.tasks import process_transcription_task  # Diarization removed
-from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
+# FIXED: Application should not import Tasks directly (Infrastructure concern)
+# Tasks should be handled through Application Services, not direct imports
+# FIXED: Application should not import Infrastructure directly
+from src.shared.application.dependency_injection import get_transcription_repository
 from src.media_management.application.queries.media_queries import MediaQueries
 
 logger = logging.getLogger(__name__)

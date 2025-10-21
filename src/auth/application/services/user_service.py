@@ -7,7 +7,8 @@ from typing import Dict, Any, List, Optional
 from uuid import UUID
 
 from src.auth.domain.user import User, UserRole
-from src.auth.infrastructure.user_repository import UserRepository
+# FIXED: Application should not import Infrastructure directly
+from src.shared.application.dependency_injection import get_user_repository
 from src.auth.application.commands.commands import (
     CreateUserCommand,
     UpdateUserCommand,

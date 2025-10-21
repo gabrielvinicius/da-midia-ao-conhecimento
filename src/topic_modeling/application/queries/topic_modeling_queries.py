@@ -2,7 +2,8 @@
 from typing import Optional
 
 from src.topic_modeling.domain.topic_modeling import TopicModelingResult
-from src.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
+# FIXED: Application should not import Infrastructure directly
+from src.shared.application.dependency_injection import get_topic_modeling_repository
 
 
 class TopicModelingQueries:

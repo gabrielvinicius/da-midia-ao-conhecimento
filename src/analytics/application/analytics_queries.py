@@ -1,5 +1,6 @@
 # src/analytics/application/analytics_queries.py
-from src.analytics.infrastructure.analytics_repository import AnalyticsRepository
+# FIXED: Application should not import Infrastructure directly
+from src.shared.application.dependency_injection import get_analytics_repository
 from src.analytics.config.settings import AnalyticsSettings
 
 

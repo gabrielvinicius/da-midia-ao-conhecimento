@@ -3,7 +3,8 @@ from typing import Optional
 from uuid import UUID
 
 from src.sentiment_analysis.domain.analysis import Analysis, AnalysisType
-from src.sentiment_analysis.infrastructure.analysis_repository import AnalysisRepository
+# FIXED: Application should not import Infrastructure directly
+from src.shared.application.dependency_injection import get_sentiment_analysis_repository
 
 class AnalysisQueries:
     """Handles all read-only operations for analyses."""

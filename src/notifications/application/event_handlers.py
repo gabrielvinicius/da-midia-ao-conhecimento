@@ -4,7 +4,8 @@ from typing import Dict, Any
 
 from src.shared.events.event_bus import EventBus
 from src.shared.events.domain_events import NotificationRequested
-from src.notifications.tasks.notification_tasks import send_notification_task
+# FIXED: Application should not import Tasks directly (Infrastructure concern)
+from src.shared.application.task_orchestrator import schedule_notification
 
 logger = logging.getLogger(__name__)
 

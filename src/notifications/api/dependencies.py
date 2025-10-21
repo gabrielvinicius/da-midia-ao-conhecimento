@@ -4,7 +4,8 @@ from typing import Annotated
 
 from src.notifications.application.commands.request_notification_command_handler import RequestNotificationCommandHandler
 from src.notifications.application.queries.notification_queries import NotificationQueries
-from src.notifications.infrastructure.connection_manager import ConnectionManager, manager
+# FIXED: Should use application layer service, not direct infrastructure import
+from src.shared.infrastructure.unified_notification import UnifiedNotificationService
 
 # --- Service and Query Getters ---
 

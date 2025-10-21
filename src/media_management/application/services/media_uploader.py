@@ -3,8 +3,9 @@ from uuid import UUID
 import structlog
 
 from src.media_management.domain.interfaces import IMediaUploader
-from src.storage.infrastructure.dependencies import StorageServiceFactory
-from src.shared.decorators.decorator_factory import write_operation
+# FIXED: Application should not import Infrastructure directly
+from src.shared.infrastructure.unified_storage import StorageFactory
+from src.shared.utils.simple_decorators import simple_logger
 
 logger = structlog.get_logger(__name__)
 

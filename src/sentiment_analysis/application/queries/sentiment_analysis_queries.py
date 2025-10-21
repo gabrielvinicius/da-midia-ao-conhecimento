@@ -2,7 +2,8 @@
 from typing import Optional
 
 from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysisResult
-from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import SentimentAnalysisRepository
+# FIXED: Application should not import Infrastructure directly
+from src.shared.application.dependency_injection import get_sentiment_analysis_repository
 
 
 class SentimentAnalysisQueries:

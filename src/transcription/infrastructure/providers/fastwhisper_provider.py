@@ -1,279 +1,265 @@
-# src/transcription/infrastructure/providers/fastwhisper_provider.py
 """
-FastWhisper speech recognition provider - OCP and SRP compliance.
+FastWhisper Provider - High-performance Whisper implementation
 """
-import asyncio
-import numpy as np
-from typing import Dict, Any, List
-from faster_whisper import WhisperModel
+import structlog
+from typing import Dict, Any, List, Optional
+import tempfile
+import os
+from pathlib import Path
 
-from src.transcription.domain.interfaces import TranscriptionConfiguration, AudioFormat
-from src.transcription.infrastructure.providers.base_provider import (
-    BaseSpeechRecognitionProvider, 
-    SpeechRecognitionProviderError
-)
+from src.shared.infrastructure.unified_providers import TranscriptionProvider, ProviderResult
 
+logger = structlog.get_logger(__name__)
 
-class FastWhisperConfiguration(TranscriptionConfiguration):
-    """Configuration for FastWhisper speech recognition - SRP compliance."""
+class FastWhisperProvider(TranscriptionProvider):
+    """FastWhisper provider for high-performance speech recognition"""
     
-    def __init__(
-        self,
-        model_size: str = "base",
-        device: str = "cpu",
-        compute_type: str = "int8",
-        max_file_size: int = 100 * 1024 * 1024,  # 100MB
-        sample_rate: int = 16000,
-        beam_size: int = 5,
-        vad_filter: bool = True,
-        min_silence_duration_ms: int = 500
-    ):
-        self.model_size = model_size
-        self.device = device
-        self.compute_type = compute_type
-        self.max_file_size = max_file_size
-        self.sample_rate = sample_rate
-        self.beam_size = beam_size
-        self.vad_filter = vad_filter
-        self.min_silence_duration_ms = min_silence_duration_ms
+    def __init__(self, config: Dict = None):
+        super().__init__("fastwhisper", config)
+        self.config = config or {}
+        self._initialize_fastwhisper()
     
-    def get_config(self) -> Dict[str, Any]:
-        """Get configuration dictionary."""
-        return {
-            "model_size": self.model_size,
-            "device": self.device,
-            "compute_type": self.compute_type,
-            "max_file_size": self.max_file_size,
-            "sample_rate": self.sample_rate,
-            "beam_size": self.beam_size,
-            "vad_filter": self.vad_filter,
-            "min_silence_duration_ms": self.min_silence_duration_ms
-        }
-    
-    def validate_config(self) -> bool:
-        """Validate configuration."""
-        valid_models = ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"]
-        valid_devices = ["cpu", "cuda"]
-        valid_compute_types = ["int8", "int16", "float16", "float32"]
-        
-        return (
-            self.model_size in valid_models and
-            self.device in valid_devices and
-            self.compute_type in valid_compute_types and
-            self.max_file_size > 0 and
-            self.sample_rate > 0 and
-            self.beam_size > 0
-        )
-    
-    def get_supported_formats(self) -> List[AudioFormat]:
-        """Get supported audio formats."""
-        return [
-            AudioFormat.MP3,
-            AudioFormat.WAV,
-            AudioFormat.M4A,
-            AudioFormat.FLAC,
-            AudioFormat.OGG,
-            AudioFormat.AAC
-        ]
-    
-    def get_max_file_size(self) -> int:
-        """Get maximum file size in bytes."""
-        return self.max_file_size
-
-
-class FastWhisperSpeechRecognitionProvider(BaseSpeechRecognitionProvider):
-    """
-    FastWhisper speech recognition provider.
-    Follows OCP - can be extended without modification.
-    """
-    
-    def __init__(self, config: FastWhisperConfiguration):
-        super().__init__(config)
-        self._config = config
-        self._model = None
-    
-    @property
-    def provider_name(self) -> str:
-        """Provider identifier."""
-        return "fastwhisper"
-    
-    def _initialize_provider(self) -> None:
-        """Initialize FastWhisper model."""
+    def _initialize_fastwhisper(self):
+        """Initialize FastWhisper model"""
         try:
-            self._model = WhisperModel(
-                self._config.model_size,
-                device=self._config.device,
-                compute_type=self._config.compute_type
+            import faster_whisper
+            
+            # Model configuration
+            model_size = self.config.get('model_size', 'base')
+            device = self.config.get('device', 'auto')  # auto, cpu, cuda
+            compute_type = self.config.get('compute_type', 'int8')  # int8, float16, float32
+            
+            self.logger.info("Initializing FastWhisper model", 
+                           model_size=model_size, 
+                           device=device,
+                           compute_type=compute_type)
+            
+            # Initialize model
+            self.model = faster_whisper.WhisperModel(
+                model_size,
+                device=device,
+                compute_type=compute_type,
+                download_root=self.config.get('cache_dir'),
+                local_files_only=self.config.get('local_files_only', False)
             )
+            
+            # Model configuration
+            self.supported_languages = {
+                'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German',
+                'it': 'Italian', 'pt': 'Portuguese', 'ru': 'Russian', 'ja': 'Japanese',
+                'ko': 'Korean', 'zh': 'Chinese', 'ar': 'Arabic', 'hi': 'Hindi',
+                'auto': 'Auto-detect'
+            }
+            
+            self.logger.info("FastWhisper model initialized successfully")
+            
+        except ImportError:
+            self.logger.error("faster-whisper package not installed")
+            raise ImportError("faster-whisper package is required. Install with: pip install faster-whisper")
         except Exception as e:
-            raise SpeechRecognitionProviderError(f"Failed to load FastWhisper model: {e}") from e
+            self.logger.error("Failed to initialize FastWhisper model", error=str(e))
+            raise
     
-    async def _do_transcribe(self, audio_data: bytes, language: str) -> Dict[str, Any]:
-        """Actual transcription implementation using FastWhisper."""
+    async def _execute(self, audio_data: bytes, **kwargs) -> Dict[str, Any]:
+        """Execute transcription using FastWhisper"""
+        language = kwargs.get('language', 'auto')
+        
         try:
-            # Decode audio to numpy array
-            audio_array, sample_rate = await self._decode_audio_bytes(audio_data)
+            self.logger.info("Starting FastWhisper transcription", 
+                           language=language, 
+                           audio_size=len(audio_data))
+            
+            # Validate language
+            if language not in self.supported_languages:
+                language = 'auto'
+                self.logger.warning("Unsupported language, using auto-detect", 
+                                  requested_language=kwargs.get('language'))
+            
+            # Save audio to temporary file
+            audio_result = await self._transcribe_audio_data(audio_data, language, **kwargs)
+            
+            self.logger.info("FastWhisper transcription completed", 
+                           text_length=len(audio_result.get('text', '')),
+                           detected_language=audio_result.get('language'))
+            
+            return audio_result
+            
+        except Exception as e:
+            self.logger.error("FastWhisper transcription failed", error=str(e))
+            raise
+    
+    async def _transcribe_audio_data(self, audio_data: bytes, language: str, **kwargs) -> Dict[str, Any]:
+        """Transcribe audio data using FastWhisper"""
+        # Create temporary file for audio
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+            temp_file.write(audio_data)
+            temp_path = temp_file.name
+        
+        try:
+            # Transcription options
+            options = {
+                'language': None if language == 'auto' else language,
+                'task': kwargs.get('task', 'transcribe'),  # transcribe or translate
+                'beam_size': kwargs.get('beam_size', 5),
+                'best_of': kwargs.get('best_of', 5),
+                'patience': kwargs.get('patience', 1.0),
+                'length_penalty': kwargs.get('length_penalty', 1.0),
+                'repetition_penalty': kwargs.get('repetition_penalty', 1.0),
+                'no_repeat_ngram_size': kwargs.get('no_repeat_ngram_size', 0),
+                'temperature': kwargs.get('temperature', [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]),
+                'compression_ratio_threshold': kwargs.get('compression_ratio_threshold', 2.4),
+                'log_prob_threshold': kwargs.get('log_prob_threshold', -1.0),
+                'no_speech_threshold': kwargs.get('no_speech_threshold', 0.6),
+                'condition_on_previous_text': kwargs.get('condition_on_previous_text', True),
+                'prompt_reset_on_temperature': kwargs.get('prompt_reset_on_temperature', 0.5),
+                'initial_prompt': kwargs.get('initial_prompt'),
+                'prefix': kwargs.get('prefix'),
+                'suppress_blank': kwargs.get('suppress_blank', True),
+                'suppress_tokens': kwargs.get('suppress_tokens', [-1]),
+                'without_timestamps': kwargs.get('without_timestamps', False),
+                'max_initial_timestamp': kwargs.get('max_initial_timestamp', 1.0),
+                'word_timestamps': kwargs.get('word_timestamps', False),
+                'prepend_punctuations': kwargs.get('prepend_punctuations', "\"'"¿([{-"),
+                'append_punctuations': kwargs.get('append_punctuations', "\"'.。,，!！?？:：")]}、"),
+            }
+            
+            # Remove None values
+            options = {k: v for k, v in options.items() if v is not None}
             
             # Perform transcription
-            segments, info = await asyncio.to_thread(
-                self._model.transcribe,
-                audio_array,
-                language=language if language != "auto" else None,
-                beam_size=self._config.beam_size,
-                vad_filter=self._config.vad_filter,
-                vad_parameters=dict(min_silence_duration_ms=self._config.min_silence_duration_ms)
-            )
+            segments, info = self.model.transcribe(temp_path, **options)
             
-            # Convert generator to list
-            segments_list = list(segments)
+            # Process results
+            text_segments = []
+            full_text = ""
             
-            return self._format_fastwhisper_result(segments_list, info)
+            for segment in segments:
+                segment_data = {
+                    'id': segment.id,
+                    'start': segment.start,
+                    'end': segment.end,
+                    'text': segment.text.strip(),
+                    'tokens': segment.tokens if hasattr(segment, 'tokens') else [],
+                    'temperature': segment.temperature if hasattr(segment, 'temperature') else None,
+                    'avg_logprob': segment.avg_logprob if hasattr(segment, 'avg_logprob') else None,
+                    'compression_ratio': segment.compression_ratio if hasattr(segment, 'compression_ratio') else None,
+                    'no_speech_prob': segment.no_speech_prob if hasattr(segment, 'no_speech_prob') else None,
+                }
+                
+                # Add word-level timestamps if available
+                if hasattr(segment, 'words') and segment.words:
+                    segment_data['words'] = [
+                        {
+                            'word': word.word,
+                            'start': word.start,
+                            'end': word.end,
+                            'probability': word.probability if hasattr(word, 'probability') else None
+                        }
+                        for word in segment.words
+                    ]
+                
+                text_segments.append(segment_data)
+                full_text += segment.text
             
-        except Exception as e:
-            raise SpeechRecognitionProviderError(f"FastWhisper transcription failed: {e}") from e
-    
-    async def get_supported_languages(self) -> List[str]:
-        """Get supported languages."""
-        # FastWhisper supports the same languages as Whisper
-        return [
-            "en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh",
-            "ar", "hi", "tr", "pl", "nl", "sv", "da", "no", "fi", "hu",
-            "cs", "sk", "sl", "hr", "bg", "ro", "uk", "ca", "eu", "gl",
-            "is", "mt", "cy", "ga", "gd", "br", "co", "la", "mi", "oc",
-            "yi", "ne", "si", "my", "km", "lo", "bn", "ml", "ta", "te"
-        ]
-    
-    def _supports_timestamps(self) -> bool:
-        """Whether provider supports timestamps."""
-        return True
-    
-    def _supports_speaker_diarization(self) -> bool:
-        """Whether provider supports speaker diarization."""
-        return False  # FastWhisper doesn't natively support speaker diarization
-    
-    def _supports_word_level_timestamps(self) -> bool:
-        """Whether provider supports word-level timestamps."""
-        return True
-    
-    async def _decode_audio_bytes(self, file_bytes: bytes) -> tuple[np.ndarray, int]:
-        """Decode audio bytes using FFmpeg."""
-        command = [
-            'ffmpeg',
-            '-i', 'pipe:0',  # Input from stdin
-            '-f', 's16le',  # Output format: PCM signed 16-bit little-endian
-            '-ac', '1',  # Single channel (mono)
-            '-ar', str(self._config.sample_rate),  # Sample rate
-            '-loglevel', 'error',  # Only log errors
-            '-hide_banner',  # Hide banner info
-            'pipe:1'  # Output to stdout
-        ]
-
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-
-            stdout, stderr = await process.communicate(input=file_bytes)
-            await process.wait()
-
-            if process.returncode != 0:
-                err_msg = stderr.decode().strip() if stderr else f"FFmpeg error {process.returncode}"
-                raise SpeechRecognitionProviderError(f"Audio decoding failed: {err_msg}")
-
-            # Convert bytes to numpy int16 array, then normalize to float32
-            audio_array = np.frombuffer(stdout, dtype=np.int16)
-            audio_array = audio_array.astype(np.float32) / 32768.0  # Normalize to [-1, 1]
-            
-            return audio_array, self._config.sample_rate
-            
-        except Exception as e:
-            raise SpeechRecognitionProviderError(f"Audio decoding failed: {e}") from e
-    
-    def _format_fastwhisper_result(self, segments_list: List, info) -> Dict[str, Any]:
-        """Format FastWhisper result to standard structure."""
-        formatted_segments = []
-        full_text_parts = []
-        
-        for segment in segments_list:
-            segment_text = segment.text.strip()
-            full_text_parts.append(segment_text)
-            
-            formatted_segment = {
-                "text": segment_text,
-                "start": segment.start,
-                "end": segment.end,
-                "confidence": getattr(segment, 'avg_logprob', 0.0)
+            # Compile results
+            result = {
+                'text': full_text.strip(),
+                'language': info.language,
+                'language_probability': info.language_probability,
+                'duration': info.duration,
+                'duration_after_vad': info.duration_after_vad if hasattr(info, 'duration_after_vad') else info.duration,
+                'all_language_probs': info.all_language_probs if hasattr(info, 'all_language_probs') else None,
+                'segments': text_segments,
+                'model_info': {
+                    'model_size': self.config.get('model_size', 'base'),
+                    'device': self.config.get('device', 'auto'),
+                    'compute_type': self.config.get('compute_type', 'int8')
+                }
             }
             
-            # Add word-level information if available
-            if hasattr(segment, 'words') and segment.words:
-                formatted_segment["words"] = [
-                    {
-                        "word": word.word,
-                        "start": word.start,
-                        "end": word.end,
-                        "confidence": getattr(word, 'probability', 0.0)
-                    }
-                    for word in segment.words
-                ]
+            return result
             
-            formatted_segments.append(formatted_segment)
-        
-        # Extract information from info object
-        detected_language = getattr(info, 'language', 'unknown')
-        language_probability = getattr(info, 'language_probability', 0.0)
-        
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+    
+    def get_capabilities(self) -> Dict[str, Any]:
+        """Get FastWhisper provider capabilities"""
         return {
-            "text": " ".join(full_text_parts),
-            "language": detected_language,
-            "confidence": language_probability,
-            "segments": formatted_segments,
-            "processing_time": 0.0,  # FastWhisper doesn't provide this directly
-            "fastwhisper_specific": {
-                "model_size": self._config.model_size,
-                "device": self._config.device,
-                "compute_type": self._config.compute_type,
-                "vad_filter": self._config.vad_filter,
-                "beam_size": self._config.beam_size
-            }
+            "provider": self.provider_name,
+            "type": self.provider_type.value,
+            "supports_async": True,
+            "supported_languages": list(self.supported_languages.keys()),
+            "language_names": self.supported_languages,
+            "features": {
+                "word_timestamps": True,
+                "language_detection": True,
+                "translation": True,
+                "streaming": False,
+                "batch_processing": True,
+                "punctuation": True,
+                "speaker_diarization": False
+            },
+            "audio_formats": [
+                "wav", "mp3", "m4a", "ogg", "flac", "aac"
+            ],
+            "max_audio_length": 3600,  # 1 hour in seconds
+            "model_sizes": ["tiny", "base", "small", "medium", "large-v1", "large-v2", "large-v3"],
+            "current_model": self.config.get('model_size', 'base')
         }
     
-    async def _detect_language(self, audio_data: bytes) -> str:
-        """Detect language using FastWhisper."""
+    async def health_check(self) -> bool:
+        """Check if FastWhisper provider is healthy"""
         try:
-            # Use a small sample for language detection
-            audio_array, _ = await self._decode_audio_bytes(audio_data[:1024*1024])  # First 1MB
+            # Create a small test audio (1 second of silence)
+            import numpy as np
+            sample_rate = 16000
+            duration = 1
+            silence = np.zeros(sample_rate * duration, dtype=np.float32)
             
-            # Use transcribe with language detection
-            segments, info = await asyncio.to_thread(
-                self._model.transcribe,
-                audio_array[:self._config.sample_rate * 30],  # First 30 seconds
-                beam_size=1,  # Faster for detection
-                vad_filter=False
-            )
+            # Convert to bytes (simple WAV format)
+            import wave
+            import io
             
-            # Extract detected language
-            detected_language = getattr(info, 'language', 'en')
-            return detected_language
+            buffer = io.BytesIO()
+            with wave.open(buffer, 'wb') as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(sample_rate)
+                wav_file.writeframes((silence * 32767).astype(np.int16).tobytes())
             
-        except Exception:
-            # Fallback to English
-            return "en"
+            test_audio = buffer.getvalue()
+            
+            # Try to transcribe
+            result = await self._execute(test_audio, language='en')
+            
+            # Health check passes if we get a result (even if empty text)
+            return isinstance(result, dict) and 'text' in result
+            
+        except Exception as e:
+            self.logger.error("FastWhisper health check failed", error=str(e))
+            return False
     
-    async def _get_provider_specific_capabilities(self) -> Dict[str, Any]:
-        """Get FastWhisper-specific capabilities."""
-        return {
-            "model_size": self._config.model_size,
-            "device": self._config.device,
-            "compute_type": self._config.compute_type,
-            "sample_rate": self._config.sample_rate,
-            "supports_vad": True,
-            "supports_beam_search": True,
-            "supports_language_detection": True,
-            "available_models": ["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"],
-            "available_devices": ["cpu", "cuda"],
-            "available_compute_types": ["int8", "int16", "float16", "float32"]
+    def get_supported_languages(self) -> List[str]:
+        """Get list of supported languages"""
+        return list(self.supported_languages.keys())
+    
+    def estimate_processing_time(self, audio_duration: float) -> float:
+        """Estimate processing time based on audio duration"""
+        # FastWhisper is typically 10-20x faster than real-time
+        # This depends on model size and hardware
+        model_size = self.config.get('model_size', 'base')
+        
+        speed_multipliers = {
+            'tiny': 30,    # 30x real-time
+            'base': 20,    # 20x real-time
+            'small': 15,   # 15x real-time
+            'medium': 10,  # 10x real-time
+            'large-v1': 5, # 5x real-time
+            'large-v2': 5,
+            'large-v3': 5
         }
+        
+        multiplier = speed_multipliers.get(model_size, 15)
+        return audio_duration / multiplier

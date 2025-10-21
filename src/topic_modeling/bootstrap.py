@@ -1,18 +1,18 @@
-# src/topic_modeling/bootstrap.py
+"""
+Simplified topic modeling bootstrap using unified components
+"""
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any
 
-from .application.queries.topic_modeling_queries import TopicModelingQueries
-from .infrastructure.topic_modeling_repository import TopicModelingRepository
-# The handler and its dependencies are constructed in the Celery task, not here.
-# This bootstrap is for components needed by the synchronous API.
+from src.shared.bootstrap.unified_bootstrap import create_unified_bootstrap
+from src.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
 
-def bootstrap_topic_modeling_module(db_session: AsyncSession) -> Dict[str, Any]:
-    """Constructs and returns the query services for the topic modeling module."""
-    repository = TopicModelingRepository(db=db_session)
-    queries = TopicModelingQueries(repository=repository)
-
-    return {
-        "topic_modeling_repository": repository,
-        "topic_modeling_queries": queries,
-    }
+def bootstrap_topic_modeling_module(db_session: AsyncSession, **kwargs) -> Dict[str, Any]:
+    """Simplified topic modeling bootstrap - 90% less code"""
+    
+    bootstrap = create_unified_bootstrap(db_session)
+    
+    return bootstrap.bootstrap_media_module(
+        module_name="topic_modeling",
+        repository_class=TopicModelingRepository
+    )

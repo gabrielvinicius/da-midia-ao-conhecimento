@@ -5,9 +5,10 @@ from uuid import UUID
 
 from src.shared.api.dependencies import get_current_user
 from src.auth.domain.user import User
-from src.storage.infrastructure.dependencies import get_available_storage_providers
-from src.transcription.infrastructure.dependencies import get_available_speech_recognition_providers
-from src.summarization.infrastructure.dependencies import get_available_summarizer_providers
+# FIXED: Dependencies should come from application layer, not infrastructure
+# This violates DDD - infrastructure should not be imported directly by API layer
+from src.shared.application.unified_services import ServiceFactory
+from src.shared.providers.simple_providers import provider_registry
 from src.providers.domain.interfaces import ProviderType, ProviderCapability
 from .dependencies import (
     get_provider_registry, get_provider_selector, get_provider_health_checker,
