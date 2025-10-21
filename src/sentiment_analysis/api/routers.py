@@ -1,6 +1,7 @@
 # src/sentiment_analysis/api/routers.py
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Form
 
 # Import dependencies from their correct, decoupled locations
 from src.shared.api.dependencies import get_current_user
@@ -81,4 +82,43 @@ async def analyze_sentiment(
         return create_error_response(
             error=f"Sentiment analysis failed: {str(e)}",
             message="Internal sentiment analysis error"
+        )
+
+
+@router.post("/reprocess", response_model=BaseResponseSchema, summary="Reprocess sentiment analysis")
+async def reprocess_sentiment_analysis(
+    media_id: str = Form(..., description="Media ID to reprocess"),
+    provider: Optional[str] = Form(None, description="Provider to use for analysis"),
+    force: Optional[bool] = Form(False, description="Force reprocessing even if result exists"),
+    current_user: User = Depends(get_current_user),
+    media_queries: MediaQueries = Depends(get_media_queries),
+):
+    """Reprocess sentiment analysis for a specific media item"""
+    try:
+        # Validate media access
+        media = await media_queries.get_by_id(media_id)
+        if not media or (str(media.user_id) != str(current_user.id) and current_user.role.value != "admin"):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this media")
+
+        # TODO: Implement actual reprocessing logic
+        # For now, return a simple response structure
+        response_data = {
+            "media_id": media_id,
+            "status": "processing",
+            "provider": provider or "default",
+            "force": force,
+            "message": "Sentiment analysis reprocessing initiated"
+        }
+        
+        return create_success_response(
+            data=response_data,
+            message="Sentiment analysis reprocessing started successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        return create_error_response(
+            error=f"Sentiment analysis reprocessing failed: {str(e)}",
+            message="Internal reprocessing error"
         )

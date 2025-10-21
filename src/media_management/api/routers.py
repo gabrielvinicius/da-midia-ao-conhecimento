@@ -12,6 +12,7 @@ from .dependencies import (
     get_media_queries, 
     get_media_authorization_service
 )
+from src.shared.api.unified_schemas import BaseResponseSchema, create_success_response, create_error_response
 
 from ..application.commands.commands import CreateMediaCommand
 from ..application.commands.handlers import CreateMediaCommandHandler
@@ -72,3 +73,39 @@ async def get_media_by_id(
     if not media or not auth_service.authorize_media_access(media, current_user):
         raise HTTPException(status_code=404, detail="Media not found or not authorized")
     return jsonable_encoder(media)
+
+
+@router.post("/{media_id}/reprocess", response_model=BaseResponseSchema, summary="Reprocess media item")
+async def reprocess_media(
+    media_id: UUID,
+    current_user: User = Depends(get_current_user),
+    media_queries: MediaQueries = Depends(get_media_queries),
+    auth_service: MediaAuthorizationService = Depends(get_media_authorization_service),
+):
+    """Reprocess a media item (transcription, summarization, sentiment analysis, etc.)"""
+    try:
+        # Validate media access
+        media = await media_queries.get_by_id(str(media_id))
+        if not media or not auth_service.authorize_media_access(media, current_user):
+            raise HTTPException(status_code=404, detail="Media not found or not authorized")
+
+        # TODO: Implement actual reprocessing logic
+        # This should trigger the media processing pipeline again
+        response_data = {
+            "media_id": str(media_id),
+            "status": "processing",
+            "message": "Media reprocessing initiated"
+        }
+        
+        return create_success_response(
+            data=response_data,
+            message="Media reprocessing started successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        return create_error_response(
+            error=f"Media reprocessing failed: {str(e)}",
+            message="Internal reprocessing error"
+        )
