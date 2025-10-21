@@ -19,7 +19,7 @@ from src.auth.bootstrap import bootstrap_auth_module
 from src.media_management.bootstrap import bootstrap_media_module
 # from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
 from src.video_processing.bootstrap import bootstrap_video_processing_module
-from src.text_processing.bootstrap import bootstrap_text_processing_module
+from src.text_processing.bootstrap import bootstrap_text_processing_module, TextProcessingContainer
 from src.transcription.bootstrap import bootstrap_transcription_module
 from src.summarization.bootstrap import bootstrap_summarization_module
 from src.notifications.bootstrap import bootstrap_notification_module
@@ -89,7 +89,11 @@ async def lifespan(app: FastAPI):
         app_container.update(bootstrap_transcription_module(session, app_container["media_queries"], manager))
         app_container.update(bootstrap_notification_module(session, auth_queries=app_container["auth_queries"], event_bus=app_container["event_bus"]))
         app_container.update(bootstrap_video_processing_module(app_container["media_queries"], app_container["media_repository"], app_container["storage_service_factory"], app_container["event_bus"]))
-        app_container.update(bootstrap_text_processing_module(session, app_container["media_queries"], app_container["storage_service_factory"], app_container["event_bus"]))
+        text_processing_container = TextProcessingContainer()
+        text_processing_container.db.override(session)
+        app_container["text_processing_container"] = text_processing_container
+        app_container["process_text_command_handler"] = text_processing_container.process_text_command_handler()
+        app_container["extract_text_command_handler"] = text_processing_container.extract_text_command_handler()
         app_container.update(bootstrap_summarization_module(session, app_container["event_bus"]))
         app_container.update(bootstrap_sentiment_analysis_module(session))
         app_container.update(bootstrap_topic_modeling_module(session))
@@ -106,7 +110,7 @@ async def lifespan(app: FastAPI):
         from src.topic_modeling.application.event_handlers import register_event_handlers as register_topic_handlers
         
         await register_video_handlers(app_container["event_bus"])
-        await register_text_handlers(app_container["event_bus"])
+        await register_text_handlers(app_container["event_bus"], app_container["text_processing_container"].text_processing_task_scheduler())
         await register_transcription_handlers(app_container["event_bus"], app_container["transcription_repository"], app_container["media_queries"])
         await register_summary_handlers(app_container["event_bus"], app_container["summary_repository"], app_container["media_queries"])
         await register_notification_handlers(app_container["event_bus"])

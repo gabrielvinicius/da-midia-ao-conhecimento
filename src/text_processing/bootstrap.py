@@ -1,29 +1,38 @@
 # src/text_processing/bootstrap.py
-from sqlalchemy.ext.asyncio import AsyncSession
+from dependency_injector import containers, providers
+from sqlalchemy.ext.asyncio import AsyncSession # Manter se necessário para o db
 from typing import Dict, Any
 
-from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_management.infrastructure.media_repository import MediaRepository
-from src.storage.infrastructure.dependencies import StorageServiceFactory
-from src.shared.events.event_bus import EventBus
-from .application.commands.process_text_command_handler import ProcessTextCommandHandler
+from src.text_processing.domain.interfaces import ITextProcessor, ITextExtractor, ITextProcessingTaskScheduler # Adicionar ITextProcessingTaskScheduler
+from src.text_processing.infrastructure.text_processor import TextProcessor
+from src.text_processing.infrastructure.text_extractor import TextExtractor
+from src.text_processing.infrastructure.task_scheduler import CeleryTextProcessingTaskScheduler # Adicionar CeleryTextProcessingTaskScheduler
+from src.text_processing.application.commands.handlers import ProcessTextCommandHandler, ExtractTextCommandHandler
 
-def bootstrap_text_processing_module(
-    db_session: AsyncSession,
-    media_queries: MediaQueries,
-    storage_service_factory: StorageServiceFactory,
-    event_bus: EventBus,
-) -> Dict[str, Any]:
-    """Constructs and returns the services for the text_processing module."""
-    # The handler needs its own instance of the media repository to save state changes
-    media_repository = MediaRepository(db=db_session)
-    
-    process_text_handler = ProcessTextCommandHandler(
-        media_queries=media_queries,
-        media_repository=media_repository,
-        storage_service_factory=storage_service_factory,
-        event_bus=event_bus
+class TextProcessingContainer(containers.DeclarativeContainer):
+    # Configuração de wiring, se houver routers ou dependências FastAPI
+    # wiring_config = containers.WiringConfiguration(modules=[]) # Não há routers FastAPI diretamente neste módulo
+
+    # Dependências de infraestrutura
+    db: providers.Provider[AsyncSession] = providers.Dependency()
+
+    # Implementações concretas das interfaces de domínio
+    text_processor: providers.Provider[ITextProcessor] = providers.Factory(
+        TextProcessor
     )
-    return {
-        "process_text_handler": process_text_handler
-    }
+    text_extractor: providers.Provider[ITextExtractor] = providers.Factory(
+        TextExtractor
+    )
+    text_processing_task_scheduler: providers.Provider[ITextProcessingTaskScheduler] = providers.Factory( # Adicionar este provedor
+        CeleryTextProcessingTaskScheduler
+    )
+
+    # Command Handlers
+    process_text_command_handler: providers.Provider[ProcessTextCommandHandler] = providers.Factory(
+        ProcessTextCommandHandler,
+        text_processor=text_processor
+    )
+    extract_text_command_handler: providers.Provider[ExtractTextCommandHandler] = providers.Factory(
+        ExtractTextCommandHandler,
+        text_extractor=text_extractor
+    )
