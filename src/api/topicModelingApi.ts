@@ -20,3 +20,30 @@ export const getTopicModelingResultByMediaId = async (mediaId: string): Promise<
   const response = await topicModelingApi.get(`/?media_id=${mediaId}`);
   return response.data;
 };
+
+export const reprocessTopicModeling = async (
+  mediaId: string,
+  options?: {
+    numTopics?: number;
+    force?: boolean;
+  }
+): Promise<any> => {
+  const formData = new FormData();
+  formData.append("media_id", mediaId);
+  
+  if (options?.numTopics) {
+    formData.append("num_topics", options.numTopics.toString());
+  }
+  if (options?.force !== undefined) {
+    formData.append("force", options.force.toString());
+  }
+
+  const response = await topicModelingApi.post("/reprocess", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response.data;
+};
+
+export default topicModelingApi;
