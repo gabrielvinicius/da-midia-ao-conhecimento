@@ -13,9 +13,10 @@ from src.transcription.application.queries.transcription_queries import Transcri
 from src.transcription.application.commands.commands import SetSpeakerAliasesCommand
 from src.transcription.application.commands.handlers import SetSpeakerAliasesCommandHandler
 from .schemas import TranscriptionResponse, SpeakerAliasesUpdateRequest
-from ..application.services.provider_selector import transcription_provider_selector
-
 router = APIRouter(prefix="/transcriptions", tags=["Transcriptions"])
+
+# Import transcription service for processing
+from ..application.services.fastwhisper_service import fastwhisper_service
 
 
 @router.put("/{transcription_id}/speaker-aliases", response_model=TranscriptionResponse, summary="Set Speaker Aliases for a Transcription")
@@ -70,3 +71,69 @@ async def get_transcription_by_id(
     if not media or (str(media.user_id) != str(current_user.id) and current_user.role.value != "admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this transcription")
     return transcription
+
+
+@router.post("/reprocess", response_model=BaseResponseSchema, summary="Reprocess transcription")
+async def reprocess_transcription(
+    media_id: str = Form(..., description="Media ID to reprocess"),
+    provider: Optional[str] = Form(None, description="Provider to use (fastwhisper, whisper, etc.)"),
+    language: str = Form("auto", description="Language code"),
+    force: bool = Form(False, description="Force reprocessing even if already completed"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Reprocess transcription for existing media
+    Useful for: changing providers, languages, or fixing failed transcriptions
+    """
+    try:
+        # Validate media exists and user has access
+        media_queries = get_media_queries()
+        media = await media_queries.get_by_id(media_id)
+        
+        if not media:
+            return create_error_response("Media not found", "Invalid media ID")
+        
+        if str(media.user_id) != str(current_user.id) and current_user.role.value != "admin":
+            return create_error_response("Not authorized", "Access denied")
+        
+        # Check if reprocessing is allowed
+        if media.status == "PROCESSING" and not force:
+            return create_error_response("Media is currently being processed", "Cannot reprocess")
+        
+        # Trigger reprocessing via Celery task
+        from src.transcription.tasks.tasks import process_transcription_task
+        
+        task_result = process_transcription_task.delay(
+            media_id=media_id,
+            file_path=media.original_file_path,
+            storage_provider=media.storage_provider,
+            transcription_provider=provider or media.transcription_provider or "fastwhisper",
+            language=language
+        )
+        
+        # Update media status
+        media.status = "PROCESSING"
+        media.transcription_provider = provider or media.transcription_provider
+        media.language = language
+        
+        response_data = {
+            "reprocessing": {
+                "media_id": media_id,
+                "task_id": task_result.id,
+                "provider": provider or media.transcription_provider or "fastwhisper",
+                "language": language,
+                "status": "PROCESSING"
+            },
+            "message": "Transcription reprocessing started. Check WebSocket for real-time updates."
+        }
+        
+        return create_success_response(
+            data=response_data,
+            message="Transcription reprocessing initiated"
+        )
+        
+    except Exception as e:
+        return create_error_response(
+            error=f"Reprocessing failed: {str(e)}",
+            message="Failed to initiate reprocessing"
+        )

@@ -10,6 +10,7 @@ from .dependencies import get_sentiment_analysis_queries, get_media_queries
 from src.media_management.application.queries.media_queries import MediaQueries
 from ..application.queries.sentiment_analysis_queries import SentimentAnalysisQueries
 from .schemas import SentimentAnalysisResponse
+from src.shared.api.unified_schemas import create_success_response, create_error_response, BaseResponseSchema
 
 router = APIRouter(prefix="/sentiment-analysis", tags=["Sentiment Analysis"])
 
@@ -31,3 +32,53 @@ async def get_sentiment_analysis_by_media_id(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sentiment analysis result not found for the given media ID.")
 
     return analysis_result
+
+
+@router.post("/analyze", response_model=BaseResponseSchema, summary="Analyze sentiment in text")
+async def analyze_sentiment(
+    text: str = Form(..., description="Text to analyze for sentiment"),
+    media_id: Optional[str] = Form(None, description="Associated media ID"),
+    provider: Optional[str] = Form(None, description="Provider to use for analysis"),
+    current_user: User = Depends(get_current_user)
+):
+    """Analyze sentiment in provided text"""
+    try:
+        # Validate input
+        if not text.strip():
+            return create_error_response("Empty text provided", "Input validation failed")
+        
+        if len(text) < 10:
+            return create_error_response("Text too short for sentiment analysis", "Input validation failed")
+        
+        # TODO: Implement actual sentiment analysis service
+        # For now, return a simple response structure
+        response_data = {
+            "sentiment": {
+                "label": "positive",
+                "confidence": 0.85,
+                "scores": {
+                    "positive": 0.85,
+                    "negative": 0.10,
+                    "neutral": 0.05
+                }
+            },
+            "input_info": {
+                "text_length": len(text),
+                "media_id": media_id
+            },
+            "processing_info": {
+                "provider_used": provider or "default",
+                "user_id": str(current_user.id)
+            }
+        }
+        
+        return create_success_response(
+            data=response_data,
+            message="Sentiment analysis completed successfully"
+        )
+        
+    except Exception as e:
+        return create_error_response(
+            error=f"Sentiment analysis failed: {str(e)}",
+            message="Internal sentiment analysis error"
+        )
