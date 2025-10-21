@@ -12,11 +12,7 @@ from src.auth.domain.user import User
 from src.monitoring.domain.interfaces import TimeRange, ProcessingType
 from .dependencies import (
     get_analytics_queries, 
-    get_performance_analytics, 
-    get_quality_analytics,
-    get_metrics_service,
-    get_business_metrics,
-    get_performance_metrics
+    get_metrics_service
 )
 from .schemas import (
     ProcessingTimeEstimateRequest,
@@ -24,10 +20,6 @@ from .schemas import (
     SystemPerformanceResponse,
     ProcessingTrendsResponse,
     UserAnalyticsResponse,
-    ThroughputMetricsResponse,
-    BottleneckAnalysisResponse,
-    QualityMetricsResponse,
-    ErrorAnalysisResponse,
     MetricsSummaryResponse,
     BusinessKPIsResponse,
     PerformanceSummaryResponse,
@@ -121,115 +113,13 @@ async def get_media_analytics(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-# Performance Analytics Endpoints
-@router.get("/performance/throughput", response_model=ThroughputMetricsResponse)
-async def get_throughput_metrics(
-    time_range: TimeRange = Query(TimeRange.LAST_DAY, description="Time range for throughput analysis"),
-    performance_analytics = Depends(get_performance_analytics),
-):
-    """Get system throughput metrics."""
-    try:
-        result = await performance_analytics.calculate_throughput_metrics(time_range)
-        return ThroughputMetricsResponse(**result)
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-@router.get("/performance/bottlenecks", response_model=BottleneckAnalysisResponse)
-async def analyze_bottlenecks(
-    performance_analytics = Depends(get_performance_analytics),
-):
-    """Identify system bottlenecks."""
-    try:
-        result = await performance_analytics.analyze_bottlenecks()
-        return BottleneckAnalysisResponse(**result)
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-@router.get("/performance/resource-utilization")
-async def get_resource_utilization(
-    performance_analytics = Depends(get_performance_analytics),
-):
-    """Get resource utilization metrics."""
-    try:
-        result = await performance_analytics.get_resource_utilization()
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-@router.get("/performance/load-prediction")
-async def predict_processing_load(
-    hours_ahead: int = Query(24, ge=1, le=168, description="Hours to predict ahead"),
-    performance_analytics = Depends(get_performance_analytics),
-):
-    """Predict processing load for the next N hours."""
-    try:
-        result = await performance_analytics.predict_processing_load(hours_ahead)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-# Quality Analytics Endpoints
-@router.get("/quality/metrics", response_model=QualityMetricsResponse)
-async def get_quality_metrics(
-    quality_analytics = Depends(get_quality_analytics),
-):
-    """Get processing quality metrics."""
-    try:
-        result = await quality_analytics.get_processing_quality_metrics()
-        return QualityMetricsResponse(**result)
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-@router.get("/quality/errors", response_model=ErrorAnalysisResponse)
-async def analyze_error_patterns(
-    quality_analytics = Depends(get_quality_analytics),
-):
-    """Analyze error patterns and trends."""
-    try:
-        result = await quality_analytics.analyze_error_patterns()
-        return ErrorAnalysisResponse(**result)
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-@router.get("/quality/accuracy/{processing_type}")
-async def get_accuracy_metrics(
-    processing_type: ProcessingType,
-    quality_analytics = Depends(get_quality_analytics),
-):
-    """Get accuracy metrics for specific processing type."""
-    try:
-        result = await quality_analytics.get_accuracy_metrics(processing_type)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-@router.get("/quality/retry-rates")
-async def get_retry_success_rates(
-    quality_analytics = Depends(get_quality_analytics),
-):
-    """Get retry success rates for failed operations."""
-    try:
-        result = await quality_analytics.get_retry_success_rates()
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
 # Admin-only endpoints
 @router.get("/admin/comprehensive-report")
 async def get_comprehensive_analytics_report(
     time_range: TimeRange = Query(TimeRange.LAST_WEEK, description="Time range for report"),
     current_user: User = Depends(get_current_user),
     analytics_queries = Depends(get_analytics_queries),
-    performance_analytics = Depends(get_performance_analytics),
-    quality_analytics = Depends(get_quality_analytics),
+    metrics_service = Depends(get_metrics_service),
 ):
     """Get comprehensive analytics report (admin only)."""
     if not current_user.role or current_user.role.value != "admin":
@@ -241,20 +131,16 @@ async def get_comprehensive_analytics_report(
     try:
         # Gather comprehensive analytics data
         system_performance = await analytics_queries.get_system_performance_metrics(time_range)
-        throughput_metrics = await performance_analytics.calculate_throughput_metrics(time_range)
-        bottleneck_analysis = await performance_analytics.analyze_bottlenecks()
-        quality_metrics = await quality_analytics.get_processing_quality_metrics()
-        error_analysis = await quality_analytics.analyze_error_patterns()
+        metrics_summary = metrics_service.get_metrics_summary()
+        health_check = metrics_service.health_check()
         
         return {
             "report_type": "comprehensive_analytics",
             "time_range": time_range.value,
             "generated_at": "2024-01-01T00:00:00Z",  # Would use actual timestamp
             "system_performance": system_performance,
-            "throughput_metrics": throughput_metrics,
-            "bottleneck_analysis": bottleneck_analysis,
-            "quality_metrics": quality_metrics,
-            "error_analysis": error_analysis
+            "metrics_summary": metrics_summary,
+            "health_check": health_check
         }
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -296,7 +182,7 @@ async def get_metrics_health(
 # Business metrics endpoints
 @router.get("/business/kpis", response_model=BusinessKPIsResponse, summary="Get business KPIs")
 async def get_business_kpis(
-    business_metrics = Depends(get_business_metrics),
+    metrics_service = Depends(get_metrics_service),
     current_user: User = Depends(get_current_user),
 ):
     """Get key business performance indicators."""
@@ -308,7 +194,8 @@ async def get_business_kpis(
         )
     
     try:
-        kpis = business_metrics.get_business_kpis()
+        # Assuming MetricsService has a method to get business KPIs
+        kpis = metrics_service.get_business_kpis() # This method needs to be implemented in MetricsService
         return BusinessKPIsResponse(**kpis)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -363,12 +250,13 @@ async def track_processing_completion(
 # Performance metrics endpoints
 @router.get("/performance/summary", response_model=PerformanceSummaryResponse, summary="Get performance summary")
 async def get_performance_summary(
-    performance_metrics = Depends(get_performance_metrics),
+    metrics_service = Depends(get_metrics_service),
     current_user: User = Depends(get_current_user),
 ):
     """Get performance metrics summary."""
     try:
-        summary = performance_metrics.get_performance_summary()
+        # Assuming MetricsService has a method to get performance summary
+        summary = metrics_service.get_performance_summary() # This method needs to be implemented in MetricsService
         return PerformanceSummaryResponse(**summary)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -435,28 +323,5 @@ async def create_custom_metric(
             request.labels
         )
         return {"message": f"Custom metric '{request.name}' created successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-# Legacy endpoints for backward compatibility
-@router.get("/", summary="Legacy metrics endpoint")
-async def get_metrics_legacy():
-    """
-    Legacy endpoint for Prometheus metrics (backward compatibility).
-    Use /metrics/prometheus instead.
-    """
-    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
-
-@router.post("/legacy/upload", summary="Legacy upload tracking")
-async def track_upload_legacy(
-    status: str = Query(..., description="Upload status"),
-    metrics_service = Depends(get_metrics_service),
-):
-    """Legacy endpoint for tracking uploads."""
-    try:
-        metrics_service.increment_media_upload(status)
-        return {"message": "Upload tracked (legacy)"}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

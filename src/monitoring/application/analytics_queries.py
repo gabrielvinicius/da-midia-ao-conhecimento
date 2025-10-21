@@ -3,8 +3,9 @@ from typing import Dict, Any, List
 from uuid import UUID
 import structlog
 
-from src.analytics.domain.interfaces import IAnalyticsQueries, IAnalyticsRepository, TimeRange
-from src.analytics.config.settings import AnalyticsSettings
+from src.monitoring.domain.interfaces import IAnalyticsQueries, IAnalyticsRepository, TimeRange
+from src.monitoring.config.settings import AnalyticsSettings
+
 
 logger = structlog.get_logger(__name__)
 

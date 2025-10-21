@@ -3,13 +3,13 @@ from prometheus_client import Counter, Histogram, Gauge, Summary, CollectorRegis
 from typing import Dict, List, Optional
 import structlog
 
-from src.metrics.domain.interfaces import IMetricsProvider
-from src.metrics.domain.metrics import MetricsProvider  # Legacy compatibility
+from src.monitoring.domain.interfaces import IMetricsProvider
+
 
 logger = structlog.get_logger(__name__)
 
 
-class PrometheusMetricsProvider(MetricsProvider):
+class PrometheusMetricsProvider(IMetricsProvider):
     """
     Prometheus metrics provider following SOLID principles.
     

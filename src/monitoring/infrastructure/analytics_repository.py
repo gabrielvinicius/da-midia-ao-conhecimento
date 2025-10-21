@@ -6,7 +6,7 @@ from uuid import UUID
 from datetime import datetime, timedelta
 import structlog
 
-from src.analytics.domain.interfaces import IAnalyticsRepository, ProcessingType, TimeRange
+from src.monitoring.domain.interfaces import IAnalyticsRepository, ProcessingType, TimeRange
 from src.media_management.domain.media import Media, MediaStatus
 from src.transcription.domain.transcription import Transcription, TranscriptionStatus
 from src.summarization.domain.summary import Summary, SummaryStatus
@@ -306,7 +306,9 @@ class AnalyticsRepository(IAnalyticsRepository):
         }
     
     def _get_cutoff_date(self, time_range: TimeRange) -> datetime:
-        """Get cutoff date based on time range."""
+        """
+        Get cutoff date based on time range.
+        """
         now = datetime.utcnow()
         
         if time_range == TimeRange.LAST_HOUR:

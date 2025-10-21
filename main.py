@@ -14,6 +14,7 @@ from src.shared.middleware.performance_middleware import register_performance_mi
 from src.shared.infrastructure.cache import cache
 
 # --- Module Bootstrapping and Composition Root ---
+from src.monitoring.bootstrap import MonitoringContainer
 from src.auth.bootstrap import bootstrap_auth_module
 from src.media_management.bootstrap import bootstrap_media_module
 # from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
@@ -22,8 +23,7 @@ from src.text_processing.bootstrap import bootstrap_text_processing_module
 from src.transcription.bootstrap import bootstrap_transcription_module
 from src.summarization.bootstrap import bootstrap_summarization_module
 from src.notifications.bootstrap import bootstrap_notification_module
-from src.analytics.bootstrap import bootstrap_analytics_module
-from src.metrics.bootstrap import bootstrap_metrics_module
+
 from src.sentiment_analysis.bootstrap import bootstrap_sentiment_analysis_module # Import new bootstrap
 from src.topic_modeling.bootstrap import bootstrap_topic_modeling_module
 from src.admin.bootstrap import bootstrap_admin_module
@@ -39,7 +39,8 @@ from src.shared.infrastructure.database import Base, engine, AsyncSessionLocal
 
 # API Routers
 from src.auth.api.routers import router as auth_router
-from src.metrics.api.routers import router as metrics_router
+
+from src.monitoring.api.routers import router as monitoring_router
 from src.notifications.api.routers import router as notification_router
 from src.providers.api.routers import router as providers_router
 from src.summarization.api.routers import router as summary_router
@@ -77,9 +78,13 @@ async def lifespan(app: FastAPI):
             "summarizer_service_factory": get_summarizer_service_factory(),
             "sentiment_analysis_service_factory": get_sentiment_service_factory(),
         }
-        app_container.update(bootstrap_metrics_module())
+
         app_container.update(bootstrap_auth_module(session))
-        app_container.update(bootstrap_analytics_module(session))
+        monitoring_container = MonitoringContainer()
+        monitoring_container.db.override(session) # Override the db dependency
+        app_container["monitoring_container"] = monitoring_container # Store the container itself
+        app_container["analytics_queries"] = monitoring_container.analytics_queries()
+        app_container["metrics_service"] = monitoring_container.metrics_service()
         app_container.update(bootstrap_media_module(session, app_container["storage_service_factory"], app_container["event_bus"], app_container["metrics_service"]))
         app_container.update(bootstrap_transcription_module(session, app_container["media_queries"], manager))
         app_container.update(bootstrap_notification_module(session, auth_queries=app_container["auth_queries"], event_bus=app_container["event_bus"]))
@@ -198,7 +203,8 @@ app.include_router(sentiment_router)
 app.include_router(topic_modeling_router)
 app.include_router(notification_router)
 app.include_router(admin_router)
-app.include_router(metrics_router)
+app.include_router(monitoring_router)
+
 
 # Root endpoint
 @app.get("/")
@@ -260,17 +266,7 @@ async def ping():
     """Endpoint simples para verificação de conectividade."""
     return {"message": "pong", "status": "ok"}
 
-# Endpoint para métricas Prometheus  
-@app.get("/metrics", response_class=Response)
-async def get_metrics():
-    """Endpoint para coleta de métricas pelo Prometheus."""
-    try:
-        # Versão simplificada sem dependência do metrics_collector
-        from prometheus_client import generate_latest, REGISTRY
-        metrics_data = generate_latest(REGISTRY)
-        return Response(content=metrics_data, media_type=CONTENT_TYPE_LATEST)
-    except Exception as e:
-        return Response(content=f"# Metrics temporarily unavailable: {str(e)}", media_type="text/plain")
+
 
 # Endpoint para dashboard de métricas
 @app.get("/health/dashboard")
