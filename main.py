@@ -20,7 +20,8 @@ from src.media_management.bootstrap import bootstrap_media_module
 # from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
 from src.video_processing.bootstrap import bootstrap_video_processing_module
 from src.text_processing.bootstrap import bootstrap_text_processing_module, TextProcessingContainer
-from src.transcription.bootstrap import bootstrap_transcription_module
+from src.transcription.bootstrap import TranscriptionContainer
+from src.providers.bootstrap import ProvidersContainer
 from src.summarization.bootstrap import SummarizationContainer
 from src.notifications.bootstrap import bootstrap_notification_module
 
@@ -86,7 +87,12 @@ async def lifespan(app: FastAPI):
         app_container["analytics_queries"] = monitoring_container.analytics_queries()
         app_container["metrics_service"] = monitoring_container.metrics_service()
         app_container.update(bootstrap_media_module(session, app_container["storage_service_factory"], app_container["event_bus"], app_container["metrics_service"]))
-        app_container.update(bootstrap_transcription_module(session, app_container["media_queries"], manager))
+        transcription_container = TranscriptionContainer()
+        transcription_container.db.override(session)
+        app_container["transcription_container"] = transcription_container
+        app_container["transcription_service"] = transcription_container.transcription_service()
+        app_container["process_transcription_command_handler"] = transcription_container.process_transcription_command_handler()
+        app_container["set_speaker_aliases_command_handler"] = transcription_container.set_speaker_aliases_command_handler()
         app_container.update(bootstrap_notification_module(session, auth_queries=app_container["auth_queries"], event_bus=app_container["event_bus"]))
         app_container.update(bootstrap_video_processing_module(app_container["media_queries"], app_container["media_repository"], app_container["storage_service_factory"], app_container["event_bus"]))
         text_processing_container = TextProcessingContainer()
@@ -100,6 +106,9 @@ async def lifespan(app: FastAPI):
         app_container["summarization_service"] = summarization_container.summarization_service()
         app_container["process_summary_command_handler"] = summarization_container.process_summary_command_handler()
         app_container["request_summary_command_handler"] = summarization_container.request_summary_command_handler()
+        providers_container = ProvidersContainer()
+        app_container["providers_container"] = providers_container
+        app_container["provider_registry"] = providers_container.provider_registry()
         app_container.update(bootstrap_sentiment_analysis_module(session))
         app_container.update(bootstrap_topic_modeling_module(session))
         app_container.update(bootstrap_admin_module(session, app_container["media_queries"]))

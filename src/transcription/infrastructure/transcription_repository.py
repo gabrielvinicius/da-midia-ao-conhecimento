@@ -1,38 +1,32 @@
 # src/transcription/infrastructure/transcription_repository.py
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import Optional
 from uuid import UUID
-from sqlalchemy import select, delete
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.transcription.domain.interfaces import ITranscriptionRepository
 from src.transcription.domain.transcription import Transcription
 
 
-class TranscriptionRepository:
+class TranscriptionRepository(ITranscriptionRepository):
+    """SQLAlchemy implementation of the transcription repository."""
+
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def save(self, transcription: Transcription) -> Transcription:
+    async def get_by_id(self, transcription_id: UUID) -> Optional[Transcription]:
+        result = await self.db.execute(select(Transcription).where(Transcription.id == transcription_id))
+        return result.scalar_one_or_none()
+
+    async def add(self, transcription: Transcription) -> None:
         self.db.add(transcription)
-        await self.db.commit()
-        await self.db.refresh(transcription)
-        return transcription
+        await self.db.flush()
 
-    async def find_by_id(self, transcription_id: str) -> Optional[Transcription]:
-        result = await self.db.execute(
-            select(Transcription).where(Transcription.id == UUID(transcription_id))
-        )
+    async def update(self, transcription: Transcription) -> None:
+        # For SQLAlchemy, just adding to session and flushing is usually enough for updates
+        # if the object is already tracked or has a primary key.
+        await self.db.flush()
+
+    async def get_by_media_id(self, media_id: UUID) -> Optional[Transcription]:
+        result = await self.db.execute(select(Transcription).where(Transcription.media_id == media_id))
         return result.scalar_one_or_none()
-
-    async def find_by_media_id(self, media_id: str) -> Optional[Transcription]:
-        """Finds a transcription by its associated media ID."""
-        result = await self.db.execute(
-            select(Transcription).where(Transcription.media_id == UUID(media_id))
-        )
-        return result.scalar_one_or_none()
-
-    async def delete_by_media_id(self, media_id: str) -> bool:
-        """Deletes a transcription by its associated media ID. Returns True if deleted."""
-        stmt = delete(Transcription).where(Transcription.media_id == UUID(media_id)).returning(Transcription.id)
-        result = await self.db.execute(stmt)
-        await self.db.commit()
-        return result.scalar_one_or_none() is not None

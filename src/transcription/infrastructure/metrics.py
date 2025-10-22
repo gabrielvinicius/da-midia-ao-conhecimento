@@ -1,7 +1,5 @@
 # src/transcription/infrastructure/metrics.py
-"""
-Transcription metrics implementation - SRP compliance.
-"""
+import structlog
 from prometheus_client import Counter, Histogram, Gauge
 from typing import Dict, Any
 
@@ -19,46 +17,32 @@ class PrometheusTranscriptionMetrics(TranscriptionMetrics):
         self._operation_counter = Counter(
             'transcription_operations_total',
             'Total number of transcription operations',
-            ['operation', 'provider', 'language', 'status']
+            ['operation', 'provider', 'status']
         )
         
         # Operation duration histogram
         self._operation_duration = Histogram(
             'transcription_operation_duration_seconds',
             'Duration of transcription operations in seconds',
-            ['operation', 'provider', 'language']
+            ['operation', 'provider']
         )
         
-        # Audio duration histogram
-        self._audio_duration_histogram = Histogram(
-            'transcription_audio_duration_seconds',
-            'Duration of processed audio in seconds',
-            ['provider', 'language']
+        # Input audio length histogram
+        self._input_audio_length = Histogram(
+            'transcription_input_audio_length_seconds',
+            'Length of input audio in seconds',
+            ['provider']
         )
         
-        # Real-time factor (RTF) histogram
-        self._rtf_histogram = Histogram(
-            'transcription_rtf',
-            'Real-time factor (processing_time / audio_duration)',
-            ['provider', 'language']
+        # Output text length histogram
+        self._output_text_length = Histogram(
+            'transcription_output_text_length_chars',
+            'Length of output text in characters',
+            ['provider']
         )
         
-        # Result length histogram
-        self._result_length_histogram = Histogram(
-            'transcription_result_length_chars',
-            'Length of transcription result in characters',
-            ['provider', 'language']
-        )
-        
-        # Words per minute histogram
-        self._wpm_histogram = Histogram(
-            'transcription_words_per_minute',
-            'Words per minute in transcribed audio',
-            ['provider', 'language']
-        )
-        
-        # Active transcriptions gauge
-        self._active_transcriptions = Gauge(
+        # Active operations gauge
+        self._active_operations = Gauge(
             'transcription_active_operations',
             'Number of active transcription operations',
             ['provider']
@@ -68,11 +52,10 @@ class PrometheusTranscriptionMetrics(TranscriptionMetrics):
         self, 
         operation: str, 
         provider: str,
-        language: str,
         duration: float,
         success: bool,
-        audio_duration: float,
-        result_length: int
+        input_audio_length_seconds: float,
+        output_text_length_chars: int
     ) -> None:
         """Record transcription operation metrics."""
         status = "success" if success else "failure"
@@ -81,44 +64,19 @@ class PrometheusTranscriptionMetrics(TranscriptionMetrics):
         self._operation_counter.labels(
             operation=operation,
             provider=provider,
-            language=language,
             status=status
         ).inc()
         
         # Record operation duration
         self._operation_duration.labels(
             operation=operation,
-            provider=provider,
-            language=language
+            provider=provider
         ).observe(duration)
         
-        # Record audio and processing metrics (only for successful operations)
-        if success and audio_duration > 0 and result_length > 0:
-            self._audio_duration_histogram.labels(
-                provider=provider,
-                language=language
-            ).observe(audio_duration)
-            
-            self._result_length_histogram.labels(
-                provider=provider,
-                language=language
-            ).observe(result_length)
-            
-            # Calculate and record RTF
-            rtf = duration / audio_duration if audio_duration > 0 else 0
-            self._rtf_histogram.labels(
-                provider=provider,
-                language=language
-            ).observe(rtf)
-            
-            # Estimate and record words per minute
-            # Rough estimation: 1 character ≈ 0.2 words, so 5 chars = 1 word
-            estimated_words = result_length / 5
-            wpm = (estimated_words / audio_duration) * 60 if audio_duration > 0 else 0
-            self._wpm_histogram.labels(
-                provider=provider,
-                language=language
-            ).observe(wpm)
+        # Record input/output lengths (only for successful operations)
+        if success:
+            self._input_audio_length.labels(provider=provider).observe(input_audio_length_seconds)
+            self._output_text_length.labels(provider=provider).observe(output_text_length_chars)
 
 
 class InMemoryTranscriptionMetrics(TranscriptionMetrics):
@@ -134,14 +92,13 @@ class InMemoryTranscriptionMetrics(TranscriptionMetrics):
         self, 
         operation: str, 
         provider: str,
-        language: str,
         duration: float,
         success: bool,
-        audio_duration: float,
-        result_length: int
+        input_audio_length_seconds: float,
+        output_text_length_chars: int
     ) -> None:
         """Record operation metrics in memory."""
-        key = f"{operation}_{provider}_{language}"
+        key = f"{operation}_{provider}"
         
         if key not in self._metrics:
             self._metrics[key] = {
@@ -151,10 +108,8 @@ class InMemoryTranscriptionMetrics(TranscriptionMetrics):
                 "total_duration": 0.0,
                 "min_duration": float('inf'),
                 "max_duration": 0.0,
-                "total_audio_duration": 0.0,
-                "total_result_length": 0,
-                "rtf_values": [],
-                "wpm_values": []
+                "total_input_audio_length_seconds": 0.0,
+                "total_output_text_length_chars": 0,
             }
         
         metrics = self._metrics[key]
@@ -165,17 +120,8 @@ class InMemoryTranscriptionMetrics(TranscriptionMetrics):
         
         if success:
             metrics["successful_operations"] += 1
-            metrics["total_audio_duration"] += audio_duration
-            metrics["total_result_length"] += result_length
-            
-            # Calculate RTF and WPM
-            if audio_duration > 0:
-                rtf = duration / audio_duration
-                metrics["rtf_values"].append(rtf)
-                
-                estimated_words = result_length / 5
-                wpm = (estimated_words / audio_duration) * 60
-                metrics["wpm_values"].append(wpm)
+            metrics["total_input_audio_length_seconds"] += input_audio_length_seconds
+            metrics["total_output_text_length_chars"] += output_text_length_chars
         else:
             metrics["failed_operations"] += 1
     
@@ -186,32 +132,6 @@ class InMemoryTranscriptionMetrics(TranscriptionMetrics):
     def reset_metrics(self) -> None:
         """Reset all metrics (for testing)."""
         self._metrics.clear()
-    
-    def get_average_rtf(self, operation: str, provider: str, language: str) -> float:
-        """Get average real-time factor."""
-        key = f"{operation}_{provider}_{language}"
-        if key in self._metrics and self._metrics[key]["rtf_values"]:
-            rtf_values = self._metrics[key]["rtf_values"]
-            return sum(rtf_values) / len(rtf_values)
-        return 0.0
-    
-    def get_average_wpm(self, operation: str, provider: str, language: str) -> float:
-        """Get average words per minute."""
-        key = f"{operation}_{provider}_{language}"
-        if key in self._metrics and self._metrics[key]["wpm_values"]:
-            wpm_values = self._metrics[key]["wpm_values"]
-            return sum(wpm_values) / len(wpm_values)
-        return 0.0
-    
-    def get_success_rate(self, operation: str, provider: str, language: str) -> float:
-        """Get success rate for operation/provider/language."""
-        key = f"{operation}_{provider}_{language}"
-        if key in self._metrics:
-            metrics = self._metrics[key]
-            total = metrics["total_operations"]
-            successful = metrics["successful_operations"]
-            return successful / total if total > 0 else 0.0
-        return 0.0
 
 
 class NoOpTranscriptionMetrics(TranscriptionMetrics):
@@ -224,11 +144,10 @@ class NoOpTranscriptionMetrics(TranscriptionMetrics):
         self, 
         operation: str, 
         provider: str,
-        language: str,
         duration: float,
         success: bool,
-        audio_duration: float,
-        result_length: int
+        input_audio_length_seconds: float,
+        output_text_length_chars: int
     ) -> None:
         """No-op implementation."""
         pass
