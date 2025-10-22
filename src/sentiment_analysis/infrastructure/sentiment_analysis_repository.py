@@ -1,26 +1,32 @@
 # src/sentiment_analysis/infrastructure/sentiment_analysis_repository.py
-from typing import Optional
-from uuid import UUID
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from typing import Optional, Any
+from uuid import UUID
 
-from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysisResult
+from src.sentiment_analysis.domain.interfaces import ISentimentAnalysisRepository
+from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysisResult # Importar a entidade
 
 
-class SentimentAnalysisRepository:
+class SentimentAnalysisRepository(ISentimentAnalysisRepository):
+    """SQLAlchemy implementation of the sentiment analysis repository."""
+
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def save(self, result: SentimentAnalysisResult) -> SentimentAnalysisResult:
-        """Saves a sentiment analysis result to the database."""
-        self.db.add(result)
-        await self.db.commit()
-        await self.db.refresh(result)
-        return result
+    async def get_by_id(self, result_id: UUID) -> Optional[SentimentAnalysisResult]:
+        result = await self.db.execute(select(SentimentAnalysisResult).where(SentimentAnalysisResult.id == result_id))
+        return result.scalar_one_or_none()
 
-    async def find_by_media_id(self, media_id: str) -> Optional[SentimentAnalysisResult]:
-        """Finds a sentiment analysis result by its associated media ID."""
-        result = await self.db.execute(
-            select(SentimentAnalysisResult).where(SentimentAnalysisResult.media_id == UUID(media_id))
-        )
+    async def add(self, result: SentimentAnalysisResult) -> None:
+        self.db.add(result)
+        await self.db.flush()
+
+    async def update(self, result: SentimentAnalysisResult) -> None:
+        # For SQLAlchemy, just adding to session and flushing is usually enough for updates
+        # if the object is already tracked or has a primary key.
+        await self.db.flush()
+
+    async def get_by_media_id(self, media_id: UUID) -> Optional[SentimentAnalysisResult]:
+        result = await self.db.execute(select(SentimentAnalysisResult).where(SentimentAnalysisResult.media_id == media_id))
         return result.scalar_one_or_none()

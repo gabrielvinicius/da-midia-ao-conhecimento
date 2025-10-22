@@ -1,23 +1,14 @@
-"""
-Sentiment Analysis Commands - Pure data classes following Command Pattern
-"""
+# src/sentiment_analysis/application/commands/commands.py
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Optional
+from uuid import UUID
 
 
 @dataclass(frozen=True)
 class AnalyzeSentimentCommand:
-    """Command to analyze sentiment"""
+    """Command to analyze sentiment of a text."""
+    media_id: str
     text_content: str
-    media_id: str
     provider: str
-    language: Optional[str] = "en"
-
-
-@dataclass(frozen=True)
-class ProcessSentimentAnalysisCommand:
-    """Command to process sentiment analysis for media"""
-    media_id: str
-    transcription_id: str
-    provider: str
-    analysis_options: Optional[Dict[str, Any]] = None
+    language: str
+    options: Optional[Dict[str, Any]] = None

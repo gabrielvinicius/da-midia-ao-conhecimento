@@ -5,9 +5,8 @@ from typing import Dict, Any, Optional, List
 from sqlalchemy import Column, String, DateTime, ForeignKey, Float, Integer, Boolean, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
-# FIXED: Domain should not import Infrastructure - Critical DDD violation
-from src.shared.domain.base_entity import BaseEntity
-from .interfaces import SentimentLabel, SentimentProvider, AnalysisGranularity
+from src.shared.infrastructure.database import Base # Manter esta importação
+from src.sentiment_analysis.domain.interfaces import SentimentLabel, SentimentProvider, AnalysisGranularity # Atualizar importação
 
 
 class SentimentAnalysisResult(Base):
@@ -113,6 +112,8 @@ class SentimentAnalysisResult(Base):
     
     def calculate_polarity_strength(self) -> float:
         """Calculate strength of sentiment polarity."""
+        if not self.label:
+            return 0.0 # Adicionar tratamento para label nulo
         if self.is_neutral():
             return 0.0
         
@@ -234,10 +235,11 @@ class SentimentAnalysisConfiguration(Base):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        if not self.fallback_providers:
-            self.fallback_providers = ["textblob", "vader"]
-        if not self.supported_languages:
-            self.supported_languages = ["en", "es", "fr", "de", "pt"]
+        # Remover a lógica de valores padrão do __init__
+        # if not self.fallback_providers:
+        #     self.fallback_providers = ["textblob", "vader"]
+        # if not self.supported_languages:
+        #     self.supported_languages = ["en", "es", "fr", "de", "pt"]
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
