@@ -1,33 +1,27 @@
-"""
-Media Management Commands - Pure data classes following Command Pattern
-"""
+# src/media_management/application/commands/commands.py
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Optional
 from uuid import UUID
+
+from src.media_management.domain.enums import MediaType
 
 
 @dataclass(frozen=True)
 class CreateMediaCommand:
-    """Command to create new media"""
-    user_id: str
-    file: bytes
-    filename: str
+    """Command to create a new media entry."""
+    user_id: UUID
+    original_file_path: str
+    media_type: MediaType
     storage_provider: str
-    transcription_provider: Optional[str] = None
-    summarization_provider: Optional[str] = None
 
 
 @dataclass(frozen=True)
 class DeleteMediaCommand:
-    """Command to delete media"""
+    """Command to delete a media entry."""
     media_id: UUID
-    user_id: UUID
-    force: bool = False
 
 
 @dataclass(frozen=True)
 class ReprocessMediaCommand:
-    """Command to reprocess media"""
+    """Command to reprocess a media entry."""
     media_id: UUID
-    user_id: UUID
-    processing_options: Optional[Dict[str, Any]] = None

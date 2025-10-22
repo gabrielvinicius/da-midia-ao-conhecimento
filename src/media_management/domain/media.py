@@ -8,11 +8,6 @@ from sqlalchemy import Column, String, Enum as SqlEnum, DateTime, ForeignKey, ev
 from sqlalchemy.dialects.postgresql import UUID
 
 from src.shared.infrastructure.database import Base
-from .states.media_state import MediaState
-from .states.uploaded_state import UploadedState
-from .states.processing_state import ProcessingState
-from .states.completed_state import CompletedState
-from .states.failed_state import FailedState
 
 from .enums import MediaType, MediaStatus
 
@@ -33,43 +28,14 @@ class Media(Base):
     summarization_provider = Column(String, nullable=True)
     language = Column(String, nullable=True) # Added language field
 
-    _state = None  # MediaState - not mapped to database
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._reconstitute_state()
-
-    @property
-    def state(self) -> MediaState:
-        return self._state
-
-    @state.setter
-    def state(self, new_state: MediaState):
-        self._state = new_state
-        self.status = new_state.status
-
     def process(self):
-        self.state.process()
+        self.status = MediaStatus.PROCESSING
+        self.error_message = None
 
     def complete(self):
-        self.state.complete()
+        self.status = MediaStatus.COMPLETED
+        self.error_message = None
 
     def fail(self, reason: str):
-        self.state.fail(reason)
-    
-    def _reconstitute_state(self):
-        status = self.status
-        if status == MediaStatus.UPLOADED:
-            self._state = UploadedState(self)
-        elif status == MediaStatus.PROCESSING:
-            self._state = ProcessingState(self)
-        elif status == MediaStatus.COMPLETED:
-            self._state = CompletedState(self)
-        elif status == MediaStatus.FAILED:
-            self._state = FailedState(self, self.error_message or "Unknown error")
-        else:
-            self._state = UploadedState(self)
-
-@event.listens_for(Media, 'load')
-def _reconstitute_media_state(media: Media, _):
-    media._reconstitute_state()
+        self.status = MediaStatus.FAILED
+        self.error_message = reason
