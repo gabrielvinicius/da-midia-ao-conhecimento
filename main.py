@@ -18,7 +18,7 @@ from src.monitoring.bootstrap import MonitoringContainer
 from src.auth.bootstrap import bootstrap_auth_module
 from src.media_management.bootstrap import bootstrap_media_module
 # from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
-from src.video_processing.bootstrap import bootstrap_video_processing_module
+from src.video_processing.bootstrap import VideoProcessingContainer
 from src.text_processing.bootstrap import bootstrap_text_processing_module, TextProcessingContainer
 from src.transcription.bootstrap import TranscriptionContainer
 from src.providers.bootstrap import ProvidersContainer
@@ -94,7 +94,11 @@ async def lifespan(app: FastAPI):
         app_container["process_transcription_command_handler"] = transcription_container.process_transcription_command_handler()
         app_container["set_speaker_aliases_command_handler"] = transcription_container.set_speaker_aliases_command_handler()
         app_container.update(bootstrap_notification_module(session, auth_queries=app_container["auth_queries"], event_bus=app_container["event_bus"]))
-        app_container.update(bootstrap_video_processing_module(app_container["media_queries"], app_container["media_repository"], app_container["storage_service_factory"], app_container["event_bus"]))
+        video_processing_container = VideoProcessingContainer()
+        video_processing_container.db.override(session)
+        app_container["video_processing_container"] = video_processing_container
+        app_container["video_processing_service"] = video_processing_container.video_processing_service()
+        app_container["process_video_command_handler"] = video_processing_container.process_video_command_handler()
         text_processing_container = TextProcessingContainer()
         text_processing_container.db.override(session)
         app_container["text_processing_container"] = text_processing_container

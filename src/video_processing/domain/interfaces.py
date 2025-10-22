@@ -24,3 +24,12 @@ class IVideoThumbnailGenerator(ABC):
         Returns a dictionary containing thumbnail_data (bytes), thumbnail_format, size, dimensions, and metadata.
         """
         pass
+
+
+class IVideoProcessingTaskScheduler(ABC):
+    """Interface for scheduling video processing tasks."""
+
+    @abstractmethod
+    async def schedule_process_video_task(self, media_id: str, file_path: str) -> Any:
+        """Schedules a video processing task."""
+        pass

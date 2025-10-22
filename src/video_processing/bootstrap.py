@@ -1,50 +1,46 @@
-"""
-Video processing bootstrap - restored as it's essential for video pipeline
-"""
+# src/video_processing/bootstrap.py
+from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any
 
-from src.shared.bootstrap.unified_bootstrap import create_unified_bootstrap
+from src.video_processing.domain.interfaces import IVideoAudioExtractor, IVideoThumbnailGenerator, IVideoProcessingTaskScheduler
+from src.video_processing.infrastructure.video_audio_extractor import FFmpegVideoAudioExtractor
+from src.video_processing.infrastructure.video_thumbnail_generator import FFmpegVideoThumbnailGenerator
+from src.video_processing.infrastructure.task_scheduler import CeleryVideoProcessingTaskScheduler
+from src.video_processing.application.commands.handlers import ProcessVideoCommandHandler
+from src.video_processing.application.video_processing_service import VideoProcessingService
+from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
 
-def bootstrap_video_processing_module(db_session: AsyncSession, **kwargs) -> Dict[str, Any]:
-    """Video processing bootstrap - handles video-specific operations like extraction"""
-    
-    bootstrap = create_unified_bootstrap(db_session)
-    
-    # Video processing has specific responsibilities:
-    # - Extract audio from video files
-    # - Generate video thumbnails  
-    # - Process video metadata
-    # - Handle video format conversions
-    
-    return bootstrap.bootstrap_module(
-        module_name="video_processing",
-        repository_class=None,  # Video processing doesn't need its own repository
-        entity_class=None,
-        additional_services={
-            "video_processor": lambda: create_video_processor(),
-            "audio_extractor": lambda: create_audio_extractor(),
-        }
+class VideoProcessingContainer(containers.DeclarativeContainer):
+    # Dependências de infraestrutura
+    db: providers.Provider[AsyncSession] = providers.Dependency()
+    storage_service: providers.Provider[S3StorageService] = providers.Singleton(S3StorageService)
+
+    # Implementações concretas das interfaces de domínio
+    video_audio_extractor: providers.Provider[IVideoAudioExtractor] = providers.Factory(
+        FFmpegVideoAudioExtractor
+    )
+    video_thumbnail_generator: providers.Provider[IVideoThumbnailGenerator] = providers.Factory(
+        FFmpegVideoThumbnailGenerator
+    )
+    video_processing_task_scheduler: providers.Provider[IVideoProcessingTaskScheduler] = providers.Factory(
+        CeleryVideoProcessingTaskScheduler
     )
 
-def create_video_processor():
-    """Create video processor service"""
-    from src.shared.application.unified_services import UnifiedProcessor
-    
-    class VideoProcessor(UnifiedProcessor):
-        async def _do_process(self, video_data, **kwargs):
-            # Video processing logic would go here
-            return {"processed": True}
-    
-    return VideoProcessor("video")
+    # Command Handlers
+    process_video_command_handler: providers.Provider[ProcessVideoCommandHandler] = providers.Factory(
+        ProcessVideoCommandHandler,
+        video_audio_extractor=video_audio_extractor,
+        video_thumbnail_generator=video_thumbnail_generator,
+        storage_service=storage_service,
+        # TODO: Adicionar logger e metrics específicos para video_processing
+    )
 
-def create_audio_extractor():
-    """Create audio extractor service"""
-    from src.shared.application.unified_services import UnifiedProcessor
-    
-    class AudioExtractor(UnifiedProcessor):
-        async def _do_process(self, video_data, **kwargs):
-            # Audio extraction logic would go here
-            return {"audio_extracted": True}
-    
-    return AudioExtractor("audio_extraction")
+    # Serviços de Aplicação
+    video_processing_service: providers.Provider[VideoProcessingService] = providers.Factory(
+        VideoProcessingService,
+        video_audio_extractor=video_audio_extractor,
+        video_thumbnail_generator=video_thumbnail_generator,
+        video_processing_task_scheduler=video_processing_task_scheduler,
+        # TODO: Adicionar video_processing_logger, video_processing_metrics
+    )
