@@ -1,22 +1,14 @@
-"""
-Topic Modeling Commands - Pure data classes following Command Pattern
-"""
+# src/topic_modeling/application/commands/commands.py
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
-
-
-@dataclass(frozen=True)
-class ProcessTopicModelingCommand:
-    """Command to process topic modeling"""
-    media_id: str
-    text_content: str
-    provider: str
-    num_topics: Optional[int] = 5
+from typing import Dict, Any, Optional
+from uuid import UUID
 
 
 @dataclass(frozen=True)
 class AnalyzeTopicsCommand:
-    """Command to analyze topics"""
-    transcription_id: str
+    """Command to analyze topics of a text."""
+    media_id: str
+    text_content: str
     provider: str
-    modeling_options: Optional[Dict[str, Any]] = None
+    language: str
+    options: Optional[Dict[str, Any]] = None

@@ -1,7 +1,4 @@
 # src/topic_modeling/infrastructure/logging.py
-"""
-Topic modeling operation logging implementation - SRP compliance.
-"""
 import structlog
 from typing import Optional
 from datetime import datetime
@@ -23,11 +20,8 @@ class StructuredTopicModelingLogger(TopicModelingOperationLogger):
         operation: str, 
         media_id: str,
         provider: str,
-        language: str,
         success: bool,
         duration: float,
-        num_topics: int = 0,
-        text_length: int = 0,
         error: Optional[Exception] = None
     ) -> None:
         """Log topic modeling operation with structured data."""
@@ -35,21 +29,10 @@ class StructuredTopicModelingLogger(TopicModelingOperationLogger):
             "operation": operation,
             "media_id": media_id,
             "provider": provider,
-            "language": language,
             "success": success,
             "duration_seconds": duration,
-            "num_topics": num_topics,
-            "text_length": text_length,
             "timestamp": datetime.utcnow().isoformat()
         }
-        
-        # Calculate topics per second if relevant
-        if success and duration > 0 and num_topics > 0:
-            log_data["topics_per_second"] = num_topics / duration
-        
-        # Calculate processing rate
-        if success and duration > 0 and text_length > 0:
-            log_data["chars_per_second"] = text_length / duration
         
         if error:
             log_data.update({
@@ -80,11 +63,8 @@ class NoOpTopicModelingLogger(TopicModelingOperationLogger):
         operation: str, 
         media_id: str,
         provider: str,
-        language: str,
         success: bool,
         duration: float,
-        num_topics: int = 0,
-        text_length: int = 0,
         error: Optional[Exception] = None
     ) -> None:
         """No-op implementation."""

@@ -26,7 +26,7 @@ from src.summarization.bootstrap import SummarizationContainer
 from src.notifications.bootstrap import bootstrap_notification_module
 
 from src.sentiment_analysis.bootstrap import SentimentAnalysisContainer
-from src.topic_modeling.bootstrap import bootstrap_topic_modeling_module
+from src.topic_modeling.bootstrap import TopicModelingContainer
 from src.admin.bootstrap import bootstrap_admin_module
 from src.notifications.infrastructure.connection_manager import manager
 
@@ -118,7 +118,11 @@ async def lifespan(app: FastAPI):
         app_container["sentiment_analysis_container"] = sentiment_analysis_container
         app_container["sentiment_analysis_service"] = sentiment_analysis_container.sentiment_analysis_service()
         app_container["analyze_sentiment_command_handler"] = sentiment_analysis_container.analyze_sentiment_command_handler()
-        app_container.update(bootstrap_topic_modeling_module(session))
+        topic_modeling_container = TopicModelingContainer()
+        topic_modeling_container.db.override(session)
+        app_container["topic_modeling_container"] = topic_modeling_container
+        app_container["topic_modeling_service"] = topic_modeling_container.topic_modeling_service()
+        app_container["analyze_topics_command_handler"] = topic_modeling_container.analyze_topics_command_handler()
         app_container.update(bootstrap_admin_module(session, app_container["media_queries"]))
 
         app.state.container = app_container

@@ -1,26 +1,32 @@
 # src/topic_modeling/infrastructure/topic_modeling_repository.py
-from typing import Optional
-from uuid import UUID
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from typing import Optional, Any
+from uuid import UUID
 
-from src.topic_modeling.domain.topic_modeling import TopicModelingResult
+from src.topic_modeling.domain.interfaces import ITopicModelingRepository
+from src.topic_modeling.domain.topic_modeling import TopicModelingResult # Importar a entidade
 
 
-class TopicModelingRepository:
+class TopicModelingRepository(ITopicModelingRepository):
+    """SQLAlchemy implementation of the topic modeling repository."""
+
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def save(self, result: TopicModelingResult) -> TopicModelingResult:
-        """Saves a topic modeling result to the database."""
-        self.db.add(result)
-        await self.db.commit()
-        await self.db.refresh(result)
-        return result
+    async def get_by_id(self, result_id: UUID) -> Optional[TopicModelingResult]:
+        result = await self.db.execute(select(TopicModelingResult).where(TopicModelingResult.id == result_id))
+        return result.scalar_one_or_none()
 
-    async def find_by_media_id(self, media_id: str) -> Optional[TopicModelingResult]:
-        """Finds a topic modeling result by its associated media ID."""
-        result = await self.db.execute(
-            select(TopicModelingResult).where(TopicModelingResult.media_id == UUID(media_id))
-        )
+    async def add(self, result: TopicModelingResult) -> None:
+        self.db.add(result)
+        await self.db.flush()
+
+    async def update(self, result: TopicModelingResult) -> None:
+        # For SQLAlchemy, just adding to session and flushing is usually enough for updates
+        # if the object is already tracked or has a primary key.
+        await self.db.flush()
+
+    async def get_by_media_id(self, media_id: UUID) -> Optional[TopicModelingResult]:
+        result = await self.db.execute(select(TopicModelingResult).where(TopicModelingResult.media_id == media_id))
         return result.scalar_one_or_none()
