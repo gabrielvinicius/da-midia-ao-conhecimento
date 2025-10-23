@@ -2,12 +2,7 @@
 import structlog
 from typing import Dict, Any, Optional
 
-from src.summarization.domain.interfaces import ISummarizer
-
-logger = structlog.get_logger(__name__)
-
-
-class TextRankSummarizer(ISummarizer):
+class TextRankSummarizer:
     """Concrete implementation of ISummarizer using a placeholder TextRank algorithm."""
 
     async def summarize(self, text_content: str, options: Optional[Dict[str, Any]] = None) -> str:

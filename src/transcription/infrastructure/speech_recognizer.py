@@ -2,12 +2,7 @@
 import structlog
 from typing import Dict, Any, Optional
 
-from src.transcription.domain.interfaces import ISpeechRecognizer
-
-logger = structlog.get_logger(__name__)
-
-
-class WhisperSpeechRecognizer(ISpeechRecognizer):
+class WhisperSpeechRecognizer:
     """Concrete implementation of ISpeechRecognizer using a placeholder Whisper algorithm."""
 
     async def transcribe(self, audio_data: bytes, language: str, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

@@ -2,10 +2,7 @@
 import openai
 from typing import Dict, Any, Optional
 
-from src.summarization.domain.interfaces import ISummarizer # Corrigir importação
-
-
-class OpenAISummarizer(ISummarizer):
+class OpenAISummarizer:
     async def summarize(self, text_content: str, options: Optional[Dict[str, Any]] = None) -> str: # Atualizar assinatura
         # Usar opções se fornecidas, caso contrário, usar defaults
         model = options.get("model", "gpt-4") if options else "gpt-4"

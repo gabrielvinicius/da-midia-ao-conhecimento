@@ -2,13 +2,13 @@
 import structlog
 from typing import Dict, Any, Optional
 
-from src.transcription.domain.interfaces import ITranscriptionTaskScheduler
+
 # from src.transcription.tasks.transcription_tasks import process_transcription_task # Tarefa Celery a ser criada
 
 logger = structlog.get_logger(__name__)
 
 
-class CeleryTranscriptionTaskScheduler(ITranscriptionTaskScheduler):
+class CeleryTranscriptionTaskScheduler:
     """Concrete implementation for scheduling transcription tasks using Celery."""
 
     async def schedule_transcription_task(self, media_id: str, file_path: str, storage_provider: str, transcription_provider: str, language: str) -> Any:

@@ -3,10 +3,7 @@ import structlog
 from prometheus_client import Counter, Histogram, Gauge
 from typing import Dict, Any
 
-from src.transcription.domain.interfaces import TranscriptionMetrics
-
-
-class PrometheusTranscriptionMetrics(TranscriptionMetrics):
+class PrometheusTranscriptionMetrics:
     """
     Prometheus-based metrics implementation for transcription operations.
     Follows SRP - only responsible for metrics collection.
@@ -79,7 +76,7 @@ class PrometheusTranscriptionMetrics(TranscriptionMetrics):
             self._output_text_length.labels(provider=provider).observe(output_text_length_chars)
 
 
-class InMemoryTranscriptionMetrics(TranscriptionMetrics):
+class InMemoryTranscriptionMetrics:
     """
     In-memory metrics implementation for testing.
     Follows SRP and provides same interface.
@@ -134,7 +131,7 @@ class InMemoryTranscriptionMetrics(TranscriptionMetrics):
         self._metrics.clear()
 
 
-class NoOpTranscriptionMetrics(TranscriptionMetrics):
+class NoOpTranscriptionMetrics:
     """
     No-operation metrics for when metrics are disabled.
     Follows Null Object pattern.

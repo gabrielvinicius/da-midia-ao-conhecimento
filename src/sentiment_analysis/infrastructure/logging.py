@@ -3,10 +3,7 @@ import structlog
 from typing import Optional
 from datetime import datetime
 
-from src.sentiment_analysis.domain.interfaces import SentimentOperationLogger
-
-
-class StructuredSentimentLogger(SentimentOperationLogger):
+class StructuredSentimentLogger:
     """
     Structured logging implementation for sentiment analysis operations.
     Follows SRP - only responsible for logging.
@@ -52,7 +49,7 @@ class StructuredSentimentLogger(SentimentOperationLogger):
             )
 
 
-class NoOpSentimentLogger(SentimentOperationLogger):
+class NoOpSentimentLogger:
     """
     No-operation logger for testing or when logging is disabled.
     Follows Null Object pattern.

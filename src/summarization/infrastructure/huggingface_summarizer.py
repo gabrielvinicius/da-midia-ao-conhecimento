@@ -4,10 +4,7 @@ import asyncio
 from threading import Lock
 from typing import Dict, Any, Optional
 
-from src.summarization.domain.interfaces import ISummarizer # Corrigir importação
-
-
-class HuggingFaceSummarizer(ISummarizer):
+class HuggingFaceSummarizer:
     def __init__(self, model_name="google-t5/t5-base"):
         """
         Initializes the summarizer with automatic device detection.

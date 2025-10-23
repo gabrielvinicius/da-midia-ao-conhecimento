@@ -4,83 +4,14 @@ from typing import Dict, Any
 from uuid import UUID
 import time # Adicionar para calcular duração
 
-from src.media_management.domain.interfaces import IMediaRepository, MediaOperationLogger, MediaMetrics
+from src.media_management.infrastructure.media_repository import MediaRepository
+from src.media_management.infrastructure.logging import StructuredMediaLogger
+from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
 from src.media_management.domain.media import Media
 from src.media_management.domain.enums import MediaStatus
-from src.media_management.application.commands.commands import CreateMediaCommand, DeleteMediaCommand, ReprocessMediaCommand
+from src.media_management.application.commands.commands import DeleteMediaCommand, ReprocessMediaCommand
 
 logger = structlog.get_logger(__name__)
-
-
-class CreateMediaCommandHandler:
-    """Handler for creating a new media entry."""
-
-    def __init__(
-        self,
-        media_repo: IMediaRepository,
-        media_logger: MediaOperationLogger,
-        media_metrics: MediaMetrics
-    ):
-        self.media_repo = media_repo
-        self.media_logger = media_logger
-        self.media_metrics = media_metrics
-
-    async def handle(self, command: CreateMediaCommand) -> Media:
-        start_time = time.monotonic()
-        operation_name = "create_media_command"
-        success = False
-        error = None
-        file_size_bytes = 0 # Placeholder
-
-        logger.info(
-            f"media_management.{operation_name}.started",
-            user_id=str(command.user_id),
-            media_type=command.media_type.value
-        )
-        try:
-            new_media = Media(
-                user_id=command.user_id,
-                original_file_path=command.original_file_path,
-                media_type=command.media_type,
-                storage_provider=command.storage_provider,
-                status=MediaStatus.UPLOADED # Estado inicial
-            )
-            await self.media_repo.add(new_media)
-            success = True
-            # TODO: Obter o tamanho real do arquivo para file_size_bytes
-            file_size_bytes = 1024 * 1024 # Placeholder
-            logger.info(
-                f"media_management.{operation_name}.completed",
-                media_id=str(new_media.id),
-                user_id=str(command.user_id)
-            )
-            return new_media
-        except Exception as e:
-            error = e
-            logger.error(
-                f"media_management.{operation_name}.failed",
-                user_id=str(command.user_id),
-                error=str(e)
-            )
-            raise
-        finally:
-            duration = time.monotonic() - start_time
-            await self.media_logger.log_operation(
-                operation=operation_name,
-                media_id="N/A", # Media ID pode não estar disponível em caso de falha na criação
-                user_id=str(command.user_id),
-                success=success,
-                duration=duration,
-                error=error
-            )
-            await self.media_metrics.record_operation(
-                operation=operation_name,
-                user_id=str(command.user_id),
-                media_type=command.media_type.value,
-                success=success,
-                duration=duration,
-                file_size_bytes=file_size_bytes
-            )
 
 
 class DeleteMediaCommandHandler:
@@ -88,9 +19,9 @@ class DeleteMediaCommandHandler:
 
     def __init__(
         self,
-        media_repo: IMediaRepository,
-        media_logger: MediaOperationLogger,
-        media_metrics: MediaMetrics
+        media_repo: MediaRepository,
+        media_logger: StructuredMediaLogger,
+        media_metrics: PrometheusMediaMetrics
     ):
         self.media_repo = media_repo
         self.media_logger = media_logger
@@ -158,9 +89,9 @@ class ReprocessMediaCommandHandler:
 
     def __init__(
         self,
-        media_repo: IMediaRepository,
-        media_logger: MediaOperationLogger,
-        media_metrics: MediaMetrics
+        media_repo: MediaRepository,
+        media_logger: StructuredMediaLogger,
+        media_metrics: PrometheusMediaMetrics
     ):
         self.media_repo = media_repo
         self.media_logger = media_logger

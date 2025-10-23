@@ -6,7 +6,7 @@ from sqlalchemy import Column, String, DateTime, ForeignKey, Float, Integer, Boo
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from src.shared.infrastructure.database import Base # Manter esta importação
-from src.sentiment_analysis.domain.interfaces import SentimentLabel, SentimentProvider, AnalysisGranularity # Atualizar importação
+from src.sentiment_analysis.domain.analysis import SentimentLabel, SentimentProvider, AnalysisGranularity
 
 
 class SentimentAnalysisResult(Base):

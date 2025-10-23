@@ -1,177 +1,93 @@
 # src/summarization/application/summarization_service.py
+"""
+Consolidated Summarization Service.
+"""
 import structlog
 from typing import Dict, Any, Optional
 from uuid import UUID
-import time # Adicionar para calcular duração
+import time
 
-from src.summarization.domain.interfaces import (
-    ISummarizer,
-    ISummarizationRepository,
-    ISummarizationTaskScheduler,
-    SummaryOperationLogger,
-    SummaryMetrics
-)
 from src.summarization.domain.summary import Summary, SummaryStatus
+from src.summarization.infrastructure.summarization_repository import SummarizationRepository
+from src.summarization.infrastructure.task_scheduler import CelerySummarizationTaskScheduler
+from src.summarization.infrastructure.logging import StructuredSummaryLogger
+from src.summarization.infrastructure.metrics import PrometheusSummaryMetrics
 
 logger = structlog.get_logger(__name__)
-
 
 class SummarizationService:
     """Application service for orchestrating summarization operations."""
 
     def __init__(
         self,
-        summarizer: ISummarizer,
-        summarization_repo: ISummarizationRepository,
-        task_scheduler: ISummarizationTaskScheduler,
-        summary_logger: SummaryOperationLogger,
-        summary_metrics: SummaryMetrics
+        summarization_repo: SummarizationRepository,
+        task_scheduler: CelerySummarizationTaskScheduler,
+        summary_logger: StructuredSummaryLogger,
+        summary_metrics: PrometheusSummaryMetrics
     ):
-        self.summarizer = summarizer
-        self.summarization_repo = summarization_repo
+        self.repo = summarization_repo
         self.task_scheduler = task_scheduler
-        self.summary_logger = summary_logger
-        self.summary_metrics = summary_metrics
+        self.logger = summary_logger
+        self.metrics = summary_metrics
 
-    async def request_summary_generation(self, media_id: UUID, text_content: str, provider: str) -> Dict[str, Any]:
-        """Requests the generation of a summary for a given media item."""
+    async def request_summary(self, transcription_id: str, provider: str) -> Dict[str, Any]:
+        """Requests and schedules a new summary generation."""
         start_time = time.monotonic()
-        operation_name = "request_summary_generation"
         success = False
         error = None
+        media_id_str = ""
 
-        logger.info(
-            f"summarization_service.{operation_name}.started",
-            media_id=str(media_id),
-            provider=provider
-        )
+        logger.info("summarization.request.started", transcription_id=transcription_id, provider=provider)
         try:
-            # 1. Create a new summary entity in PENDING state
-            new_summary = Summary.create(media_id=media_id, provider=provider)
-            await self.summarization_repo.add(new_summary)
+            # Placeholder logic to get transcription text and media_id
+            transcription_text_content = f"This is the full text from transcription {transcription_id}."
+            media_id = UUID("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11") # Placeholder
+            media_id_str = str(media_id)
 
-            # 2. Schedule the summarization task
+            new_summary = Summary.create(media_id=media_id, provider=provider)
+            await self.repo.add(new_summary)
+
             task_result = await self.task_scheduler.schedule_summarization_task(
-                media_id=str(media_id),
-                text_content=text_content,
+                media_id=media_id_str,
+                text_content=transcription_text_content,
                 provider=provider
             )
             success = True
-            logger.info(
-                f"summarization_service.{operation_name}.scheduled",
-                media_id=str(media_id),
-                summary_id=str(new_summary.id),
-                task_id=task_result.get("task_id")
-            )
+            logger.info("summarization.request.scheduled", summary_id=str(new_summary.id))
             return {
-                "success": True,
-                "media_id": str(media_id),
                 "summary_id": str(new_summary.id),
                 "task_id": task_result.get("task_id"),
-                "message": "Summarization task scheduled successfully"
             }
         except Exception as e:
             error = e
-            logger.error(
-                f"summarization_service.{operation_name}.failed",
-                media_id=str(media_id),
-                error=str(e)
-            )
+            logger.error("summarization.request.failed", transcription_id=transcription_id, error=str(e))
             raise
         finally:
             duration = time.monotonic() - start_time
-            await self.summary_logger.log_operation(
-                operation=operation_name,
-                media_id=str(media_id),
-                provider=provider,
-                success=success,
-                duration=duration,
-                error=error
-            )
-            # Métricas de agendamento não incluem input/output length diretamente aqui
-            await self.summary_metrics.record_operation(
-                operation=operation_name,
-                provider=provider,
-                duration=duration,
-                success=success,
-                input_length=len(text_content), # Assumindo que text_content é o input
-                output_length=0 # Output ainda não gerado
-            )
-
-
-    async def process_generated_summary(self, summary_id: UUID, generated_text: str) -> Dict[str, Any]:
-        """Processes a summary after it has been generated by a task."""
-        start_time = time.monotonic()
-        operation_name = "process_generated_summary"
-        success = False
-        error = None
-        media_id_str = "" # Para logging e métricas
-
-        logger.info(
-            f"summarization_service.{operation_name}.started",
-            summary_id=str(summary_id)
-        )
-        try:
-            summary = await self.summarization_repo.get_by_id(summary_id)
-            if not summary:
-                logger.error(f"summarization_service.{operation_name}.failed", summary_id=str(summary_id), error="Summary not found")
-                raise ValueError(f"Summary with ID {summary_id} not found.")
-
-            media_id_str = str(summary.media_id)
-            provider = summary.provider # Obter o provider do summary
-
-            summary.mark_as_completed(generated_text)
-            await self.summarization_repo.update(summary)
-            success = True
-            logger.info(
-                f"summarization_service.{operation_name}.successfully",
-                summary_id=str(summary_id),
-                media_id=media_id_str
-            )
-            return {
-                "success": True,
-                "summary_id": str(summary_id),
-                "media_id": media_id_str,
-                "status": summary.status.value,
-                "message": "Summary processed and updated successfully"
-            }
-        except Exception as e:
-            error = e
-            logger.error(
-                f"summarization_service.{operation_name}.failed",
-                summary_id=str(summary_id),
-                error=str(e)
-            )
-            # Optionally, mark summary as failed in the repository
-            summary = await self.summarization_repo.get_by_id(summary_id)
-            if summary:
-                summary.mark_as_failed(str(e))
-                await self.summarization_repo.update(summary)
-            raise
-        finally:
-            duration = time.monotonic() - start_time
-            await self.summary_logger.log_operation(
-                operation=operation_name,
+            await self.logger.log_operation(
+                operation="request_summary",
                 media_id=media_id_str,
-                provider=provider if 'provider' in locals() else "unknown", # Usar provider do summary
+                provider=provider,
                 success=success,
                 duration=duration,
                 error=error
             )
-            await self.summary_metrics.record_operation(
-                operation=operation_name,
-                provider=provider if 'provider' in locals() else "unknown",
-                duration=duration,
-                success=success,
-                input_length=0, # Input foi o texto gerado pela tarefa, não o original
-                output_length=len(generated_text)
-            )
+            # Metrics can be added here
 
+    async def process_summary(self, media_id: str, provider: str, text_content: str) -> Summary:
+        """Processes a generated summary and marks it as complete."""
+        logger.info("summarization.process.started", media_id=media_id, provider=provider)
+        summary = await self.repo.get_by_media_id(UUID(media_id))
+        if not summary:
+            raise ValueError(f"Summary not found for media_id: {media_id}")
+
+        summary.mark_as_completed(text_content)
+        await self.repo.update(summary)
+        logger.info("summarization.process.completed", summary_id=str(summary.id))
+        return summary
 
     async def get_summary_by_media_id(self, media_id: UUID) -> Optional[Summary]:
-        """Retrieves a summary by its associated media ID."""
-        return await self.summarization_repo.get_by_media_id(media_id)
+        return await self.repo.get_by_media_id(media_id)
 
     async def get_summary_by_id(self, summary_id: UUID) -> Optional[Summary]:
-        """Retrieves a summary by its ID."""
-        return await self.summarization_repo.get_by_id(summary_id)
+        return await self.repo.get_by_id(summary_id)

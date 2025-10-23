@@ -4,11 +4,7 @@ from sqlalchemy import select
 from typing import Optional
 from uuid import UUID
 
-from src.summarization.domain.interfaces import ISummarizationRepository
-from src.summarization.domain.summary import Summary
-
-
-class SummarizationRepository(ISummarizationRepository):
+class SummarizationRepository:
     """SQLAlchemy implementation of the summarization repository."""
 
     def __init__(self, db: AsyncSession):

@@ -3,10 +3,7 @@ import structlog
 from typing import Optional
 from datetime import datetime
 
-from src.transcription.domain.interfaces import TranscriptionOperationLogger
-
-
-class StructuredTranscriptionLogger(TranscriptionOperationLogger):
+class StructuredTranscriptionLogger:
     """
     Structured logging implementation for transcription operations.
     Follows SRP - only responsible for logging.
@@ -52,7 +49,7 @@ class StructuredTranscriptionLogger(TranscriptionOperationLogger):
             )
 
 
-class NoOpTranscriptionLogger(TranscriptionOperationLogger):
+class NoOpTranscriptionLogger:
     """
     No-operation logger for testing or when logging is disabled.
     Follows Null Object pattern.

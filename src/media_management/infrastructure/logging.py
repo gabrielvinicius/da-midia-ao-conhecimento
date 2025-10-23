@@ -4,10 +4,8 @@ from typing import Optional
 from datetime import datetime
 from uuid import UUID
 
-from src.media_management.domain.interfaces import MediaOperationLogger
 
-
-class StructuredMediaLogger(MediaOperationLogger):
+class StructuredMediaLogger:
     """
     Structured logging implementation for media management operations.
     Follows SRP - only responsible for logging.
@@ -53,7 +51,7 @@ class StructuredMediaLogger(MediaOperationLogger):
             )
 
 
-class NoOpMediaLogger(MediaOperationLogger):
+class NoOpMediaLogger:
     """
     No-operation logger for testing or when logging is disabled.
     Follows Null Object pattern.

@@ -10,14 +10,14 @@ import io
 import resampy
 import logging
 
-from src.transcription.infrastructure.interfaces import ISpeechRecognition
+
 from src.transcription.infrastructure.dependencies import register_speech_recognition
 
 logger = logging.getLogger(__name__)
 
 
 @register_speech_recognition("whisper")
-class WhisperTranscriber(ISpeechRecognition):
+class WhisperTranscriber:
     def __init__(self, model_name: str = "base"):
         self.model = whisper.load_model(model_name)
         self.sample_rate = 16000  # Whisper expects 16kHz audio

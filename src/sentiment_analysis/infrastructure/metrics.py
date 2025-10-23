@@ -3,10 +3,7 @@ import structlog
 from prometheus_client import Counter, Histogram, Gauge
 from typing import Dict, Any
 
-from src.sentiment_analysis.domain.interfaces import SentimentMetrics
-
-
-class PrometheusSentimentMetrics(SentimentMetrics):
+class PrometheusSentimentMetrics:
     """
     Prometheus-based metrics implementation for sentiment analysis operations.
     Follows SRP - only responsible for metrics collection.
@@ -82,7 +79,7 @@ class PrometheusSentimentMetrics(SentimentMetrics):
             # self._output_score.labels(provider=provider, label="unknown").observe(output_score)
 
 
-class InMemorySentimentMetrics(SentimentMetrics):
+class InMemorySentimentMetrics:
     """
     In-memory metrics implementation for testing.
     Follows SRP and provides same interface.
@@ -139,7 +136,7 @@ class InMemorySentimentMetrics(SentimentMetrics):
         self._metrics.clear()
 
 
-class NoOpSentimentMetrics(SentimentMetrics):
+class NoOpSentimentMetrics:
     """
     No-operation metrics for when metrics are disabled.
     Follows Null Object pattern.

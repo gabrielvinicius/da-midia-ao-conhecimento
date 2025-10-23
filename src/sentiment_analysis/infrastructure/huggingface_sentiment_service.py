@@ -13,8 +13,7 @@ from .dependencies import register_sentiment_analysis
 logger = structlog.get_logger(__name__)
 
 
-@register_sentiment_analysis("huggingface")
-class HuggingFaceSentimentAnalysisService(ISentimentAnalysisService):
+class HuggingFaceSentimentAnalyzer:
     """
     HuggingFace sentiment analysis service following SOLID principles.
     

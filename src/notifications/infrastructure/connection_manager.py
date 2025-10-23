@@ -5,14 +5,14 @@ from uuid import UUID
 import json
 import structlog
 
-from src.notifications.domain.interfaces import IWebSocketManager
+
 from .connection_registry import WebSocketConnectionRegistry
 from .websocket_logger import WebSocketLogger
 
 logger = structlog.get_logger(__name__)
 
 
-class ConnectionManager(IWebSocketManager):
+class ConnectionManager:
     """
     Orchestrates WebSocket connections and logging.
     Acts as a facade, delegating connection storage to a registry and logging to a logger.

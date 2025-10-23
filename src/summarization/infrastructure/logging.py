@@ -6,10 +6,7 @@ import structlog
 from typing import Optional
 from datetime import datetime
 
-from src.summarization.domain.interfaces import SummaryOperationLogger
-
-
-class StructuredSummaryLogger(SummaryOperationLogger):
+class StructuredSummaryLogger:
     """
     Structured logging implementation for summarization operations.
     Follows SRP - only responsible for logging.
@@ -55,7 +52,7 @@ class StructuredSummaryLogger(SummaryOperationLogger):
             )
 
 
-class NoOpSummaryLogger(SummaryOperationLogger):
+class NoOpSummaryLogger:
     """
     No-operation logger for testing or when logging is disabled.
     Follows Null Object pattern.

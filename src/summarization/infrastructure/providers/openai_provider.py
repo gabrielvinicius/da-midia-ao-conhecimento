@@ -6,11 +6,7 @@ import asyncio
 from typing import Dict, Any, Optional
 import openai
 
-from src.summarization.domain.interfaces import SummaryConfiguration
-from src.summarization.infrastructure.providers.base_provider import BaseSummaryProvider, SummaryProviderError
-
-
-class OpenAIConfiguration(SummaryConfiguration):
+class OpenAIConfiguration:
     """Configuration for OpenAI summarization - SRP compliance."""
     
     def __init__(

@@ -1,251 +1,192 @@
+# src/auth/application/services/auth_service.py
 """
-Consolidated Auth Service - Handles authentication, permissions, and security
-Consolidates: AuthenticationService, EnhancedAuthenticationService, UserPermissionService
+Consolidated Auth Service - Handles all user and authentication operations.
+This single service now contains the logic previously fragmented across
+UserService, AuthService, PasswordService, and multiple command handlers.
 """
 import structlog
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List, Optional
 from uuid import UUID
-from datetime import datetime
 
 from src.auth.domain.user import User, UserRole
-from src.auth.application.commands.commands import AuthenticateUserCommand
-from src.auth.application.commands.handlers import AuthenticateUserCommandHandler
+from src.auth.infrastructure.user_repository import UserRepository
 from src.auth.config.settings import AuthSettings
-from src.shared.monitoring.metrics_collector import MetricsCollector
+from src.shared.utils.id_generator import generate_id
+from src.shared.utils.password_utils import hash_password, verify_password
+from src.auth.utils.token import create_access_token
 
 logger = structlog.get_logger(__name__)
 
 
 class AuthService:
     """
-    Consolidated service for authentication, authorization, and security.
-    Handles: login/logout, permissions, session management, security validation.
+    Consolidated service for all user and authentication operations.
+    Handles: User CRUD, Authentication, Authorization, Password Management.
     """
     
     def __init__(
-        self,
-        authenticate_handler: AuthenticateUserCommandHandler,
-        auth_settings: AuthSettings,
-        metrics_collector: Optional[MetricsCollector] = None
-    ):
-        self.authenticate_handler = authenticate_handler
-        self.auth_settings = auth_settings
-        self.metrics_collector = metrics_collector
-
-    # === AUTHENTICATION ===
-    
-    async def authenticate_user(
         self, 
-        email: str, 
-        password: str,
-        client_ip: Optional[str] = None,
-        user_agent: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Authenticate user and return token."""
-        start_time = datetime.now()
-        
-        try:
-            command = AuthenticateUserCommand(
-                email=email,
-                password=password,
-                client_ip=client_ip,
-                user_agent=user_agent
-            )
-            
-            result = await self.authenticate_handler.handle(command)
-            
-            # Record success metrics
-            if self.metrics_collector and result.get("success"):
-                self._record_auth_success(email, start_time)
-            elif self.metrics_collector:
-                self._record_auth_failure(email, "invalid_credentials", start_time)
-                
-            return result
-            
-        except Exception as e:
-            if self.metrics_collector:
-                self._record_auth_failure(email, "system_error", start_time)
-            
-            logger.error("authentication.failed", email=email, error=str(e))
-            return {
-                "success": False,
-                "token": None,
-                "user": None,
-                "message": "Authentication failed"
-            }
-    
-    async def logout_user(self, user_id: UUID, token: str) -> Dict[str, Any]:
-        """Logout user and invalidate token."""
-        try:
-            # Implementation for token invalidation
-            # This would typically involve blacklisting the token
-            
-            logger.info("user.logged_out", user_id=str(user_id))
-            
-            return {
-                "success": True,
-                "message": "Logged out successfully"
-            }
-            
-        except Exception as e:
-            logger.error("logout.failed", user_id=str(user_id), error=str(e))
-            return {
-                "success": False,
-                "message": "Logout failed"
-            }
+        user_repository: UserRepository, 
+        settings: AuthSettings
+    ):
+        self.user_repository = user_repository
+        self.settings = settings
 
-    # === AUTHORIZATION & PERMISSIONS ===
-    
-    def can_user_access_resource(self, user: User, resource: str, action: str) -> bool:
-        """Check if user can perform action on resource."""
-        # Admin can do everything
-        if user.role == UserRole.ADMIN:
-            return True
+    # === Authentication ===
+
+    async def authenticate_user(self, email: str, password: str) -> Dict[str, Any]:
+        """Authenticate user and return token."""
+        logger.info("auth.authenticate.started", email=email)
+        user = await self.user_repository.find_by_email(email)
+        if not user or not self._verify_password(password, user.password_hash):
+            logger.warning("auth.authenticate.failed", email=email, reason="invalid_credentials")
+            raise ValueError("Invalid credentials")
         
-        # Check specific permissions based on resource and action
-        return self._check_permission(user.role, resource, action)
-    
+        token = create_access_token(user.id)
+        logger.info("auth.authenticate.success", user_id=str(user.id))
+        
+        return {
+            "token": token,
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "role": user.role.value
+            }
+        }
+
+    # === Core User Operations ===
+
+    async def create_user(self, email: str, password: str, role: str = "user") -> User:
+        """Create a new user with validation."""
+        logger.info("user.create.started", email=email, role=role)
+        self._validate_email_format(email)
+        await self._validate_email_available(email)
+        self._validate_password_strength(password)
+        self._validate_role(role)
+
+        password_hash = self._hash_password(password)
+
+        new_user = User(
+            id=generate_id(),
+            email=email,
+            password_hash=password_hash,
+            role=UserRole(role),
+        )
+        
+        created_user = await self.user_repository.save(new_user)
+        logger.info("user.create.completed", user_id=str(created_user.id), email=email)
+        return created_user
+
+    async def update_user(self, user_id: UUID, updates: Dict[str, Any], admin_user_id: Optional[UUID] = None) -> User:
+        """Update user information."""
+        logger.info("user.update.started", user_id=str(user_id), updates=updates, admin_user_id=str(admin_user_id))
+        user = await self._validate_user_exists(user_id)
+        self._validate_user_updates(updates)
+
+        for key, value in updates.items():
+            setattr(user, key, value)
+
+        updated_user = await self.user_repository.save(user)
+        logger.info("user.update.completed", user_id=str(updated_user.id))
+        return updated_user
+
+    async def delete_user(self, user_id: UUID, admin_user_id: Optional[UUID] = None) -> bool:
+        """Delete a user."""
+        logger.info("user.delete.started", user_id=str(user_id), admin_user_id=str(admin_user_id))
+        await self._validate_user_exists(user_id)
+        success = await self.user_repository.delete(user_id)
+        if success:
+            logger.info("user.delete.completed", user_id=str(user_id))
+        else:
+            logger.error("user.delete.failed", user_id=str(user_id))
+        return success
+
+    async def change_password(self, user_id: UUID, old_password: str, new_password: str) -> bool:
+        """Change a user's password."""
+        logger.info("user.change_password.started", user_id=str(user_id))
+        user = await self._validate_user_exists(user_id)
+        if not self._verify_password(old_password, user.password_hash):
+            logger.warning("user.change_password.failed", reason="invalid_old_password", user_id=str(user_id))
+            raise ValueError("Invalid old password")
+
+        self._validate_password_strength(new_password)
+        new_password_hash = self._hash_password(new_password)
+        user.password_hash = new_password_hash
+        await self.user_repository.save(user)
+        
+        logger.info("user.change_password.completed", user_id=str(user_id))
+        return True
+
+    # === Authorization & Permissions ===
+
     def require_admin_role(self, user: User) -> None:
         """Require user to have admin role."""
         if user.role != UserRole.ADMIN:
             raise PermissionError("Admin role required")
-    
-    def require_role(self, user: User, required_role: UserRole) -> None:
-        """Require user to have specific role."""
-        if user.role != required_role:
-            raise PermissionError(f"Role {required_role.value} required")
-    
+
     def can_modify_user(self, current_user: User, target_user_id: UUID) -> bool:
         """Check if current user can modify target user."""
-        # Admin can modify anyone
         if current_user.role == UserRole.ADMIN:
             return True
-        
-        # Users can only modify themselves
         return str(current_user.id) == str(target_user_id)
-    
-    def can_access_media(self, user: User, media_owner_id: UUID) -> bool:
-        """Check if user can access media."""
-        # Admin can access all media
-        if user.role == UserRole.ADMIN:
-            return True
-        
-        # Users can only access their own media
-        return str(user.id) == str(media_owner_id)
 
-    # === SECURITY VALIDATION ===
+    # === Query Methods ===
     
-    def validate_session(self, user: User, client_ip: str, user_agent: str) -> bool:
-        """Validate user session for security."""
-        try:
-            # Basic session validation
-            # In production, this would include more sophisticated checks
-            
-            # Check if account is active
-            if not self._is_account_active(user):
-                return False
-            
-            # Additional security checks could be added here
-            # - IP whitelist/blacklist
-            # - Device fingerprinting
-            # - Suspicious activity detection
-            
-            return True
-            
-        except Exception as e:
-            logger.error("session.validation_failed", user_id=str(user.id), error=str(e))
-            return False
+    async def get_user_by_id(self, user_id: UUID) -> Optional[User]:
+        return await self.user_repository.find_by_id(user_id)
     
-    def detect_suspicious_activity(self, user: User, client_ip: str, action: str) -> bool:
-        """Detect suspicious user activity."""
-        # Implementation for suspicious activity detection
-        # This could include:
-        # - Multiple failed login attempts
-        # - Login from unusual locations
-        # - Unusual access patterns
-        
-        return False  # Placeholder
+    async def get_user_by_email(self, email: str) -> Optional[User]:
+        return await self.user_repository.find_by_email(email)
     
-    def require_password_reset(self, user: User) -> bool:
-        """Check if user should be required to reset password."""
-        # Implementation for password reset requirements
-        # This could be based on:
-        # - Password age
-        # - Security breaches
-        # - Policy changes
-        
-        return False  # Placeholder
+    async def list_users(self) -> List[User]:
+        return await self.user_repository.list_all()
 
-    # === PRIVATE METHODS ===
-    
-    def _check_permission(self, role: UserRole, resource: str, action: str) -> bool:
-        """Check specific permission for role."""
-        # Define permission matrix
-        permissions = {
-            UserRole.USER: {
-                "media": ["read", "create", "update_own", "delete_own"],
-                "transcription": ["read_own", "create_own"],
-                "summary": ["read_own", "create_own"],
-                "profile": ["read_own", "update_own"]
-            },
-            UserRole.ADMIN: {
-                "*": ["*"]  # Admin has all permissions
-            }
-        }
+    # === Private Helper & Validation Methods ===
+
+    def _hash_password(self, password: str) -> str:
+        return hash_password(password)
+
+    def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
+        return verify_password(plain_password, hashed_password)
+
+    async def _validate_user_exists(self, user_id: UUID) -> User:
+        user = await self.user_repository.find_by_id(user_id)
+        if not user:
+            raise ValueError(f"User with id {user_id} not found")
+        return user
+
+    async def _validate_email_available(self, email: str) -> None:
+        if await self.user_repository.find_by_email(email):
+            raise ValueError("Email already registered")
+
+    def _validate_email_format(self, email: str) -> None:
+        if not email or '@' not in email or '.' not in email.split('@')[1]:
+            raise ValueError("Invalid email format")
+
+    def _validate_password_strength(self, password: str) -> None:
+        if not password or len(password) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        if not any(c.isupper() for c in password):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.islower() for c in password):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not any(c.isdigit() for c in password):
+            raise ValueError("Password must contain at least one number")
+
+    def _validate_role(self, role: str) -> None:
+        valid_roles = [r.value for r in UserRole]
+        if role not in valid_roles:
+            raise ValueError(f"Invalid role. Must be one of: {valid_roles}")
+
+    def _validate_user_updates(self, updates: Dict[str, Any]) -> None:
+        if not updates:
+            raise ValueError("No updates provided")
+        if 'email' in updates:
+            self._validate_email_format(updates['email'])
+        if 'role' in updates:
+            self._validate_role(updates['role'])
         
-        user_permissions = permissions.get(role, {})
-        
-        # Check wildcard permissions for admin
-        if "*" in user_permissions and "*" in user_permissions["*"]:
-            return True
-        
-        # Check specific resource permissions
-        resource_permissions = user_permissions.get(resource, [])
-        
-        return action in resource_permissions or "*" in resource_permissions
-    
-    def _is_account_active(self, user: User) -> bool:
-        """Check if user account is active."""
-        # Implementation for account status check
-        # This could check:
-        # - Account suspension
-        # - Email verification
-        # - Terms acceptance
-        
-        return True  # Placeholder
-    
-    def _record_auth_success(self, email: str, start_time: datetime) -> None:
-        """Record successful authentication metrics."""
-        if not self.metrics_collector:
-            return
-            
-        duration = (datetime.now() - start_time).total_seconds()
-        
-        self.metrics_collector.record_counter(
-            "auth_attempts_total",
-            labels={"status": "success", "method": "password"}
-        )
-        
-        self.metrics_collector.record_histogram(
-            "auth_duration_seconds",
-            duration,
-            labels={"status": "success"}
-        )
-    
-    def _record_auth_failure(self, email: str, error_type: str, start_time: datetime) -> None:
-        """Record failed authentication metrics."""
-        if not self.metrics_collector:
-            return
-            
-        duration = (datetime.now() - start_time).total_seconds()
-        
-        self.metrics_collector.record_counter(
-            "auth_attempts_total",
-            labels={"status": "failure", "error_type": error_type, "method": "password"}
-        )
-        
-        self.metrics_collector.record_histogram(
-            "auth_duration_seconds",
-            duration,
-            labels={"status": "failure"}
-        )
+        forbidden_fields = ['id', 'password_hash', 'created_at']
+        for field in forbidden_fields:
+            if field in updates:
+                raise ValueError(f"Cannot update field: {field}")

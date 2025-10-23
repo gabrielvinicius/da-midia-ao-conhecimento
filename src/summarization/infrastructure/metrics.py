@@ -5,10 +5,7 @@ Summarization metrics implementation - SRP compliance.
 from prometheus_client import Counter, Histogram, Gauge
 from typing import Dict, Any
 
-from src.summarization.domain.interfaces import SummaryMetrics
-
-
-class PrometheusSummaryMetrics(SummaryMetrics):
+class PrometheusSummaryMetrics:
     """
     Prometheus-based metrics implementation for summarization operations.
     Follows SRP - only responsible for metrics collection.
@@ -91,7 +88,7 @@ class PrometheusSummaryMetrics(SummaryMetrics):
             self._compression_ratio.labels(provider=provider).observe(compression_ratio)
 
 
-class InMemorySummaryMetrics(SummaryMetrics):
+class InMemorySummaryMetrics:
     """
     In-memory metrics implementation for testing.
     Follows SRP and provides same interface.
@@ -159,7 +156,7 @@ class InMemorySummaryMetrics(SummaryMetrics):
         return 0.0
 
 
-class NoOpSummaryMetrics(SummaryMetrics):
+class NoOpSummaryMetrics:
     """
     No-operation metrics for when metrics are disabled.
     Follows Null Object pattern.

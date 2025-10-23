@@ -12,14 +12,10 @@ import av
 import io
 import resampy
 
-from src.transcription.domain.interfaces import TranscriptionConfiguration, AudioFormat
-from src.transcription.infrastructure.providers.base_provider import (
-    BaseSpeechRecognitionProvider, 
-    SpeechRecognitionProviderError
-)
 
 
-class WhisperConfiguration(TranscriptionConfiguration):
+
+class WhisperConfiguration:
     """Configuration for Whisper speech recognition - SRP compliance."""
     
     def __init__(
@@ -55,22 +51,14 @@ class WhisperConfiguration(TranscriptionConfiguration):
             self.sample_rate > 0
         )
     
-    def get_supported_formats(self) -> List[AudioFormat]:
-        """Get supported audio formats."""
-        return [
-            AudioFormat.MP3,
-            AudioFormat.WAV,
-            AudioFormat.M4A,
-            AudioFormat.FLAC,
-            AudioFormat.OGG
-        ]
+
     
     def get_max_file_size(self) -> int:
         """Get maximum file size in bytes."""
         return self.max_file_size
 
 
-class WhisperSpeechRecognitionProvider(BaseSpeechRecognitionProvider):
+class WhisperSpeechRecognitionProvider:
     """
     Whisper speech recognition provider.
     Follows OCP - can be extended without modification.

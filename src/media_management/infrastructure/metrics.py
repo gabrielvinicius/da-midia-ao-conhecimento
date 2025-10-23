@@ -3,10 +3,8 @@ import structlog
 from prometheus_client import Counter, Histogram, Gauge
 from typing import Dict, Any
 
-from src.media_management.domain.interfaces import MediaMetrics
 
-
-class PrometheusMediaMetrics(MediaMetrics):
+class PrometheusMediaMetrics:
     """
     Prometheus-based metrics implementation for media management operations.
     Follows SRP - only responsible for metrics collection.
@@ -76,7 +74,7 @@ class PrometheusMediaMetrics(MediaMetrics):
             ).observe(file_size_bytes)
 
 
-class InMemoryMediaMetrics(MediaMetrics):
+class InMemoryMediaMetrics:
     """
     In-memory metrics implementation for testing.
     Follows SRP and provides same interface.
@@ -129,7 +127,7 @@ class InMemoryMediaMetrics(MediaMetrics):
         self._metrics.clear()
 
 
-class NoOpMediaMetrics(MediaMetrics):
+class NoOpMediaMetrics:
     """
     No-operation metrics for when metrics are disabled.
     Follows Null Object pattern.

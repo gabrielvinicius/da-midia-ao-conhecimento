@@ -4,12 +4,11 @@ from sqlalchemy import select
 from typing import Optional, List
 from uuid import UUID
 
-from src.media_management.domain.interfaces import IMediaRepository
 from src.media_management.domain.media import Media
 from src.media_management.domain.enums import MediaStatus
 
 
-class MediaRepository(IMediaRepository):
+class MediaRepository:
     """SQLAlchemy implementation of the media repository."""
 
     def __init__(self, db: AsyncSession):

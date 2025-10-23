@@ -15,19 +15,19 @@ from src.shared.infrastructure.cache import cache
 
 # --- Module Bootstrapping and Composition Root ---
 from src.monitoring.bootstrap import MonitoringContainer
-from src.auth.bootstrap import bootstrap_auth_module
-from src.media_management.bootstrap import bootstrap_media_module
+from src.auth.container import AuthContainer
+from src.media_management.bootstrap import MediaManagementContainer
 # from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
 from src.video_processing.bootstrap import VideoProcessingContainer
-from src.text_processing.bootstrap import bootstrap_text_processing_module, TextProcessingContainer
+from src.text_processing.bootstrap import TextProcessingContainer
 from src.transcription.bootstrap import TranscriptionContainer
 from src.providers.bootstrap import ProvidersContainer
 from src.summarization.bootstrap import SummarizationContainer
-from src.notifications.bootstrap import bootstrap_notification_module
+from src.notifications.bootstrap import NotificationContainer
 
 from src.sentiment_analysis.bootstrap import SentimentAnalysisContainer
 from src.topic_modeling.bootstrap import TopicModelingContainer
-from src.admin.bootstrap import bootstrap_admin_module
+from src.admin.container import AdminContainer
 from src.notifications.infrastructure.connection_manager import manager
 
 # Shared Factories and DB
@@ -80,20 +80,35 @@ async def lifespan(app: FastAPI):
             "sentiment_analysis_service_factory": get_sentiment_service_factory(),
         }
 
-        app_container.update(bootstrap_auth_module(session))
+        auth_container = AuthContainer(db=session)
+        app_container["auth_container"] = auth_container
+        app_container["auth_service"] = auth_container.auth_service()
+        app_container["auth_queries"] = auth_container.auth_queries() # Still needed for other modules
+
         monitoring_container = MonitoringContainer()
         monitoring_container.db.override(session) # Override the db dependency
         app_container["monitoring_container"] = monitoring_container # Store the container itself
         app_container["analytics_queries"] = monitoring_container.analytics_queries()
         app_container["metrics_service"] = monitoring_container.metrics_service()
-        app_container.update(bootstrap_media_module(session, app_container["storage_service_factory"], app_container["event_bus"], app_container["metrics_service"]))
-        transcription_container = TranscriptionContainer()
-        transcription_container.db.override(session)
+        media_management_container = MediaManagementContainer()
+        media_management_container.db.override(session)
+        app_container["media_management_container"] = media_management_container
+        app_container["media_service"] = media_management_container.media_service()
+        app_container["create_media_command_handler"] = media_management_container.create_media_command_handler()
+        app_container["delete_media_command_handler"] = media_management_container.delete_media_command_handler()
+        app_container["reprocess_media_command_handler"] = media_management_container.reprocess_media_command_handler()
+        app_container["media_queries"] = media_management_container.media_queries() # Adicionar media_queries
+        transcription_container = TranscriptionContainer(db=session)
         app_container["transcription_container"] = transcription_container
         app_container["transcription_service"] = transcription_container.transcription_service()
-        app_container["process_transcription_command_handler"] = transcription_container.process_transcription_command_handler()
-        app_container["set_speaker_aliases_command_handler"] = transcription_container.set_speaker_aliases_command_handler()
-        app_container.update(bootstrap_notification_module(session, auth_queries=app_container["auth_queries"], event_bus=app_container["event_bus"]))
+        app_container["transcription_repository"] = transcription_container.transcription_repository() # Still needed for event handlers
+        
+        notification_container = NotificationContainer(db=session)
+        notification_container.auth_queries.override(auth_container.auth_queries())
+        notification_container.event_bus.override(event_bus)
+        app_container["notification_container"] = notification_container
+        app_container["notification_service"] = notification_container.notification_service()
+        app_container["notification_repository"] = notification_container.notification_repository() # Still needed for event handlers
         video_processing_container = VideoProcessingContainer()
         video_processing_container.db.override(session)
         app_container["video_processing_container"] = video_processing_container
@@ -104,26 +119,28 @@ async def lifespan(app: FastAPI):
         app_container["text_processing_container"] = text_processing_container
         app_container["process_text_command_handler"] = text_processing_container.process_text_command_handler()
         app_container["extract_text_command_handler"] = text_processing_container.extract_text_command_handler()
-        summarization_container = SummarizationContainer()
-        summarization_container.db.override(session)
+        summarization_container = SummarizationContainer(db=session)
         app_container["summarization_container"] = summarization_container
         app_container["summarization_service"] = summarization_container.summarization_service()
-        app_container["process_summary_command_handler"] = summarization_container.process_summary_command_handler()
-        app_container["request_summary_command_handler"] = summarization_container.request_summary_command_handler()
+        app_container["summary_repository"] = summarization_container.summarization_repository() # Still needed for event handlers
         providers_container = ProvidersContainer()
         app_container["providers_container"] = providers_container
         app_container["provider_registry"] = providers_container.provider_registry()
-        sentiment_analysis_container = SentimentAnalysisContainer()
-        sentiment_analysis_container.db.override(session)
+        sentiment_analysis_container = SentimentAnalysisContainer(db=session)
         app_container["sentiment_analysis_container"] = sentiment_analysis_container
         app_container["sentiment_analysis_service"] = sentiment_analysis_container.sentiment_analysis_service()
-        app_container["analyze_sentiment_command_handler"] = sentiment_analysis_container.analyze_sentiment_command_handler()
+        app_container["sentiment_analysis_repository"] = sentiment_analysis_container.sentiment_analysis_repository() # Still needed for event handlers
         topic_modeling_container = TopicModelingContainer()
         topic_modeling_container.db.override(session)
         app_container["topic_modeling_container"] = topic_modeling_container
         app_container["topic_modeling_service"] = topic_modeling_container.topic_modeling_service()
         app_container["analyze_topics_command_handler"] = topic_modeling_container.analyze_topics_command_handler()
-        app_container.update(bootstrap_admin_module(session, app_container["media_queries"]))
+        admin_container = AdminContainer()
+        admin_container.db.override(session)
+        admin_container.media_queries.override(app_container["media_queries"])
+        app_container["admin_container"] = admin_container
+        app_container["admin_queries"] = admin_container.admin_queries()
+
 
         app.state.container = app_container
 

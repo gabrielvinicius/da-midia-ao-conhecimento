@@ -9,11 +9,11 @@ from threading import Lock
 from transformers import pipeline, AutoTokenizer
 import torch
 
-from src.summarization.domain.interfaces import SummaryConfiguration
+
 from src.summarization.infrastructure.providers.base_provider import BaseSummaryProvider
 
 
-class HuggingFaceConfiguration(SummaryConfiguration):
+class HuggingFaceConfiguration:
     """Configuration for HuggingFace summarization - SRP compliance."""
     
     def __init__(

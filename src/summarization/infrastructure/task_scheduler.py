@@ -2,13 +2,7 @@
 import structlog
 from typing import Dict, Any, Optional
 
-from src.summarization.domain.interfaces import ISummarizationTaskScheduler
-# from src.summarization.tasks.summarization_tasks import summarize_media_task # Tarefa Celery a ser criada
-
-logger = structlog.get_logger(__name__)
-
-
-class CelerySummarizationTaskScheduler(ISummarizationTaskScheduler):
+class CelerySummarizationTaskScheduler:
     """Concrete implementation for scheduling summarization tasks using Celery."""
 
     async def schedule_summarization_task(self, media_id: str, text_content: str, provider: str) -> Any:

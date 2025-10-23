@@ -1,22 +1,21 @@
+# src/transcription/application/transcription_service.py
 """
-Consolidated Transcription Service
-Consolidates: TranscriptionFactory, TranscriptionProcessor, TranscriptionValidator, TranscriptionStateService
+Consolidated Transcription Service. This single service now handles all logic
+related to transcription, including processing, audio manipulation, speaker aliases,
+and state management, removing the need for fragmented services and handlers.
 """
 import structlog
-from typing import Dict, Any, List, Optional, Set
+import time
+import asyncio
+from typing import Dict, Any, List, Optional
 from uuid import UUID
 
-from src.transcription.domain.transcription import Transcription
-# FIXED: Application should not import Infrastructure directly
-from src.shared.application.dependency_injection import get_transcription_repository, ITranscriptionRepository
-from src.transcription.application.commands.commands import (
-    ProcessTranscriptionCommand,
-    SetSpeakerAliasesCommand
-)
-from src.transcription.application.commands.handlers import (
-    ProcessTranscriptionCommandHandler,
-    SetSpeakerAliasesCommandHandler
-)
+from src.transcription.domain.transcription import Transcription, TranscriptionStatus
+from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
+from src.transcription.infrastructure.speech_recognizer import WhisperSpeechRecognizer
+from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
+from src.transcription.infrastructure.logging import StructuredTranscriptionLogger
+from src.transcription.infrastructure.metrics import PrometheusTranscriptionMetrics
 
 logger = structlog.get_logger(__name__)
 
@@ -24,165 +23,139 @@ logger = structlog.get_logger(__name__)
 class TranscriptionService:
     """
     Consolidated service for all transcription operations.
-    Handles: processing, validation, state management, speaker aliases.
     """
     
     def __init__(
         self,
-        transcription_repository: ITranscriptionRepository,
-        process_transcription_handler: ProcessTranscriptionCommandHandler,
-        set_speaker_aliases_handler: SetSpeakerAliasesCommandHandler
+        transcription_repo: TranscriptionRepository,
+        speech_recognizer: WhisperSpeechRecognizer,
+        storage_service: S3StorageService,
+        transcription_logger: StructuredTranscriptionLogger,
+        transcription_metrics: PrometheusTranscriptionMetrics,
+        target_sample_rate: int = 16000
     ):
-        self.transcription_repository = transcription_repository
-        self.process_transcription_handler = process_transcription_handler
-        self.set_speaker_aliases_handler = set_speaker_aliases_handler
+        self.repo = transcription_repo
+        self.recognizer = speech_recognizer
+        self.storage = storage_service
+        self.logger = transcription_logger
+        self.metrics = transcription_metrics
+        self.target_sample_rate = target_sample_rate
         self.supported_languages = {"en", "es", "fr", "de", "it", "pt", "ru", "zh", "ja", "ko"}
 
-    # === TRANSCRIPTION PROCESSING ===
-    
-    async def process_transcription(
-        self,
-        media_id: str,
-        file_path: str,
-        storage_provider: str,
-        transcription_provider: str,
-        language: str = "en"
-    ) -> Dict[str, Any]:
-        """Process transcription with validation."""
-        # Validate language
-        self._validate_language(language)
-        
-        command = ProcessTranscriptionCommand(
-            media_id=media_id,
-            file_path=file_path,
-            storage_provider=storage_provider,
-            transcription_provider=transcription_provider,
-            language=language
-        )
-        return await self.process_transcription_handler.handle(command)
-    
-    async def set_speaker_aliases(self, transcription_id: UUID, aliases: Dict[str, str]) -> Dict[str, Any]:
-        """Set speaker aliases for transcription."""
-        # Validate aliases
+    # === Core Transcription Workflow ===
+
+    async def process_transcription(self, media_id: str, file_path: str, language: str, provider: str) -> Transcription:
+        """The main method to process a transcription request."""
+        start_time = time.monotonic()
+        success = False
+        error = None
+        transcription_id = None
+
+        logger.info("transcription.process.started", media_id=media_id, provider=provider)
+        try:
+            # 1. Download and process audio
+            audio_data = await self.storage.download_file(file_path)
+            normalized_audio = await self._normalize_audio(audio_data)
+
+            # 2. Create transcription record
+            transcription = Transcription(
+                media_id=UUID(media_id),
+                provider=provider
+            )
+            transcription.process()
+            await self.repo.add(transcription)
+            transcription_id = transcription.id
+
+            # 3. Perform speech recognition
+            transcription_result = await self.recognizer.transcribe(
+                audio_data=normalized_audio,
+                language=language,
+                options={"provider": provider}
+            )
+
+            # 4. Update record with results
+            transcription.mark_as_completed(transcription_result)
+            await self.repo.update(transcription)
+            success = True
+            logger.info("transcription.process.completed", transcription_id=str(transcription_id))
+            return transcription
+
+        except Exception as e:
+            error = e
+            logger.error("transcription.process.failed", media_id=media_id, error=str(e))
+            if transcription_id:
+                transcription = await self.repo.get_by_id(transcription_id)
+                if transcription:
+                    transcription.mark_as_failed(str(e))
+                    await self.repo.update(transcription)
+            raise
+        finally:
+            duration = time.monotonic() - start_time
+            await self.logger.log_operation(
+                operation="process_transcription",
+                media_id=media_id,
+                provider=provider,
+                success=success,
+                duration=duration,
+                error=error
+            )
+            # Metrics recording can be added here
+
+    async def set_speaker_aliases(self, transcription_id: UUID, aliases: Dict[str, str]) -> Transcription:
+        """Sets speaker aliases for a given transcription."""
+        logger.info("transcription.set_aliases.started", transcription_id=str(transcription_id))
         self._validate_speaker_aliases(aliases)
         
-        command = SetSpeakerAliasesCommand(
-            transcription_id=transcription_id,
-            aliases=aliases
-        )
-        return await self.set_speaker_aliases_handler.handle(command)
+        transcription = await self.repo.get_by_id(transcription_id)
+        if not transcription:
+            raise ValueError(f"Transcription with ID {transcription_id} not found.")
 
-    # === TRANSCRIPTION VALIDATION ===
-    
-    def validate_audio_file(self, audio_data: bytes, min_size: int = 1024, max_size: int = 100 * 1024 * 1024) -> None:
-        """Validate audio file for transcription."""
-        if not audio_data:
-            raise ValueError("Audio data is empty")
-        
-        if len(audio_data) < min_size:
-            raise ValueError(f"Audio file too small (minimum {min_size} bytes)")
-        
-        if len(audio_data) > max_size:
-            raise ValueError(f"Audio file too large (maximum {max_size} bytes)")
-    
+        transcription.set_speaker_aliases(aliases)
+        await self.repo.update(transcription)
+        logger.info("transcription.set_aliases.completed", transcription_id=str(transcription_id))
+        return transcription
+
+    # === Query Methods ===
+
+    async def get_transcription_by_id(self, transcription_id: UUID) -> Optional[Transcription]:
+        return await self.repo.get_by_id(transcription_id)
+
+    async def get_transcription_by_media_id(self, media_id: UUID) -> Optional[Transcription]:
+        return await self.repo.get_by_media_id(media_id)
+
+    # === Private Helper Methods ===
+
+    async def _normalize_audio(self, audio_data: bytes) -> bytes:
+        """Normalize audio to a standard format for transcription."""
+        command = [
+            'ffmpeg',
+            '-i', 'pipe:0',
+            '-f', 'wav',
+            '-ac', '1',  # Mono
+            '-ar', str(self.target_sample_rate),  # Target sample rate
+            '-acodec', 'pcm_s16le',  # PCM 16-bit
+            '-loglevel', 'error',
+            'pipe:1'
+        ]
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate(input=audio_data)
+        if process.returncode != 0:
+            logger.error("audio.normalization.failed", error=stderr.decode())
+            raise RuntimeError("Audio normalization failed.")
+        return stdout
+
     def _validate_language(self, language: str) -> None:
-        """Validate language code."""
         if language not in self.supported_languages:
             raise ValueError(f"Language '{language}' not supported. Supported: {self.supported_languages}")
-    
+
     def _validate_speaker_aliases(self, aliases: Dict[str, str]) -> None:
-        """Validate speaker aliases."""
         if not aliases:
             raise ValueError("Speaker aliases cannot be empty")
-        
         for speaker_id, alias in aliases.items():
-            if not speaker_id or not isinstance(speaker_id, str):
-                raise ValueError("Speaker ID must be a non-empty string")
-            
-            if not alias or not isinstance(alias, str):
-                raise ValueError("Speaker alias must be a non-empty string")
-            
-            if len(alias) > 100:
-                raise ValueError("Speaker alias too long (maximum 100 characters)")
-
-    # === TRANSCRIPTION FACTORY ===
-    
-    def create_transcription_entity(
-        self,
-        transcription_id: UUID,
-        media_id: str,
-        text: str,
-        language: str,
-        provider: str,
-        confidence: Optional[float] = None
-    ) -> Transcription:
-        """Create a new Transcription entity."""
-        return Transcription(
-            id=transcription_id,
-            media_id=UUID(media_id),
-            text=text,
-            language=language,
-            provider=provider,
-            confidence=confidence or 0.0
-        )
-
-    # === QUERY METHODS ===
-    
-    async def get_transcription_by_id(self, transcription_id: str) -> Optional[Transcription]:
-        """Get transcription by ID."""
-        return await self.transcription_repository.find_by_id(transcription_id)
-    
-    async def get_transcription_by_media_id(self, media_id: str) -> Optional[Transcription]:
-        """Get transcription by media ID."""
-        return await self.transcription_repository.find_by_media_id(media_id)
-    
-    async def list_transcriptions_by_user(self, user_id: str) -> List[Transcription]:
-        """List transcriptions for a user."""
-        return await self.transcription_repository.find_by_user_id(user_id)
-    
-    async def count_transcriptions(self, user_id: Optional[str] = None) -> int:
-        """Count transcriptions."""
-        if user_id:
-            return await self.transcription_repository.count_by_user_id(user_id)
-        return await self.transcription_repository.count_all()
-
-    # === STATE MANAGEMENT ===
-    
-    async def update_transcription_status(self, transcription_id: str, status: str) -> Transcription:
-        """Update transcription processing status."""
-        transcription = await self.transcription_repository.find_by_id(transcription_id)
-        if not transcription:
-            raise ValueError(f"Transcription {transcription_id} not found")
-        
-        transcription.status = status
-        return await self.transcription_repository.save(transcription)
-    
-    async def add_processing_error(self, transcription_id: str, error_message: str) -> Transcription:
-        """Add error to transcription."""
-        transcription = await self.transcription_repository.find_by_id(transcription_id)
-        if not transcription:
-            raise ValueError(f"Transcription {transcription_id} not found")
-        
-        transcription.error_message = error_message
-        transcription.status = "failed"
-        return await self.transcription_repository.save(transcription)
-
-    # === STATISTICS ===
-    
-    async def get_transcription_statistics(self, user_id: Optional[str] = None) -> Dict[str, Any]:
-        """Get transcription statistics."""
-        if user_id:
-            total = await self.count_transcriptions(user_id)
-            by_language = await self.transcription_repository.count_by_user_and_language(user_id)
-            by_provider = await self.transcription_repository.count_by_user_and_provider(user_id)
-        else:
-            total = await self.count_transcriptions()
-            by_language = await self.transcription_repository.count_by_language()
-            by_provider = await self.transcription_repository.count_by_provider()
-        
-        return {
-            "total": total,
-            "by_language": by_language,
-            "by_provider": by_provider,
-            "supported_languages": list(self.supported_languages)
-        }
+            if not all([speaker_id, isinstance(speaker_id, str), alias, isinstance(alias, str), len(alias) <= 100]):
+                raise ValueError("Invalid speaker alias format")

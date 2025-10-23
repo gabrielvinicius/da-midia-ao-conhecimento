@@ -2,13 +2,13 @@
 Admin User Service - Single Responsibility: Admin user operations
 Follows SRP by handling only admin-related user management.
 """
-from typing import List, Dict
+from typing import List, Dict, Any
 from uuid import UUID
 import structlog
 
 from src.admin.domain.interfaces import IAdminUserService, IAdminAuditService
 from src.auth.domain.user import User, UserRole
-from src.auth.domain.interfaces import IUserRepository, IUserPermissionService
+from src.auth.infrastructure.user_repository import UserRepository
 
 logger = structlog.get_logger(__name__)
 
@@ -24,8 +24,8 @@ class AdminUserService(IAdminUserService):
     
     def __init__(
         self,
-        user_repository: IUserRepository,
-        permission_service: IUserPermissionService,
+        user_repository: UserRepository,
+        permission_service: Any, # IUserPermissionService has no implementation
         audit_service: IAdminAuditService
     ):
         self.user_repository = user_repository

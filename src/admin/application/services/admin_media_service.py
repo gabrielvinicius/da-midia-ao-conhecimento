@@ -2,15 +2,14 @@
 Admin Media Service - Single Responsibility: Admin media operations
 Follows SRP by handling only admin-related media management.
 """
-from typing import List
+from typing import List, Any
 from uuid import UUID
 import structlog
 
 from src.admin.domain.interfaces import IAdminMediaService, IAdminAuditService
 from src.auth.domain.user import User
-from src.auth.domain.interfaces import IUserPermissionService
 from src.media_management.domain.media import Media, MediaStatus
-from src.media_management.domain.interfaces import IMediaRepository
+from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.application.commands.delete_media_command import DeleteMediaCommand
 from src.media_management.application.commands.delete_media_command_handler import DeleteMediaCommandHandler
 from src.media_management.application.commands.reprocess_media_command import ReprocessMediaCommand
@@ -30,8 +29,8 @@ class AdminMediaService(IAdminMediaService):
     
     def __init__(
         self,
-        media_repository: IMediaRepository,
-        permission_service: IUserPermissionService,
+        media_repository: MediaRepository,
+        permission_service: Any, # IUserPermissionService has no implementation
         audit_service: IAdminAuditService,
         delete_media_handler: DeleteMediaCommandHandler,
         reprocess_media_handler: ReprocessMediaCommandHandler

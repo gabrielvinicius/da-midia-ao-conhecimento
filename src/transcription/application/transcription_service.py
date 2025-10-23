@@ -3,13 +3,6 @@ import structlog
 from typing import Dict, Any, Optional
 from uuid import UUID
 
-from src.transcription.domain.interfaces import (
-    ISpeechRecognizer,
-    ITranscriptionRepository,
-    ITranscriptionTaskScheduler,
-    TranscriptionOperationLogger,
-    TranscriptionMetrics
-)
 from src.transcription.domain.transcription import Transcription, TranscriptionStatus
 
 logger = structlog.get_logger(__name__)

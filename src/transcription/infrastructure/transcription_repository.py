@@ -4,11 +4,10 @@ from sqlalchemy import select
 from typing import Optional
 from uuid import UUID
 
-from src.transcription.domain.interfaces import ITranscriptionRepository
 from src.transcription.domain.transcription import Transcription
 
 
-class TranscriptionRepository(ITranscriptionRepository):
+class TranscriptionRepository:
     """SQLAlchemy implementation of the transcription repository."""
 
     def __init__(self, db: AsyncSession):

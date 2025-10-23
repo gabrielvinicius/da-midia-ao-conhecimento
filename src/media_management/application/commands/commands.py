@@ -7,15 +7,6 @@ from src.media_management.domain.enums import MediaType
 
 
 @dataclass(frozen=True)
-class CreateMediaCommand:
-    """Command to create a new media entry."""
-    user_id: UUID
-    original_file_path: str
-    media_type: MediaType
-    storage_provider: str
-
-
-@dataclass(frozen=True)
 class DeleteMediaCommand:
     """Command to delete a media entry."""
     media_id: UUID
