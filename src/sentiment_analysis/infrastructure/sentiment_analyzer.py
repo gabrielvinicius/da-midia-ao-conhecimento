@@ -2,12 +2,7 @@
 import structlog
 from typing import Dict, Any, Optional
 
-from src.sentiment_analysis.domain.interfaces import ISentimentAnalyzer, SentimentLabel
-
-logger = structlog.get_logger(__name__)
-
-
-class HuggingFaceSentimentAnalyzer(ISentimentAnalyzer):
+class HuggingFaceSentimentAnalyzer:
     """Concrete implementation of ISentimentAnalyzer using a placeholder HuggingFace model."""
 
     async def analyze(self, text_content: str, language: str, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

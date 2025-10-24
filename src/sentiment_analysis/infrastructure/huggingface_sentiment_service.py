@@ -4,13 +4,21 @@ from typing import Dict, Any, List, Optional
 import time
 import hashlib
 import structlog
-
-from src.sentiment_analysis.domain.interfaces import (
-    ISentimentAnalysisService, SentimentProvider, AnalysisGranularity
-)
-from .dependencies import register_sentiment_analysis
+from enum import Enum
 
 logger = structlog.get_logger(__name__)
+
+
+class SentimentProvider(str, Enum):
+    HUGGINGFACE = "huggingface"
+    OPENAI = "openai"
+    CUSTOM = "custom"
+
+
+class AnalysisGranularity(str, Enum):
+    DOCUMENT = "document"
+    SENTENCE = "sentence"
+    PARAGRAPH = "paragraph"
 
 
 class HuggingFaceSentimentAnalyzer:

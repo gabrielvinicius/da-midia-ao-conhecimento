@@ -4,11 +4,7 @@ from sqlalchemy import select
 from typing import Optional, Any
 from uuid import UUID
 
-from src.sentiment_analysis.domain.interfaces import ISentimentAnalysisRepository
-from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysisResult # Importar a entidade
-
-
-class SentimentAnalysisRepository(ISentimentAnalysisRepository):
+class SentimentAnalysisRepository:
     """SQLAlchemy implementation of the sentiment analysis repository."""
 
     def __init__(self, db: AsyncSession):
