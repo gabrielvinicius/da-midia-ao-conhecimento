@@ -2,12 +2,7 @@
 import structlog
 from typing import Dict, Any, Optional
 
-from src.topic_modeling.domain.interfaces import ITopicModeler
-
-logger = structlog.get_logger(__name__)
-
-
-class BERTopicModeler(ITopicModeler):
+class BERTopicModeler:
     """Concrete implementation of ITopicModeler using a placeholder BERTopic algorithm."""
 
     async def model_topics(self, text_content: str, language: str, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

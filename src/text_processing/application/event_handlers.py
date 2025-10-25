@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional # Adicionar Optional
 from src.shared.events.event_bus import EventBus
 from src.media_management.domain.media import MediaType
 from src.shared.events.domain_events import MediaUploaded
-from src.text_processing.domain.interfaces import ITextProcessingTaskScheduler # Adicionar esta linha
+
 
 logger = logging.getLogger(__name__)
 

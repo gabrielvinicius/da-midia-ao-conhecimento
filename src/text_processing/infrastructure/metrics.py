@@ -5,10 +5,7 @@ Text processing metrics implementation - SRP compliance.
 from prometheus_client import Counter, Histogram, Gauge
 from typing import Dict, Any
 
-from src.text_processing.domain.interfaces import TextMetrics
-
-
-class PrometheusTextMetrics(TextMetrics):
+class PrometheusTextProcessingMetrics:
     """
     Prometheus-based metrics implementation for text processing operations.
     Follows SRP - only responsible for metrics collection.
@@ -92,7 +89,7 @@ class PrometheusTextMetrics(TextMetrics):
             self._extraction_ratio.labels(format_type=format_type).observe(extraction_ratio)
 
 
-class InMemoryTextMetrics(TextMetrics):
+class InMemoryTextProcessingMetrics:
     """
     In-memory metrics implementation for testing.
     Follows SRP and provides same interface.
@@ -170,7 +167,7 @@ class InMemoryTextMetrics(TextMetrics):
         return 0.0
 
 
-class NoOpTextMetrics(TextMetrics):
+class NoOpTextProcessingMetrics:
     """
     No-operation metrics for when metrics are disabled.
     Follows Null Object pattern.

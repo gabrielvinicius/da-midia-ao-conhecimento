@@ -2,13 +2,7 @@
 import structlog
 from typing import Dict, Any, Optional
 
-from src.text_processing.domain.interfaces import ITextProcessingTaskScheduler
-from src.text_processing.tasks.text_tasks import process_text_task
-
-logger = structlog.get_logger(__name__)
-
-
-class CeleryTextProcessingTaskScheduler(ITextProcessingTaskScheduler):
+class CeleryTextProcessingTaskScheduler:
     """Concrete implementation for scheduling text processing tasks using Celery."""
 
     async def schedule_process_text_task(self, media_id: str, text_content: str, processing_type: str, options: Optional[Dict[str, Any]] = None) -> Any:

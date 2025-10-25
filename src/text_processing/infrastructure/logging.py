@@ -6,10 +6,7 @@ import structlog
 from typing import Optional
 from datetime import datetime
 
-from src.text_processing.domain.interfaces import TextOperationLogger
-
-
-class StructuredTextLogger(TextOperationLogger):
+class StructuredTextProcessingLogger:
     """
     Structured logging implementation for text processing operations.
     Follows SRP - only responsible for logging.
@@ -59,7 +56,7 @@ class StructuredTextLogger(TextOperationLogger):
             )
 
 
-class NoOpTextLogger(TextOperationLogger):
+class NoOpTextProcessingLogger:
     """
     No-operation logger for testing or when logging is disabled.
     Follows Null Object pattern.

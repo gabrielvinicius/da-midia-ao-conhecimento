@@ -16,14 +16,10 @@ try:
 except ImportError:
     GENSIM_AVAILABLE = False
 
-from src.topic_modeling.domain.interfaces import TopicModelingConfiguration
-from src.topic_modeling.infrastructure.providers.base_provider import (
-    BaseTopicModelingProvider, 
-    TopicModelingProviderError
-)
 
 
-class GensimConfiguration(TopicModelingConfiguration):
+
+class GensimConfiguration:
     """Configuration for Gensim topic modeling - SRP compliance."""
     
     def __init__(
@@ -85,7 +81,7 @@ class GensimConfiguration(TopicModelingConfiguration):
         return self.max_text_length
 
 
-class GensimTopicModelingProvider(BaseTopicModelingProvider):
+class GensimTopicModelingProvider:
     """
     Gensim topic modeling provider.
     Follows OCP - can be extended without modification.

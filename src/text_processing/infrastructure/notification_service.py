@@ -6,13 +6,7 @@ import json
 import structlog
 from typing import Optional
 
-from src.text_processing.domain.interfaces import TextNotificationService
-from src.notifications.infrastructure.connection_manager import ConnectionManager
-
-logger = structlog.get_logger(__name__)
-
-
-class WebSocketTextNotificationService(TextNotificationService):
+class WebSocketTextNotificationService:
     """
     WebSocket-based notification service for text processing operations.
     Follows SRP - only responsible for notifications.
@@ -102,7 +96,7 @@ class WebSocketTextNotificationService(TextNotificationService):
             )
 
 
-class EmailTextNotificationService(TextNotificationService):
+class EmailTextNotificationService:
     """
     Email-based notification service for text processing operations.
     Alternative implementation following same interface.
@@ -137,7 +131,7 @@ class EmailTextNotificationService(TextNotificationService):
         pass
 
 
-class NoOpTextNotificationService(TextNotificationService):
+class NoOpTextNotificationService:
     """
     No-operation notification service for testing.
     Follows Null Object pattern.

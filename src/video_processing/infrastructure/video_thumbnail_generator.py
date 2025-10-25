@@ -11,12 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import wave # Não usado aqui, mas estava no original
 
-from src.video_processing.domain.interfaces import IVideoThumbnailGenerator
-
-logger = structlog.get_logger(__name__)
-
-
-class FFmpegVideoThumbnailGenerator(IVideoThumbnailGenerator):
+class FFmpegVideoThumbnailGenerator:
     """Concrete implementation of IVideoThumbnailGenerator using FFmpeg and MoviePy/PIL as fallback."""
 
     def __init__(self):

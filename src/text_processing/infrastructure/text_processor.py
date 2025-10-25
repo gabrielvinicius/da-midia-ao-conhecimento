@@ -4,12 +4,7 @@ Concrete implementation of ITextProcessor for text processing operations.
 from typing import Dict, Any, Optional
 import structlog
 
-from src.text_processing.domain.interfaces import ITextProcessor
-
-logger = structlog.get_logger(__name__)
-
-
-class TextProcessor(ITextProcessor):
+class TextProcessor:
     """Concrete implementation for text processing."""
 
     async def process_text(self, text_content: str, processing_type: str, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

@@ -10,6 +10,6 @@ class AdminContainer(containers.DeclarativeContainer):
 
     admin_queries = providers.Factory(
         AdminQueries,
-        session=db,
+        auth_queries=providers.Dependency(), # Will be provided by main.py
         media_queries=media_queries
     )

@@ -10,12 +10,7 @@ import moviepy.editor as mp
 import io
 import wave
 
-from src.video_processing.domain.interfaces import IVideoAudioExtractor
-
-logger = structlog.get_logger(__name__)
-
-
-class FFmpegVideoAudioExtractor(IVideoAudioExtractor):
+class FFmpegVideoAudioExtractor:
     """Concrete implementation of IVideoAudioExtractor using FFmpeg and MoviePy as fallback."""
 
     def __init__(self):

@@ -3,10 +3,7 @@ import structlog
 from typing import Optional
 from datetime import datetime
 
-from src.topic_modeling.domain.interfaces import TopicModelingOperationLogger
-
-
-class StructuredTopicModelingLogger(TopicModelingOperationLogger):
+class StructuredTopicModelingLogger:
     """
     Structured logging implementation for topic modeling operations.
     Follows SRP - only responsible for logging.
@@ -52,7 +49,7 @@ class StructuredTopicModelingLogger(TopicModelingOperationLogger):
             )
 
 
-class NoOpTopicModelingLogger(TopicModelingOperationLogger):
+class NoOpTopicModelingLogger:
     """
     No-operation logger for testing or when logging is disabled.
     Follows Null Object pattern.

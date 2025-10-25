@@ -4,11 +4,7 @@ from sqlalchemy import select
 from typing import Optional, Any
 from uuid import UUID
 
-from src.topic_modeling.domain.interfaces import ITopicModelingRepository
-from src.topic_modeling.domain.topic_modeling import TopicModelingResult # Importar a entidade
-
-
-class TopicModelingRepository(ITopicModelingRepository):
+class TopicModelingRepository:
     """SQLAlchemy implementation of the topic modeling repository."""
 
     def __init__(self, db: AsyncSession):

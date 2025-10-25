@@ -2,13 +2,7 @@
 import structlog
 from typing import Dict, Any, Optional
 
-from src.video_processing.domain.interfaces import IVideoProcessingTaskScheduler
-# from src.video_processing.tasks.video_tasks import process_video_task # Tarefa Celery a ser criada
-
-logger = structlog.get_logger(__name__)
-
-
-class CeleryVideoProcessingTaskScheduler(IVideoProcessingTaskScheduler):
+class CeleryVideoProcessingTaskScheduler:
     """Concrete implementation for scheduling video processing tasks using Celery."""
 
     async def schedule_process_video_task(self, media_id: str, file_path: str) -> Any:

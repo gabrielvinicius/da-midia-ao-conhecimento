@@ -5,19 +5,7 @@ import structlog
 import os # Adicionar import para manipulação de arquivos
 from typing import Dict, Any
 
-from src.text_processing.domain.interfaces import ITextExtractor
-from src.text_processing.infrastructure.pipelines.extraction_pipeline import (
-    TextExtractionPipelineFactory,
-    TextExtractionRequest,
-    TextType,
-    ProcessingPipeline
-)
-from src.shared.infrastructure.storage.s3_storage_service import S3StorageService # Assumindo que o S3 é o serviço de armazenamento
-
-logger = structlog.get_logger(__name__)
-
-
-class TextExtractor(ITextExtractor):
+class TextExtractor:
     """Concrete implementation for text extraction using a pipeline."""
 
     def __init__(self, basic_extraction_pipeline: ProcessingPipeline, advanced_extraction_pipeline: ProcessingPipeline, s3_storage_service: S3StorageService):

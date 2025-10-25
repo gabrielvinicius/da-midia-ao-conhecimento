@@ -3,10 +3,7 @@ import structlog
 from prometheus_client import Counter, Histogram, Gauge
 from typing import Dict, Any
 
-from src.topic_modeling.domain.interfaces import TopicModelingMetrics
-
-
-class PrometheusTopicModelingMetrics(TopicModelingMetrics):
+class PrometheusTopicModelingMetrics:
     """
     Prometheus-based metrics implementation for topic modeling operations.
     Follows SRP - only responsible for metrics collection.
@@ -79,7 +76,7 @@ class PrometheusTopicModelingMetrics(TopicModelingMetrics):
             self._num_topics.labels(provider=provider).observe(num_topics)
 
 
-class InMemoryTopicModelingMetrics(TopicModelingMetrics):
+class InMemoryTopicModelingMetrics:
     """
     In-memory metrics implementation for testing.
     Follows SRP and provides same interface.
@@ -134,7 +131,7 @@ class InMemoryTopicModelingMetrics(TopicModelingMetrics):
         self._metrics.clear()
 
 
-class NoOpTopicModelingMetrics(TopicModelingMetrics):
+class NoOpTopicModelingMetrics:
     """
     No-operation metrics for when metrics are disabled.
     Follows Null Object pattern.

@@ -1,13 +1,7 @@
 # src/admin/application/queries/admin_queries.py
 from typing import Dict, Any
 from uuid import UUID
-from src.admin.domain.interfaces import IAdminQueries
-from src.auth.application.queries.auth_queries import AuthQueries
-from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_management.domain.media import MediaStatus
-
-
-class AdminQueries(IAdminQueries):
+class AdminQueries:
     """
     Admin queries service following SOLID principles.
     

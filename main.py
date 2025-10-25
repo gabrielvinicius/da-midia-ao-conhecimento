@@ -109,16 +109,12 @@ async def lifespan(app: FastAPI):
         app_container["notification_container"] = notification_container
         app_container["notification_service"] = notification_container.notification_service()
         app_container["notification_repository"] = notification_container.notification_repository() # Still needed for event handlers
-        video_processing_container = VideoProcessingContainer()
-        video_processing_container.db.override(session)
+        video_processing_container = VideoProcessingContainer(db=session)
         app_container["video_processing_container"] = video_processing_container
         app_container["video_processing_service"] = video_processing_container.video_processing_service()
-        app_container["process_video_command_handler"] = video_processing_container.process_video_command_handler()
-        text_processing_container = TextProcessingContainer()
-        text_processing_container.db.override(session)
+        text_processing_container = TextProcessingContainer(db=session)
         app_container["text_processing_container"] = text_processing_container
-        app_container["process_text_command_handler"] = text_processing_container.process_text_command_handler()
-        app_container["extract_text_command_handler"] = text_processing_container.extract_text_command_handler()
+        app_container["text_processing_service"] = text_processing_container.text_processing_service()
         summarization_container = SummarizationContainer(db=session)
         app_container["summarization_container"] = summarization_container
         app_container["summarization_service"] = summarization_container.summarization_service()
@@ -130,11 +126,10 @@ async def lifespan(app: FastAPI):
         app_container["sentiment_analysis_container"] = sentiment_analysis_container
         app_container["sentiment_analysis_service"] = sentiment_analysis_container.sentiment_analysis_service()
         app_container["sentiment_analysis_repository"] = sentiment_analysis_container.sentiment_analysis_repository() # Still needed for event handlers
-        topic_modeling_container = TopicModelingContainer()
-        topic_modeling_container.db.override(session)
+        topic_modeling_container = TopicModelingContainer(db=session)
         app_container["topic_modeling_container"] = topic_modeling_container
         app_container["topic_modeling_service"] = topic_modeling_container.topic_modeling_service()
-        app_container["analyze_topics_command_handler"] = topic_modeling_container.analyze_topics_command_handler()
+        app_container["topic_modeling_repository"] = topic_modeling_container.topic_modeling_repository() # Still needed for event handlers
         admin_container = AdminContainer()
         admin_container.db.override(session)
         admin_container.media_queries.override(app_container["media_queries"])

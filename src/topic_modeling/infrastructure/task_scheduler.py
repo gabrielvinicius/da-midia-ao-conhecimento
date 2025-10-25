@@ -2,13 +2,7 @@
 import structlog
 from typing import Dict, Any, Optional
 
-from src.topic_modeling.domain.interfaces import ITopicModelingTaskScheduler
-# from src.topic_modeling.tasks.topic_modeling_tasks import analyze_topics_task # Tarefa Celery a ser criada
-
-logger = structlog.get_logger(__name__)
-
-
-class CeleryTopicModelingTaskScheduler(ITopicModelingTaskScheduler):
+class CeleryTopicModelingTaskScheduler:
     """Concrete implementation for scheduling topic modeling tasks using Celery."""
 
     async def schedule_topic_modeling_task(self, media_id: str, text_content: str, provider: str, language: str) -> Any:

@@ -10,14 +10,7 @@ from sklearn.decomposition import LatentDirichletAllocation, NMF
 from sklearn.cluster import KMeans
 from sklearn.metrics.pairwise import cosine_similarity
 
-from src.topic_modeling.domain.interfaces import TopicModelingConfiguration
-from src.topic_modeling.infrastructure.providers.base_provider import (
-    BaseTopicModelingProvider, 
-    TopicModelingProviderError
-)
-
-
-class SklearnConfiguration(TopicModelingConfiguration):
+class SklearnConfiguration:
     """Configuration for scikit-learn topic modeling - SRP compliance."""
     
     def __init__(
