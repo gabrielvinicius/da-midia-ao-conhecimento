@@ -147,7 +147,10 @@ async def lifespan(app: FastAPI):
         from src.sentiment_analysis.application.event_handlers import register_event_handlers as register_sentiment_handlers
         from src.topic_modeling.application.event_handlers import register_event_handlers as register_topic_handlers
         
-        await register_video_handlers(app_container["event_bus"])
+        await register_video_handlers(
+            app_container["event_bus"],
+            app_container["video_processing_container"].video_processing_task_scheduler(),
+        )
         await register_text_handlers(app_container["event_bus"], app_container["text_processing_container"].text_processing_task_scheduler())
         await register_transcription_handlers(app_container["event_bus"], app_container["transcription_repository"], app_container["media_queries"])
         await register_summary_handlers(app_container["event_bus"], app_container["summary_repository"], app_container["media_queries"])
