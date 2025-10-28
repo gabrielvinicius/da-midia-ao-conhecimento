@@ -7,6 +7,7 @@ Validates ML service integration, multiple strategies, and event-driven architec
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime
+from uuid import UUID
 
 from src.summarization.application.commands.process_summary_command import ProcessSummaryCommand
 from src.summarization.application.commands.process_summary_command_handler import ProcessSummaryCommandHandler
@@ -161,7 +162,7 @@ class TestProcessSummaryCommandHandler:
 
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_summarization_text_too_short(self, handler, mock_dependencies, 
+    async def test_summarization_text_too_short(self, handler, mock_dependencies,
                                               valid_command, test_data_factory):
         """Test error handling for transcription text that is too short to summarize."""
         # Arrange
@@ -189,9 +190,42 @@ class TestProcessSummaryCommandHandler:
         # Act & Assert
         with pytest.raises(ProcessingError, match="Summarization failed"):
             await handler.handle(valid_command)
-        
+
         # Verify that error was properly handled
         mock_dependencies["summary_repo"].save.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @pytest.mark.unit
+    async def test_creates_summary_with_generated_media_id(
+        self,
+        handler,
+        mock_dependencies,
+    ):
+        """Summaries without a provided media ID should receive one automatically."""
+
+        command = ProcessSummaryCommand(
+            transcription_id=None,
+            provider="huggingface",
+            text_content="This is a sufficiently long transcription text for summarization.",
+        )
+
+        mock_dependencies["summary_repo"].find_by_transcription_id.return_value = None
+        mock_dependencies["summary_repo"].add = AsyncMock()
+        mock_dependencies["summary_repo"].save = AsyncMock(side_effect=lambda summary: summary)
+
+        mock_dependencies["summarizer"].summarize.return_value = {
+            "text": "Generated summary text",
+        }
+
+        result = await handler.handle(command)
+
+        mock_dependencies["summary_repo"].add.assert_awaited_once()
+        mock_dependencies["summary_repo"].save.assert_awaited_once()
+        saved_summary = mock_dependencies["summary_repo"].save.await_args.args[0]
+
+        assert isinstance(saved_summary.media_id, UUID)
+        assert isinstance(result.media_id, UUID)
+        assert result.text == "Generated summary text"
 
     @pytest.mark.asyncio
     @pytest.mark.unit
