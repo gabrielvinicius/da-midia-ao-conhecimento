@@ -4,7 +4,6 @@ from fastapi import Depends, Request
 
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.transcription.application.transcription_service import TranscriptionService
-from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
 from src.transcription.application.queries import TranscriptionQueries
 from src.shared.application.modules import ModulesRegistry
 
@@ -19,12 +18,6 @@ def get_transcription_service(
 ) -> TranscriptionService:
     """Get transcription service dependency."""
     return modules.transcription.service
-
-
-def get_transcription_repository(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
-) -> TranscriptionRepository:
-    return modules.transcription.repository
 
 
 def get_transcription_queries(

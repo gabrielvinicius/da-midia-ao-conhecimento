@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from src.shared.events.event_bus import EventBus
 from src.auth.bootstrap import AuthModule
 from src.monitoring.bootstrap import MonitoringModule
-from src.media_management.bootstrap import MediaManagementModule
+from src.media_management.bootstrap import MediaModule
 from src.video_processing.bootstrap import VideoProcessingModule
 from src.text_processing.bootstrap import TextProcessingModule
 from src.transcription.bootstrap import TranscriptionModule
@@ -20,7 +20,7 @@ from src.admin.bootstrap import AdminModule
 class ModulesRegistry:
     auth: AuthModule
     monitoring: MonitoringModule
-    media_management: MediaManagementModule
+    media_management: MediaModule
     transcription: TranscriptionModule
     notifications: NotificationModule
     video_processing: VideoProcessingModule

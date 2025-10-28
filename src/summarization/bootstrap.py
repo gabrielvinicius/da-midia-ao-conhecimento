@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
+from src.media_management.application.queries.media_queries import MediaQueries
 
 # Concrete Implementations
 from src.summarization.infrastructure.summarization_repository import SummarizationRepository
@@ -61,31 +62,66 @@ class SummarizationContainer(containers.DeclarativeContainer):
 
 @dataclass
 class SummarizationModule:
+    """Public API surface for summarization operations."""
+
     service: SummarizationService
-    repository: SummarizationRepository
     request_handler: RequestSummaryCommandHandler
     process_handler: ProcessSummaryCommandHandler
+
+
+@dataclass
+class SummarizationEventContext:
+    """Dependencies reserved for event handler orchestration."""
+
+    repository: SummarizationRepository
+    media_queries: MediaQueries
     task_scheduler: CelerySummarizationTaskScheduler
 
 
-def build_summarization_module(
+def create_summarization_container(
     session: AsyncSession,
+    *,
     event_bus,
     transcription_queries,
     media_queries,
     connection_manager,
-) -> SummarizationModule:
-    container = SummarizationContainer(
+) -> SummarizationContainer:
+    return SummarizationContainer(
         db=session,
         event_bus=event_bus,
         transcription_queries=transcription_queries,
         media_queries=media_queries,
         connection_manager=connection_manager,
     )
+
+
+def build_summarization_module(
+    container: SummarizationContainer,
+) -> SummarizationModule:
     return SummarizationModule(
         service=container.summarization_service(),
-        repository=container.summarization_repository(),
         request_handler=container.request_summary_command_handler(),
         process_handler=container.process_summary_command_handler(),
+    )
+
+
+def build_summarization_event_context(
+    container: SummarizationContainer,
+    *,
+    media_queries: MediaQueries,
+) -> SummarizationEventContext:
+    return SummarizationEventContext(
+        repository=container.summarization_repository(),
+        media_queries=media_queries,
         task_scheduler=container.summarization_task_scheduler(),
     )
+
+
+__all__ = [
+    "SummarizationContainer",
+    "SummarizationModule",
+    "SummarizationEventContext",
+    "create_summarization_container",
+    "build_summarization_module",
+    "build_summarization_event_context",
+]

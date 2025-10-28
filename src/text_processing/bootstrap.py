@@ -54,9 +54,31 @@ class TextProcessingModule:
     task_scheduler: CeleryTextProcessingTaskScheduler
 
 
+@dataclass
+class TextProcessingEventContext:
+    """Event handling dependencies for text processing."""
+
+    task_scheduler: CeleryTextProcessingTaskScheduler
+
+
 def build_text_processing_module(session: AsyncSession) -> TextProcessingModule:
     container = TextProcessingContainer(db=session)
     return TextProcessingModule(
         service=container.text_processing_service(),
         task_scheduler=container.text_processing_task_scheduler(),
     )
+
+
+def build_text_processing_event_context(
+    module: TextProcessingModule,
+) -> TextProcessingEventContext:
+    return TextProcessingEventContext(task_scheduler=module.task_scheduler)
+
+
+__all__ = [
+    "TextProcessingContainer",
+    "TextProcessingModule",
+    "TextProcessingEventContext",
+    "build_text_processing_module",
+    "build_text_processing_event_context",
+]
