@@ -4,14 +4,26 @@ from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Concrete Implementations
-from src.video_processing.infrastructure.video_audio_extractor import FFmpegVideoAudioExtractor
-from src.video_processing.infrastructure.video_thumbnail_generator import FFmpegVideoThumbnailGenerator
-from src.video_processing.infrastructure.task_scheduler import CeleryVideoProcessingTaskScheduler
+from src.video_processing.infrastructure.video_audio_extractor import (
+    FFmpegVideoAudioExtractor,
+)
+from src.video_processing.infrastructure.video_thumbnail_generator import (
+    FFmpegVideoThumbnailGenerator,
+)
+from src.video_processing.infrastructure.task_scheduler import (
+    CeleryVideoProcessingTaskScheduler,
+)
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
+from src.shared.events.event_bus import EventBus
 # TODO: Adicionar logger e metrics específicos para video_processing
 
 # Consolidated Service
-from src.video_processing.application.video_processing_service import VideoProcessingService
+from src.video_processing.application.video_processing_service import (
+    VideoProcessingService,
+)
+from src.video_processing.application.event_handlers import (
+    register_event_handlers as register_video_handlers,
+)
 
 
 class VideoProcessingContainer(containers.DeclarativeContainer):
@@ -41,31 +53,22 @@ class VideoProcessingModule:
     task_scheduler: CeleryVideoProcessingTaskScheduler
 
 
-@dataclass
-class VideoProcessingEventContext:
-    """Event handling dependencies for video processing."""
-
-    task_scheduler: CeleryVideoProcessingTaskScheduler
-
-
-def build_video_processing_module(session: AsyncSession) -> VideoProcessingModule:
+async def build_video_processing_module(
+    session: AsyncSession,
+    *,
+    event_bus: EventBus,
+) -> VideoProcessingModule:
     container = VideoProcessingContainer(db=session)
-    return VideoProcessingModule(
+    module = VideoProcessingModule(
         service=container.video_processing_service(),
         task_scheduler=container.video_processing_task_scheduler(),
     )
-
-
-def build_video_processing_event_context(
-    module: VideoProcessingModule,
-) -> VideoProcessingEventContext:
-    return VideoProcessingEventContext(task_scheduler=module.task_scheduler)
+    await register_video_handlers(event_bus, module.task_scheduler)
+    return module
 
 
 __all__ = [
     "VideoProcessingContainer",
     "VideoProcessingModule",
-    "VideoProcessingEventContext",
     "build_video_processing_module",
-    "build_video_processing_event_context",
 ]

@@ -16,6 +16,9 @@ from src.shared.events.event_bus import EventBus
 # Consolidated Service
 from src.notifications.application.services.notification_service import NotificationService
 from src.notifications.application.queries.notification_queries import NotificationQueries
+from src.notifications.application.event_handlers import (
+    register_event_handlers as register_notification_handlers,
+)
 
 
 class NotificationContainer(containers.DeclarativeContainer):
@@ -55,7 +58,7 @@ class NotificationModule:
     queries: NotificationQueries
 
 
-def build_notification_module(
+async def build_notification_module(
     session: AsyncSession,
     auth_queries: AuthQueries,
     event_bus: EventBus,
@@ -65,8 +68,10 @@ def build_notification_module(
     container.event_bus.override(providers.Object(event_bus))
 
     repository = container.notification_repository()
-    return NotificationModule(
+    module = NotificationModule(
         service=container.notification_service(),
         repository=repository,
         queries=NotificationQueries(notification_repository=repository),
     )
+    await register_notification_handlers(event_bus)
+    return module

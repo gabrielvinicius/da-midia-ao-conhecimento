@@ -16,8 +16,6 @@ from src.shared.infrastructure.cache import cache
 from src.shared.application.modules import register_module_dependencies
 from src.shared.application.lifecycle import (
     ApplicationResources,
-    EventHandlersConfig,
-    register_event_handlers,
     start_application_resources,
     stop_application_resources,
 )
@@ -31,24 +29,16 @@ from src.media_management.bootstrap import (
     build_media_module,
     build_media_admin_context,
 )
-from src.video_processing.bootstrap import (
-    build_video_processing_module,
-    build_video_processing_event_context,
-)
-from src.text_processing.bootstrap import (
-    build_text_processing_module,
-    build_text_processing_event_context,
-)
+from src.video_processing.bootstrap import build_video_processing_module
+from src.text_processing.bootstrap import build_text_processing_module
 from src.transcription.bootstrap import (
     create_transcription_container,
     build_transcription_module,
-    build_transcription_event_context,
 )
 from src.notifications.bootstrap import build_notification_module
 from src.summarization.bootstrap import (
     create_summarization_container,
     build_summarization_module,
-    build_summarization_event_context,
 )
 from src.providers.bootstrap import build_providers_module
 from src.sentiment_analysis.bootstrap import build_sentiment_analysis_module
@@ -108,17 +98,24 @@ async def lifespan(app: FastAPI):
             queries=media_module.queries,
         )
 
-        video_module = build_video_processing_module(session)
-        video_event_context = build_video_processing_event_context(video_module)
+        video_module = await build_video_processing_module(
+            session,
+            event_bus=event_bus,
+        )
 
-        text_module = build_text_processing_module(session)
-        text_event_context = build_text_processing_event_context(text_module)
+        text_module = await build_text_processing_module(
+            session,
+            event_bus=event_bus,
+        )
 
         transcription_container = create_transcription_container(session)
-        transcription_module = build_transcription_module(transcription_container)
-        transcription_event_context = build_transcription_event_context(transcription_container)
+        transcription_module = await build_transcription_module(
+            transcription_container,
+            event_bus=event_bus,
+            media_queries=media_module.queries,
+        )
 
-        notification_module = build_notification_module(
+        notification_module = await build_notification_module(
             session=session,
             auth_queries=auth_module.auth_queries,
             event_bus=event_bus,
@@ -131,21 +128,21 @@ async def lifespan(app: FastAPI):
             media_queries=media_module.queries,
             connection_manager=manager,
         )
-        summarization_module = build_summarization_module(summarization_container)
-        summarization_event_context = build_summarization_event_context(
+        summarization_module = await build_summarization_module(
             summarization_container,
+            event_bus=event_bus,
             media_queries=media_module.queries,
         )
 
         providers_module = build_providers_module()
-        sentiment_module = build_sentiment_analysis_module(
+        sentiment_module = await build_sentiment_analysis_module(
             session=session,
             event_bus=event_bus,
             transcription_queries=transcription_module.queries,
             connection_manager=manager,
             metrics_service=monitoring_module.metrics_service,
         )
-        topic_module = build_topic_modeling_module(
+        topic_module = await build_topic_modeling_module(
             session=session,
             event_bus=event_bus,
             media_queries=media_module.queries,
@@ -173,18 +170,6 @@ async def lifespan(app: FastAPI):
             admin=admin_module,
         )
         app.state.event_bus = event_bus
-
-        handler_config = EventHandlersConfig(
-            event_bus=event_bus,
-            media_queries=media_module.queries,
-            video=video_event_context,
-            text=text_event_context,
-            transcription=transcription_event_context,
-            summarization=summarization_event_context,
-        )
-
-        logger.info("Registrando event handlers", component="event_bus")
-        await register_event_handlers(handler_config)
 
         resources = ApplicationResources(event_bus=event_bus, cache=cache)
 
