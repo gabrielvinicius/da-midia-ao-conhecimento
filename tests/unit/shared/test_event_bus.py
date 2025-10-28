@@ -1,8 +1,14 @@
+from __future__ import annotations
+
+import asyncio
 from enum import Enum
+from typing import List
+from unittest.mock import AsyncMock
 
 import pytest
+
 from src.shared.events.domain_events import MediaUploaded
-from src.shared.events.event_bus import EventBus
+from src.shared.events.event_bus import EventBus, EventBusConfig, get_event_bus
 from src.shared.events.event_publisher import EventPublisher
 from src.shared.events.subscription_manager import SubscriptionManager
 
@@ -13,7 +19,7 @@ async def test_publish_dispatches_payload_to_subscribers():
     subscriptions = SubscriptionManager()
     event_bus = EventBus(publisher=publisher, subscription_manager=subscriptions)
 
-    received = []
+    received: List[MediaUploaded] = []
 
     async def handler(event):
         received.append(event)
@@ -45,7 +51,7 @@ async def test_start_listener_processes_incoming_events():
     publisher = EventPublisher()
     event_bus = EventBus(publisher=publisher)
 
-    received = []
+    received: List[MediaUploaded] = []
 
     async def handler(event):
         received.append(event)
@@ -71,4 +77,119 @@ async def test_start_listener_processes_incoming_events():
 
     assert len(received) == 1
     assert received[0].media_type is DummyMediaType.VIDEO
+
+
+class MockBrokerPublisher:
+    def __init__(self) -> None:
+        self.publish_mock = AsyncMock()
+        self.start_mock = AsyncMock(side_effect=self._start)
+        self.stop_mock = AsyncMock(side_effect=self._stop)
+        self._listener = None
+        self._is_running = False
+
+    async def _start(self, listener):
+        self._listener = listener
+        self._is_running = True
+
+    async def _stop(self):
+        self._listener = None
+        self._is_running = False
+
+    @property
+    def is_running(self) -> bool:
+        return self._is_running
+
+    async def publish(self, event):
+        await self.publish_mock(event)
+
+    async def start(self, listener):
+        await self.start_mock(listener)
+
+    async def stop(self):
+        await self.stop_mock()
+
+    async def emit(self, event):
+        if self._listener is None:
+            raise RuntimeError("Listener not started")
+        await self._listener(event)
+
+
+@pytest.mark.asyncio
+async def test_event_bus_with_mock_publisher_flows_events():
+    publisher = MockBrokerPublisher()
+    event_bus = EventBus(publisher=publisher, subscription_manager=SubscriptionManager())
+
+    events: List[MediaUploaded] = []
+
+    async def handler(event):
+        events.append(event)
+
+    event_bus.subscribe(MediaUploaded, handler)
+
+    await event_bus.start_listener()
+    assert event_bus.is_listening is True
+    publisher.start_mock.assert_awaited_once()
+
+    class DummyMediaType(Enum):
+        AUDIO = "AUDIO"
+
+    event = MediaUploaded(
+        media_id="mock-001",
+        user_id="user-123",
+        media_type=DummyMediaType.AUDIO,
+        file_path="/tmp/audio.mp3",
+        storage_provider="local",
+    )
+
+    await event_bus.publish(event)
+    publisher.publish_mock.assert_awaited_once_with(event)
+
+    await publisher.emit(event)
+
+    assert events and events[0].media_id == "mock-001"
+
+    await event_bus.stop_listener()
+    publisher.stop_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_event_bus_returns_singleton_for_default_config():
+    first = get_event_bus()
+    second = get_event_bus()
+
+    assert first is second
+
+
+@pytest.mark.asyncio
+async def test_async_queue_publisher_processes_events():
+    config = EventBusConfig(publisher_backend="async_queue")
+    event_bus = get_event_bus(config, force_new=True)
+
+    processed = asyncio.Event()
+    received: List[MediaUploaded] = []
+
+    async def handler(event):
+        received.append(event)
+        processed.set()
+
+    event_bus.subscribe(MediaUploaded, handler)
+    await event_bus.start_listener()
+
+    class DummyMediaType(Enum):
+        AUDIO = "AUDIO"
+
+    event = MediaUploaded(
+        media_id="queue-123",
+        user_id="user-999",
+        media_type=DummyMediaType.AUDIO,
+        file_path="/tmp/audio.mp3",
+        storage_provider="local",
+    )
+
+    await event_bus.publish(event)
+    await asyncio.wait_for(processed.wait(), timeout=1)
+
+    assert received and received[0].media_id == "queue-123"
+
+    await event_bus.stop_listener()
 

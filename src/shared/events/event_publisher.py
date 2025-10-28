@@ -1,14 +1,13 @@
 """Infrastructure-agnostic event publisher abstraction."""
 from __future__ import annotations
 
-from typing import Awaitable, Callable, Optional
+from typing import Optional
 
 from .domain_events import DomainEvent
+from .interfaces import BrokerPublisher, IncomingEventHandler
 
-IncomingEventHandler = Callable[[DomainEvent], Awaitable[None]]
 
-
-class EventPublisher:
+class EventPublisher(BrokerPublisher):
     """Coordinates communication with the underlying message broker."""
 
     def __init__(self) -> None:
