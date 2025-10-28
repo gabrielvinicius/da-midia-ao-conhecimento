@@ -18,6 +18,9 @@ from src.topic_modeling.infrastructure.topic_modeling_repository import (
     TopicModelingRepository,
 )
 from src.shared.events.event_bus import EventBus
+from src.topic_modeling.application.event_handlers import (
+    register_event_handlers as register_topic_handlers,
+)
 
 
 class TopicModelingContainer(containers.DeclarativeContainer):
@@ -61,7 +64,7 @@ class TopicModelingModule:
     repository: TopicModelingRepository
 
 
-def build_topic_modeling_module(
+async def build_topic_modeling_module(
     session: AsyncSession,
     event_bus: EventBus,
     media_queries,
@@ -74,10 +77,12 @@ def build_topic_modeling_module(
         transcription_queries=providers.Object(transcription_queries),
     )
 
-    return TopicModelingModule(
+    module = TopicModelingModule(
         service=container.topic_modeling_service(),
         repository=container.topic_modeling_repository(),
     )
+    await register_topic_handlers(event_bus)
+    return module
 
 
 __all__ = ["TopicModelingContainer", "TopicModelingModule", "build_topic_modeling_module"]

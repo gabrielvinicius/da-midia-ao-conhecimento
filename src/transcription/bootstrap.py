@@ -4,12 +4,21 @@ from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Concrete Implementations
-from src.transcription.infrastructure.speech_recognizer import WhisperSpeechRecognizer
-from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
+from src.transcription.infrastructure.speech_recognizer import (
+    WhisperSpeechRecognizer,
+)
+from src.transcription.infrastructure.transcription_repository import (
+    TranscriptionRepository,
+)
 from src.transcription.infrastructure.logging import StructuredTranscriptionLogger
 from src.transcription.infrastructure.metrics import PrometheusTranscriptionMetrics
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
 from src.transcription.application.queries import TranscriptionQueries
+from src.shared.events.event_bus import EventBus
+from src.media_management.application.queries.media_queries import MediaQueries
+from src.transcription.application.event_handlers import (
+    register_event_handlers as register_transcription_handlers,
+)
 
 # Consolidated Service
 from src.transcription.application.transcription_service import TranscriptionService
@@ -48,41 +57,34 @@ class TranscriptionModule:
     queries: TranscriptionQueries
 
 
-@dataclass
-class TranscriptionEventContext:
-    """Dependencies required for registering transcription event handlers."""
-
-    repository: TranscriptionRepository
-
-
 def create_transcription_container(session: AsyncSession) -> TranscriptionContainer:
     """Configure the transcription container for the given session."""
 
     return TranscriptionContainer(db=session)
 
 
-def build_transcription_module(
+async def build_transcription_module(
     container: TranscriptionContainer,
+    *,
+    event_bus: EventBus,
+    media_queries: MediaQueries,
 ) -> TranscriptionModule:
-    return TranscriptionModule(
+    module = TranscriptionModule(
         service=container.transcription_service(),
         queries=container.transcription_queries(),
     )
-
-
-def build_transcription_event_context(
-    container: TranscriptionContainer,
-) -> TranscriptionEventContext:
-    return TranscriptionEventContext(
-        repository=container.transcription_repository(),
+    repository = container.transcription_repository()
+    await register_transcription_handlers(
+        event_bus,
+        repository,
+        media_queries,
     )
+    return module
 
 
 __all__ = [
     "TranscriptionContainer",
     "TranscriptionModule",
-    "TranscriptionEventContext",
     "create_transcription_container",
     "build_transcription_module",
-    "build_transcription_event_context",
 ]

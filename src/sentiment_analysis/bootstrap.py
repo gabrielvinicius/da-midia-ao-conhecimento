@@ -22,6 +22,9 @@ from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import 
     SentimentAnalysisRepository,
 )
 from src.shared.events.event_bus import EventBus
+from src.sentiment_analysis.application.event_handlers import (
+    register_event_handlers as register_sentiment_handlers,
+)
 
 
 class SentimentAnalysisContainer(containers.DeclarativeContainer):
@@ -74,7 +77,7 @@ class SentimentAnalysisModule:
     repository: SentimentAnalysisRepository
 
 
-def build_sentiment_analysis_module(
+async def build_sentiment_analysis_module(
     session: AsyncSession,
     event_bus: EventBus,
     transcription_queries,
@@ -89,10 +92,12 @@ def build_sentiment_analysis_module(
         metrics_service=providers.Object(metrics_service),
     )
 
-    return SentimentAnalysisModule(
+    module = SentimentAnalysisModule(
         service=container.sentiment_analysis_service(),
         repository=container.sentiment_analysis_repository(),
     )
+    await register_sentiment_handlers(event_bus)
+    return module
 
 
 __all__ = ["SentimentAnalysisContainer", "SentimentAnalysisModule", "build_sentiment_analysis_module"]
