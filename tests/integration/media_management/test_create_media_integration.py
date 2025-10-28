@@ -26,11 +26,11 @@ async def test_create_media_handler_persists_to_db(db_session: AsyncSession):
     mock_event_bus = AsyncMock()
     mock_metrics_service = AsyncMock()
 
-    handler = CreateMediaCommandHandler(
+    handler = CreateMediaCommandHandler.with_default_components(
         media_repository=media_repo,
         storage_service_factory=mock_storage_factory,
         event_bus=mock_event_bus,
-        metrics_service=mock_metrics_service
+        metrics_service=mock_metrics_service,
     )
 
     command = CreateMediaCommand(
