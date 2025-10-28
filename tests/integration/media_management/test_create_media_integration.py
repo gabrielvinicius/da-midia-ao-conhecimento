@@ -8,6 +8,7 @@ from uuid import UUID
 from src.media_management.application.commands.create_media_command import CreateMediaCommand
 from src.media_management.application.commands.create_media_command_handler import CreateMediaCommandHandler
 from src.media_management.infrastructure.media_repository import MediaRepository
+from src.media_management.infrastructure.orm.media_entity import MediaEntity
 from src.media_management.domain.media import Media, MediaType
 
 # This test requires a running database, managed by the fixtures in tests/integration/conftest.py
@@ -46,7 +47,7 @@ async def test_create_media_handler_persists_to_db(db_session: AsyncSession):
     # Assert: Verify the entity was persisted correctly by querying the DB directly
     # The handler already commits, so we can query immediately.
     result = await db_session.execute(
-        select(Media).where(Media.id == created_media.id)
+        select(MediaEntity).where(MediaEntity.id == created_media.id)
     )
     persisted_media = result.scalar_one_or_none()
 

@@ -70,9 +70,10 @@ class MediaLifecycleService:
             )
 
         updated_media = await self._media_repository.update_status(
-            media_id, MediaStatus.UPLOADED
+            media_id,
+            MediaStatus.UPLOADED,
+            error_message=None,
         )
-        updated_media.error_message = None
         await self._media_repository.save(updated_media)
         return updated_media
 
@@ -88,8 +89,11 @@ class MediaLifecycleService:
         if not media:
             raise ValueError(f"Media {media_id} not found")
 
-        updated_media = await self._media_repository.update_status(media_id, status)
-        if error_message:
-            updated_media.error_message = error_message
+        updated_media = await self._media_repository.update_status(
+            media_id,
+            status,
+            error_message=error_message,
+        )
+        if error_message is not None:
             await self._media_repository.save(updated_media)
         return updated_media

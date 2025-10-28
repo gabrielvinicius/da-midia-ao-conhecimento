@@ -7,9 +7,11 @@ from datetime import datetime, timedelta
 import structlog
 
 from src.monitoring.domain.interfaces import IAnalyticsRepository, ProcessingType, TimeRange
-from src.media_management.domain.media import Media, MediaStatus
+from src.media_management.domain.media import MediaStatus
+from src.media_management.infrastructure.orm.media_entity import MediaEntity
 from src.transcription.domain.transcription import Transcription, TranscriptionStatus
-from src.summarization.domain.summary import Summary, SummaryStatus
+from src.summarization.domain.summary import SummaryStatus
+from src.summarization.infrastructure.orm.summary_entity import SummaryEntity
 
 logger = structlog.get_logger(__name__)
 
@@ -31,14 +33,14 @@ class AnalyticsRepository(IAnalyticsRepository):
                 func.avg(
                     func.extract('epoch', Summary.processed_at - Summary.created_at)
                 ).label("summarization_avg_seconds"),
-                func.count(Media.id).label("total_media_analyzed")
+                func.count(MediaEntity.id).label("total_media_analyzed")
             )
-            .join(Transcription, Media.id == Transcription.media_id)
-            .join(Summary, Media.id == Summary.media_id)
+            .join(Transcription, MediaEntity.id == Transcription.media_id)
+            .join(SummaryEntity, MediaEntity.id == SummaryEntity.media_id)
             .where(
-                Media.status == MediaStatus.COMPLETED,
+                MediaEntity.status == MediaStatus.COMPLETED,
                 Transcription.status == TranscriptionStatus.COMPLETED,
-                Summary.status == SummaryStatus.COMPLETED
+                SummaryEntity.status == SummaryStatus.COMPLETED
             )
         )
 
@@ -145,11 +147,11 @@ class AnalyticsRepository(IAnalyticsRepository):
         # Get media statistics
         media_stmt = (
             select(
-                func.count().filter(Media.status == MediaStatus.COMPLETED).label("completed"),
-                func.count().filter(Media.status == MediaStatus.FAILED).label("failed"),
+                func.count().filter(MediaEntity.status == MediaStatus.COMPLETED).label("completed"),
+                func.count().filter(MediaEntity.status == MediaStatus.FAILED).label("failed"),
                 func.count().label("total")
             )
-            .where(Media.created_at >= cutoff_date)
+            .where(MediaEntity.created_at >= cutoff_date)
         )
         
         # Get transcription statistics
@@ -165,11 +167,11 @@ class AnalyticsRepository(IAnalyticsRepository):
         # Get summarization statistics
         summary_stmt = (
             select(
-                func.count().filter(Summary.status == SummaryStatus.COMPLETED).label("completed"),
-                func.count().filter(Summary.status == SummaryStatus.FAILED).label("failed"),
+                func.count().filter(SummaryEntity.status == SummaryStatus.COMPLETED).label("completed"),
+                func.count().filter(SummaryEntity.status == SummaryStatus.FAILED).label("failed"),
                 func.count().label("total")
             )
-            .where(Summary.created_at >= cutoff_date)
+            .where(SummaryEntity.created_at >= cutoff_date)
         )
         
         media_result = await self.db.execute(media_stmt)

@@ -14,9 +14,9 @@ from src.shared.infrastructure.database import Base  # Importar a Base
 # ---------- Importe todos os modelos aqui ----------
 # Import all models to ensure they are registered with SQLAlchemy
 from src.auth.domain.user import User
-from src.media_management.domain.media import Media
+from src.media_management.infrastructure.orm.media_entity import MediaEntity
 from src.notifications.domain.notification import Notification
-from src.summarization.domain.summary import Summary
+from src.summarization.infrastructure.orm.summary_entity import SummaryEntity
 from src.transcription.domain.transcription import Transcription
 from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysisResult
 from src.topic_modeling.domain.topic_modeling import TopicModelingResult

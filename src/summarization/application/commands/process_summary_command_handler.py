@@ -170,9 +170,8 @@ class ProcessSummaryCommandHandler:
     ) -> Any:
         summary_entity = existing or self._build_summary(media_id=media_id, provider=provider)
         text = str(summary_payload.get("text", ""))
-        summary_entity.mark_as_completed(text)
-        if hasattr(summary_entity, "provider"):
-            summary_entity.provider = provider
+        summary_entity = summary_entity.with_provider(provider)
+        summary_entity = summary_entity.mark_as_completed(text)
 
         for attribute in ("strategy", "bullet_points", "key_topics", "confidence_score", "processing_time"):
             if attribute in summary_payload and hasattr(summary_entity, attribute):
@@ -191,10 +190,7 @@ class ProcessSummaryCommandHandler:
         return summary_entity
 
     def _build_summary(self, *, media_id: Optional[str], provider: str) -> Summary:
-        summary = Summary.create(media_id=media_id or "", provider=provider)
-        if hasattr(summary, "status"):
-            summary.status = SummaryStatus.PROCESSING
-        return summary
+        return Summary.create(media_id=media_id or "", provider=provider)
 
     async def _publish_event(self, event: SummarizationProgress | SummaryCompleted) -> None:
         if self._event_bus is not None and hasattr(self._event_bus, "publish"):
