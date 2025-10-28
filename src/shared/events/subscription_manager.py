@@ -2,15 +2,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Awaitable, Callable, DefaultDict, Dict, List, Type, Union
+from typing import DefaultDict, Dict, List, Type
 
 from .domain_events import DomainEvent
-
-EventHandler = Callable[[DomainEvent], Awaitable[None]]
-EventKey = Union[str, Type[DomainEvent]]
+from .interfaces import EventHandler, EventKey, SubscriptionStrategy
 
 
-class SubscriptionManager:
+class SubscriptionManager(SubscriptionStrategy):
     """Keeps track of event handlers registered for each domain event."""
 
     def __init__(self) -> None:
