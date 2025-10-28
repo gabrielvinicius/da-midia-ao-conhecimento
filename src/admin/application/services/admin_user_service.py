@@ -2,11 +2,13 @@
 Admin User Service - Single Responsibility: Admin user operations
 Follows SRP by handling only admin-related user management.
 """
-from typing import List, Dict, Any
+from typing import List, Dict
 from uuid import UUID
+
 import structlog
 
 from src.admin.domain.interfaces import IAdminUserService, IAdminAuditService
+from src.auth.domain.interfaces import IUserPermissionService
 from src.auth.domain.user import User, UserRole
 from src.auth.infrastructure.user_repository import UserRepository
 
@@ -25,7 +27,7 @@ class AdminUserService(IAdminUserService):
     def __init__(
         self,
         user_repository: UserRepository,
-        permission_service: Any, # IUserPermissionService has no implementation
+            permission_service: IUserPermissionService,
         audit_service: IAdminAuditService
     ):
         self.user_repository = user_repository
@@ -48,15 +50,12 @@ class AdminUserService(IAdminUserService):
             PermissionError: If admin doesn't have permission
             ValueError: If user not found or invalid role
         """
-        # Validate admin permissions
         self.permission_service.validate_admin_operation(admin_user, user_id)
         
-        # Get target user
         user = await self.user_repository.find_by_id(user_id)
         if not user:
             raise ValueError(f"User with id {user_id} not found")
         
-        # Validate role
         try:
             role_enum = UserRole(new_role)
         except ValueError:
@@ -64,11 +63,9 @@ class AdminUserService(IAdminUserService):
         
         old_role = user.role.value if user.role else "none"
         
-        # Update user
         user.role = role_enum
         updated_user = await self.user_repository.save(user)
         
-        # Log admin action
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
             action="update_user_role",
@@ -103,20 +100,16 @@ class AdminUserService(IAdminUserService):
             PermissionError: If admin doesn't have permission
             ValueError: If user not found
         """
-        # Validate admin permissions
         self.permission_service.validate_admin_operation(admin_user, user_id)
         
-        # Get target user for audit log
         user = await self.user_repository.find_by_id(user_id)
         if not user:
             raise ValueError(f"User with id {user_id} not found")
         
-        # Delete user
         success = await self.user_repository.delete(user_id)
         if not success:
             raise ValueError("User could not be deleted")
         
-        # Log admin action
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
             action="delete_user",
@@ -146,7 +139,6 @@ class AdminUserService(IAdminUserService):
         Returns:
             User: Updated user object
         """
-        # Validate admin permissions
         self.permission_service.validate_admin_operation(admin_user, user_id)
         
         user = await self.user_repository.find_by_id(user_id)
@@ -156,7 +148,6 @@ class AdminUserService(IAdminUserService):
         user.is_active = True
         updated_user = await self.user_repository.save(user)
         
-        # Log admin action
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
             action="activate_user",
@@ -178,7 +169,6 @@ class AdminUserService(IAdminUserService):
         Returns:
             User: Updated user object
         """
-        # Validate admin permissions
         self.permission_service.validate_admin_operation(admin_user, user_id)
         
         user = await self.user_repository.find_by_id(user_id)
@@ -188,7 +178,6 @@ class AdminUserService(IAdminUserService):
         user.is_active = False
         updated_user = await self.user_repository.save(user)
         
-        # Log admin action
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
             action="deactivate_user",

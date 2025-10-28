@@ -2,18 +2,20 @@
 Admin Media Service - Single Responsibility: Admin media operations
 Follows SRP by handling only admin-related media management.
 """
-from typing import List, Any
+from typing import List
 from uuid import UUID
-import structlog
 
-from src.admin.domain.interfaces import IAdminMediaService, IAdminAuditService
-from src.auth.domain.user import User
-from src.media_management.domain.media import Media, MediaStatus
-from src.media_management.infrastructure.media_repository import MediaRepository
+import structlog
 from src.media_management.application.commands.delete_media_command import DeleteMediaCommand
 from src.media_management.application.commands.delete_media_command_handler import DeleteMediaCommandHandler
 from src.media_management.application.commands.reprocess_media_command import ReprocessMediaCommand
 from src.media_management.application.commands.reprocess_media_command_handler import ReprocessMediaCommandHandler
+
+from src.admin.domain.interfaces import IAdminMediaService, IAdminAuditService
+from src.auth.domain.interfaces import IUserPermissionService
+from src.auth.domain.user import User
+from src.media_management.domain.media import Media, MediaStatus
+from src.media_management.infrastructure.media_repository import MediaRepository
 
 logger = structlog.get_logger(__name__)
 
@@ -30,7 +32,7 @@ class AdminMediaService(IAdminMediaService):
     def __init__(
         self,
         media_repository: MediaRepository,
-        permission_service: Any, # IUserPermissionService has no implementation
+            permission_service: IUserPermissionService,
         audit_service: IAdminAuditService,
         delete_media_handler: DeleteMediaCommandHandler,
         reprocess_media_handler: ReprocessMediaCommandHandler
@@ -53,20 +55,15 @@ class AdminMediaService(IAdminMediaService):
             PermissionError: If admin doesn't have permission
             ValueError: If media not found
         """
-        # Validate admin permissions (basic check)
-        if not admin_user.role or admin_user.role.value != "admin":
-            raise PermissionError("Only administrators can delete media")
-        
-        # Get media for audit log
         media = await self.media_repository.find_by_id(media_id)
         if not media:
             raise ValueError(f"Media with id {media_id} not found")
+
+        self.permission_service.validate_admin_operation(admin_user, media.user_id)
         
-        # Execute delete command
         command = DeleteMediaCommand(media_id=media_id)
         await self.delete_media_handler.handle(command)
         
-        # Log admin action
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
             action="delete_media",
@@ -99,23 +96,18 @@ class AdminMediaService(IAdminMediaService):
             PermissionError: If admin doesn't have permission
             ValueError: If media not found or not in failed state
         """
-        # Validate admin permissions
-        if not admin_user.role or admin_user.role.value != "admin":
-            raise PermissionError("Only administrators can reprocess media")
-        
-        # Get media for validation and audit log
         media = await self.media_repository.find_by_id(media_id)
         if not media:
             raise ValueError(f"Media with id {media_id} not found")
+
+        self.permission_service.validate_admin_operation(admin_user, media.user_id)
         
         if media.status != MediaStatus.FAILED:
             raise ValueError(f"Media {media_id} is not in failed state (current: {media.status.value})")
         
-        # Execute reprocess command
         command = ReprocessMediaCommand(media_id=media_id)
         await self.reprocess_media_handler.handle(command)
         
-        # Log admin action
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
             action="reprocess_media",
@@ -149,11 +141,9 @@ class AdminMediaService(IAdminMediaService):
         Raises:
             PermissionError: If admin doesn't have permission
         """
-        # Validate admin permissions
-        if not admin_user.role or admin_user.role.value != "admin":
-            raise PermissionError("Only administrators can bulk reprocess media")
+        self.permission_service.validate_admin_operation(admin_user,
+                                                         admin_user.id)  # Pass admin_user.id as target_user_id
         
-        # Get all failed media
         failed_media = await self.get_media_by_status(MediaStatus.FAILED)
         
         reprocessed_count = 0
@@ -170,7 +160,6 @@ class AdminMediaService(IAdminMediaService):
                 )
                 continue
         
-        # Log bulk action
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
             action="bulk_reprocess_failed_media",
@@ -204,9 +193,7 @@ class AdminMediaService(IAdminMediaService):
         Raises:
             PermissionError: If admin doesn't have permission
         """
-        # Validate admin permissions
-        if not admin_user.role or admin_user.role.value != "admin":
-            raise PermissionError("Only administrators can cleanup orphaned files")
+        self.permission_service.validate_admin_operation(admin_user, admin_user.id)
         
         # This is a placeholder implementation
         # In a real system, this would:
@@ -217,7 +204,6 @@ class AdminMediaService(IAdminMediaService):
         
         cleaned_count = 0  # Placeholder
         
-        # Log cleanup action
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
             action="cleanup_orphaned_files",
@@ -246,9 +232,7 @@ class AdminMediaService(IAdminMediaService):
         Returns:
             List of media items with the specified status
         """
-        # This would be implemented in the media repository
-        # For now, return empty list as placeholder
-        return []
+        return await self.media_repository.list_all(status=status)
     
     async def get_media_processing_queue_info(self) -> dict:
         """
@@ -265,8 +249,8 @@ class AdminMediaService(IAdminMediaService):
             "processing_count": len(processing_media),
             "failed_count": len(failed_media),
             "queued_count": len(uploaded_media),
-            "oldest_processing": None,  # Would get oldest processing item
-            "oldest_failed": None,      # Would get oldest failed item
+            "oldest_processing": min(media.created_at for media in processing_media) if processing_media else None,
+            "oldest_failed": min(media.created_at for media in failed_media) if failed_media else None,
         }
     
     async def force_media_status_change(
@@ -289,22 +273,17 @@ class AdminMediaService(IAdminMediaService):
             PermissionError: If admin doesn't have permission
             ValueError: If media not found
         """
-        # Validate admin permissions
-        if not admin_user.role or admin_user.role.value != "admin":
-            raise PermissionError("Only administrators can force status changes")
-        
-        # Get media
         media = await self.media_repository.find_by_id(media_id)
         if not media:
             raise ValueError(f"Media with id {media_id} not found")
+
+        self.permission_service.validate_admin_operation(admin_user, media.user_id)
         
         old_status = media.status
         
-        # Update status
         media.status = new_status
         await self.media_repository.save(media)
         
-        # Log admin action
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
             action="force_media_status_change",
