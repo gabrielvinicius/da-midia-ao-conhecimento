@@ -1,10 +1,14 @@
 import pytest
 
+import main
+
 from main import create_app
 from src.auth.api.dependencies import get_auth_dependencies
 from src.media_management.api.dependencies import get_media_dependencies
-from src.summarization.api.dependencies import get_summarization_dependencies
 from src.shared.events.domain_events import MediaUploaded, TextContentReady
+from src.shared.middleware.performance_middleware import PerformanceMetricsMiddleware
+from src.shared.middleware.validation_middleware import ContentValidationMiddleware
+from src.summarization.api.dependencies import get_summarization_dependencies
 
 
 class DummyEventBus:
@@ -90,3 +94,31 @@ async def test_lifespan_manages_resources(dummy_event_bus: DummyEventBus, dummy_
 
     assert dummy_event_bus.stopped
     assert dummy_cache.disconnected
+
+
+def test_create_app_registers_middlewares(monkeypatch):
+    validation_calls = []
+    performance_calls = []
+
+    original_validation = main.register_validation_middleware
+    original_performance = main.register_performance_middleware
+
+    def track_validation(app):
+        validation_calls.append(app)
+        return original_validation(app)
+
+    def track_performance(app):
+        performance_calls.append(app)
+        return original_performance(app)
+
+    monkeypatch.setattr("main.register_validation_middleware", track_validation)
+    monkeypatch.setattr("main.register_performance_middleware", track_performance)
+
+    app = create_app()
+
+    assert validation_calls, "Validation middleware should be registered"
+    assert performance_calls, "Performance middleware should be registered"
+
+    registered_middlewares = {middleware.cls for middleware in app.user_middleware}
+    assert ContentValidationMiddleware in registered_middlewares
+    assert PerformanceMetricsMiddleware in registered_middlewares
