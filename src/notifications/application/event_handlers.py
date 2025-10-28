@@ -17,11 +17,11 @@ async def register_event_handlers(event_bus: EventBus) -> None:
         """Handles NotificationRequested events by triggering the notification sending task."""
         try:
             logger.info(f"Notification requested for user {event_data['user_id']}. Dispatching task.")
-            send_notification_task.delay(
+            schedule_notification(
                 user_id=event_data["user_id"],
                 message=event_data["message"],
                 notification_type=event_data["notification_type"],
-                contact_info=event_data["contact_info"]
+                contact_info=event_data["contact_info"],
             )
         except KeyError as e:
             logger.error(f"Missing required field in NotificationRequested event: {e}")

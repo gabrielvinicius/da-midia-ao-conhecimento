@@ -21,10 +21,10 @@ async def register_event_handlers(event_bus: EventBus) -> None:
             logger.info(f"Text content ready for media {media_id}. Dispatching sentiment analysis task.")
 
             # For now, we use a default provider. This could be made configurable.
-            analyze_sentiment_task.delay(
-                media_id=media_id, 
+            schedule_sentiment_analysis(
+                media_id=media_id,
                 text_content=text_content,
-                provider="huggingface"
+                provider="huggingface",
             )
         except KeyError as e:
             logger.error(f"Missing required field in TextContentReady event for sentiment analysis: {e}")
