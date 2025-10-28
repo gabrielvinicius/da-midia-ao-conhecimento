@@ -8,13 +8,17 @@ from .file_validator import (
     MediaFileValidator,
     FileSizeMediaFileValidator,
 )
-from .metrics_publisher import (
-    MediaMetricsPublisher,
-    DefaultMediaMetricsPublisher,
+from .metrics_publisher import (MediaMetricsPublisher, DefaultMediaMetricsPublisher)
+from .storage_resolver import (StorageServiceResolver, DefaultStorageServiceResolver)
+from .storage_uploader import (StorageUploader, DefaultStorageUploader)
+from .upload_metadata_mapper import (
+    UploadMetadata,
+    UploadMetadataMapper,
+    DefaultUploadMetadataMapper,
 )
-from .storage_resolver import (
-    StorageServiceResolver,
-    DefaultStorageServiceResolver,
+from .upload_side_effects import (
+    MediaUploadSideEffectPublisher,
+    DefaultMediaUploadSideEffectPublisher,
 )
 
 __all__ = [
@@ -26,4 +30,11 @@ __all__ = [
     "DefaultMediaMetricsPublisher",
     "StorageServiceResolver",
     "DefaultStorageServiceResolver",
+    "StorageUploader",
+    "DefaultStorageUploader",
+    "UploadMetadata",
+    "UploadMetadataMapper",
+    "DefaultUploadMetadataMapper",
+    "MediaUploadSideEffectPublisher",
+    "DefaultMediaUploadSideEffectPublisher",
 ]
