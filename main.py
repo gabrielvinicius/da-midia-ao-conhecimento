@@ -21,7 +21,7 @@ from src.shared.application.lifecycle import (
     start_application_resources,
     stop_application_resources,
 )
-from src.shared.events.event_bus import get_event_bus
+from src.shared.events.event_bus import EventBus, create_inmemory_event_bus
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 from src.auth.bootstrap import build_auth_module
@@ -73,6 +73,12 @@ from src.topic_modeling.api.routers import router as topic_modeling_router
 from src.admin.api.routers import router as admin_router
 
 
+def build_event_bus() -> EventBus:
+    """Return the configured application event bus instance."""
+
+    return create_inmemory_event_bus()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Configurar logging estruturado
@@ -91,7 +97,7 @@ async def lifespan(app: FastAPI):
     logger.info("Inicializando módulos e compondo aplicação", component="bootstrap")
     async with AsyncSessionLocal() as session:
         storage_factory = StorageServiceFactory()
-        event_bus = get_event_bus()
+        event_bus = build_event_bus()
 
         auth_module = build_auth_module(session)
         monitoring_module = build_monitoring_module(session)

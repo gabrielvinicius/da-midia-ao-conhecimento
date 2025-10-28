@@ -11,10 +11,9 @@ __all__ = [
     "DomainEvent",
     "EventBus",
     "EventPublisher",
-    "EventBusConfig",
     "BrokerPublisher",
     "SubscriptionStrategy",
-    "get_event_bus",
+    "create_inmemory_event_bus",
     "EventHandler",
     "SubscriptionManager",
 ]
@@ -26,18 +25,15 @@ def __getattr__(name: str) -> Any:  # pragma: no cover - lazy import helper
     if name == "EventPublisher":
         module = import_module(".event_publisher", __name__)
         return module.EventPublisher
-    if name == "EventBusConfig":
-        module = import_module(".interfaces", __name__)
-        return module.EventBusConfig
     if name == "BrokerPublisher":
         module = import_module(".interfaces", __name__)
         return module.BrokerPublisher
     if name == "SubscriptionStrategy":
         module = import_module(".interfaces", __name__)
         return module.SubscriptionStrategy
-    if name == "get_event_bus":
+    if name == "create_inmemory_event_bus":
         module = import_module(".event_bus", __name__)
-        return module.get_event_bus
+        return module.create_inmemory_event_bus
     if name == "EventHandler":
         module = import_module(".interfaces", __name__)
         return module.EventHandler

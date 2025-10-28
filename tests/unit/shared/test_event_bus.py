@@ -8,7 +8,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.shared.events.domain_events import MediaUploaded
-from src.shared.events.event_bus import EventBus, EventBusConfig, get_event_bus
+from src.shared.events.async_queue_publisher import AsyncQueueBrokerPublisher
+from src.shared.events.event_bus import EventBus, create_inmemory_event_bus
 from src.shared.events.event_publisher import EventPublisher
 from src.shared.events.subscription_manager import SubscriptionManager
 
@@ -153,17 +154,33 @@ async def test_event_bus_with_mock_publisher_flows_events():
 
 
 @pytest.mark.asyncio
-async def test_get_event_bus_returns_singleton_for_default_config():
-    first = get_event_bus()
-    second = get_event_bus()
+async def test_create_inmemory_event_bus_returns_fresh_instances():
+    first = create_inmemory_event_bus()
+    second = create_inmemory_event_bus()
 
-    assert first is second
+    assert first is not second
+
+
+@pytest.mark.asyncio
+async def test_create_inmemory_event_bus_start_stop_cycle():
+    event_bus = create_inmemory_event_bus()
+
+    assert event_bus.is_listening is False
+
+    await event_bus.start_listener()
+    assert event_bus.is_listening is True
+
+    await event_bus.stop_listener()
+    assert event_bus.is_listening is False
 
 
 @pytest.mark.asyncio
 async def test_async_queue_publisher_processes_events():
-    config = EventBusConfig(publisher_backend="async_queue")
-    event_bus = get_event_bus(config, force_new=True)
+    publisher = AsyncQueueBrokerPublisher()
+    event_bus = EventBus(
+        publisher=publisher,
+        subscription_manager=SubscriptionManager(),
+    )
 
     processed = asyncio.Event()
     received: List[MediaUploaded] = []

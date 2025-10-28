@@ -1,21 +1,19 @@
-"""Event bus orchestration and factory helpers.
+"""Event bus orchestration helpers.
 
 The :class:`EventBus` coordinates domain events and delegates broker
-interactions to an implementation that respects
-``BrokerPublisher``.  The module also exposes :func:`get_event_bus`, a
-factory capable of instantiating different publisher backends and
-subscription strategies based on configuration.
+interactions to an implementation that respects ``BrokerPublisher``.
+For convenience this module also provides explicit builder helpers for
+the supported backends so that applications can configure the bus
+directly instead of relying on an implicit global cache.
 """
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Optional
 
-from .async_queue_publisher import AsyncQueueBrokerPublisher
 from .domain_events import DomainEvent
 from .event_publisher import EventPublisher
 from .interfaces import (
     BrokerPublisher,
-    EventBusConfig,
     EventHandler,
     EventKey,
     SubscriptionStrategy,
@@ -95,50 +93,19 @@ class EventBus:
         return self._is_listening
 
 
-_EVENT_BUS_CACHE: Dict[tuple, EventBus] = {}
+def create_inmemory_event_bus(
+    *,
+    publisher: Optional[BrokerPublisher] = None,
+    subscription_manager: Optional[SubscriptionStrategy] = None,
+) -> EventBus:
+    """Build an :class:`EventBus` backed by in-memory components."""
+
+    resolved_publisher = publisher or EventPublisher()
+    resolved_subscriptions = subscription_manager or SubscriptionManager()
+    return EventBus(
+        publisher=resolved_publisher,
+        subscription_manager=resolved_subscriptions,
+    )
 
 
-def _create_publisher(config: EventBusConfig) -> BrokerPublisher:
-    backend = config.publisher_backend.lower()
-    options = dict(config.publisher_options)
-    if backend in {"inmemory", "memory", "default"}:
-        return EventPublisher()
-    if backend in {"async_queue", "queue"}:
-        return AsyncQueueBrokerPublisher(**options)
-    raise ValueError(f"Unsupported publisher backend: {config.publisher_backend!r}")
-
-
-def _create_subscription_strategy(config: EventBusConfig) -> SubscriptionStrategy:
-    strategy = config.subscription_strategy.lower()
-    if strategy in {"default", "inmemory"}:
-        return SubscriptionManager()
-    raise ValueError(f"Unsupported subscription strategy: {config.subscription_strategy!r}")
-
-
-def get_event_bus(config: Optional[EventBusConfig] = None, *, force_new: bool = False) -> EventBus:
-    """Return a configured :class:`EventBus` instance.
-
-    Parameters
-    ----------
-    config:
-        Optional :class:`EventBusConfig` controlling which publisher and
-        subscription strategy should be used.  When omitted the
-        in-memory implementations are selected.
-    force_new:
-        When ``True`` a fresh instance is created regardless of whether a
-        cached instance already exists for the provided configuration.
-    """
-
-    effective_config = config or EventBusConfig()
-    cache_key = effective_config.cache_key()
-    if force_new or cache_key not in _EVENT_BUS_CACHE:
-        publisher = _create_publisher(effective_config)
-        subscriptions = _create_subscription_strategy(effective_config)
-        _EVENT_BUS_CACHE[cache_key] = EventBus(
-            publisher=publisher,
-            subscription_manager=subscriptions,
-        )
-    return _EVENT_BUS_CACHE[cache_key]
-
-
-__all__ = ["EventBus", "EventBusConfig", "get_event_bus"]
+__all__ = ["EventBus", "create_inmemory_event_bus"]
