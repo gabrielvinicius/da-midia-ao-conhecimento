@@ -173,9 +173,13 @@ class ProcessSummaryCommandHandler:
         summary_entity = summary_entity.with_provider(provider)
         summary_entity = summary_entity.mark_as_completed(text)
 
+        supplemental_updates: dict[str, Any] = {}
         for attribute in ("strategy", "bullet_points", "key_topics", "confidence_score", "processing_time"):
             if attribute in summary_payload and hasattr(summary_entity, attribute):
-                setattr(summary_entity, attribute, summary_payload[attribute])
+                supplemental_updates[attribute] = summary_payload[attribute]
+
+        if supplemental_updates:
+            summary_entity = summary_entity.update(**supplemental_updates)
 
         if existing is None:
             if hasattr(self._summary_repo, "add"):
