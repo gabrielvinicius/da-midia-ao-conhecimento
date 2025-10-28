@@ -1,10 +1,13 @@
 # src/auth/infrastructure/user_repository.py
-from typing import Optional, List
+from typing import List, Optional
 from uuid import UUID
-from sqlalchemy import select
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.domain.user import User
+
+
 class UserRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -27,12 +30,25 @@ class UserRepository:
         query = select(User)
         if search:
             query = query.where(User.email.ilike(f"%{search}%"))
-        
+
         offset = (page - 1) * limit
         query = query.offset(offset).limit(limit)
-        
+
         result = await self.db.execute(query)
         return result.scalars().all()
+
+    async def count_all(self) -> int:
+        """Return the total number of users."""
+
+        result = await self.db.execute(select(func.count()).select_from(User))
+        return result.scalar_one()
+
+    async def count_active(self) -> int:
+        """Return the total number of active users."""
+
+        stmt = select(func.count()).select_from(User).where(User.is_active.is_(True))
+        result = await self.db.execute(stmt)
+        return result.scalar_one()
 
     async def delete(self, user_id: UUID) -> bool:
         user = await self.find_by_id(user_id)

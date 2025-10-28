@@ -1,20 +1,23 @@
-"""
-Admin Media Service - Single Responsibility: Admin media operations
-Follows SRP by handling only admin-related media management.
-"""
+"""Administrative media management services."""
+
 from typing import List
 from uuid import UUID
 
 import structlog
-from src.media_management.application.commands.delete_media_command import DeleteMediaCommand
-from src.media_management.application.commands.delete_media_command_handler import DeleteMediaCommandHandler
-from src.media_management.application.commands.reprocess_media_command import ReprocessMediaCommand
-from src.media_management.application.commands.reprocess_media_command_handler import ReprocessMediaCommandHandler
 
-from src.admin.domain.interfaces import IAdminMediaService, IAdminAuditService
+from src.admin.domain.interfaces import IAdminAuditService, IAdminMediaService
 from src.auth.domain.interfaces import IUserPermissionService
 from src.auth.domain.user import User
-from src.media_management.domain.media import Media, MediaStatus
+from src.media_management.application.commands.commands import (
+    DeleteMediaCommand,
+    ReprocessMediaCommand,
+)
+from src.media_management.application.commands.handlers import (
+    DeleteMediaCommandHandler,
+    ReprocessMediaCommandHandler,
+)
+from src.media_management.domain.enums import MediaStatus
+from src.media_management.domain.media import Media
 from src.media_management.infrastructure.media_repository import MediaRepository
 
 logger = structlog.get_logger(__name__)
@@ -32,10 +35,10 @@ class AdminMediaService(IAdminMediaService):
     def __init__(
         self,
         media_repository: MediaRepository,
-            permission_service: IUserPermissionService,
+        permission_service: IUserPermissionService,
         audit_service: IAdminAuditService,
         delete_media_handler: DeleteMediaCommandHandler,
-        reprocess_media_handler: ReprocessMediaCommandHandler
+        reprocess_media_handler: ReprocessMediaCommandHandler,
     ):
         self.media_repository = media_repository
         self.permission_service = permission_service
@@ -55,15 +58,15 @@ class AdminMediaService(IAdminMediaService):
             PermissionError: If admin doesn't have permission
             ValueError: If media not found
         """
-        media = await self.media_repository.find_by_id(media_id)
+        media = await self.media_repository.get_by_id(media_id)
         if not media:
             raise ValueError(f"Media with id {media_id} not found")
 
         self.permission_service.validate_admin_operation(admin_user, media.user_id)
-        
+
         command = DeleteMediaCommand(media_id=media_id)
         await self.delete_media_handler.handle(command)
-        
+
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
             action="delete_media",
@@ -96,7 +99,7 @@ class AdminMediaService(IAdminMediaService):
             PermissionError: If admin doesn't have permission
             ValueError: If media not found or not in failed state
         """
-        media = await self.media_repository.find_by_id(media_id)
+        media = await self.media_repository.get_by_id(media_id)
         if not media:
             raise ValueError(f"Media with id {media_id} not found")
 
@@ -179,7 +182,7 @@ class AdminMediaService(IAdminMediaService):
         )
         
         return reprocessed_count
-    
+
     async def cleanup_orphaned_files(self, admin_user: User) -> int:
         """
         Clean up orphaned files in storage (files without corresponding media records).
@@ -273,16 +276,16 @@ class AdminMediaService(IAdminMediaService):
             PermissionError: If admin doesn't have permission
             ValueError: If media not found
         """
-        media = await self.media_repository.find_by_id(media_id)
+        media = await self.media_repository.get_by_id(media_id)
         if not media:
             raise ValueError(f"Media with id {media_id} not found")
 
         self.permission_service.validate_admin_operation(admin_user, media.user_id)
-        
+
         old_status = media.status
         
         media.status = new_status
-        await self.media_repository.save(media)
+        await self.media_repository.update(media)
         
         await self.audit_service.log_admin_action(
             admin_user=admin_user,

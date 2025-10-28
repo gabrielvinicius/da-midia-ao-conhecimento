@@ -132,9 +132,15 @@ async def lifespan(app: FastAPI):
         app_container["topic_modeling_repository"] = topic_modeling_container.topic_modeling_repository() # Still needed for event handlers
         admin_container = AdminContainer()
         admin_container.db.override(session)
+        admin_container.auth_queries.override(app_container["auth_queries"])
         admin_container.media_queries.override(app_container["media_queries"])
+        admin_container.delete_media_handler.override(app_container["delete_media_command_handler"])
+        admin_container.reprocess_media_handler.override(app_container["reprocess_media_command_handler"])
         app_container["admin_container"] = admin_container
         app_container["admin_queries"] = admin_container.admin_queries()
+        app_container["admin_audit_service"] = admin_container.admin_audit_service()
+        app_container["admin_user_service"] = admin_container.admin_user_service()
+        app_container["admin_media_service"] = admin_container.admin_media_service()
 
 
         app.state.container = app_container
