@@ -1,6 +1,6 @@
 # src/auth/api/routers.py
 from typing import List, Annotated
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 # Import dependencies from their correct, decoupled locations
@@ -23,7 +23,7 @@ async def register(
 ):
     try:
         result = await user_service.register_user(user_data.email, user_data.password)
-        return result["user"] if result["success"] else None
+        return result["user"]
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -33,9 +33,11 @@ async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     auth_service: AuthService = Depends(get_auth_service),
 ):
-    result = await auth_service.authenticate_user(form_data.username, form_data.password)
-    if not result["success"]:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    try:
+        result = await auth_service.authenticate_user(form_data.username, form_data.password)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+
     return {"access_token": result["token"], "token_type": "bearer"}
 
 
