@@ -1,26 +1,22 @@
-# src/topic_modeling/api/dependencies.py
-from typing import Annotated, Any
+from typing import Annotated
 from fastapi import Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.topic_modeling.bootstrap import TopicModelingContainer
 from src.topic_modeling.application.topic_modeling_service import TopicModelingService
-from src.topic_modeling.application.commands.handlers import AnalyzeTopicsCommandHandler
+from src.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
+from src.shared.application.modules import ModulesRegistry
 
-def get_topic_modeling_container(
-    request: Request
-) -> TopicModelingContainer:
-    """Get the topic modeling dependency injection container from request."""
-    return request.app.state.container["topic_modeling_container"]
+
+def get_modules(request: Request) -> ModulesRegistry:
+    return request.app.state.modules
+
 
 def get_topic_modeling_service(
-    container: Annotated[TopicModelingContainer, Depends(get_topic_modeling_container)]
+    modules: Annotated[ModulesRegistry, Depends(get_modules)]
 ) -> TopicModelingService:
-    """Get topic modeling service dependency."""
-    return container.topic_modeling_service()
+    return modules.topic_modeling.service
 
-def get_analyze_topics_command_handler(
-    container: Annotated[TopicModelingContainer, Depends(get_topic_modeling_container)]
-) -> AnalyzeTopicsCommandHandler:
-    """Get analyze topics command handler dependency."""
-    return container.analyze_topics_command_handler()
+
+def get_topic_modeling_repository(
+    modules: Annotated[ModulesRegistry, Depends(get_modules)]
+) -> TopicModelingRepository:
+    return modules.topic_modeling.repository

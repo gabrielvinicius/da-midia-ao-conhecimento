@@ -1,4 +1,5 @@
 """Dependency Injector container for the sentiment analysis module."""
+from dataclasses import dataclass
 
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +21,7 @@ from src.sentiment_analysis.infrastructure.sentiment_analyzer import (
 from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
     SentimentAnalysisRepository,
 )
+from src.shared.events.event_bus import EventBus
 
 
 class SentimentAnalysisContainer(containers.DeclarativeContainer):
@@ -66,5 +68,31 @@ class SentimentAnalysisContainer(containers.DeclarativeContainer):
     )
 
 
-__all__ = ["SentimentAnalysisContainer"]
+@dataclass
+class SentimentAnalysisModule:
+    service: SentimentAnalysisService
+    repository: SentimentAnalysisRepository
 
+
+def build_sentiment_analysis_module(
+    session: AsyncSession,
+    event_bus: EventBus,
+    transcription_queries,
+    connection_manager,
+    metrics_service,
+) -> SentimentAnalysisModule:
+    container = SentimentAnalysisContainer(
+        db=session,
+        event_bus=event_bus,
+        transcription_queries=providers.Object(transcription_queries),
+        connection_manager=providers.Object(connection_manager),
+        metrics_service=providers.Object(metrics_service),
+    )
+
+    return SentimentAnalysisModule(
+        service=container.sentiment_analysis_service(),
+        repository=container.sentiment_analysis_repository(),
+    )
+
+
+__all__ = ["SentimentAnalysisContainer", "SentimentAnalysisModule", "build_sentiment_analysis_module"]

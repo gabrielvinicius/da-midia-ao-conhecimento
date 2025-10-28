@@ -1,4 +1,5 @@
 # src/text_processing/bootstrap.py
+from dataclasses import dataclass
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +13,7 @@ from src.shared.infrastructure.storage.s3_storage_service import S3StorageServic
 
 # Consolidated Service
 from src.text_processing.application.text_processing_service import TextProcessingService
+
 
 class TextProcessingContainer(containers.DeclarativeContainer):
     db: providers.Provider[AsyncSession] = providers.Dependency()
@@ -43,4 +45,18 @@ class TextProcessingContainer(containers.DeclarativeContainer):
         text_extractor=text_extractor,
         task_scheduler=text_processing_task_scheduler,
         # TODO: Adicionar text_processing_logger, text_processing_metrics
+    )
+
+
+@dataclass
+class TextProcessingModule:
+    service: TextProcessingService
+    task_scheduler: CeleryTextProcessingTaskScheduler
+
+
+def build_text_processing_module(session: AsyncSession) -> TextProcessingModule:
+    container = TextProcessingContainer(db=session)
+    return TextProcessingModule(
+        service=container.text_processing_service(),
+        task_scheduler=container.text_processing_task_scheduler(),
     )
