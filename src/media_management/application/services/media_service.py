@@ -9,13 +9,13 @@ from uuid import UUID
 from src.media_management.domain.media import Media, MediaStatus, MediaType
 # FIXED: Application should not import Infrastructure directly
 from src.shared.application.dependency_injection import get_media_repository
+from src.media_management.application.commands.create_media_command import CreateMediaCommand
+from src.media_management.application.commands.create_media_command_handler import CreateMediaCommandHandler
 from src.media_management.application.commands.commands import (
-    CreateMediaCommand,
     DeleteMediaCommand,
     ReprocessMediaCommand
 )
 from src.media_management.application.commands.handlers import (
-    CreateMediaCommandHandler,
     DeleteMediaCommandHandler,
     ReprocessMediaCommandHandler
 )

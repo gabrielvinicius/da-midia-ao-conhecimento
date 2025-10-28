@@ -96,9 +96,13 @@ async def lifespan(app: FastAPI):
         app_container["metrics_service"] = monitoring_container.metrics_service()
         media_management_container = MediaManagementContainer()
         media_management_container.db.override(session)
+        media_management_container.storage_service_factory.override(storage_factory)
+        media_management_container.event_bus.override(event_bus)
+        media_management_container.metrics_service.override(app_container["metrics_service"])
         app_container["media_management_container"] = media_management_container
         app_container["media_service"] = media_management_container.media_service()
         app_container["create_media_command_handler"] = media_management_container.create_media_command_handler()
+        app_container["create_media_handler"] = app_container["create_media_command_handler"]
         app_container["delete_media_command_handler"] = media_management_container.delete_media_command_handler()
         app_container["reprocess_media_command_handler"] = media_management_container.reprocess_media_command_handler()
         app_container["media_queries"] = media_management_container.media_queries() # Adicionar media_queries
