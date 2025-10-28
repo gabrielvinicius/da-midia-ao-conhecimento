@@ -1,0 +1,65 @@
+"""Simple local filesystem storage implementation used in tests."""
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+from typing import Optional, Tuple, Union
+
+from src.storage.application.storage_service import StorageException, StorageService
+
+
+class LocalStorageService(StorageService):
+    """Persist files on the local filesystem using asynchronous wrappers."""
+
+    def __init__(self, root_directory: Union[str, Path] = "storage") -> None:
+        self._root = Path(root_directory)
+        self._root.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def provider_name(self) -> str:
+        return "local"
+
+    async def upload(self, file_path: Union[str, Path], file: bytes) -> bool:
+        destination = self._resolve_path(file_path)
+        try:
+            await asyncio.to_thread(self._write_file, destination, file)
+        except Exception as exc:  # pragma: no cover - defensive branch
+            raise StorageException("Failed to store file", exc) from exc
+        return True
+
+    async def download(self, file_path: Union[str, Path]) -> Optional[Tuple[bytes, str]]:
+        source = self._resolve_path(file_path)
+        if not source.exists():
+            return None
+        try:
+            data = await asyncio.to_thread(source.read_bytes)
+            return data, source.name
+        except Exception as exc:  # pragma: no cover - defensive branch
+            raise StorageException("Failed to download file", exc) from exc
+
+    async def delete(self, file_path: Union[str, Path]) -> bool:
+        target = self._resolve_path(file_path)
+        if not target.exists():
+            return False
+        try:
+            await asyncio.to_thread(target.unlink)
+            return True
+        except Exception as exc:  # pragma: no cover - defensive branch
+            raise StorageException("Failed to delete file", exc) from exc
+
+    async def exists(self, file_path: Union[str, Path]) -> bool:
+        return self._resolve_path(file_path).exists()
+
+    def _resolve_path(self, file_path: Union[str, Path]) -> Path:
+        path = Path(file_path)
+        if path.is_absolute():
+            return path
+        return self._root / path
+
+    @staticmethod
+    def _write_file(path: Path, content: bytes) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+
+
+__all__ = ["LocalStorageService"]
