@@ -21,10 +21,12 @@ async def register_event_handlers(event_bus: EventBus) -> None:
             logger.info(f"Text content ready for media {media_id}. Dispatching topic modeling task.")
 
             # For now, we use a default provider. This could be made configurable.
-            extract_topics_task.delay(
-                media_id=media_id, 
+            schedule_topic_modeling(
+                media_id=media_id,
                 text_content=text_content,
-                provider="sklearn_lda"
+                provider="sklearn_lda",
+                language=event_data.get("language", "en"),
+                options=event_data.get("options"),
             )
         except KeyError as e:
             logger.error(f"Missing required field in TextContentReady event for topic modeling: {e}")
