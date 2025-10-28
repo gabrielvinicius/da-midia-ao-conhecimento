@@ -81,8 +81,8 @@ class SummarizationService:
         if not summary:
             raise ValueError(f"Summary not found for media_id: {media_id}")
 
-        summary.mark_as_completed(text_content)
-        await self.repo.update(summary)
+        summary = summary.mark_as_completed(text_content)
+        summary = await self.repo.update(summary)
         logger.info("summarization.process.completed", summary_id=str(summary.id))
         return summary
 

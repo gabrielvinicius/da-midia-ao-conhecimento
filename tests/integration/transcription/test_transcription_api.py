@@ -4,7 +4,8 @@ from httpx import AsyncClient
 from uuid import uuid4
 
 from src.auth.domain.user import User
-from src.media_management.domain.media import Media
+from src.media_management.domain.enums import MediaStatus, MediaType
+from src.media_management.infrastructure.orm.media_entity import MediaEntity
 from src.transcription.domain.transcription import Transcription, TranscriptionStatus
 
 # A fixture for the async client is assumed to be available, e.g., in a root conftest.py
@@ -14,7 +15,14 @@ from src.transcription.domain.transcription import Transcription, TranscriptionS
 async def test_set_speaker_aliases_success(client: AsyncClient, db_session, authenticated_user: User):
     """Tests successful update of speaker aliases via API endpoint."""
     # Arrange: Create a media and transcription record in the database
-    media = Media(id=uuid4(), user_id=authenticated_user.id, file_path="/test.mp4", file_name="test.mp4")
+    media = MediaEntity(
+        id=uuid4(),
+        user_id=authenticated_user.id,
+        original_file_path="/test.mp4",
+        media_type=MediaType.VIDEO,
+        status=MediaStatus.UPLOADED,
+        storage_provider="local",
+    )
     transcription = Transcription(
         id=uuid4(),
         media_id=media.id,

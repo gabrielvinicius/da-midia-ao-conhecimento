@@ -112,8 +112,8 @@ class CreateMediaCommandHandler:
         stored_path = self._extract_file_path(upload_metadata, destination_path)
         file_size = self._extract_file_size(upload_metadata, command.file)
 
-        media = Media(
-            id=media_id,
+        media = Media.create(
+            media_id=media_id,
             user_id=command.user_id,
             original_file_path=stored_path,
             media_type=media_type,
@@ -123,11 +123,12 @@ class CreateMediaCommandHandler:
             status=MediaStatus.UPLOADED,
         )
 
-        # Attach additional metadata that is useful for consumers and tests.
-        media.filename = command.filename
-        media.file_size = file_size
-        media.mime_type = content_type
-        media.created_at = getattr(media, "created_at", datetime.now(timezone.utc))
+        media = media.update(
+            filename=command.filename,
+            file_size=file_size,
+            mime_type=content_type,
+            created_at=datetime.now(timezone.utc),
+        )
 
         saved_media = await self._persist_media(media)
 

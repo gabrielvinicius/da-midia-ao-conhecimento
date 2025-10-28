@@ -8,7 +8,8 @@ from uuid import uuid4
 from src.media_management.domain.media import Media, MediaType
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.summarization.domain.summary import Summary, SummaryStatus
-from src.summarization.infrastructure.summary_repository import SummaryRepository
+from src.summarization.infrastructure.orm.summary_entity import SummaryEntity
+from src.summarization.infrastructure.summarization_repository import SummaryRepository
 from src.summarization.application.commands.process_summary_command import ProcessSummaryCommand
 from src.summarization.application.commands.process_summary_command_handler import ProcessSummaryCommandHandler
 
@@ -59,7 +60,7 @@ async def test_process_summary_handler_persists_summary(db_session: AsyncSession
 
     # Assert: Verify the database state directly
     result = await db_session.execute(
-        select(Summary).where(Summary.media_id == media_id)
+        select(SummaryEntity).where(SummaryEntity.media_id == media_id)
     )
     persisted_summary = result.scalar_one_or_none()
 

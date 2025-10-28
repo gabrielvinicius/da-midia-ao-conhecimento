@@ -2,10 +2,11 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from src.media_management.application.services import MediaLifecycleService
-from src.media_management.domain.enums import MediaStatus
+from src.media_management.domain.enums import MediaStatus, MediaType
+from src.media_management.domain.media import Media
 
 
 def _build_service(media_repo=None, delete_handler=None, reprocess_handler=None, access_policy=None):
@@ -54,8 +55,15 @@ async def test_reprocess_media_invokes_policy_and_handler():
 @pytest.mark.asyncio
 async def test_reset_for_reprocessing_updates_status_and_clears_error():
     media_repo = AsyncMock()
-    existing_media = MagicMock(status=MediaStatus.FAILED)
-    updated_media = MagicMock()
+    existing_media = Media.create(
+        media_id=uuid4(),
+        user_id=uuid4(),
+        original_file_path="/tmp/file.mp4",
+        media_type=MediaType.VIDEO,
+        storage_provider="local",
+        status=MediaStatus.FAILED,
+    ).mark_failed("boom")
+    updated_media = existing_media.with_status(MediaStatus.UPLOADED, error_message=None)
 
     media_repo.get_by_id.return_value = existing_media
     media_repo.update_status.return_value = updated_media
@@ -64,16 +72,25 @@ async def test_reset_for_reprocessing_updates_status_and_clears_error():
 
     result = await service.reset_for_reprocessing(media_id=UUID(int=5))
 
-    assert result is updated_media
-    assert updated_media.error_message is None
+    assert result == updated_media
+    assert result.error_message is None
     media_repo.save.assert_awaited_once_with(updated_media)
 
 
 @pytest.mark.asyncio
 async def test_update_status_persists_error_message():
     media_repo = AsyncMock()
-    media_repo.get_by_id.return_value = MagicMock()
-    updated_media = MagicMock()
+    media_repo.get_by_id.return_value = Media.create(
+        media_id=uuid4(),
+        user_id=uuid4(),
+        original_file_path="/tmp/file.mp4",
+        media_type=MediaType.VIDEO,
+        storage_provider="local",
+    )
+    updated_media = media_repo.get_by_id.return_value.with_status(
+        MediaStatus.PROCESSING,
+        error_message="boom",
+    )
     media_repo.update_status.return_value = updated_media
 
     service = _build_service(media_repo=media_repo)
@@ -84,6 +101,6 @@ async def test_update_status_persists_error_message():
         error_message="boom",
     )
 
-    assert result is updated_media
-    assert updated_media.error_message == "boom"
+    assert result == updated_media
+    assert result.error_message == "boom"
     media_repo.save.assert_awaited_once_with(updated_media)

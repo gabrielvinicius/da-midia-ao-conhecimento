@@ -6,6 +6,7 @@ from sqlalchemy import select
 from uuid import uuid4
 
 from src.media_management.domain.media import Media, MediaType, MediaStatus
+from src.media_management.infrastructure.orm.media_entity import MediaEntity
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.transcription.domain.transcription import Transcription
@@ -78,7 +79,7 @@ async def test_process_transcription_handler_persists_results(db_session: AsyncS
 
     # 2. Check that the Media status was updated to COMPLETED
     media_result = await db_session.execute(
-        select(Media).where(Media.id == media_id)
+        select(MediaEntity).where(MediaEntity.id == media_id)
     )
     persisted_media = media_result.scalar_one_or_none()
     assert persisted_media is not None
