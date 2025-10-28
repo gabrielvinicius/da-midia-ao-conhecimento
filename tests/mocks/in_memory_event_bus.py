@@ -10,8 +10,9 @@ class InMemoryEventBus(EventBus):
         self.events: List[DomainEvent] = []
 
     async def publish(self, event: DomainEvent):
-        """Stores the event in an in-memory list instead of publishing to Redis."""
+        """Stores the event and dispatches it to in-memory subscribers."""
         self.events.append(event)
+        await super().publish(event)
 
     def get_events(self, event_type: Type[DomainEvent]) -> List[DomainEvent]:
         """Returns all recorded events of a specific type."""
