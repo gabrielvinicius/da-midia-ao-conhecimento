@@ -1,19 +1,45 @@
-from typing import Annotated, Any
-from fastapi import Depends, Request
+from dataclasses import dataclass
+from typing import Annotated
 
-from src.shared.application.modules import ModulesRegistry
+from fastapi import Depends
 
-
-def get_modules(request: Request) -> ModulesRegistry:
-    """Get the bootstrapped modules registry from the request."""
-    return request.app.state.modules
+from src.monitoring.application.analytics_queries import AnalyticsQueries
+from src.monitoring.application.metrics_service import MetricsService
 
 
-def get_analytics_queries(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
+class MonitoringDependenciesNotConfigured(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class MonitoringDependencies:
+    analytics_queries: AnalyticsQueries
+    metrics_service: MetricsService
+
+
+def get_monitoring_dependencies() -> MonitoringDependencies:
+    raise MonitoringDependenciesNotConfigured(
+        "Monitoring dependencies are not configured. Register providers in the lifespan handler."
+    )
+
+
+MonitoringDeps = Annotated[MonitoringDependencies, Depends(get_monitoring_dependencies)]
+
+
+def get_analytics_queries(deps: MonitoringDeps) -> AnalyticsQueries:
     """Expose analytics queries."""
-    return modules.monitoring.analytics_queries
+    return deps.analytics_queries
 
 
-def get_metrics_service(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
+def get_metrics_service(deps: MonitoringDeps) -> MetricsService:
     """Expose the metrics service."""
-    return modules.monitoring.metrics_service
+    return deps.metrics_service
+
+
+__all__ = [
+    "MonitoringDependencies",
+    "MonitoringDependenciesNotConfigured",
+    "get_monitoring_dependencies",
+    "get_analytics_queries",
+    "get_metrics_service",
+]

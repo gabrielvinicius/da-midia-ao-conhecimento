@@ -13,7 +13,7 @@ from src.shared.middleware.performance_middleware import register_performance_mi
 # from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
 from src.shared.infrastructure.cache import cache
 
-from src.shared.application.modules import ModulesRegistry
+from src.shared.application.modules import register_module_dependencies
 from src.shared.application.lifecycle import (
     ApplicationResources,
     EventHandlersConfig,
@@ -159,22 +159,20 @@ async def lifespan(app: FastAPI):
             reprocess_media_handler=media_admin_context.reprocess_media_handler,
         )
 
-        modules_registry = ModulesRegistry(
+        register_module_dependencies(
+            app,
             auth=auth_module,
             monitoring=monitoring_module,
-            media_management=media_module,
+            media=media_module,
             transcription=transcription_module,
             notifications=notification_module,
-            video_processing=video_module,
-            text_processing=text_module,
             summarization=summarization_module,
             providers=providers_module,
             sentiment_analysis=sentiment_module,
             topic_modeling=topic_module,
             admin=admin_module,
-            event_bus=event_bus,
         )
-        app.state.modules = modules_registry
+        app.state.event_bus = event_bus
 
         handler_config = EventHandlersConfig(
             event_bus=event_bus,

@@ -1,31 +1,59 @@
+from dataclasses import dataclass
 from typing import Annotated
-from fastapi import Depends, Request
 
+from fastapi import Depends
+
+from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.application.services import (
     MediaLifecycleService,
     MediaQueryService,
     MediaUploadService,
 )
-from src.shared.application.modules import ModulesRegistry
 
 
-def get_modules(request: Request) -> ModulesRegistry:
-    return request.app.state.modules
+class MediaDependenciesNotConfigured(RuntimeError):
+    pass
 
 
-def get_media_upload_service(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
-) -> MediaUploadService:
-    return modules.media_management.upload_service
+@dataclass(frozen=True)
+class MediaDependencies:
+    queries: MediaQueries
+    upload_service: MediaUploadService
+    lifecycle_service: MediaLifecycleService
+    query_service: MediaQueryService
 
 
-def get_media_lifecycle_service(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
-) -> MediaLifecycleService:
-    return modules.media_management.lifecycle_service
+def get_media_dependencies() -> MediaDependencies:
+    raise MediaDependenciesNotConfigured(
+        "Media dependencies are not configured. Register providers in the lifespan handler."
+    )
 
 
-def get_media_query_service(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
-) -> MediaQueryService:
-    return modules.media_management.query_service
+MediaDeps = Annotated[MediaDependencies, Depends(get_media_dependencies)]
+
+
+def get_media_upload_service(deps: MediaDeps) -> MediaUploadService:
+    return deps.upload_service
+
+
+def get_media_lifecycle_service(deps: MediaDeps) -> MediaLifecycleService:
+    return deps.lifecycle_service
+
+
+def get_media_query_service(deps: MediaDeps) -> MediaQueryService:
+    return deps.query_service
+
+
+def get_media_queries(deps: MediaDeps) -> MediaQueries:
+    return deps.queries
+
+
+__all__ = [
+    "MediaDependencies",
+    "MediaDependenciesNotConfigured",
+    "get_media_dependencies",
+    "get_media_lifecycle_service",
+    "get_media_queries",
+    "get_media_query_service",
+    "get_media_upload_service",
+]
