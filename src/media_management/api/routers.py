@@ -14,8 +14,8 @@ from .dependencies import (
 )
 from src.shared.api.unified_schemas import BaseResponseSchema, create_success_response, create_error_response
 
-from ..application.commands.commands import CreateMediaCommand
-from ..application.commands.handlers import CreateMediaCommandHandler
+from ..application.commands.create_media_command import CreateMediaCommand
+from ..application.commands.create_media_command_handler import CreateMediaCommandHandler
 from ..application.queries.media_queries import MediaQueries
 from ..application.services.media_authorization_service import MediaAuthorizationService
 from .schemas import MediaResponse
