@@ -1,8 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
 from main import app
-from src.auth.api.dependencies import get_auth_service
-from src.auth.infrastructure.user_repository import InMemoryUserRepository
 
 client = TestClient(app)
 
@@ -13,11 +11,11 @@ async def test_full_video_summary_flow():
         "email": "test@example.com",
         "password": "securepassword123"
     })
-    assert response.status_code == 200
+    assert response.status_code == 201
     user_id = response.json()["id"]
 
     # Login
-    response = client.post("/auth/login", data={
+    response = client.post("/auth/token", data={
         "username": "test@example.com",
         "password": "securepassword123"
     })

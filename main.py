@@ -80,10 +80,14 @@ async def lifespan(app: FastAPI):
             "sentiment_analysis_service_factory": get_sentiment_service_factory(),
         }
 
+        event_bus = app_container["event_bus"]
+
         auth_container = AuthContainer(db=session)
         app_container["auth_container"] = auth_container
         app_container["auth_service"] = auth_container.auth_service()
         app_container["auth_queries"] = auth_container.auth_queries() # Still needed for other modules
+        app_container["user_service"] = auth_container.user_service()
+        app_container["auth_settings"] = auth_container.auth_settings()
 
         monitoring_container = MonitoringContainer()
         monitoring_container.db.override(session) # Override the db dependency
