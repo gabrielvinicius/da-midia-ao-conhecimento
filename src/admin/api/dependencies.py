@@ -3,24 +3,32 @@ from typing import Annotated, Any
 from fastapi import Depends, Request
 
 # This file contains only the dependency getters specific to the admin module's API.
+from src.shared.application.modules import ModulesRegistry
 
-def get_container(request: Request) -> dict:
-    return request.app.state.container
 
-def get_admin_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["admin_queries"]
+def get_modules(request: Request) -> ModulesRegistry:
+    return request.app.state.modules
 
-def get_auth_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["auth_queries"]
 
-def get_media_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["media_queries"]
+def get_admin_queries(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
+    return modules.admin.admin_queries
 
-def get_admin_user_service(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["admin_user_service"]
 
-def get_admin_media_service(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["admin_media_service"]
+def get_auth_queries(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
+    return modules.auth.auth_queries
 
-def get_admin_audit_service(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["admin_audit_service"]
+
+def get_media_queries(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
+    return modules.media_management.queries
+
+
+def get_admin_user_service(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
+    return modules.admin.user_service
+
+
+def get_admin_media_service(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
+    return modules.admin.media_service
+
+
+def get_admin_audit_service(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
+    return modules.admin.audit_service

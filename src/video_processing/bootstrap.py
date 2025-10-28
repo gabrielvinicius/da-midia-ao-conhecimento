@@ -1,4 +1,5 @@
 # src/video_processing/bootstrap.py
+from dataclasses import dataclass
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +12,7 @@ from src.shared.infrastructure.storage.s3_storage_service import S3StorageServic
 
 # Consolidated Service
 from src.video_processing.application.video_processing_service import VideoProcessingService
+
 
 class VideoProcessingContainer(containers.DeclarativeContainer):
     db: providers.Provider[AsyncSession] = providers.Dependency()
@@ -30,4 +32,18 @@ class VideoProcessingContainer(containers.DeclarativeContainer):
         video_processing_task_scheduler=video_processing_task_scheduler,
         storage_service=storage_service,
         # TODO: Adicionar video_processing_logger, video_processing_metrics
+    )
+
+
+@dataclass
+class VideoProcessingModule:
+    service: VideoProcessingService
+    task_scheduler: CeleryVideoProcessingTaskScheduler
+
+
+def build_video_processing_module(session: AsyncSession) -> VideoProcessingModule:
+    container = VideoProcessingContainer(db=session)
+    return VideoProcessingModule(
+        service=container.video_processing_service(),
+        task_scheduler=container.video_processing_task_scheduler(),
     )

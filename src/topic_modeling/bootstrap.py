@@ -1,5 +1,5 @@
-# src/topic_modeling/bootstrap.py
 """Dependency-injector container for the topic modeling module."""
+from dataclasses import dataclass
 
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,7 @@ from src.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
 from src.topic_modeling.infrastructure.topic_modeling_repository import (
     TopicModelingRepository,
 )
+from src.shared.events.event_bus import EventBus
 
 
 class TopicModelingContainer(containers.DeclarativeContainer):
@@ -54,4 +55,29 @@ class TopicModelingContainer(containers.DeclarativeContainer):
     )
 
 
-__all__ = ["TopicModelingContainer"]
+@dataclass
+class TopicModelingModule:
+    service: TopicModelingService
+    repository: TopicModelingRepository
+
+
+def build_topic_modeling_module(
+    session: AsyncSession,
+    event_bus: EventBus,
+    media_queries,
+    transcription_queries,
+) -> TopicModelingModule:
+    container = TopicModelingContainer(
+        db=session,
+        event_bus=event_bus,
+        media_queries=providers.Object(media_queries),
+        transcription_queries=providers.Object(transcription_queries),
+    )
+
+    return TopicModelingModule(
+        service=container.topic_modeling_service(),
+        repository=container.topic_modeling_repository(),
+    )
+
+
+__all__ = ["TopicModelingContainer", "TopicModelingModule", "build_topic_modeling_module"]

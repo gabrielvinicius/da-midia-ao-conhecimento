@@ -1,4 +1,3 @@
-# src/media_management/api/dependencies.py
 from typing import Annotated
 from fastapi import Depends, Request
 
@@ -7,25 +6,26 @@ from src.media_management.application.services import (
     MediaQueryService,
     MediaUploadService,
 )
+from src.shared.application.modules import ModulesRegistry
 
 
-def get_container(request: Request) -> dict:
-    return request.app.state.container
+def get_modules(request: Request) -> ModulesRegistry:
+    return request.app.state.modules
 
 
 def get_media_upload_service(
-    container: Annotated[dict, Depends(get_container)]
+    modules: Annotated[ModulesRegistry, Depends(get_modules)]
 ) -> MediaUploadService:
-    return container["media_upload_service"]
+    return modules.media_management.upload_service
 
 
 def get_media_lifecycle_service(
-    container: Annotated[dict, Depends(get_container)]
+    modules: Annotated[ModulesRegistry, Depends(get_modules)]
 ) -> MediaLifecycleService:
-    return container["media_lifecycle_service"]
+    return modules.media_management.lifecycle_service
 
 
 def get_media_query_service(
-    container: Annotated[dict, Depends(get_container)]
+    modules: Annotated[ModulesRegistry, Depends(get_modules)]
 ) -> MediaQueryService:
-    return container["media_query_service"]
+    return modules.media_management.query_service

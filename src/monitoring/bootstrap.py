@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 from dependency_injector import containers, providers
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.monitoring.domain.interfaces import IAnalyticsRepository, IMetricsProvider, IAnalyticsQueries
 from src.monitoring.infrastructure.analytics_repository import AnalyticsRepository
@@ -8,8 +10,9 @@ from src.monitoring.application.metrics_service import MetricsService
 
 from src.monitoring.config.settings import AnalyticsSettings
 
+
 class MonitoringContainer(containers.DeclarativeContainer):
-    wiring_config = containers.WiringConfiguration(modules=[".api.dependencies"])
+    db: providers.Provider[AsyncSession] = providers.Dependency()
 
     # Configuration
     config = providers.Configuration()
@@ -20,7 +23,7 @@ class MonitoringContainer(containers.DeclarativeContainer):
     # Infrastructure
     analytics_repository: providers.Provider[IAnalyticsRepository] = providers.Factory(
         AnalyticsRepository,
-        db=providers.Dependency()
+        db=db,
     )
 
     metrics_provider: providers.Provider[IMetricsProvider] = providers.Singleton(
@@ -40,8 +43,16 @@ class MonitoringContainer(containers.DeclarativeContainer):
         analytics_repository=analytics_repository
     )
 
-    # Placeholder for other analytics/metrics services if needed
-    # performance_analytics = providers.Factory(PerformanceAnalytics, ...)
-    # quality_analytics = providers.Factory(QualityAnalytics, ...)
-    # business_metrics = providers.Factory(BusinessMetrics, ...)
-    # performance_metrics = providers.Factory(PerformanceMetrics, ...)
+
+@dataclass
+class MonitoringModule:
+    analytics_queries: IAnalyticsQueries
+    metrics_service: MetricsService
+
+
+def build_monitoring_module(session: AsyncSession) -> MonitoringModule:
+    container = MonitoringContainer(db=session)
+    return MonitoringModule(
+        analytics_queries=container.analytics_queries(),
+        metrics_service=container.metrics_service(),
+    )

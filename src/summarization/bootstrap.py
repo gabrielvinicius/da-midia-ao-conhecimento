@@ -1,4 +1,5 @@
 # src/summarization/bootstrap.py
+from dataclasses import dataclass
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,7 @@ from src.summarization.application.commands.handlers import (
 
 # Consolidated Service
 from src.summarization.application.summarization_service import SummarizationService
+
 
 class SummarizationContainer(containers.DeclarativeContainer):
     db: providers.Provider[AsyncSession] = providers.Dependency()
@@ -56,3 +58,34 @@ class SummarizationContainer(containers.DeclarativeContainer):
         summary_metrics=summary_metrics
     )
 
+
+@dataclass
+class SummarizationModule:
+    service: SummarizationService
+    repository: SummarizationRepository
+    request_handler: RequestSummaryCommandHandler
+    process_handler: ProcessSummaryCommandHandler
+    task_scheduler: CelerySummarizationTaskScheduler
+
+
+def build_summarization_module(
+    session: AsyncSession,
+    event_bus,
+    transcription_queries,
+    media_queries,
+    connection_manager,
+) -> SummarizationModule:
+    container = SummarizationContainer(
+        db=session,
+        event_bus=event_bus,
+        transcription_queries=transcription_queries,
+        media_queries=media_queries,
+        connection_manager=connection_manager,
+    )
+    return SummarizationModule(
+        service=container.summarization_service(),
+        repository=container.summarization_repository(),
+        request_handler=container.request_summary_command_handler(),
+        process_handler=container.process_summary_command_handler(),
+        task_scheduler=container.summarization_task_scheduler(),
+    )

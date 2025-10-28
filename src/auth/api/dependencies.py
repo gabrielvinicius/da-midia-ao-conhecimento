@@ -4,15 +4,20 @@ from fastapi import Depends, Request
 
 # This file contains only the dependency getters specific to the auth module's API.
 # Shared security dependencies are now in src/shared/api/dependencies.py
+from src.shared.application.modules import ModulesRegistry
 
-def get_container(request: Request) -> dict:
-    return request.app.state.container
 
-def get_user_service(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["user_service"]
+def get_modules(request: Request) -> ModulesRegistry:
+    return request.app.state.modules
 
-def get_auth_service(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["auth_service"]
 
-def get_auth_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
-    return container["auth_queries"]
+def get_user_service(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
+    return modules.auth.user_service
+
+
+def get_auth_service(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
+    return modules.auth.auth_service
+
+
+def get_auth_queries(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
+    return modules.auth.auth_queries

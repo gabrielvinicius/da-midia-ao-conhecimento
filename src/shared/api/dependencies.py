@@ -8,21 +8,23 @@ from jose import JWTError, jwt
 from src.auth.domain.user import User, UserRole
 # This is acceptable as it's auth infrastructure used by shared API
 from src.auth.infrastructure.oauth2_scheme import oauth2_scheme
+from src.shared.application.modules import ModulesRegistry
 
-# --- Helper functions to get dependencies from the container ---
+
+# --- Helper functions to get dependencies from the module registry ---
 # These are defined here because security is a cross-cutting concern
-# that needs access to the auth module's components via the container.
+# that needs access to the auth module's components.
 
-def get_container(request: Request) -> dict:
-    return request.app.state.container
+def get_modules(request: Request) -> ModulesRegistry:
+    return request.app.state.modules
 
-def get_auth_queries(container: Annotated[dict, Depends(get_container)]) -> Any:
-    """Gets the AuthQueries service from the application container."""
-    return container["auth_queries"]
+def get_auth_queries(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
+    """Gets the AuthQueries service from the auth module."""
+    return modules.auth.auth_queries
 
-def get_auth_settings(container: Annotated[dict, Depends(get_container)]) -> Any:
-    """Gets the AuthSettings from the application container."""
-    return container["auth_settings"]
+def get_auth_settings(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
+    """Gets the AuthSettings from the auth module."""
+    return modules.auth.settings
 
 # --- Core Security Dependencies ---
 
