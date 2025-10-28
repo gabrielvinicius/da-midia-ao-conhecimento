@@ -51,7 +51,7 @@ class MediaManagementContainer(containers.DeclarativeContainer):
     )
 
     create_media_command_handler = providers.Factory(
-        CreateMediaCommandHandler,
+        CreateMediaCommandHandler.with_default_components,
         media_repository=media_repository,
         storage_service_factory=storage_service_factory,
         event_bus=event_bus,

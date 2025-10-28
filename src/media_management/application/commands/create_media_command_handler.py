@@ -13,8 +13,17 @@ import structlog
 
 from src.media_management.domain.enums import MediaStatus, MediaType
 from src.media_management.domain.media import Media
-from src.shared.events.domain_events import MediaUploaded
 from src.shared.exceptions.domain_exceptions import ValidationError
+from .components import (
+    DefaultMediaEventPublisher,
+    DefaultMediaMetricsPublisher,
+    DefaultStorageServiceResolver,
+    FileSizeMediaFileValidator,
+    MediaEventPublisher,
+    MediaFileValidator,
+    MediaMetricsPublisher,
+    StorageServiceResolver,
+)
 
 from .create_media_command import CreateMediaCommand
 
@@ -49,23 +58,46 @@ class CreateMediaCommandHandler:
     def __init__(
         self,
         media_repository: Any,
+        storage_resolver: StorageServiceResolver,
+        metrics_publisher: MediaMetricsPublisher,
+        event_publisher: MediaEventPublisher,
+        file_validator: MediaFileValidator,
+    ) -> None:
+        self.media_repository = media_repository
+        self.storage_resolver = storage_resolver
+        self.metrics_publisher = metrics_publisher
+        self.event_publisher = event_publisher
+        self.file_validator = file_validator
+
+    @classmethod
+    def with_default_components(
+        cls,
+        media_repository: Any,
         storage_service_factory: Any,
         event_bus: Any,
         metrics_service: Any,
-    ) -> None:
-        self.media_repository = media_repository
-        self.storage_service_factory = storage_service_factory
-        self.event_bus = event_bus
-        self.metrics_service = metrics_service
+    ) -> "CreateMediaCommandHandler":
+        """Build a handler with the default component implementations."""
+
+        return cls(
+            media_repository=media_repository,
+            storage_resolver=DefaultStorageServiceResolver(factory=storage_service_factory),
+            metrics_publisher=DefaultMediaMetricsPublisher(metrics_service=metrics_service),
+            event_publisher=DefaultMediaEventPublisher(event_bus=event_bus),
+            file_validator=FileSizeMediaFileValidator(
+                min_size_bytes=cls.MIN_FILE_SIZE_BYTES,
+                max_size_bytes=cls.MAX_FILE_SIZE_BYTES,
+            ),
+        )
 
     async def handle(self, command: CreateMediaCommand) -> Media:
         """Execute the command returning the persisted media entity."""
 
-        self._validate_file(command.file, command.filename)
+        self.file_validator.validate(command.file, command.filename)
         media_type = self._detect_media_type(command.filename)
         content_type = self._guess_mime_type(command.filename)
 
-        storage_service = self._resolve_storage_service(command.storage_provider)
+        storage_service = self.storage_resolver.resolve(command.storage_provider)
         media_id = uuid.uuid4()
         destination_path = self._build_destination_path(media_id, command.filename)
 
@@ -99,8 +131,8 @@ class CreateMediaCommandHandler:
 
         saved_media = await self._persist_media(media)
 
-        await self._publish_metrics(saved_media, file_size)
-        await self._publish_event(saved_media, stored_path)
+        await self.metrics_publisher.publish(saved_media, file_size)
+        await self.event_publisher.publish_media_uploaded(saved_media, stored_path)
 
         logger.info(
             "media_management.create_media.completed",
@@ -125,44 +157,6 @@ class CreateMediaCommandHandler:
 
         return saved_media
 
-    async def _publish_metrics(self, media: Media, file_size: int) -> None:
-        if hasattr(self.metrics_service, "increment_counter"):
-            self.metrics_service.increment_counter(
-                "media_uploads_total",
-                media_type=media.media_type.value if isinstance(media.media_type, MediaType) else media.media_type,
-                storage_provider=media.storage_provider,
-            )
-
-        if hasattr(self.metrics_service, "record_histogram"):
-            self.metrics_service.record_histogram(
-                "media_upload_file_size_bytes",
-                file_size,
-                media_type=media.media_type.value if isinstance(media.media_type, MediaType) else media.media_type,
-            )
-
-    async def _publish_event(self, media: Media, file_path: str) -> None:
-        event = MediaUploaded(
-            media_id=str(media.id),
-            user_id=str(getattr(media, "user_id", "")),
-            media_type=media.media_type,
-            file_path=file_path,
-            storage_provider=media.storage_provider,
-            transcription_provider=getattr(media, "transcription_provider", None),
-            summarization_provider=getattr(media, "summarization_provider", None),
-        )
-        await self.event_bus.publish(event)
-
-    def _validate_file(self, file_data: bytes, filename: str) -> None:
-        if not file_data:
-            raise ValidationError("file", filename, "File content is empty")
-
-        file_size = len(file_data)
-        if file_size > self.MAX_FILE_SIZE_BYTES:
-            raise ValidationError("file", filename, "File size exceeds maximum limit")
-
-        if file_size < self.MIN_FILE_SIZE_BYTES:
-            raise ValidationError("file", filename, "File size is too small")
-
     def _detect_media_type(self, filename: str) -> MediaType:
         _, ext = os.path.splitext(filename or "")
         media_type = self._MEDIA_TYPE_MAP.get(ext.lower())
@@ -173,16 +167,6 @@ class CreateMediaCommandHandler:
     def _guess_mime_type(self, filename: str) -> str:
         mime_type, _ = mimetypes.guess_type(filename)
         return mime_type or "application/octet-stream"
-
-    def _resolve_storage_service(self, storage_provider: str) -> Any:
-        factory = self.storage_service_factory
-        if callable(factory) and not hasattr(factory, "create_storage_service"):
-            return factory(storage_provider)
-
-        if hasattr(factory, "create_storage_service"):
-            return factory.create_storage_service(storage_provider)
-
-        raise ValueError("Invalid storage service factory provided")
 
     def _build_destination_path(self, media_id: uuid.UUID, filename: str) -> str:
         return f"media/{media_id}/{filename}"
