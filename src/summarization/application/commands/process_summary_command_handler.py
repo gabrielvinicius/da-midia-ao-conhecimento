@@ -190,7 +190,7 @@ class ProcessSummaryCommandHandler:
         return summary_entity
 
     def _build_summary(self, *, media_id: Optional[str], provider: str) -> Summary:
-        return Summary.create(media_id=media_id or "", provider=provider)
+        return Summary.create(media_id=media_id, provider=provider)
 
     async def _publish_event(self, event: SummarizationProgress | SummaryCompleted) -> None:
         if self._event_bus is not None and hasattr(self._event_bus, "publish"):
