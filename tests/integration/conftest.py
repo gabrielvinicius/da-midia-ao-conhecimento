@@ -1,11 +1,13 @@
 # tests/integration/conftest.py
 import pytest
 import asyncio
+import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from src.shared.infrastructure.database import Base
 from src.shared.config.database_settings import DatabaseSettings
+from sqlalchemy.dialects.sqlite.base import SQLiteTypeCompiler
 
 # Load test database settings
 # Make sure your .env.test points to a separate test database
@@ -30,9 +32,15 @@ def event_loop():
     yield loop
     loop.close()
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session")
 async def setup_database():
     """Fixture to set up the database before tests and tear it down after."""
+    if engine.url.get_backend_name() == "sqlite":
+        def visit_jsonb(self, type_, **kw):  # pragma: no cover - simple shim
+            return "TEXT"
+
+        SQLiteTypeCompiler.visit_JSONB = visit_jsonb
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     
@@ -41,7 +49,7 @@ async def setup_database():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def db_session(setup_database) -> AsyncSession:
     """Yields a new database session for each test, and rolls back transactions."""
     async with TestingSessionLocal() as session:

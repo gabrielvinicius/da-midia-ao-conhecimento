@@ -2,6 +2,8 @@
 import structlog
 from typing import Dict, Any, Optional
 
+logger = structlog.get_logger(__name__)
+
 class BERTopicModeler:
     """Concrete implementation of ITopicModeler using a placeholder BERTopic algorithm."""
 

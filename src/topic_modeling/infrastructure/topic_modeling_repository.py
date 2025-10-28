@@ -4,6 +4,8 @@ from sqlalchemy import select
 from typing import Optional, Any
 from uuid import UUID
 
+from src.topic_modeling.domain.topic_modeling import TopicModelingResult
+
 class TopicModelingRepository:
     """SQLAlchemy implementation of the topic modeling repository."""
 
