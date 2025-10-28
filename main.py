@@ -14,17 +14,42 @@ from src.shared.middleware.performance_middleware import register_performance_mi
 from src.shared.infrastructure.cache import cache
 
 from src.shared.application.modules import ModulesRegistry
+from src.shared.application.lifecycle import (
+    ApplicationResources,
+    EventHandlersConfig,
+    register_event_handlers,
+    start_application_resources,
+    stop_application_resources,
+)
 from src.shared.events.event_bus import get_event_bus
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 from src.auth.bootstrap import build_auth_module
 from src.monitoring.bootstrap import build_monitoring_module
-from src.media_management.bootstrap import build_media_management_module
-from src.video_processing.bootstrap import build_video_processing_module
-from src.text_processing.bootstrap import build_text_processing_module
-from src.transcription.bootstrap import build_transcription_module
+from src.media_management.bootstrap import (
+    create_media_container,
+    build_media_module,
+    build_media_admin_context,
+)
+from src.video_processing.bootstrap import (
+    build_video_processing_module,
+    build_video_processing_event_context,
+)
+from src.text_processing.bootstrap import (
+    build_text_processing_module,
+    build_text_processing_event_context,
+)
+from src.transcription.bootstrap import (
+    create_transcription_container,
+    build_transcription_module,
+    build_transcription_event_context,
+)
 from src.notifications.bootstrap import build_notification_module
-from src.summarization.bootstrap import build_summarization_module
+from src.summarization.bootstrap import (
+    create_summarization_container,
+    build_summarization_module,
+    build_summarization_event_context,
+)
 from src.providers.bootstrap import build_providers_module
 from src.sentiment_analysis.bootstrap import build_sentiment_analysis_module
 from src.topic_modeling.bootstrap import build_topic_modeling_module
@@ -70,27 +95,48 @@ async def lifespan(app: FastAPI):
 
         auth_module = build_auth_module(session)
         monitoring_module = build_monitoring_module(session)
-        media_module = build_media_management_module(
+
+        media_container = create_media_container(
             session=session,
             storage_service_factory=storage_factory,
             event_bus=event_bus,
             metrics_service=monitoring_module.metrics_service,
         )
-        transcription_module = build_transcription_module(session)
+        media_module = build_media_module(media_container)
+        media_admin_context = build_media_admin_context(
+            media_container,
+            queries=media_module.queries,
+        )
+
+        video_module = build_video_processing_module(session)
+        video_event_context = build_video_processing_event_context(video_module)
+
+        text_module = build_text_processing_module(session)
+        text_event_context = build_text_processing_event_context(text_module)
+
+        transcription_container = create_transcription_container(session)
+        transcription_module = build_transcription_module(transcription_container)
+        transcription_event_context = build_transcription_event_context(transcription_container)
+
         notification_module = build_notification_module(
             session=session,
             auth_queries=auth_module.auth_queries,
             event_bus=event_bus,
         )
-        video_module = build_video_processing_module(session)
-        text_module = build_text_processing_module(session)
-        summarization_module = build_summarization_module(
+
+        summarization_container = create_summarization_container(
             session=session,
             event_bus=event_bus,
             transcription_queries=transcription_module.queries,
             media_queries=media_module.queries,
             connection_manager=manager,
         )
+        summarization_module = build_summarization_module(summarization_container)
+        summarization_event_context = build_summarization_event_context(
+            summarization_container,
+            media_queries=media_module.queries,
+        )
+
         providers_module = build_providers_module()
         sentiment_module = build_sentiment_analysis_module(
             session=session,
@@ -108,9 +154,9 @@ async def lifespan(app: FastAPI):
         admin_module = build_admin_module(
             session=session,
             auth_queries=auth_module.auth_queries,
-            media_queries=media_module.queries,
-            delete_media_handler=media_module.delete_media_handler,
-            reprocess_media_handler=media_module.reprocess_media_handler,
+            media_queries=media_admin_context.queries,
+            delete_media_handler=media_admin_context.delete_media_handler,
+            reprocess_media_handler=media_admin_context.reprocess_media_handler,
         )
 
         modules_registry = ModulesRegistry(
@@ -128,53 +174,31 @@ async def lifespan(app: FastAPI):
             admin=admin_module,
             event_bus=event_bus,
         )
-
         app.state.modules = modules_registry
 
-        from src.video_processing.application.event_handlers import register_event_handlers as register_video_handlers
-        from src.text_processing.application.event_handlers import register_event_handlers as register_text_handlers
-        from src.transcription.application.event_handlers import register_event_handlers as register_transcription_handlers
-        from src.summarization.application.event_handlers import register_event_handlers as register_summary_handlers
-        from src.notifications.application.event_handlers import register_event_handlers as register_notification_handlers
-        from src.sentiment_analysis.application.event_handlers import register_event_handlers as register_sentiment_handlers
-        from src.topic_modeling.application.event_handlers import register_event_handlers as register_topic_handlers
+        handler_config = EventHandlersConfig(
+            event_bus=event_bus,
+            media_queries=media_module.queries,
+            video=video_event_context,
+            text=text_event_context,
+            transcription=transcription_event_context,
+            summarization=summarization_event_context,
+        )
 
-        await register_video_handlers(
-            modules_registry.event_bus,
-            video_module.task_scheduler,
-        )
-        await register_text_handlers(
-            modules_registry.event_bus,
-            text_module.task_scheduler,
-        )
-        await register_transcription_handlers(
-            modules_registry.event_bus,
-            transcription_module.repository,
-            media_module.queries,
-        )
-        await register_summary_handlers(
-            modules_registry.event_bus,
-            summarization_module.repository,
-            media_module.queries,
-            summarization_module.task_scheduler,
-        )
-        await register_notification_handlers(modules_registry.event_bus)
-        await register_sentiment_handlers(modules_registry.event_bus)
-        await register_topic_handlers(modules_registry.event_bus)
+        logger.info("Registrando event handlers", component="event_bus")
+        await register_event_handlers(handler_config)
 
-        logger.info("Iniciando event bus", component="event_bus")
-        await modules_registry.event_bus.start_listener()
+        resources = ApplicationResources(event_bus=event_bus, cache=cache)
 
-        logger.info("Conectando ao sistema de cache", component="cache")
-        await cache.connect()
+        logger.info("Inicializando recursos compartilhados", component="bootstrap")
+        await start_application_resources(resources)
 
         logger.info("Aplicação iniciada com sucesso", component="startup")
         try:
             yield
         finally:
             logger.info("Finalizando recursos", component="shutdown")
-            await cache.disconnect()
-            await modules_registry.event_bus.stop_listener()
+            await stop_application_resources(resources)
             await engine.dispose()
             logger.info("Aplicação finalizada", component="shutdown")
 

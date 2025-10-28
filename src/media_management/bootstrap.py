@@ -101,38 +101,72 @@ class MediaManagementContainer(containers.DeclarativeContainer):
 
 
 @dataclass
-class MediaManagementModule:
+class MediaModule:
+    """Public surface used by the media API and other modules."""
+
     queries: MediaQueries
     upload_service: MediaUploadService
     lifecycle_service: MediaLifecycleService
     query_service: MediaQueryService
-    access_policy: MediaAccessPolicy
-    upload_validator: MediaUploadValidator
-    create_media_handler: CreateMediaCommandHandler
+
+
+@dataclass
+class MediaAdminContext:
+    """Administrative operations that can be shared with other modules."""
+
+    queries: MediaQueries
     delete_media_handler: DeleteMediaCommandHandler
     reprocess_media_handler: ReprocessMediaCommandHandler
 
 
-def build_media_management_module(
+def create_media_container(
     session: AsyncSession,
+    *,
     storage_service_factory,
     event_bus,
     metrics_service,
-) -> MediaManagementModule:
+) -> MediaManagementContainer:
+    """Factory helper to configure the media container once."""
+
     container = MediaManagementContainer()
     container.db.override(session)
     container.storage_service_factory.override(storage_service_factory)
     container.event_bus.override(event_bus)
     container.metrics_service.override(metrics_service)
+    return container
 
-    return MediaManagementModule(
-        queries=container.media_queries(),
+
+def build_media_module(container: MediaManagementContainer) -> MediaModule:
+    """Return the API-facing media module."""
+
+    queries = container.media_queries()
+    return MediaModule(
+        queries=queries,
         upload_service=container.media_upload_service(),
         lifecycle_service=container.media_lifecycle_service(),
         query_service=container.media_query_service(),
-        access_policy=container.media_access_policy(),
-        upload_validator=container.media_upload_validator(),
-        create_media_handler=container.create_media_command_handler(),
+    )
+
+
+def build_media_admin_context(
+    container: MediaManagementContainer,
+    *,
+    queries: MediaQueries,
+) -> MediaAdminContext:
+    """Expose only administrative operations to external modules."""
+
+    return MediaAdminContext(
+        queries=queries,
         delete_media_handler=container.delete_media_command_handler(),
         reprocess_media_handler=container.reprocess_media_command_handler(),
     )
+
+
+__all__ = [
+    "MediaManagementContainer",
+    "MediaModule",
+    "MediaAdminContext",
+    "create_media_container",
+    "build_media_module",
+    "build_media_admin_context",
+]

@@ -41,9 +41,31 @@ class VideoProcessingModule:
     task_scheduler: CeleryVideoProcessingTaskScheduler
 
 
+@dataclass
+class VideoProcessingEventContext:
+    """Event handling dependencies for video processing."""
+
+    task_scheduler: CeleryVideoProcessingTaskScheduler
+
+
 def build_video_processing_module(session: AsyncSession) -> VideoProcessingModule:
     container = VideoProcessingContainer(db=session)
     return VideoProcessingModule(
         service=container.video_processing_service(),
         task_scheduler=container.video_processing_task_scheduler(),
     )
+
+
+def build_video_processing_event_context(
+    module: VideoProcessingModule,
+) -> VideoProcessingEventContext:
+    return VideoProcessingEventContext(task_scheduler=module.task_scheduler)
+
+
+__all__ = [
+    "VideoProcessingContainer",
+    "VideoProcessingModule",
+    "VideoProcessingEventContext",
+    "build_video_processing_module",
+    "build_video_processing_event_context",
+]

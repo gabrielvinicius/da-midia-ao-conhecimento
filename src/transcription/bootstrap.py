@@ -42,15 +42,47 @@ class TranscriptionContainer(containers.DeclarativeContainer):
 
 @dataclass
 class TranscriptionModule:
+    """Surface exposed to the transcription API."""
+
     service: TranscriptionService
-    repository: TranscriptionRepository
     queries: TranscriptionQueries
 
 
-def build_transcription_module(session: AsyncSession) -> TranscriptionModule:
-    container = TranscriptionContainer(db=session)
+@dataclass
+class TranscriptionEventContext:
+    """Dependencies required for registering transcription event handlers."""
+
+    repository: TranscriptionRepository
+
+
+def create_transcription_container(session: AsyncSession) -> TranscriptionContainer:
+    """Configure the transcription container for the given session."""
+
+    return TranscriptionContainer(db=session)
+
+
+def build_transcription_module(
+    container: TranscriptionContainer,
+) -> TranscriptionModule:
     return TranscriptionModule(
         service=container.transcription_service(),
-        repository=container.transcription_repository(),
         queries=container.transcription_queries(),
     )
+
+
+def build_transcription_event_context(
+    container: TranscriptionContainer,
+) -> TranscriptionEventContext:
+    return TranscriptionEventContext(
+        repository=container.transcription_repository(),
+    )
+
+
+__all__ = [
+    "TranscriptionContainer",
+    "TranscriptionModule",
+    "TranscriptionEventContext",
+    "create_transcription_container",
+    "build_transcription_module",
+    "build_transcription_event_context",
+]
