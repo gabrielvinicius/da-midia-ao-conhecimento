@@ -1,93 +1,84 @@
 # src/summarization/application/summarization_service.py
-"""
-Consolidated Summarization Service.
-"""
-import structlog
-from typing import Dict, Any, Optional
+"""High level orchestration for summary creation and retrieval."""
+
+from __future__ import annotations
+
+from typing import Optional
 from uuid import UUID
-import time
 
-from src.summarization.domain.summary import Summary, SummaryStatus
+from src.summarization.domain.summary import Summary
 from src.summarization.infrastructure.summarization_repository import SummarizationRepository
-from src.summarization.infrastructure.task_scheduler import CelerySummarizationTaskScheduler
-from src.summarization.infrastructure.logging import StructuredSummaryLogger
-from src.summarization.infrastructure.metrics import PrometheusSummaryMetrics
+from src.summarization.infrastructure.summarizer import TextRankSummarizer
 
-logger = structlog.get_logger(__name__)
+
+def _ensure_uuid(value: UUID | str) -> UUID:
+    if isinstance(value, UUID):
+        return value
+    return UUID(str(value))
+
 
 class SummarizationService:
-    """Application service for orchestrating summarization operations."""
+    """Coordinates summarisation requests without background infrastructure."""
 
     def __init__(
         self,
+        *,
         summarization_repo: SummarizationRepository,
-        task_scheduler: CelerySummarizationTaskScheduler,
-        summary_logger: StructuredSummaryLogger,
-        summary_metrics: PrometheusSummaryMetrics
-    ):
-        self.repo = summarization_repo
-        self.task_scheduler = task_scheduler
-        self.logger = summary_logger
-        self.metrics = summary_metrics
+        summarizer: TextRankSummarizer,
+    ) -> None:
+        self._repo = summarization_repo
+        self._summarizer = summarizer
 
-    async def request_summary(self, transcription_id: str, provider: str) -> Dict[str, Any]:
-        """Requests and schedules a new summary generation."""
-        start_time = time.monotonic()
-        success = False
-        error = None
-        media_id_str = ""
+    async def generate_summary(
+        self,
+        *,
+        media_id: UUID | str,
+        text_content: str,
+        provider: str = "builtin",
+        options: Optional[dict[str, object]] = None,
+    ) -> Summary:
+        """Create or update a summary for the supplied media."""
 
-        logger.info("summarization.request.started", transcription_id=transcription_id, provider=provider)
-        try:
-            # Placeholder logic to get transcription text and media_id
-            transcription_text_content = f"This is the full text from transcription {transcription_id}."
-            media_id = UUID("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11") # Placeholder
-            media_id_str = str(media_id)
+        media_uuid = _ensure_uuid(media_id)
+        existing = await self._repo.get_by_media_id(media_uuid)
 
-            new_summary = Summary.create(media_id=media_id, provider=provider)
-            await self.repo.add(new_summary)
+        summary = (
+            existing.with_provider(provider).mark_processing()
+            if existing
+            else Summary.create(media_id=media_uuid, provider=provider)
+        )
 
-            task_result = await self.task_scheduler.schedule_summarization_task(
-                media_id=media_id_str,
-                text_content=transcription_text_content,
-                provider=provider
-            )
-            success = True
-            logger.info("summarization.request.scheduled", summary_id=str(new_summary.id))
-            return {
-                "summary_id": str(new_summary.id),
-                "task_id": task_result.get("task_id"),
-            }
-        except Exception as e:
-            error = e
-            logger.error("summarization.request.failed", transcription_id=transcription_id, error=str(e))
-            raise
-        finally:
-            duration = time.monotonic() - start_time
-            await self.logger.log_operation(
-                operation="request_summary",
-                media_id=media_id_str,
-                provider=provider,
-                success=success,
-                duration=duration,
-                error=error
-            )
-            # Metrics can be added here
+        if existing is None:
+            summary = await self._repo.add(summary)
 
-    async def process_summary(self, media_id: str, provider: str, text_content: str) -> Summary:
-        """Processes a generated summary and marks it as complete."""
-        logger.info("summarization.process.started", media_id=media_id, provider=provider)
-        summary = await self.repo.get_by_media_id(UUID(media_id))
-        if not summary:
-            raise ValueError(f"Summary not found for media_id: {media_id}")
+        summary_text = await self._summarizer.summarize(text_content, options)
+        completed = summary.mark_as_completed(summary_text)
+        return await self._repo.update(completed)
 
-        summary = summary.mark_as_completed(text_content)
-        summary = await self.repo.update(summary)
-        logger.info("summarization.process.completed", summary_id=str(summary.id))
-        return summary
+    async def mark_failure(
+        self,
+        *,
+        media_id: UUID | str,
+        error_message: str,
+        provider: str = "builtin",
+    ) -> Summary:
+        """Persist a failure state for a summary."""
 
-    async def get_summary_by_media_id(self, media_id: UUID) -> Optional[Summary]:
-        return await self.repo.get_by_media_id(media_id)
+        media_uuid = _ensure_uuid(media_id)
+        summary = await self._repo.get_by_media_id(media_uuid)
 
-    async def get_summary_by_id(self, summary_id: UUID) -> Optional[Summary]:
-        return await self.repo.get_by_id(summary_id)
+        if summary is None:
+            summary = Summary.create(media_id=media_uuid, provider=provider)
+            summary = await self._repo.add(summary)
+
+        failed = summary.mark_as_failed(error_message)
+        return await self._repo.update(failed)
+
+    async def get_summary_by_media_id(self, media_id: UUID | str) -> Optional[Summary]:
+        return await self._repo.get_by_media_id(_ensure_uuid(media_id))
+
+    async def get_summary_by_id(self, summary_id: UUID | str) -> Optional[Summary]:
+        return await self._repo.get_by_id(_ensure_uuid(summary_id))
+
+    async def delete_summary(self, media_id: UUID | str) -> None:
+        await self._repo.delete_by_media_id(_ensure_uuid(media_id))

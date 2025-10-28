@@ -1,26 +1,23 @@
 # src/summarization/api/routers.py
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status, Form
-from typing import Optional, Annotated
 
-# Import dependencies from their correct, decoupled locations
-from src.shared.api.dependencies import get_current_user
+from fastapi import APIRouter, Depends, Form, HTTPException, status
+from typing import Annotated, Optional
+
 from src.auth.domain.user import User
-from src.media_management.application.queries.media_queries import MediaQueries # Manter por enquanto, mas idealmente injetar via container
-from src.transcription.application.queries.transcription_queries import TranscriptionQueries # Manter por enquanto, mas idealmente injetar via container
+from src.media_management.application.queries.media_queries import MediaQueries
+from src.shared.api.dependencies import get_current_user
+from src.shared.api.unified_schemas import BaseResponseSchema, create_error_response, create_success_response
+from src.summarization.application.summarization_service import SummarizationService
+from src.summarization.domain.summary import Summary
+from src.transcription.application.queries.transcription_queries import TranscriptionQueries
 
 from .dependencies import (
     get_media_queries,
-    get_request_summary_command_handler,
     get_summarization_service,
     get_transcription_queries,
 )
 from .schemas import SummaryResponse
-from src.summarization.application.summarization_service import SummarizationService
-from src.summarization.application.commands.commands import RequestSummaryCommand
-from src.summarization.application.commands.handlers import RequestSummaryCommandHandler
-from src.summarization.domain.summary import Summary # Para o retorno do get_summary_by_id/media_id
-from src.shared.api.unified_schemas import create_success_response, create_error_response, BaseResponseSchema
 
 
 router = APIRouter(prefix="/summaries", tags=["Summaries"])
@@ -72,7 +69,7 @@ async def reprocess_summarization(
     # max_length: Optional[int] = Form(None, description="Maximum summary length"), # Removido, pois o handler de comando deve lidar com isso
     # force: bool = Form(False, description="Force reprocessing even if already completed"), # Removido, pois o handler de comando deve lidar com isso
     current_user: User = Depends(get_current_user),
-    request_summary_handler: Annotated[RequestSummaryCommandHandler, Depends(get_request_summary_command_handler)],
+    summarization_service: Annotated[SummarizationService, Depends(get_summarization_service)],
     media_queries: MediaQueries = Depends(get_media_queries), # Manter por enquanto
     transcription_queries: TranscriptionQueries = Depends(get_transcription_queries), # Manter por enquanto
 ):
@@ -96,35 +93,26 @@ async def reprocess_summarization(
         if not transcription or not transcription.text:
             return create_error_response("No transcription found", "Transcription required for summarization")
         
-        # Criar e executar o comando RequestSummaryCommand
-        command = RequestSummaryCommand(
-            transcription_id=str(transcription.id), # Passar o ID da transcrição
-            provider=provider or media.summarization_provider or "default"
+        provider_name = provider or media.summarization_provider or "builtin"
+        summary = await summarization_service.generate_summary(
+            media_id=media_id,
+            text_content=transcription.text,
+            provider=provider_name,
         )
-        
-        result = await request_summary_handler.handle(command)
-        
-        # Update media provider if specified (esta lógica deveria estar no handler ou em um serviço)
-        # Por enquanto, vou manter aqui para não quebrar a funcionalidade, mas é um ponto de refatoração.
-        if provider:
-            # media.summarization_provider = provider # Isso exigiria um media_repository aqui
-            pass # A atualização do provider da mídia deve ser feita em outro lugar
 
         response_data = {
             "reprocessing": {
                 "media_id": str(media_id),
-                "task_id": result.get("task_id"),
-                "provider": provider or media.summarization_provider or "default",
-                # "max_length": max_length, # Removido
-                # "text_length": len(transcription.text), # Removido
-                "status": "SCHEDULED" # Status da tarefa agendada
+                "summary_id": str(summary.id),
+                "provider": provider_name,
+                "status": summary.status.value,
             },
-            "message": "Summarization reprocessing started. Check WebSocket for real-time updates."
+            "message": "Summarization completed successfully.",
         }
-        
+
         return create_success_response(
             data=response_data,
-            message="Summarization reprocessing initiated"
+            message="Summarization updated",
         )
         
     except Exception as e:

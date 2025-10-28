@@ -118,18 +118,8 @@ async def lifespan(app: FastAPI):
             event_bus=event_bus,
         )
 
-        summarization_container = create_summarization_container(
-            session=session,
-            event_bus=event_bus,
-            transcription_queries=transcription_module.queries,
-            media_queries=media_module.queries,
-            connection_manager=manager,
-        )
-        summarization_module = await build_summarization_module(
-            summarization_container,
-            event_bus=event_bus,
-            media_queries=media_module.queries,
-        )
+        summarization_container = create_summarization_container(session=session)
+        summarization_module = await build_summarization_module(summarization_container)
 
         providers_module = build_providers_module()
         sentiment_module = await build_sentiment_analysis_module(
