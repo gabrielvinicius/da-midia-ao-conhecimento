@@ -1,16 +1,26 @@
 # src/media_management/bootstrap.py
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Any
 
-from src.media_management.infrastructure.media_repository import MediaRepository
-from src.media_management.infrastructure.logging import StructuredMediaLogger
-from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
-from src.media_management.application.commands.create_media_command_handler import CreateMediaCommandHandler
-from src.media_management.application.commands.handlers import DeleteMediaCommandHandler, ReprocessMediaCommandHandler
-from src.media_management.application.media_service import MediaService
+from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.application.queries.media_queries import MediaQueries
+from src.media_management.application.services import (
+    MediaLifecycleService,
+    MediaQueryService,
+    MediaUploadService,
+)
+from src.media_management.application.validators import MediaUploadValidator
 from src.media_management.config.settings import MediaSettings
+from src.media_management.infrastructure.logging import StructuredMediaLogger
+from src.media_management.infrastructure.media_repository import MediaRepository
+from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
+from src.media_management.application.commands.create_media_command_handler import (
+    CreateMediaCommandHandler,
+)
+from src.media_management.application.commands.handlers import (
+    DeleteMediaCommandHandler,
+    ReprocessMediaCommandHandler,
+)
 
 class MediaManagementContainer(containers.DeclarativeContainer):
     # Dependências de infraestrutura
@@ -60,15 +70,29 @@ class MediaManagementContainer(containers.DeclarativeContainer):
         media_metrics=media_metrics
     )
 
-    # Serviços de Aplicação
-    media_service = providers.Factory(
-        MediaService,
-        media_repo=media_repository,
-        media_queries=media_queries,
+    media_access_policy = providers.Factory(MediaAccessPolicy)
+
+    media_upload_validator = providers.Factory(
+        MediaUploadValidator,
+        settings=media_settings,
+    )
+
+    media_upload_service = providers.Factory(
+        MediaUploadService,
         create_media_handler=create_media_command_handler,
+        upload_validator=media_upload_validator,
+    )
+
+    media_lifecycle_service = providers.Factory(
+        MediaLifecycleService,
+        media_repository=media_repository,
         delete_media_handler=delete_media_command_handler,
         reprocess_media_handler=reprocess_media_command_handler,
-        media_logger=media_logger,
-        media_metrics=media_metrics,
-        media_settings=media_settings,
+        access_policy=media_access_policy,
+    )
+
+    media_query_service = providers.Factory(
+        MediaQueryService,
+        media_queries=media_queries,
+        access_policy=media_access_policy,
     )

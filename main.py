@@ -100,9 +100,12 @@ async def lifespan(app: FastAPI):
         media_management_container.event_bus.override(event_bus)
         media_management_container.metrics_service.override(app_container["metrics_service"])
         app_container["media_management_container"] = media_management_container
-        app_container["media_service"] = media_management_container.media_service()
+        app_container["media_upload_service"] = media_management_container.media_upload_service()
+        app_container["media_lifecycle_service"] = media_management_container.media_lifecycle_service()
+        app_container["media_query_service"] = media_management_container.media_query_service()
+        app_container["media_access_policy"] = media_management_container.media_access_policy()
+        app_container["media_upload_validator"] = media_management_container.media_upload_validator()
         app_container["create_media_command_handler"] = media_management_container.create_media_command_handler()
-        app_container["create_media_handler"] = app_container["create_media_command_handler"]
         app_container["delete_media_command_handler"] = media_management_container.delete_media_command_handler()
         app_container["reprocess_media_command_handler"] = media_management_container.reprocess_media_command_handler()
         app_container["media_queries"] = media_management_container.media_queries() # Adicionar media_queries
