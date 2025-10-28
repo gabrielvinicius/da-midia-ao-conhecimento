@@ -3,12 +3,22 @@
 Central pytest configuration for the entire test suite.
 Provides shared fixtures, test utilities, and common setup for all test levels.
 """
-import pytest
 import asyncio
 import os
+import sys
+from pathlib import Path
+import pytest
 from typing import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
+
+# Ensure project modules are importable during tests
+ROOT_DIR = Path(__file__).resolve().parents[1]
+SRC_DIR = ROOT_DIR / "src"
+for path in (ROOT_DIR, SRC_DIR):
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
 
 # Import test utilities
 from tests.mocks.in_memory_event_bus import InMemoryEventBus
