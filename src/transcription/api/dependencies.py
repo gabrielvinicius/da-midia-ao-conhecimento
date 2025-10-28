@@ -1,32 +1,49 @@
 # src/transcription/api/dependencies.py
+from dataclasses import dataclass
 from typing import Annotated
-from fastapi import Depends, Request
 
-from src.media_management.application.queries.media_queries import MediaQueries
+from fastapi import Depends
+
+from src.media_management.api.dependencies import get_media_queries
 from src.transcription.application.transcription_service import TranscriptionService
 from src.transcription.application.queries import TranscriptionQueries
-from src.shared.application.modules import ModulesRegistry
 
 
-def get_modules(request: Request) -> ModulesRegistry:
-    """Return the modules registry stored in the application state."""
-    return request.app.state.modules
+class TranscriptionDependenciesNotConfigured(RuntimeError):
+    pass
 
 
-def get_transcription_service(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
-) -> TranscriptionService:
+@dataclass(frozen=True)
+class TranscriptionDependencies:
+    service: TranscriptionService
+    queries: TranscriptionQueries
+
+
+def get_transcription_dependencies() -> TranscriptionDependencies:
+    raise TranscriptionDependenciesNotConfigured(
+        "Transcription dependencies are not configured. Register providers in the lifespan handler."
+    )
+
+
+TranscriptionDeps = Annotated[
+    TranscriptionDependencies, Depends(get_transcription_dependencies)
+]
+
+
+def get_transcription_service(deps: TranscriptionDeps) -> TranscriptionService:
     """Get transcription service dependency."""
-    return modules.transcription.service
+    return deps.service
 
 
-def get_transcription_queries(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
-) -> TranscriptionQueries:
-    return modules.transcription.queries
+def get_transcription_queries(deps: TranscriptionDeps) -> TranscriptionQueries:
+    return deps.queries
 
 
-def get_media_queries(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
-) -> MediaQueries:
-    return modules.media_management.queries
+__all__ = [
+    "TranscriptionDependencies",
+    "TranscriptionDependenciesNotConfigured",
+    "get_transcription_dependencies",
+    "get_transcription_queries",
+    "get_transcription_service",
+    "get_media_queries",
+]

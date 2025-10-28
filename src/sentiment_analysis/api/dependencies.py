@@ -1,34 +1,56 @@
+from dataclasses import dataclass
 from typing import Annotated
-from fastapi import Depends, Request
 
-from src.media_management.application.queries.media_queries import MediaQueries
+from fastapi import Depends
+
+from src.media_management.api.dependencies import get_media_queries
 from src.sentiment_analysis.application.sentiment_analysis_service import (
     SentimentAnalysisService,
 )
 from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
     SentimentAnalysisRepository,
 )
-from src.shared.application.modules import ModulesRegistry
 
 
-def get_modules(request: Request) -> ModulesRegistry:
-    return request.app.state.modules
+class SentimentDependenciesNotConfigured(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class SentimentDependencies:
+    service: SentimentAnalysisService
+    repository: SentimentAnalysisRepository
+
+
+def get_sentiment_dependencies() -> SentimentDependencies:
+    raise SentimentDependenciesNotConfigured(
+        "Sentiment analysis dependencies are not configured. Register providers in the lifespan handler."
+    )
+
+
+SentimentDeps = Annotated[SentimentDependencies, Depends(get_sentiment_dependencies)]
 
 
 def get_sentiment_analysis_service(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
+    deps: SentimentDeps,
 ) -> SentimentAnalysisService:
-    return modules.sentiment_analysis.service
+    return deps.service
 
 
 def get_sentiment_analysis_repository(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
+    deps: SentimentDeps,
 ) -> SentimentAnalysisRepository:
-    return modules.sentiment_analysis.repository
+    return deps.repository
 
 
-def get_media_queries(request: Request) -> MediaQueries:
-    return request.app.state.modules.media_management.queries
+__all__ = [
+    "SentimentDependencies",
+    "SentimentDependenciesNotConfigured",
+    "get_media_queries",
+    "get_sentiment_analysis_repository",
+    "get_sentiment_analysis_service",
+    "get_sentiment_dependencies",
+]
 
 
 __all__ = [

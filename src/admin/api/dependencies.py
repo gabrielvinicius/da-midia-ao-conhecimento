@@ -1,34 +1,63 @@
 # src/admin/api/dependencies.py
-from typing import Annotated, Any
-from fastapi import Depends, Request
+from dataclasses import dataclass
+from typing import Annotated
 
-# This file contains only the dependency getters specific to the admin module's API.
-from src.shared.application.modules import ModulesRegistry
+from fastapi import Depends
 
-
-def get_modules(request: Request) -> ModulesRegistry:
-    return request.app.state.modules
-
-
-def get_admin_queries(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
-    return modules.admin.admin_queries
+from src.admin.application.queries.admin_queries import AdminQueries
+from src.admin.application.services.admin_audit_service import AdminAuditService
+from src.admin.application.services.admin_media_service import AdminMediaService
+from src.admin.application.services.admin_user_service import AdminUserService
+from src.auth.api.dependencies import get_auth_queries
+from src.media_management.api.dependencies import get_media_queries
 
 
-def get_auth_queries(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
-    return modules.auth.auth_queries
+class AdminDependenciesNotConfigured(RuntimeError):
+    pass
 
 
-def get_media_queries(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
-    return modules.media_management.queries
+@dataclass(frozen=True)
+class AdminDependencies:
+    admin_queries: AdminQueries
+    audit_service: AdminAuditService
+    user_service: AdminUserService
+    media_service: AdminMediaService
 
 
-def get_admin_user_service(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
-    return modules.admin.user_service
+def get_admin_dependencies() -> AdminDependencies:
+    raise AdminDependenciesNotConfigured(
+        "Admin dependencies are not configured. Register providers in the lifespan handler."
+    )
 
 
-def get_admin_media_service(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
-    return modules.admin.media_service
+AdminDeps = Annotated[AdminDependencies, Depends(get_admin_dependencies)]
 
 
-def get_admin_audit_service(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
-    return modules.admin.audit_service
+def get_admin_queries(deps: AdminDeps) -> AdminQueries:
+    return deps.admin_queries
+
+
+def get_admin_user_service(deps: AdminDeps) -> AdminUserService:
+    return deps.user_service
+
+
+def get_admin_media_service(deps: AdminDeps) -> AdminMediaService:
+    return deps.media_service
+
+
+def get_admin_audit_service(deps: AdminDeps) -> AdminAuditService:
+    return deps.audit_service
+
+
+__all__ = [
+    "AdminDependencies",
+    "AdminDependenciesNotConfigured",
+    "AdminDeps",
+    "get_admin_audit_service",
+    "get_admin_dependencies",
+    "get_admin_media_service",
+    "get_admin_queries",
+    "get_admin_user_service",
+    "get_auth_queries",
+    "get_media_queries",
+]
