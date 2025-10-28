@@ -21,6 +21,8 @@ This project serves as a comprehensive, real-world example of applying modern, e
 
 ## Architectural Deep Dive
 
+For a detailed overview of how the backend composes modules, shared resources, and cross-context integrations, read the updated [architecture guide](docs/architecture.md).
+
 This project is a practical implementation of several advanced software architecture patterns:
 
 - **Modular Monolith & Domain-Driven Design (DDD)**: The application is organized into Bounded Contexts (e.g., `media_management`, `transcription`, `notifications`), each with its own clear domain.
