@@ -4,22 +4,8 @@ from __future__ import annotations
 from typing import Optional
 
 from .domain_events import DomainEvent
-from .event_publisher import EventHandler, EventPublisher
-from .subscription_manager import EventKey, SubscriptionManager
-
-
-class EventBus:
-    """Simple event bus coordinating subscriptions and publications."""
-"""Simple asynchronous event bus implementation."""
-
-from __future__ import annotations
-
-import asyncio
-from typing import Optional, Type
-
-from .domain_events import DomainEvent
 from .event_publisher import EventPublisher
-from .subscription_manager import EventHandler, SubscriptionManager
+from .subscription_manager import EventHandler, EventKey, SubscriptionManager
 
 
 class EventBus:
@@ -32,39 +18,17 @@ class EventBus:
     ) -> None:
         self._publisher = publisher or EventPublisher()
         self._subscriptions = subscription_manager or SubscriptionManager()
+        self._is_listening = False
 
     def subscribe(self, event: EventKey, handler: EventHandler) -> None:
+        """Register ``handler`` for ``event``."""
+
         self._subscriptions.add_subscription(event, handler)
 
     def unsubscribe(self, event: EventKey, handler: EventHandler) -> None:
+        """Remove ``handler`` from the subscriber list for ``event``."""
+
         self._subscriptions.remove_subscription(event, handler)
-
-    async def publish(self, event: DomainEvent) -> None:
-        handlers = self._subscriptions.get_handlers(type(event))
-        if not handlers and event.name:
-            handlers = self._subscriptions.get_handlers(event.name)
-        if handlers:
-            await self._publisher.publish(event, handlers)
-
-    def has_subscribers(self, event: EventKey) -> bool:
-        return self._subscriptions.has_subscribers(event)
-
-    def clear(self) -> None:
-        self._subscriptions.clear()
-
-
-__all__ = ["EventBus"]
-        self._is_listening = False
-
-    def subscribe(self, event_type: Type[DomainEvent], handler: EventHandler) -> None:
-        """Register ``handler`` for ``event_type``."""
-
-        self._subscriptions.add_subscription(event_type, handler)
-
-    def unsubscribe(self, event_type: Type[DomainEvent], handler: EventHandler) -> None:
-        """Remove ``handler`` from the subscriber list for ``event_type``."""
-
-        self._subscriptions.remove_subscription(event_type, handler)
 
     async def publish(self, event: DomainEvent) -> None:
         """Publish ``event`` to the broker and local subscribers."""
@@ -95,11 +59,19 @@ __all__ = ["EventBus"]
 
     async def _dispatch(self, event: DomainEvent) -> None:
         handlers = self._subscriptions.get_handlers(type(event))
+        if not handlers and getattr(event, "event_name", None):
+            handlers = self._subscriptions.get_handlers(event.event_name)
         if not handlers:
             return
 
-        payload = event.to_payload()
-        await asyncio.gather(*(handler(payload) for handler in handlers))
+        for handler in handlers:
+            await handler(event)
+
+    def has_subscribers(self, event: EventKey) -> bool:
+        return self._subscriptions.has_subscribers(event)
+
+    def clear(self) -> None:
+        self._subscriptions.clear()
 
     @property
     def is_listening(self) -> bool:
@@ -109,4 +81,3 @@ __all__ = ["EventBus"]
 
 
 __all__ = ["EventBus"]
-

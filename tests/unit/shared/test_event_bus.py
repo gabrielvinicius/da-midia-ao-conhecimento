@@ -15,8 +15,8 @@ async def test_publish_dispatches_payload_to_subscribers():
 
     received = []
 
-    async def handler(payload):
-        received.append(payload)
+    async def handler(event):
+        received.append(event)
 
     event_bus.subscribe(MediaUploaded, handler)
 
@@ -34,10 +34,10 @@ async def test_publish_dispatches_payload_to_subscribers():
     await event_bus.publish(event)
 
     assert len(received) == 1
-    payload = received[0]
-    assert payload["media_id"] == "media-123"
-    assert payload["media_type"] == DummyMediaType.AUDIO.value
-    assert payload["event_name"] == "media_uploaded"
+    event_received = received[0]
+    assert event_received.media_id == "media-123"
+    assert event_received.media_type is DummyMediaType.AUDIO
+    assert event_received.event_name == "media_uploaded"
 
 
 @pytest.mark.asyncio
@@ -47,8 +47,8 @@ async def test_start_listener_processes_incoming_events():
 
     received = []
 
-    async def handler(payload):
-        received.append(payload)
+    async def handler(event):
+        received.append(event)
 
     event_bus.subscribe(MediaUploaded, handler)
 
@@ -70,5 +70,5 @@ async def test_start_listener_processes_incoming_events():
     await publisher.emit(incoming_event)
 
     assert len(received) == 1
-    assert received[0]["media_type"] == DummyMediaType.VIDEO.value
+    assert received[0].media_type is DummyMediaType.VIDEO
 
