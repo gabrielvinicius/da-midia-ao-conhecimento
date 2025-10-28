@@ -1,6 +1,6 @@
 # src/admin/domain/interfaces.py
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from src.auth.domain.user import User
@@ -56,11 +56,11 @@ class IAdminMediaService(ABC):
 
     @abstractmethod
     async def force_media_status_change(
-            self,
-            media_id: UUID,
-            new_status: MediaStatus,
+        self,
+        media_id: UUID,
+        new_status: MediaStatus,
         admin_user: User,
-            reason: str
+        reason: str,
     ) -> None:
         pass
 
@@ -69,10 +69,10 @@ class IAdminAuditService(ABC):
     @abstractmethod
     async def log_admin_action(
         self,
-            admin_user: User,
+        admin_user: User,
         action: str,
         target_type: str,
-            target_id: UUID,
-        details: Dict[str, Any]
+        target_id: UUID,
+        details: Optional[Dict[str, Any]] = None,
     ) -> None:
         pass

@@ -1,14 +1,15 @@
 # src/admin/bootstrap.py
-from sqlalchemy.ext.asyncio import AsyncSession
+"""Helper utilities to bootstrap the admin module."""
+
+from typing import Dict, Any
+
 from src.admin.application.queries.admin_queries import AdminQueries
+from src.auth.application.queries.auth_queries import AuthQueries
 from src.media_management.application.queries.media_queries import MediaQueries
 
-def bootstrap_admin_module(session: AsyncSession, media_queries: MediaQueries) -> dict:
-    """Bootstrap the admin module with its dependencies."""
-    
-    # Create admin queries
-    admin_queries = AdminQueries(session, media_queries)
-    
-    return {
-        "admin_queries": admin_queries,
-    }
+
+def bootstrap_admin_module(auth_queries: AuthQueries, media_queries: MediaQueries) -> Dict[str, Any]:
+    """Return admin services wired with their dependencies."""
+
+    admin_queries = AdminQueries(auth_queries=auth_queries, media_queries=media_queries)
+    return {"admin_queries": admin_queries}

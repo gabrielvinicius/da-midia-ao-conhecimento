@@ -2,7 +2,7 @@
 Admin User Service - Single Responsibility: Admin user operations
 Follows SRP by handling only admin-related user management.
 """
-from typing import List, Dict
+from typing import Dict, List
 from uuid import UUID
 
 import structlog
@@ -27,14 +27,14 @@ class AdminUserService(IAdminUserService):
     def __init__(
         self,
         user_repository: UserRepository,
-            permission_service: IUserPermissionService,
-        audit_service: IAdminAuditService
+        permission_service: IUserPermissionService,
+        audit_service: IAdminAuditService,
     ):
         self.user_repository = user_repository
         self.permission_service = permission_service
         self.audit_service = audit_service
-    
-    async def update_user_role(self, user_id: UUID, new_role: str, admin_user: User) -> User:
+
+    async def update_user_role(self, user_id: UUID, new_role: UserRole, admin_user: User) -> User:
         """
         Update user role with proper admin validation and audit logging.
         
@@ -57,12 +57,12 @@ class AdminUserService(IAdminUserService):
             raise ValueError(f"User with id {user_id} not found")
         
         try:
-            role_enum = UserRole(new_role)
-        except ValueError:
-            raise ValueError(f"Invalid role: {new_role}")
-        
+            role_enum = new_role if isinstance(new_role, UserRole) else UserRole(new_role)
+        except ValueError as exc:
+            raise ValueError(f"Invalid role: {new_role}") from exc
+
         old_role = user.role.value if user.role else "none"
-        
+
         user.role = role_enum
         updated_user = await self.user_repository.save(user)
         
@@ -83,9 +83,9 @@ class AdminUserService(IAdminUserService):
             admin_id=str(admin_user.id),
             target_user_id=str(user_id),
             old_role=old_role,
-            new_role=new_role
+            new_role=role_enum.value
         )
-        
+
         return updated_user
     
     async def delete_user(self, user_id: UUID, admin_user: User) -> None:
@@ -208,7 +208,7 @@ class AdminUserService(IAdminUserService):
             
             if not user_id:
                 continue
-            
+
             try:
                 if new_role:
                     user = await self.update_user_role(user_id, new_role, admin_user)
