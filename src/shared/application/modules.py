@@ -102,8 +102,6 @@ def register_module_dependencies(
     app.dependency_overrides[get_summarization_dependencies] = (
         lambda: SummarizationDependencies(
             service=summarization.service,
-            request_handler=summarization.request_handler,
-            process_handler=summarization.process_handler,
         )
     )
 

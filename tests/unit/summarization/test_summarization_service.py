@@ -8,89 +8,86 @@ from uuid import uuid4
 import pytest
 
 from src.summarization.application.summarization_service import SummarizationService
-from src.summarization.domain.summary import Summary
+from src.summarization.domain.summary import SummaryStatus
 
 
 @pytest.fixture
 def repo_mock() -> AsyncMock:
-    mock = AsyncMock()
-    mock.add = AsyncMock()
-    mock.update = AsyncMock()
-    mock.get_by_media_id = AsyncMock()
-    mock.get_by_id = AsyncMock()
-    return mock
+    repo = AsyncMock()
+    repo.add = AsyncMock(side_effect=lambda summary: summary)
+    repo.update = AsyncMock(side_effect=lambda summary: summary)
+    repo.get_by_media_id = AsyncMock(return_value=None)
+    repo.delete_by_media_id = AsyncMock()
+    return repo
 
 
 @pytest.fixture
-def scheduler_mock() -> AsyncMock:
-    mock = AsyncMock()
-    mock.schedule_summarization_task = AsyncMock(return_value={"task_id": "celery-1"})
-    return mock
-
-
-@pytest.fixture
-def logger_mock() -> AsyncMock:
-    mock = AsyncMock()
-    mock.log_operation = AsyncMock()
-    return mock
-
-
-@pytest.fixture
-def metrics_mock() -> AsyncMock:
-    mock = AsyncMock()
-    mock.increment_counter = AsyncMock()
-    mock.record_histogram = AsyncMock()
-    return mock
+def summarizer_mock() -> AsyncMock:
+    summarizer = AsyncMock()
+    summarizer.summarize = AsyncMock(return_value="Condensed summary")
+    return summarizer
 
 
 @pytest.mark.asyncio
-async def test_request_summary_schedules_task(repo_mock: AsyncMock, scheduler_mock: AsyncMock, logger_mock: AsyncMock, metrics_mock: AsyncMock) -> None:
+async def test_generate_summary_creates_new_entry(repo_mock: AsyncMock, summarizer_mock: AsyncMock) -> None:
     service = SummarizationService(
         summarization_repo=repo_mock,
-        task_scheduler=scheduler_mock,
-        summary_logger=logger_mock,
-        summary_metrics=metrics_mock,
-    )
-
-    result = await service.request_summary("transcription-123", "huggingface")
-
-    repo_mock.add.assert_awaited_once()
-    scheduler_mock.schedule_summarization_task.assert_awaited_once()
-    logger_mock.log_operation.assert_awaited()
-    assert "summary_id" in result
-    assert result["task_id"] == "celery-1"
-
-
-@pytest.mark.asyncio
-async def test_process_summary_updates_entity(repo_mock: AsyncMock, scheduler_mock: AsyncMock, logger_mock: AsyncMock, metrics_mock: AsyncMock) -> None:
-    service = SummarizationService(
-        summarization_repo=repo_mock,
-        task_scheduler=scheduler_mock,
-        summary_logger=logger_mock,
-        summary_metrics=metrics_mock,
+        summarizer=summarizer_mock,
     )
 
     media_id = uuid4()
-    summary = Summary.create(media_id=str(media_id), provider="huggingface")
-    repo_mock.get_by_media_id.return_value = summary
+    result = await service.generate_summary(
+        media_id=media_id,
+        text_content="This is a long form transcript that should be summarised.",
+        provider="test",
+    )
 
-    processed = await service.process_summary(str(media_id), "huggingface", "Generated text")
-
-    assert processed.status.name == "COMPLETED"
-    repo_mock.update.assert_awaited_once_with(summary)
+    repo_mock.add.assert_awaited()
+    repo_mock.update.assert_awaited()
+    summarizer_mock.summarize.assert_awaited_once()
+    assert result.status is SummaryStatus.COMPLETED
+    assert result.text == "Condensed summary"
 
 
 @pytest.mark.asyncio
-async def test_process_summary_raises_for_missing_summary(repo_mock: AsyncMock, scheduler_mock: AsyncMock, logger_mock: AsyncMock, metrics_mock: AsyncMock) -> None:
+async def test_generate_summary_updates_existing(repo_mock: AsyncMock, summarizer_mock: AsyncMock) -> None:
     service = SummarizationService(
         summarization_repo=repo_mock,
-        task_scheduler=scheduler_mock,
-        summary_logger=logger_mock,
-        summary_metrics=metrics_mock,
+        summarizer=summarizer_mock,
     )
 
-    repo_mock.get_by_media_id.return_value = None
+    media_id = uuid4()
+    existing = await service.generate_summary(
+        media_id=media_id,
+        text_content="Initial transcript with enough detail to summarise.",
+        provider="original",
+    )
 
-    with pytest.raises(ValueError):
-        await service.process_summary(str(uuid4()), "huggingface", "Generated text")
+    repo_mock.get_by_media_id.return_value = existing
+    summarizer_mock.summarize.reset_mock()
+    summarizer_mock.summarize.return_value = "Updated summary"
+
+    updated = await service.generate_summary(
+        media_id=media_id,
+        text_content="New content that replaces the previous version.",
+        provider="new",
+    )
+
+    assert updated.provider == "new"
+    assert updated.text == "Updated summary"
+    assert summarizer_mock.summarize.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_mark_failure_records_error(repo_mock: AsyncMock, summarizer_mock: AsyncMock) -> None:
+    service = SummarizationService(
+        summarization_repo=repo_mock,
+        summarizer=summarizer_mock,
+    )
+
+    media_id = uuid4()
+    failure = await service.mark_failure(media_id=media_id, error_message="Failed", provider="x")
+
+    assert failure.status is SummaryStatus.FAILED
+    assert failure.error_message == "Failed"
 
