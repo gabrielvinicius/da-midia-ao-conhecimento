@@ -48,7 +48,7 @@ class DummyCache:
 @pytest.fixture
 def dummy_event_bus(monkeypatch) -> DummyEventBus:
     bus = DummyEventBus()
-    monkeypatch.setattr("main.get_event_bus", lambda: bus)
+    monkeypatch.setattr("main.build_event_bus", lambda: bus)
     return bus
 
 

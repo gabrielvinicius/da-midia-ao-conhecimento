@@ -2,10 +2,9 @@
 import asyncio
 import structlog
 from celery import shared_task
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
-from src.shared.events.event_bus import get_event_bus
+from src.shared.events.event_bus import EventBus, create_inmemory_event_bus
 from src.shared.infrastructure.database import get_db
 from src.storage.infrastructure.dependencies import get_storage_service_factory
 from src.transcription.application.commands.commands import ProcessTranscriptionCommand
@@ -13,7 +12,6 @@ from src.transcription.application.commands.handlers import ProcessTranscription
 # Diarization removed
 # from src.transcription.application.commands.align_diarization_command import AlignDiarizationCommand
 # from src.transcription.application.commands.align_diarization_command_handler import AlignDiarizationCommandHandler
-from src.transcription.application.services.alignment_service import AlignmentService
 from src.transcription.application.services.transcription_state_service import TranscriptionStateService
 from src.transcription.application.services.transcription_file_service import TranscriptionFileService
 from src.transcription.application.services.speech_recognition_service import SpeechRecognitionService
@@ -23,7 +21,6 @@ from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.metrics.application.metrics_service import MetricsService
 from src.metrics.infrastructure.prometheus_provider import PrometheusMetricsProvider
-from src.notifications.infrastructure.connection_manager import manager as connection_manager
 
 logger = structlog.get_logger(__name__)
 
@@ -47,20 +44,20 @@ def process_transcription_task(
 # Diarization alignment task removed
 
 
-async def _run_transcription(media_id: str, file_path: str, storage_provider: str, transcription_provider: str, language: str):
-    async for db_session in get_db():
-        # ... (implementation remains the same)
-        pass
-
-
 # Diarization alignment function removed
 
 
-# The _run_transcription implementation needs to be brought back
-async def _run_transcription(media_id: str, file_path: str, storage_provider: str, transcription_provider: str, language: str):
+async def _run_transcription(
+    media_id: str,
+    file_path: str,
+    storage_provider: str,
+    transcription_provider: str,
+    language: str,
+    event_bus: Optional[EventBus] = None,
+):
     async for db_session in get_db():
         # --- Dependency Instantiation ---
-        event_bus = get_event_bus()
+        resolved_event_bus = event_bus or create_inmemory_event_bus()
         metrics_service = MetricsService(provider=PrometheusMetricsProvider())
         storage_service_factory = get_storage_service_factory()
         storage_service = storage_service_factory.create_storage_service(storage_provider)
@@ -76,7 +73,7 @@ async def _run_transcription(media_id: str, file_path: str, storage_provider: st
         state_service = TranscriptionStateService(media_repository, transcription_repository)
         file_service = TranscriptionFileService(storage_service)
         recognition_service = SpeechRecognitionService(speech_recognition_provider)
-        event_service = TranscriptionEventService(event_bus)
+        event_service = TranscriptionEventService(resolved_event_bus)
 
         # --- Instantiate the Orchestrator (Command Handler) ---
         handler = ProcessTranscriptionCommandHandler(

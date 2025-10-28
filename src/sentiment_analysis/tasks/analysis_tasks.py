@@ -19,7 +19,7 @@ from src.sentiment_analysis.infrastructure.dependencies import (
 from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
     SentimentAnalysisRepository,
 )
-from src.shared.events.event_bus import get_event_bus
+from src.shared.events.event_bus import EventBus, create_inmemory_event_bus
 from src.shared.infrastructure.database import get_db
 from src.transcription.application.queries.transcription_queries import (
     TranscriptionQueries,
@@ -55,12 +55,13 @@ async def _execute_sentiment_analysis(
     text_content: str,
     provider: str,
     model: Optional[str],
+    event_bus: Optional[EventBus] = None,
 ) -> Optional[str]:
     _ = text_content  # Provided for compatibility with event payloads
     async for session in get_db():
         service = await create_sentiment_analysis_service(session)
         repository = SentimentAnalysisRepository(session)
-        event_bus = get_event_bus()
+        resolved_event_bus = event_bus or create_inmemory_event_bus()
         transcription_repository = TranscriptionRepository(session)
         transcription_queries = TranscriptionQueries(transcription_repository)
 
@@ -68,7 +69,7 @@ async def _execute_sentiment_analysis(
             sentiment_service=service,
             analysis_repository=repository,
             transcription_queries=transcription_queries,
-            event_bus=event_bus,
+            event_bus=resolved_event_bus,
             connection_manager=None,
             metrics_service=None,
         )

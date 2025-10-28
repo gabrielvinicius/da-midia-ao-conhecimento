@@ -8,15 +8,12 @@ modifying the core orchestration logic.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import (
     Any,
     Awaitable,
     Callable,
-    Mapping,
     Protocol,
     Sequence,
-    Tuple,
     Type,
     Union,
     runtime_checkable,
@@ -65,40 +62,11 @@ class SubscriptionStrategy(Protocol):
 
     def clear(self) -> None:
         """Remove all registered subscriptions."""
-
-
-def _as_tuple(mapping: Mapping[str, Any]) -> Tuple[Tuple[str, Any], ...]:
-    """Normalise mapping data structures for hashing or comparisons."""
-
-    return tuple(sorted(mapping.items(), key=lambda item: item[0]))
-
-
-@dataclass(frozen=True)
-class EventBusConfig:
-    """Configuration payload used by :func:`get_event_bus`."""
-
-    publisher_backend: str = "inmemory"
-    subscription_strategy: str = "default"
-    publisher_options: Mapping[str, Any] = field(default_factory=dict)
-    subscription_options: Mapping[str, Any] = field(default_factory=dict)
-
-    def cache_key(self) -> Tuple[str, str, Tuple[Tuple[str, Any], ...], Tuple[Tuple[str, Any], ...]]:
-        """Return a hashable representation of the configuration."""
-
-        return (
-            self.publisher_backend,
-            self.subscription_strategy,
-            _as_tuple(self.publisher_options),
-            _as_tuple(self.subscription_options),
-        )
-
-
 __all__ = [
     "BrokerPublisher",
     "SubscriptionStrategy",
     "IncomingEventHandler",
     "EventHandler",
     "EventKey",
-    "EventBusConfig",
 ]
 
