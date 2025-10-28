@@ -24,11 +24,7 @@ from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 from src.auth.bootstrap import build_auth_module
 from src.monitoring.bootstrap import build_monitoring_module
-from src.media_management.bootstrap import (
-    create_media_container,
-    build_media_module,
-    build_media_admin_context,
-)
+from src.media_management.bootstrap import build_media_components
 from src.video_processing.bootstrap import build_video_processing_module
 from src.text_processing.bootstrap import build_text_processing_module
 from src.transcription.bootstrap import (
@@ -92,16 +88,11 @@ async def lifespan(app: FastAPI):
         auth_module = build_auth_module(session)
         monitoring_module = build_monitoring_module(session)
 
-        media_container = create_media_container(
+        media_module, media_admin_context = build_media_components(
             session=session,
             storage_service_factory=storage_factory,
             event_bus=event_bus,
             metrics_service=monitoring_module.metrics_service,
-        )
-        media_module = build_media_module(media_container)
-        media_admin_context = build_media_admin_context(
-            media_container,
-            queries=media_module.queries,
         )
 
         video_module = await build_video_processing_module(
