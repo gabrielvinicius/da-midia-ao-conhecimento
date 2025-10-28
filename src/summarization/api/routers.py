@@ -9,7 +9,12 @@ from src.auth.domain.user import User
 from src.media_management.application.queries.media_queries import MediaQueries # Manter por enquanto, mas idealmente injetar via container
 from src.transcription.application.queries.transcription_queries import TranscriptionQueries # Manter por enquanto, mas idealmente injetar via container
 
-from .dependencies import get_summarization_service, get_request_summary_command_handler
+from .dependencies import (
+    get_media_queries,
+    get_request_summary_command_handler,
+    get_summarization_service,
+    get_transcription_queries,
+)
 from .schemas import SummaryResponse
 from src.summarization.application.summarization_service import SummarizationService
 from src.summarization.application.commands.commands import RequestSummaryCommand

@@ -1,8 +1,12 @@
 # src/summarization/infrastructure/summarization_repository.py
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from typing import Optional
 from uuid import UUID
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.summarization.domain.summary import Summary
+
 
 class SummarizationRepository:
     """SQLAlchemy implementation of the summarization repository."""
@@ -26,3 +30,9 @@ class SummarizationRepository:
     async def get_by_media_id(self, media_id: UUID) -> Optional[Summary]:
         result = await self.db.execute(select(Summary).where(Summary.media_id == media_id))
         return result.scalar_one_or_none()
+
+    async def delete_by_media_id(self, media_id: UUID) -> None:
+        summary = await self.get_by_media_id(media_id)
+        if summary is not None:
+            await self.db.delete(summary)
+            await self.db.flush()

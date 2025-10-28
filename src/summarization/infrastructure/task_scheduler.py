@@ -1,6 +1,10 @@
 # src/summarization/infrastructure/task_scheduler.py
 import structlog
-from typing import Dict, Any, Optional
+from typing import Any
+
+
+logger = structlog.get_logger(__name__)
+
 
 class CelerySummarizationTaskScheduler:
     """Concrete implementation for scheduling summarization tasks using Celery."""
