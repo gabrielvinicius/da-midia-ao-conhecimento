@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, Protocol
 
 from src.notifications.tasks.notification_tasks import send_notification_task
-from src.text_analysis.tasks.analysis_tasks import analyze_sentiment_task
+from src.sentiment_analysis.tasks.analysis_tasks import analyze_sentiment_task
 from src.topic_modeling.tasks.topic_modeling_tasks import analyze_topics_task
 
 
