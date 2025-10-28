@@ -5,6 +5,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from src.media_management.application.commands.components.storage_uploader import (
+    StorageUploadResult,
+)
+from src.media_management.application.commands.components.upload_metadata_mapper import (
+    UploadMetadata,
+)
 from src.media_management.application.commands.create_media_command import CreateMediaCommand
 from src.media_management.application.commands.create_media_command_handler import CreateMediaCommandHandler
 from src.media_management.domain.media import Media, MediaStatus, MediaType
@@ -12,39 +18,43 @@ from src.shared.exceptions.domain_exceptions import StorageError, ValidationErro
 
 
 class TestCreateMediaCommandHandler:
-    """Ensures the handler coordinates explicit collaborators correctly."""
+    """Ensures the handler delegates work to dedicated collaborators."""
 
     @pytest.fixture
-    def mock_dependencies(self, mock_storage_service, mock_media_repository):
-        """Complete set of mocked collaborators for the handler."""
+    def collaborators(self, mock_media_repository):
+        storage_uploader = AsyncMock()
+        storage_uploader.upload.return_value = StorageUploadResult(
+            destination_path="media/uuid/file.ext",
+            metadata={"file_path": "media/uuid/file.ext", "size": 128},
+        )
 
-        storage_resolver = MagicMock()
-        storage_resolver.resolve.return_value = mock_storage_service
+        metadata_mapper = MagicMock()
+        metadata_mapper.map.return_value = UploadMetadata(
+            stored_path="media/uuid/file.ext",
+            file_size=128,
+        )
 
-        metrics_publisher = AsyncMock()
-        event_publisher = AsyncMock()
+        side_effect_publisher = AsyncMock()
+
         file_validator = MagicMock()
         file_validator.validate.return_value = None
 
         return {
             "media_repository": mock_media_repository,
-            "storage_resolver": storage_resolver,
-            "metrics_publisher": metrics_publisher,
-            "event_publisher": event_publisher,
+            "storage_uploader": storage_uploader,
+            "metadata_mapper": metadata_mapper,
+            "side_effect_publisher": side_effect_publisher,
             "file_validator": file_validator,
-            "storage_service": mock_storage_service,
         }
 
     @pytest.fixture
-    def handler(self, mock_dependencies):
-        """CreateMediaCommandHandler instance wired with collaborator doubles."""
-
+    def handler(self, collaborators):
         return CreateMediaCommandHandler(
-            media_repository=mock_dependencies["media_repository"],
-            storage_resolver=mock_dependencies["storage_resolver"],
-            metrics_publisher=mock_dependencies["metrics_publisher"],
-            event_publisher=mock_dependencies["event_publisher"],
-            file_validator=mock_dependencies["file_validator"],
+            media_repository=collaborators["media_repository"],
+            storage_uploader=collaborators["storage_uploader"],
+            metadata_mapper=collaborators["metadata_mapper"],
+            side_effect_publisher=collaborators["side_effect_publisher"],
+            file_validator=collaborators["file_validator"],
         )
 
     @pytest.fixture
@@ -72,38 +82,30 @@ class TestCreateMediaCommandHandler:
     async def test_create_video_media_success(
         self,
         handler,
-        mock_dependencies,
+        collaborators,
         valid_video_command,
         test_data_factory,
     ):
-        """Successful flow validates, resolves storage and publishes side effects."""
+        """Successful flow validates input and triggers all collaborators."""
 
         expected_media = test_data_factory.create_video_media(
             user_id=valid_video_command.user_id,
             filename=valid_video_command.filename,
         )
-        mock_dependencies["media_repository"].save.return_value = expected_media
-        mock_dependencies["storage_service"].upload.return_value = {
-            "file_path": f"/uploads/{valid_video_command.filename}",
-            "size": len(valid_video_command.file),
-        }
+        collaborators["media_repository"].save.return_value = expected_media
 
         result = await handler.handle(valid_video_command)
 
         assert result == expected_media
-        mock_dependencies["file_validator"].validate.assert_called_once_with(
+        collaborators["file_validator"].validate.assert_called_once_with(
             valid_video_command.file, valid_video_command.filename
         )
-        mock_dependencies["storage_resolver"].resolve.assert_called_once_with(
-            valid_video_command.storage_provider
-        )
-        mock_dependencies["storage_service"].upload.assert_awaited_once()
-        mock_dependencies["media_repository"].save.assert_awaited_once()
-        mock_dependencies["metrics_publisher"].publish.assert_awaited_once_with(
-            expected_media, len(valid_video_command.file)
-        )
-        mock_dependencies["event_publisher"].publish_media_uploaded.assert_awaited_once_with(
-            expected_media, f"/uploads/{valid_video_command.filename}"
+        collaborators["storage_uploader"].upload.assert_awaited_once()
+        collaborators["metadata_mapper"].map.assert_called_once()
+        collaborators["media_repository"].save.assert_awaited_once()
+        collaborators["side_effect_publisher"].publish.assert_awaited_once_with(
+            expected_media,
+            collaborators["metadata_mapper"].map.return_value,
         )
 
     @pytest.mark.asyncio
@@ -111,7 +113,7 @@ class TestCreateMediaCommandHandler:
     async def test_create_audio_media_success(
         self,
         handler,
-        mock_dependencies,
+        collaborators,
         valid_audio_command,
         test_data_factory,
     ):
@@ -121,21 +123,21 @@ class TestCreateMediaCommandHandler:
             user_id=valid_audio_command.user_id,
             filename=valid_audio_command.filename,
         )
-        mock_dependencies["media_repository"].save.return_value = expected_media
-        mock_dependencies["storage_service"].upload.return_value = {
-            "file_path": f"/uploads/{valid_audio_command.filename}",
-            "size": len(valid_audio_command.file),
-        }
+        collaborators["media_repository"].save.return_value = expected_media
+        collaborators["metadata_mapper"].map.return_value = UploadMetadata(
+            stored_path=f"/uploads/{valid_audio_command.filename}",
+            file_size=len(valid_audio_command.file),
+        )
 
         await handler.handle(valid_audio_command)
 
-        publish_args = mock_dependencies["metrics_publisher"].publish.await_args
+        publish_args = collaborators["side_effect_publisher"].publish.await_args
         assert publish_args.args[0] is expected_media
-        assert publish_args.args[1] == len(valid_audio_command.file)
+        assert publish_args.args[1].file_size == len(valid_audio_command.file)
 
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_create_media_invalid_file_type(self, handler, mock_dependencies):
+    async def test_create_media_invalid_file_type(self, handler, collaborators):
         invalid_command = CreateMediaCommand(
             user_id="user_123",
             file=b"invalid_content",
@@ -146,14 +148,14 @@ class TestCreateMediaCommandHandler:
         with pytest.raises(ValidationError, match="Unsupported file type"):
             await handler.handle(invalid_command)
 
-        mock_dependencies["storage_service"].upload.assert_not_awaited()
-        mock_dependencies["media_repository"].save.assert_not_awaited()
-        mock_dependencies["event_publisher"].publish_media_uploaded.assert_not_awaited()
+        collaborators["storage_uploader"].upload.assert_not_awaited()
+        collaborators["media_repository"].save.assert_not_awaited()
+        collaborators["side_effect_publisher"].publish.assert_not_awaited()
 
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_create_media_file_validator_error(self, handler, mock_dependencies):
-        mock_dependencies["file_validator"].validate.side_effect = ValidationError(
+    async def test_create_media_file_validator_error(self, handler, collaborators):
+        collaborators["file_validator"].validate.side_effect = ValidationError(
             "file", "large_video.mp4", "File size exceeds maximum limit"
         )
 
@@ -167,52 +169,51 @@ class TestCreateMediaCommandHandler:
         with pytest.raises(ValidationError, match="File size exceeds maximum limit"):
             await handler.handle(command)
 
-        mock_dependencies["storage_resolver"].resolve.assert_not_called()
+        collaborators["storage_uploader"].upload.assert_not_awaited()
 
     @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_create_media_storage_failure(
-        self, handler, mock_dependencies, valid_audio_command
+        self, handler, collaborators, valid_audio_command
     ):
-        mock_dependencies["storage_service"].upload.side_effect = StorageError(
+        collaborators["storage_uploader"].upload.side_effect = StorageError(
             "Storage service unavailable"
         )
 
         with pytest.raises(StorageError, match="Storage service unavailable"):
             await handler.handle(valid_audio_command)
 
-        mock_dependencies["storage_service"].upload.assert_awaited_once()
-        mock_dependencies["media_repository"].save.assert_not_awaited()
-        mock_dependencies["event_publisher"].publish_media_uploaded.assert_not_awaited()
+        collaborators["storage_uploader"].upload.assert_awaited_once()
+        collaborators["media_repository"].save.assert_not_awaited()
+        collaborators["side_effect_publisher"].publish.assert_not_awaited()
 
     @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_create_media_repository_failure(
-        self, handler, mock_dependencies, valid_audio_command
+        self, handler, collaborators, valid_audio_command
     ):
-        mock_dependencies["storage_service"].upload.return_value = {
-            "file_path": "/uploads/test.mp3",
-            "size": len(valid_audio_command.file),
-        }
-        mock_dependencies["media_repository"].save.side_effect = Exception("Database error")
+        collaborators["metadata_mapper"].map.return_value = UploadMetadata(
+            stored_path="/uploads/test.mp3",
+            file_size=len(valid_audio_command.file),
+        )
+        collaborators["media_repository"].save.side_effect = Exception("Database error")
 
         with pytest.raises(Exception, match="Database error"):
             await handler.handle(valid_audio_command)
 
-        mock_dependencies["storage_service"].upload.assert_awaited_once()
-        mock_dependencies["media_repository"].save.assert_awaited_once()
-        mock_dependencies["event_publisher"].publish_media_uploaded.assert_not_awaited()
+        collaborators["storage_uploader"].upload.assert_awaited_once()
+        collaborators["media_repository"].save.assert_awaited_once()
+        collaborators["side_effect_publisher"].publish.assert_not_awaited()
 
     @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_create_media_sets_correct_metadata(
-        self, handler, mock_dependencies, valid_video_command
+        self, handler, collaborators, valid_video_command
     ):
-        mock_dependencies["storage_service"].upload.return_value = {
-            "file_path": f"/uploads/{valid_video_command.filename}",
-            "size": len(valid_video_command.file),
-            "etag": "mock_etag_123",
-        }
+        collaborators["metadata_mapper"].map.return_value = UploadMetadata(
+            stored_path=f"/uploads/{valid_video_command.filename}",
+            file_size=len(valid_video_command.file),
+        )
 
         saved_media: Media | None = None
 
@@ -221,7 +222,7 @@ class TestCreateMediaCommandHandler:
             saved_media = media
             return media
 
-        mock_dependencies["media_repository"].save.side_effect = capture_save
+        collaborators["media_repository"].save.side_effect = capture_save
 
         await handler.handle(valid_video_command)
 
@@ -238,28 +239,29 @@ class TestCreateMediaCommandHandler:
     @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_create_media_event_collaboration(
-        self, handler, mock_dependencies, valid_audio_command, test_data_factory
+        self, handler, collaborators, valid_audio_command, test_data_factory
     ):
         expected_media = test_data_factory.create_audio_media(
             user_id=valid_audio_command.user_id,
             filename=valid_audio_command.filename,
         )
-        mock_dependencies["media_repository"].save.return_value = expected_media
-        mock_dependencies["storage_service"].upload.return_value = {
-            "file_path": f"/uploads/{valid_audio_command.filename}",
-            "size": len(valid_audio_command.file),
-        }
+        collaborators["media_repository"].save.return_value = expected_media
+        metadata = UploadMetadata(
+            stored_path=f"/uploads/{valid_audio_command.filename}",
+            file_size=len(valid_audio_command.file),
+        )
+        collaborators["metadata_mapper"].map.return_value = metadata
 
         await handler.handle(valid_audio_command)
 
-        mock_dependencies["event_publisher"].publish_media_uploaded.assert_awaited_once_with(
-            expected_media, f"/uploads/{valid_audio_command.filename}"
+        collaborators["side_effect_publisher"].publish.assert_awaited_once_with(
+            expected_media, metadata
         )
 
     @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_create_media_different_storage_providers(
-        self, handler, mock_dependencies, test_data_factory
+        self, handler, collaborators, test_data_factory
     ):
         storage_providers = ["local", "s3", "minio"]
 
@@ -271,25 +273,26 @@ class TestCreateMediaCommandHandler:
                 storage_provider=provider,
             )
 
-            mock_dependencies["media_repository"].save.return_value = test_data_factory.create_audio_media(
+            collaborators["media_repository"].save.return_value = test_data_factory.create_audio_media(
                 user_id=command.user_id,
                 filename=command.filename,
                 storage_provider=provider,
             )
-            mock_dependencies["storage_service"].upload.return_value = {
-                "file_path": f"/uploads/{command.filename}",
-                "size": len(command.file),
-            }
+            collaborators["metadata_mapper"].map.return_value = UploadMetadata(
+                stored_path=f"/uploads/{command.filename}",
+                file_size=len(command.file),
+            )
 
             await handler.handle(command)
 
-            mock_dependencies["storage_resolver"].resolve.assert_called_with(provider)
-            mock_dependencies["storage_resolver"].resolve.reset_mock()
+            upload_call = collaborators["storage_uploader"].upload.await_args
+            assert upload_call.kwargs["command"].storage_provider == provider
+            collaborators["storage_uploader"].upload.reset_mock()
 
     @pytest.mark.asyncio
     @pytest.mark.unit
     async def test_create_media_mime_type_detection(
-        self, handler, mock_dependencies, test_data_factory
+        self, handler, collaborators, test_data_factory
     ):
         test_cases = [
             ("test.mp3", MediaType.AUDIO, "audio/mpeg"),
@@ -310,14 +313,14 @@ class TestCreateMediaCommandHandler:
                 media_type=expected_type,
                 filename=filename,
             )
-            mock_dependencies["media_repository"].save.return_value = expected_media
-            mock_dependencies["storage_service"].upload.return_value = {
-                "file_path": f"/uploads/{filename}",
-                "size": len(command.file),
-            }
+            collaborators["media_repository"].save.return_value = expected_media
+            collaborators["metadata_mapper"].map.return_value = UploadMetadata(
+                stored_path=f"/uploads/{filename}",
+                file_size=len(command.file),
+            )
 
             await handler.handle(command)
 
-            upload_call = mock_dependencies["storage_service"].upload.await_args
+            upload_call = collaborators["storage_uploader"].upload.await_args
             assert upload_call.kwargs["content_type"] == expected_mime
-            mock_dependencies["storage_service"].upload.reset_mock()
+            collaborators["storage_uploader"].upload.reset_mock()

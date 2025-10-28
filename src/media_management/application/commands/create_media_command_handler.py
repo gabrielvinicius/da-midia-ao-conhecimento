@@ -7,7 +7,7 @@ import mimetypes
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import structlog
 
@@ -17,12 +17,15 @@ from src.shared.exceptions.domain_exceptions import ValidationError
 from .components import (
     DefaultMediaEventPublisher,
     DefaultMediaMetricsPublisher,
+    DefaultMediaUploadSideEffectPublisher,
     DefaultStorageServiceResolver,
+    DefaultStorageUploader,
+    DefaultUploadMetadataMapper,
     FileSizeMediaFileValidator,
-    MediaEventPublisher,
     MediaFileValidator,
-    MediaMetricsPublisher,
-    StorageServiceResolver,
+    MediaUploadSideEffectPublisher,
+    StorageUploader,
+    UploadMetadataMapper,
 )
 
 from .create_media_command import CreateMediaCommand
@@ -58,15 +61,15 @@ class CreateMediaCommandHandler:
     def __init__(
         self,
         media_repository: Any,
-        storage_resolver: StorageServiceResolver,
-        metrics_publisher: MediaMetricsPublisher,
-        event_publisher: MediaEventPublisher,
+        storage_uploader: StorageUploader,
+        metadata_mapper: UploadMetadataMapper,
+        side_effect_publisher: MediaUploadSideEffectPublisher,
         file_validator: MediaFileValidator,
     ) -> None:
         self.media_repository = media_repository
-        self.storage_resolver = storage_resolver
-        self.metrics_publisher = metrics_publisher
-        self.event_publisher = event_publisher
+        self.storage_uploader = storage_uploader
+        self.metadata_mapper = metadata_mapper
+        self.side_effect_publisher = side_effect_publisher
         self.file_validator = file_validator
 
     @classmethod
@@ -81,9 +84,14 @@ class CreateMediaCommandHandler:
 
         return cls(
             media_repository=media_repository,
-            storage_resolver=DefaultStorageServiceResolver(factory=storage_service_factory),
-            metrics_publisher=DefaultMediaMetricsPublisher(metrics_service=metrics_service),
-            event_publisher=DefaultMediaEventPublisher(event_bus=event_bus),
+            storage_uploader=DefaultStorageUploader(
+                storage_resolver=DefaultStorageServiceResolver(factory=storage_service_factory)
+            ),
+            metadata_mapper=DefaultUploadMetadataMapper(),
+            side_effect_publisher=DefaultMediaUploadSideEffectPublisher(
+                metrics_publisher=DefaultMediaMetricsPublisher(metrics_service=metrics_service),
+                event_publisher=DefaultMediaEventPublisher(event_bus=event_bus),
+            ),
             file_validator=FileSizeMediaFileValidator(
                 min_size_bytes=cls.MIN_FILE_SIZE_BYTES,
                 max_size_bytes=cls.MAX_FILE_SIZE_BYTES,
@@ -97,25 +105,22 @@ class CreateMediaCommandHandler:
         media_type = self._detect_media_type(command.filename)
         content_type = self._guess_mime_type(command.filename)
 
-        storage_service = self.storage_resolver.resolve(command.storage_provider)
         media_id = uuid.uuid4()
-        destination_path = self._build_destination_path(media_id, command.filename)
-
-        upload_metadata = await storage_service.upload(
-            destination_path=destination_path,
-            content=command.file,
-            filename=command.filename,
+        upload_result = await self.storage_uploader.upload(
+            command=command,
+            media_id=media_id,
             content_type=content_type,
-            metadata=command.metadata or {},
         )
-
-        stored_path = self._extract_file_path(upload_metadata, destination_path)
-        file_size = self._extract_file_size(upload_metadata, command.file)
+        upload_metadata = self.metadata_mapper.map(
+            upload_result.metadata,
+            default_path=upload_result.destination_path,
+            file_data=command.file,
+        )
 
         media = Media.create(
             media_id=media_id,
             user_id=command.user_id,
-            original_file_path=stored_path,
+            original_file_path=upload_metadata.stored_path,
             media_type=media_type,
             storage_provider=command.storage_provider,
             transcription_provider=command.transcription_provider,
@@ -125,15 +130,14 @@ class CreateMediaCommandHandler:
 
         media = media.update(
             filename=command.filename,
-            file_size=file_size,
+            file_size=upload_metadata.file_size,
             mime_type=content_type,
             created_at=datetime.now(timezone.utc),
         )
 
         saved_media = await self._persist_media(media)
 
-        await self.metrics_publisher.publish(saved_media, file_size)
-        await self.event_publisher.publish_media_uploaded(saved_media, stored_path)
+        await self.side_effect_publisher.publish(saved_media, upload_metadata)
 
         logger.info(
             "media_management.create_media.completed",
@@ -168,17 +172,4 @@ class CreateMediaCommandHandler:
     def _guess_mime_type(self, filename: str) -> str:
         mime_type, _ = mimetypes.guess_type(filename)
         return mime_type or "application/octet-stream"
-
-    def _build_destination_path(self, media_id: uuid.UUID, filename: str) -> str:
-        return f"media/{media_id}/{filename}"
-
-    def _extract_file_path(self, metadata: Optional[Dict[str, Any]], default_path: str) -> str:
-        if isinstance(metadata, dict):
-            return metadata.get("file_path", default_path)
-        return default_path
-
-    def _extract_file_size(self, metadata: Optional[Dict[str, Any]], file_data: bytes) -> int:
-        if isinstance(metadata, dict) and "size" in metadata:
-            return int(metadata["size"])
-        return len(file_data)
 
