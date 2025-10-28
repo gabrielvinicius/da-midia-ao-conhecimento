@@ -372,7 +372,7 @@ class TestProcessSummaryCommandHandler:
 
     @pytest.mark.asyncio
     @pytest.mark.unit
-    async def test_summarization_metrics_recording(self, handler, mock_dependencies, 
+    async def test_summarization_metrics_recording(self, handler, mock_dependencies,
                                                  valid_command, sample_transcription, test_data_factory):
         """Test that performance metrics are properly recorded."""
         # Arrange
@@ -386,7 +386,7 @@ class TestProcessSummaryCommandHandler:
             "confidence_score": 0.82,
             "processing_time": 6.7
         }
-        
+
         created_summary = test_data_factory.create_summary(
             transcription_id=valid_command.transcription_id,
             processing_time=6.7
@@ -400,8 +400,57 @@ class TestProcessSummaryCommandHandler:
         # Verify metrics were recorded
         mock_dependencies["metrics_service"].increment_counter.assert_called()
         mock_dependencies["metrics_service"].record_histogram.assert_called()
-        
+
         # Check specific metrics calls
         counter_calls = [call.args[0] for call in mock_dependencies["metrics_service"].increment_counter.call_args_list]
         assert "summarization.started" in counter_calls
         assert "summarization.completed" in counter_calls
+
+    @pytest.mark.asyncio
+    @pytest.mark.unit
+    async def test_persist_summary_merges_optional_fields(
+        self,
+        handler,
+        mock_dependencies,
+        test_data_factory,
+    ):
+        """Persisting summaries should merge supplemental fields immutably."""
+
+        existing_summary = test_data_factory.create_summary(
+            text_content="Existing summary",
+            strategy="initial",
+            bullet_points=("old",),
+            key_topics=("old-topic",),
+            confidence_score=0.5,
+            processing_time=2.5,
+        )
+
+        handler._summary_repo.update = AsyncMock()
+        handler._summary_repo.save = AsyncMock(side_effect=lambda summary: summary)
+
+        summary_payload = {
+            "text": "Updated summary text",
+            "strategy": "updated-strategy",
+            "bullet_points": ["point one", "point two"],
+            "key_topics": ["topic a", "topic b"],
+            "confidence_score": 0.91,
+            "processing_time": 4.8,
+        }
+
+        result = await handler._persist_summary(
+            media_id=str(existing_summary.media_id),
+            provider="huggingface",
+            summary_payload=summary_payload,
+            existing=existing_summary,
+        )
+
+        assert result.text == "Updated summary text"
+        assert result.strategy == "updated-strategy"
+        assert result.bullet_points == tuple(summary_payload["bullet_points"])
+        assert result.key_topics == tuple(summary_payload["key_topics"])
+        assert result.confidence_score == 0.91
+        assert result.processing_time == 4.8
+        assert result.status == SummaryStatus.COMPLETED
+
+        handler._summary_repo.update.assert_awaited_once_with(result)
+        handler._summary_repo.save.assert_awaited_once_with(result)
