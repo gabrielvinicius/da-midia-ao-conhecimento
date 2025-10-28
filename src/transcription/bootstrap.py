@@ -8,6 +8,7 @@ from src.transcription.infrastructure.transcription_repository import Transcript
 from src.transcription.infrastructure.logging import StructuredTranscriptionLogger
 from src.transcription.infrastructure.metrics import PrometheusTranscriptionMetrics
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
+from src.transcription.application.queries import TranscriptionQueries
 
 # Consolidated Service
 from src.transcription.application.transcription_service import TranscriptionService
@@ -19,6 +20,10 @@ class TranscriptionContainer(containers.DeclarativeContainer):
     storage_service = providers.Singleton(S3StorageService)
     speech_recognizer = providers.Factory(WhisperSpeechRecognizer)
     transcription_repository = providers.Factory(TranscriptionRepository, db=db)
+    transcription_queries = providers.Factory(
+        TranscriptionQueries,
+        transcription_repository=transcription_repository,
+    )
     transcription_logger = providers.Singleton(StructuredTranscriptionLogger)
     transcription_metrics = providers.Singleton(PrometheusTranscriptionMetrics)
 

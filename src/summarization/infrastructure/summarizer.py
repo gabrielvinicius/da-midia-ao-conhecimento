@@ -2,6 +2,10 @@
 import structlog
 from typing import Dict, Any, Optional
 
+
+logger = structlog.get_logger(__name__)
+
+
 class TextRankSummarizer:
     """Concrete implementation of ISummarizer using a placeholder TextRank algorithm."""
 

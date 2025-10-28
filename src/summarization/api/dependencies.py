@@ -1,11 +1,15 @@
 # src/summarization/api/dependencies.py
-from typing import Annotated, Any
-from fastapi import Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Annotated
 
-from src.summarization.bootstrap import SummarizationContainer
+from fastapi import Depends, Request
+from src.media_management.application.queries.media_queries import MediaQueries
+from src.transcription.application.queries import TranscriptionQueries
+from src.summarization.application.commands.handlers import (
+    ProcessSummaryCommandHandler,
+    RequestSummaryCommandHandler,
+)
 from src.summarization.application.summarization_service import SummarizationService
-from src.summarization.application.commands.handlers import RequestSummaryCommandHandler, ProcessSummaryCommandHandler
+from src.summarization.bootstrap import SummarizationContainer
 
 def get_summarization_container(
     request: Request
@@ -30,3 +34,15 @@ def get_process_summary_command_handler(
 ) -> ProcessSummaryCommandHandler:
     """Get process summary command handler dependency."""
     return container.process_summary_command_handler()
+
+
+def get_media_queries(request: Request) -> MediaQueries:
+    """Expose media queries stored in the application container."""
+
+    return request.app.state.container["media_queries"]
+
+
+def get_transcription_queries(request: Request) -> TranscriptionQueries:
+    """Expose transcription queries stored in the application container."""
+
+    return request.app.state.container["transcription_queries"]

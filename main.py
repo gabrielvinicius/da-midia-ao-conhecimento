@@ -110,6 +110,7 @@ async def lifespan(app: FastAPI):
         app_container["transcription_container"] = transcription_container
         app_container["transcription_service"] = transcription_container.transcription_service()
         app_container["transcription_repository"] = transcription_container.transcription_repository() # Still needed for event handlers
+        app_container["transcription_queries"] = transcription_container.transcription_queries()
         
         notification_container = NotificationContainer(db=session)
         notification_container.auth_queries.override(auth_container.auth_queries())
@@ -123,10 +124,19 @@ async def lifespan(app: FastAPI):
         text_processing_container = TextProcessingContainer(db=session)
         app_container["text_processing_container"] = text_processing_container
         app_container["text_processing_service"] = text_processing_container.text_processing_service()
-        summarization_container = SummarizationContainer(db=session)
+        summarization_container = SummarizationContainer(
+            db=session,
+            event_bus=event_bus,
+            transcription_queries=app_container["transcription_queries"],
+            media_queries=app_container["media_queries"],
+            connection_manager=manager,
+        )
         app_container["summarization_container"] = summarization_container
         app_container["summarization_service"] = summarization_container.summarization_service()
         app_container["summary_repository"] = summarization_container.summarization_repository() # Still needed for event handlers
+        app_container["request_summary_command_handler"] = summarization_container.request_summary_command_handler()
+        app_container["process_summary_command_handler"] = summarization_container.process_summary_command_handler()
+        app_container["summarization_task_scheduler"] = summarization_container.summarization_task_scheduler()
         providers_container = ProvidersContainer()
         app_container["providers_container"] = providers_container
         app_container["provider_registry"] = providers_container.provider_registry()
@@ -167,7 +177,12 @@ async def lifespan(app: FastAPI):
         )
         await register_text_handlers(app_container["event_bus"], app_container["text_processing_container"].text_processing_task_scheduler())
         await register_transcription_handlers(app_container["event_bus"], app_container["transcription_repository"], app_container["media_queries"])
-        await register_summary_handlers(app_container["event_bus"], app_container["summary_repository"], app_container["media_queries"])
+        await register_summary_handlers(
+            app_container["event_bus"],
+            app_container["summary_repository"],
+            app_container["media_queries"],
+            app_container["summarization_task_scheduler"],
+        )
         await register_notification_handlers(app_container["event_bus"])
         await register_sentiment_handlers(app_container["event_bus"])
         await register_topic_handlers(app_container["event_bus"])

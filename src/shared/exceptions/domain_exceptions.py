@@ -120,7 +120,7 @@ class MediaNotFoundError(ResourceNotFoundError):
 
 class MediaProcessingError(DomainException):
     """Erro no processamento de mídia."""
-    
+
     def __init__(self, media_id: str, stage: str, reason: str):
         super().__init__(
             f"Media processing failed at stage '{stage}': {reason}",
@@ -130,6 +130,18 @@ class MediaProcessingError(DomainException):
                 "stage": stage,
                 "reason": reason
             }
+        )
+
+
+class ProcessingError(DomainException):
+    """Erro genérico para falhas de processamento em pipelines assíncronos."""
+
+    def __init__(self, process: str, reason: str, details: Optional[Dict[str, Any]] = None):
+        message = f"{process.capitalize()} failed: {reason}"
+        super().__init__(
+            message,
+            error_code="PROCESSING_ERROR",
+            details={"process": process, "reason": reason, **(details or {})},
         )
 
 
