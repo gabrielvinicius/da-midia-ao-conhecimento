@@ -1,6 +1,8 @@
 # src/topic_modeling/domain/topic_modeling.py
 import uuid
 from datetime import datetime
+from typing import Any, Dict
+
 from sqlalchemy import Column, String, DateTime, Enum as SqlEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 

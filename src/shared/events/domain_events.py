@@ -59,8 +59,6 @@ normalises values (e.g. ``Enum`` instances) so that handlers can safely
 consume the data as dictionaries.
 """
 
-from __future__ import annotations
-
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum

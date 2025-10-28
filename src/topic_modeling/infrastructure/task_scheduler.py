@@ -2,6 +2,8 @@
 import structlog
 from typing import Dict, Any, Optional
 
+logger = structlog.get_logger(__name__)
+
 class CeleryTopicModelingTaskScheduler:
     """Concrete implementation for scheduling topic modeling tasks using Celery."""
 

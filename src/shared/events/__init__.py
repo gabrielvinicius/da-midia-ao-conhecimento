@@ -1,23 +1,25 @@
-"""Shared event system exports."""
+"""Public exports for the shared event system."""
+
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any
 
 from .domain_events import DomainEvent
-from .event_bus import EventBus
-from .event_publisher import EventPublisher, EventHandler
-from .subscription_manager import SubscriptionManager
 
-__all__ = [
-    "DomainEvent",
-    "EventBus",
-    "EventPublisher",
-    "EventHandler",
-    "SubscriptionManager",
-]
-"""Event bus abstractions and domain event definitions."""
+__all__ = ["DomainEvent", "EventBus", "EventPublisher", "EventHandler", "SubscriptionManager"]
 
-from . import domain_events
-from .domain_events import *  # noqa: F401,F403 - re-export domain events
-from .event_bus import EventBus
-from .event_publisher import EventPublisher
-from .subscription_manager import SubscriptionManager
 
-__all__ = ["EventBus", "EventPublisher", "SubscriptionManager"] + list(domain_events.__all__)
+def __getattr__(name: str) -> Any:  # pragma: no cover - lazy import helper
+    if name == "EventBus":
+        return import_module(".event_bus", __name__).EventBus
+    if name == "EventPublisher":
+        module = import_module(".event_publisher", __name__)
+        return module.EventPublisher
+    if name == "EventHandler":
+        module = import_module(".event_publisher", __name__)
+        return module.EventHandler
+    if name == "SubscriptionManager":
+        module = import_module(".subscription_manager", __name__)
+        return module.SubscriptionManager
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
