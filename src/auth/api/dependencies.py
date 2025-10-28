@@ -1,23 +1,62 @@
 # src/auth/api/dependencies.py
-from typing import Annotated, Any
-from fastapi import Depends, Request
+from dataclasses import dataclass
+from typing import Annotated
 
-# This file contains only the dependency getters specific to the auth module's API.
-# Shared security dependencies are now in src/shared/api/dependencies.py
-from src.shared.application.modules import ModulesRegistry
+from fastapi import Depends
 
-
-def get_modules(request: Request) -> ModulesRegistry:
-    return request.app.state.modules
-
-
-def get_user_service(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
-    return modules.auth.user_service
+from src.auth.application.queries.auth_queries import AuthQueries
+from src.auth.application.services.auth_service import AuthService
+from src.auth.application.services.user_service import UserService
+from src.auth.config.settings import AuthSettings
 
 
-def get_auth_service(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
-    return modules.auth.auth_service
+class AuthDependenciesNotConfigured(RuntimeError):
+    """Raised when the dependency provider has not been registered."""
 
 
-def get_auth_queries(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
-    return modules.auth.auth_queries
+@dataclass(frozen=True)
+class AuthDependencies:
+    """Aggregates the collaborators required by the auth API."""
+
+    user_service: UserService
+    auth_service: AuthService
+    auth_queries: AuthQueries
+    settings: AuthSettings
+
+
+def get_auth_dependencies() -> AuthDependencies:
+    """Base provider to be overridden during application startup."""
+
+    raise AuthDependenciesNotConfigured(
+        "Auth dependencies are not configured. Register providers in the lifespan handler."
+    )
+
+
+AuthDeps = Annotated[AuthDependencies, Depends(get_auth_dependencies)]
+
+
+def get_user_service(deps: AuthDeps) -> UserService:
+    return deps.user_service
+
+
+def get_auth_service(deps: AuthDeps) -> AuthService:
+    return deps.auth_service
+
+
+def get_auth_queries(deps: AuthDeps) -> AuthQueries:
+    return deps.auth_queries
+
+
+def get_auth_settings(deps: AuthDeps) -> AuthSettings:
+    return deps.settings
+
+
+__all__ = [
+    "AuthDependencies",
+    "AuthDependenciesNotConfigured",
+    "get_auth_dependencies",
+    "get_auth_queries",
+    "get_auth_service",
+    "get_auth_settings",
+    "get_user_service",
+]

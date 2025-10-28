@@ -1,6 +1,7 @@
 # src/shared/api/dependencies.py
-from typing import Annotated, Any
-from fastapi import Depends, HTTPException, status, Request
+from typing import Annotated
+
+from fastapi import Depends, HTTPException, status
 from jose import JWTError, jwt
 
 # This file only imports from the domain layer of auth, which is acceptable
@@ -8,30 +9,16 @@ from jose import JWTError, jwt
 from src.auth.domain.user import User, UserRole
 # This is acceptable as it's auth infrastructure used by shared API
 from src.auth.infrastructure.oauth2_scheme import oauth2_scheme
-from src.shared.application.modules import ModulesRegistry
-
-
-# --- Helper functions to get dependencies from the module registry ---
-# These are defined here because security is a cross-cutting concern
-# that needs access to the auth module's components.
-
-def get_modules(request: Request) -> ModulesRegistry:
-    return request.app.state.modules
-
-def get_auth_queries(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
-    """Gets the AuthQueries service from the auth module."""
-    return modules.auth.auth_queries
-
-def get_auth_settings(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
-    """Gets the AuthSettings from the auth module."""
-    return modules.auth.settings
+from src.auth.api.dependencies import get_auth_queries, get_auth_settings
+from src.auth.application.queries.auth_queries import AuthQueries
+from src.auth.config.settings import AuthSettings
 
 # --- Core Security Dependencies ---
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
-    settings: Annotated[Any, Depends(get_auth_settings)],
-    queries: Annotated[Any, Depends(get_auth_queries)],
+    settings: Annotated[AuthSettings, Depends(get_auth_settings)],
+    queries: Annotated[AuthQueries, Depends(get_auth_queries)],
 ) -> User:
     """Dependency to get the current user from an OAuth2 token."""
     credentials_exception = HTTPException(

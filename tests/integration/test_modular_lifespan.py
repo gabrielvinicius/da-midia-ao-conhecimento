@@ -1,7 +1,9 @@
 import pytest
 
 from main import create_app
-from src.shared.application.modules import ModulesRegistry
+from src.auth.api.dependencies import get_auth_dependencies
+from src.media_management.api.dependencies import get_media_dependencies
+from src.summarization.api.dependencies import get_summarization_dependencies
 from src.shared.events.domain_events import MediaUploaded, TextContentReady
 
 
@@ -54,14 +56,21 @@ def dummy_cache(monkeypatch) -> DummyCache:
 
 
 @pytest.mark.anyio
-async def test_modules_registry_initialized(dummy_event_bus: DummyEventBus, dummy_cache: DummyCache):
+async def test_dependency_providers_initialized(
+    dummy_event_bus: DummyEventBus, dummy_cache: DummyCache
+):
     app = create_app()
     async with app.router.lifespan_context(app):
-        modules = app.state.modules
-        assert isinstance(modules, ModulesRegistry)
-        assert modules.auth.auth_service is not None
-        assert modules.media_management.queries is not None
-        assert modules.summarization.process_handler is not None
+        assert not hasattr(app.state, "modules")
+
+        auth_deps = app.dependency_overrides[get_auth_dependencies]()
+        assert auth_deps.auth_service is not None
+
+        media_deps = app.dependency_overrides[get_media_dependencies]()
+        assert media_deps.queries is not None
+
+        summarization_deps = app.dependency_overrides[get_summarization_dependencies]()
+        assert summarization_deps.process_handler is not None
 
 
 @pytest.mark.anyio

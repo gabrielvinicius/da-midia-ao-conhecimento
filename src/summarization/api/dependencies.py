@@ -1,41 +1,64 @@
+from dataclasses import dataclass
 from typing import Annotated
-from fastapi import Depends, Request
 
-from src.media_management.application.queries.media_queries import MediaQueries
-from src.transcription.application.queries import TranscriptionQueries
+from fastapi import Depends
+
+from src.media_management.api.dependencies import get_media_queries
+from src.transcription.api.dependencies import get_transcription_queries
 from src.summarization.application.commands.handlers import (
     ProcessSummaryCommandHandler,
     RequestSummaryCommandHandler,
 )
 from src.summarization.application.summarization_service import SummarizationService
-from src.shared.application.modules import ModulesRegistry
 
 
-def get_modules(request: Request) -> ModulesRegistry:
-    return request.app.state.modules
+class SummarizationDependenciesNotConfigured(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class SummarizationDependencies:
+    service: SummarizationService
+    request_handler: RequestSummaryCommandHandler
+    process_handler: ProcessSummaryCommandHandler
+
+
+def get_summarization_dependencies() -> SummarizationDependencies:
+    raise SummarizationDependenciesNotConfigured(
+        "Summarization dependencies are not configured. Register providers in the lifespan handler."
+    )
+
+
+SummarizationDeps = Annotated[
+    SummarizationDependencies, Depends(get_summarization_dependencies)
+]
 
 
 def get_summarization_service(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
+    deps: SummarizationDeps,
 ) -> SummarizationService:
-    return modules.summarization.service
+    return deps.service
 
 
 def get_request_summary_command_handler(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
+    deps: SummarizationDeps,
 ) -> RequestSummaryCommandHandler:
-    return modules.summarization.request_handler
+    return deps.request_handler
 
 
 def get_process_summary_command_handler(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
+    deps: SummarizationDeps,
 ) -> ProcessSummaryCommandHandler:
-    return modules.summarization.process_handler
+    return deps.process_handler
 
 
-def get_media_queries(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> MediaQueries:
-    return modules.media_management.queries
-
-
-def get_transcription_queries(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> TranscriptionQueries:
-    return modules.transcription.queries
+__all__ = [
+    "SummarizationDependencies",
+    "SummarizationDependenciesNotConfigured",
+    "get_media_queries",
+    "get_process_summary_command_handler",
+    "get_request_summary_command_handler",
+    "get_summarization_dependencies",
+    "get_summarization_service",
+    "get_transcription_queries",
+]

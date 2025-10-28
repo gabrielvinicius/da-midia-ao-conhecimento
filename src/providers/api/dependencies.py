@@ -1,15 +1,26 @@
 """Provider module API dependencies."""
-from typing import Annotated, Any
-from fastapi import Depends, Request
+from typing import Annotated
 
-from src.shared.application.modules import ModulesRegistry
+from fastapi import Depends
 
-
-def get_modules(request: Request) -> ModulesRegistry:
-    """Return the bootstrapped modules registry."""
-    return request.app.state.modules
+from src.providers.domain.interfaces import IProviderRegistry
 
 
-def get_provider_registry(modules: Annotated[ModulesRegistry, Depends(get_modules)]) -> Any:
-    """Expose the provider registry."""
-    return modules.providers.provider_registry
+class ProviderDependenciesNotConfigured(RuntimeError):
+    pass
+
+
+def get_provider_registry() -> IProviderRegistry:
+    raise ProviderDependenciesNotConfigured(
+        "Provider registry dependency not configured. Register providers in the lifespan handler."
+    )
+
+
+ProviderRegistryDep = Annotated[IProviderRegistry, Depends(get_provider_registry)]
+
+
+__all__ = [
+    "ProviderDependenciesNotConfigured",
+    "ProviderRegistryDep",
+    "get_provider_registry",
+]

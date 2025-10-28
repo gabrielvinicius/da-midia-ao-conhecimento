@@ -1,29 +1,52 @@
+from dataclasses import dataclass
 from typing import Annotated
-from fastapi import Depends, Request
+
+from fastapi import Depends
 
 from src.notifications.application.services.notification_service import NotificationService
 from src.notifications.application.queries.notification_queries import NotificationQueries
-from src.notifications.infrastructure.connection_manager import ConnectionManager
-from src.shared.application.modules import ModulesRegistry
-from src.notifications.infrastructure.connection_manager import manager
+from src.notifications.infrastructure.connection_manager import ConnectionManager, manager
 
 
-def get_modules(request: Request) -> ModulesRegistry:
-    return request.app.state.modules
+class NotificationDependenciesNotConfigured(RuntimeError):
+    pass
 
 
-def get_notification_service(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
-) -> NotificationService:
-    return modules.notifications.service
+@dataclass(frozen=True)
+class NotificationDependencies:
+    service: NotificationService
+    queries: NotificationQueries
 
 
-def get_notification_queries(
-    modules: Annotated[ModulesRegistry, Depends(get_modules)]
-) -> NotificationQueries:
-    return modules.notifications.queries
+def get_notification_dependencies() -> NotificationDependencies:
+    raise NotificationDependenciesNotConfigured(
+        "Notification dependencies are not configured. Register providers in the lifespan handler."
+    )
+
+
+NotificationDeps = Annotated[
+    NotificationDependencies, Depends(get_notification_dependencies)
+]
+
+
+def get_notification_service(deps: NotificationDeps) -> NotificationService:
+    return deps.service
+
+
+def get_notification_queries(deps: NotificationDeps) -> NotificationQueries:
+    return deps.queries
 
 
 def get_connection_manager() -> ConnectionManager:
     """Returns the global instance of the ConnectionManager."""
     return manager
+
+
+__all__ = [
+    "NotificationDependencies",
+    "NotificationDependenciesNotConfigured",
+    "get_notification_dependencies",
+    "get_notification_queries",
+    "get_notification_service",
+    "get_connection_manager",
+]
