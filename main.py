@@ -141,6 +141,14 @@ async def lifespan(app: FastAPI):
         app_container["providers_container"] = providers_container
         app_container["provider_registry"] = providers_container.provider_registry()
         sentiment_analysis_container = SentimentAnalysisContainer(db=session)
+        sentiment_analysis_container.event_bus.override(event_bus)
+        sentiment_analysis_container.transcription_queries.override(
+            app_container["transcription_queries"]
+        )
+        sentiment_analysis_container.connection_manager.override(manager)
+        sentiment_analysis_container.metrics_service.override(
+            app_container["metrics_service"]
+        )
         app_container["sentiment_analysis_container"] = sentiment_analysis_container
         app_container["sentiment_analysis_service"] = sentiment_analysis_container.sentiment_analysis_service()
         app_container["sentiment_analysis_repository"] = sentiment_analysis_container.sentiment_analysis_repository() # Still needed for event handlers
