@@ -1,5 +1,7 @@
 """Application services surface for user management."""
 
 from .services import UserService
+from .auth_service import AuthService
+from .auth_queries import AuthQueries
 
-__all__ = ["UserService"]
+__all__ = ["AuthQueries", "AuthService", "UserService"]
