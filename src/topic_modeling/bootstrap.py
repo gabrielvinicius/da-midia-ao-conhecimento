@@ -17,17 +17,12 @@ from src.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
 from src.topic_modeling.infrastructure.topic_modeling_repository import (
     TopicModelingRepository,
 )
-from src.shared.events.event_bus import EventBus
-from src.topic_modeling.application.event_handlers import (
-    register_event_handlers as register_topic_handlers,
-)
 
 
 class TopicModelingContainer(containers.DeclarativeContainer):
     """IoC container that wires topic modeling dependencies."""
 
     db: providers.Provider[AsyncSession] = providers.Dependency()
-    event_bus = providers.Dependency(default=None)
     media_queries = providers.Dependency(default=None)
     transcription_queries = providers.Dependency(default=None)
 
@@ -66,13 +61,11 @@ class TopicModelingModule:
 
 async def build_topic_modeling_module(
     session: AsyncSession,
-    event_bus: EventBus,
     media_queries,
     transcription_queries,
 ) -> TopicModelingModule:
     container = TopicModelingContainer(
         db=session,
-        event_bus=event_bus,
         media_queries=providers.Object(media_queries),
         transcription_queries=providers.Object(transcription_queries),
     )
@@ -81,7 +74,7 @@ async def build_topic_modeling_module(
         service=container.topic_modeling_service(),
         repository=container.topic_modeling_repository(),
     )
-    await register_topic_handlers(event_bus)
+    # EventBus handler registration disabled; use Celery-triggered workflows
     return module
 
 

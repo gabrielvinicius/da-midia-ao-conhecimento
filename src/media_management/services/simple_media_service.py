@@ -2,15 +2,15 @@
 """
 Serviço simplificado de mídia - sem over-engineering
 """
-import os
-import uuid
 import mimetypes
+import uuid
 from pathlib import Path
 from typing import Optional
+
 import structlog
 
-from src.shared.infrastructure.database import get_db
 from src.media_management.domain.media import Media, MediaType
+from src.shared.infrastructure.database import get_db
 from src.storage.application.services.storage_service import StorageService
 
 logger = structlog.get_logger(__name__)
@@ -129,40 +129,12 @@ class SimpleMediaService:
     
     async def _process_media_by_type(self, media: Media) -> None:
         """Processar mídia baseado no tipo - sem event bus complexo"""
-        from src.transcription.tasks.tasks import process_transcription_task
-        from src.text_processing.tasks.text_tasks import process_text_task
-        
+
         try:
-            if media.media_type == MediaType.VIDEO:
-                # Para vídeos, primeiro extrair áudio, depois transcrever
-                logger.info("Scheduling video processing", media_id=str(media.id))
-                # TODO: Implementar extração de áudio simples
-                # Por enquanto, processar como áudio diretamente
-                process_transcription_task.delay(
-                    media_id=str(media.id),
-                    file_path=media.original_file_path,
-                    storage_provider=media.storage_provider,
-                    transcription_provider=media.transcription_provider or "whisper"
-                )
-            
-            elif media.media_type == MediaType.AUDIO:
-                # Processar transcrição diretamente
-                logger.info("Scheduling audio transcription", media_id=str(media.id))
-                process_transcription_task.delay(
-                    media_id=str(media.id),
-                    file_path=media.original_file_path,
-                    storage_provider=media.storage_provider,
-                    transcription_provider=media.transcription_provider or "whisper"
-                )
-            
-            elif media.media_type == MediaType.TEXT:
-                # Processar extração de texto
-                logger.info("Scheduling text processing", media_id=str(media.id))
-                process_text_task.delay(
-                    media_id=str(media.id),
-                    file_path=media.original_file_path,
-                    storage_provider=media.storage_provider
-                )
+            # Encaminhar para a nova task consolidada de processamento
+            from src.media_processing.tasks import process_media_task
+            logger.info("Dispatching consolidated media processing", media_id=str(media.id))
+            process_media_task.delay(media_id=str(media.id))
                 
         except Exception as e:
             logger.error("Failed to schedule media processing", 

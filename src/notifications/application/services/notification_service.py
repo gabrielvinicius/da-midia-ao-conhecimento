@@ -3,18 +3,19 @@
 Consolidated Notification Service. This single service now handles all logic
 related to notifications, including sending, delivery, and management.
 """
-import structlog
+import time
 from typing import Dict, Any, List, Optional
 from uuid import UUID
-import time
 
-from src.notifications.domain.notification import Notification, NotificationStatus, NotificationType, NotificationPriority
-from src.notifications.infrastructure.notification_repository import NotificationRepository
-from src.notifications.infrastructure.connection_manager import ConnectionManager
+import structlog
 from src.notifications.infrastructure.logging import StructuredNotificationLogger
 from src.notifications.infrastructure.metrics import PrometheusNotificationMetrics
+
 from src.auth.application.queries.auth_queries import AuthQueries
-from src.shared.events.event_bus import EventBus
+from src.notifications.domain.notification import Notification, NotificationStatus, NotificationType, \
+    NotificationPriority
+from src.notifications.infrastructure.connection_manager import ConnectionManager
+from src.notifications.infrastructure.notification_repository import NotificationRepository
 
 logger = structlog.get_logger(__name__)
 
@@ -29,7 +30,6 @@ class NotificationService:
         notification_repo: NotificationRepository,
         connection_manager: ConnectionManager,
         auth_queries: AuthQueries,
-        event_bus: EventBus,
         notification_logger: StructuredNotificationLogger,
         notification_metrics: PrometheusNotificationMetrics,
         email_sender: Any = None, # Placeholder
@@ -39,7 +39,7 @@ class NotificationService:
         self.repo = notification_repo
         self.connection_manager = connection_manager
         self.auth_queries = auth_queries
-        self.event_bus = event_bus
+        # event bus removed
         self.logger = notification_logger
         self.metrics = notification_metrics
         self.email_sender = email_sender

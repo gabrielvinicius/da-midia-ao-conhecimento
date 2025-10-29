@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Protocol
 
 from src.media_management.domain.media import Media
-from src.shared.events.domain_events import MediaUploaded
+from src.media_processing.tasks import process_media_task
 
 
 class MediaEventPublisher(Protocol):
@@ -20,16 +20,6 @@ class MediaEventPublisher(Protocol):
 class DefaultMediaEventPublisher(MediaEventPublisher):
     """Default implementation that delegates to the event bus."""
 
-    event_bus: Any
-
     async def publish_media_uploaded(self, media: Media, file_path: str) -> None:
-        event = MediaUploaded(
-            media_id=str(media.id),
-            user_id=str(getattr(media, "user_id", "")),
-            media_type=media.media_type,
-            file_path=file_path,
-            storage_provider=media.storage_provider,
-            transcription_provider=getattr(media, "transcription_provider", None),
-            summarization_provider=getattr(media, "summarization_provider", None),
-        )
-        await self.event_bus.publish(event)
+        # Replace event bus publication with Celery task scheduling.
+        process_media_task.delay(media_id=str(media.id))

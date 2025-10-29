@@ -1,50 +1,45 @@
-# src/transcription/tasks/tasks.py
+"""Transcription Celery task resolved via DI container using TranscriptionContainer.
+
+Performs the actual transcription (download + recognize + persist).
+"""
+from __future__ import annotations
+
 import asyncio
+from typing import Optional
+from uuid import UUID
+
 import structlog
 from celery import shared_task
-from typing import List, Dict, Any, Optional
 
-from src.shared.events.event_bus import EventBus, create_inmemory_event_bus
 from src.shared.infrastructure.database import get_db
-from src.storage.infrastructure.dependencies import get_storage_service_factory
-from src.transcription.application.commands.commands import ProcessTranscriptionCommand
-from src.transcription.application.commands.handlers import ProcessTranscriptionCommandHandler
-# Diarization removed
-# from src.transcription.application.commands.align_diarization_command import AlignDiarizationCommand
-# from src.transcription.application.commands.align_diarization_command_handler import AlignDiarizationCommandHandler
-from src.transcription.application.services.transcription_state_service import TranscriptionStateService
-from src.transcription.application.services.transcription_file_service import TranscriptionFileService
-from src.transcription.application.services.speech_recognition_service import SpeechRecognitionService
-from src.transcription.application.services.transcription_event_service import TranscriptionEventService
-from src.transcription.infrastructure.dependencies import get_transcription_repository, create_speech_recognition_service
-from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_management.infrastructure.media_repository import MediaRepository
-from src.metrics.application.metrics_service import MetricsService
-from src.metrics.infrastructure.prometheus_provider import PrometheusMetricsProvider
+from src.transcription.bootstrap import TranscriptionContainer
+from src.transcription.domain.transcription import Transcription
+from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
 
 logger = structlog.get_logger(__name__)
 
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
 def process_transcription_task(
-    self, 
-    media_id: str, 
-    file_path: str, 
-    storage_provider: str, 
-    transcription_provider: str, 
-    language: str = "en"
-):
+        self,
+        media_id: str,
+        file_path: str,
+        storage_provider: str,
+        transcription_provider: str,
+        language: str = "en",
+) -> Optional[str]:
     try:
-        return asyncio.run(_run_transcription(media_id, file_path, storage_provider, transcription_provider, language))
+        return asyncio.run(
+            _run_transcription(media_id, file_path, storage_provider, transcription_provider, language)
+        )
     except Exception as e:
-        logger.error(f"Error in transcription task for media {media_id}: {str(e)}", exc_info=True)
+        logger.error(
+            "transcription.task_failed",
+            media_id=media_id,
+            error=str(e),
+            exc_info=True,
+        )
         return None
-
-
-# Diarization alignment task removed
-
-
-# Diarization alignment function removed
 
 
 async def _run_transcription(
@@ -53,43 +48,52 @@ async def _run_transcription(
     storage_provider: str,
     transcription_provider: str,
     language: str,
-    event_bus: Optional[EventBus] = None,
-):
-    async for db_session in get_db():
-        # --- Dependency Instantiation ---
-        resolved_event_bus = event_bus or create_inmemory_event_bus()
-        metrics_service = MetricsService(provider=PrometheusMetricsProvider())
-        storage_service_factory = get_storage_service_factory()
-        storage_service = storage_service_factory.create_storage_service(storage_provider)
-        
-        media_repository = MediaRepository(db=db_session)
-        media_queries = MediaQueries(media_repository=media_repository)
-        transcription_repository = await get_transcription_repository(db_session)
-        
-        # Instantiate the specific speech recognition provider
-        speech_recognition_provider = create_speech_recognition_service(transcription_provider)
+) -> Optional[str]:
+    media_uuid = UUID(media_id)
+    async for db in get_db():
+        container = TranscriptionContainer(db=db)
 
-        # --- Instantiate New SRP Services ---
-        state_service = TranscriptionStateService(media_repository, transcription_repository)
-        file_service = TranscriptionFileService(storage_service)
-        recognition_service = SpeechRecognitionService(speech_recognition_provider)
-        event_service = TranscriptionEventService(resolved_event_bus)
+        repo: TranscriptionRepository = container.transcription_repository()
+        storage = container.storage_service()
+        recognizer = container.speech_recognizer()
+        logger.info(
+            "transcription.task.start",
+            media_id=media_id,
+            provider=transcription_provider,
+            language=language,
+        )
 
-        # --- Instantiate the Orchestrator (Command Handler) ---
-        handler = ProcessTranscriptionCommandHandler(
-            media_queries=media_queries,
-            state_service=state_service,
-            file_service=file_service,
-            recognition_service=recognition_service,
-            event_service=event_service,
-            metrics_service=metrics_service,
-        )
-        
-        command = ProcessTranscriptionCommand(
-            media_id=media_id, 
-            file_path=file_path,
-            storage_provider=storage_provider,
-            transcription_provider=transcription_provider,
-            language=language
-        )
-        await handler.handle(command)
+        transcription = await repo.get_by_media_id(media_uuid)
+        if transcription is None:
+            transcription = Transcription(
+                media_id=media_uuid,
+                provider=transcription_provider,
+            )
+            transcription.process()
+            await repo.add(transcription)
+
+        try:
+            audio_bytes = await storage.download_file(file_path)
+            result_payload = await recognizer.transcribe(audio_bytes, language=language)
+
+            transcription.mark_as_completed(result_payload)
+            await repo.update(transcription)
+            await db.commit()
+
+            logger.info(
+                "transcription.task.completed",
+                media_id=media_id,
+                transcription_id=str(transcription.id),
+            )
+            return str(transcription.id)
+        except Exception as exc:
+            logger.error(
+                "transcription.task.error",
+                media_id=media_id,
+                error=str(exc),
+                exc_info=True,
+            )
+            transcription.mark_as_failed(str(exc))
+            await repo.update(transcription)
+            await db.commit()
+            raise

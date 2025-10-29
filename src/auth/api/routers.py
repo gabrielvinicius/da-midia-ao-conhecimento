@@ -1,17 +1,17 @@
 # src/auth/api/routers.py
 from typing import List, Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
+from src.auth.application.queries.auth_queries import AuthQueries
+from src.auth.application.services.auth_service import AuthService
+from src.auth.domain.user import User
+from src.shared.api.dependencies import get_current_user, get_current_admin_user
+from src.user_management.application.services import UserService
 # Import dependencies from their correct, decoupled locations
 from .dependencies import get_user_service, get_auth_service, get_auth_queries
-from src.shared.api.dependencies import get_current_user, get_current_admin_user
-
-from .schemas import Token, UserResponse, UserCreate, TokenRequest
-from src.auth.application.services.user_service import UserService
-from src.auth.application.services.auth_service import AuthService
-from src.auth.application.queries.auth_queries import AuthQueries
-from src.auth.domain.user import User
+from .schemas import Token, UserResponse, UserCreate
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 

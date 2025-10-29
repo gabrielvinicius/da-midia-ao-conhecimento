@@ -8,7 +8,6 @@ from src.admin.api.dependencies import (
 )
 from src.admin.bootstrap import AdminModule
 from src.auth.api.dependencies import AuthDependencies, get_auth_dependencies
-from src.auth.bootstrap import AuthModule
 from src.media_management.api.dependencies import (
     MediaDependencies,
     get_media_dependencies,
@@ -46,12 +45,13 @@ from src.transcription.api.dependencies import (
     get_transcription_dependencies,
 )
 from src.transcription.bootstrap import TranscriptionModule
+from src.user_management.bootstrap import UserManagementModule
 
 
 def register_module_dependencies(
     app: FastAPI,
     *,
-    auth: AuthModule,
+        auth: UserManagementModule,
     monitoring: MonitoringModule,
     media: MediaModule,
     transcription: TranscriptionModule,

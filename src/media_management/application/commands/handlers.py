@@ -1,15 +1,12 @@
 # src/media_management/application/commands/handlers.py
-import structlog
-from typing import Dict, Any
-from uuid import UUID
-import time # Adicionar para calcular duração
+import time  # Adicionar para calcular duração
 
-from src.media_management.infrastructure.media_repository import MediaRepository
-from src.media_management.infrastructure.logging import StructuredMediaLogger
-from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
-from src.media_management.domain.media import Media
-from src.media_management.domain.enums import MediaStatus
+import structlog
+
 from src.media_management.application.commands.commands import DeleteMediaCommand, ReprocessMediaCommand
+from src.media_management.infrastructure.logging import StructuredMediaLogger
+from src.media_management.infrastructure.media_repository import MediaRepository
+from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
 
 logger = structlog.get_logger(__name__)
 
@@ -122,6 +119,16 @@ class ReprocessMediaCommandHandler:
 
             media.process() # Marcar como processando
             await self.media_repo.update(media)
+            # Disparar reprocessamento via Celery
+            try:
+                from src.media_processing.tasks import process_media_task
+                process_media_task.delay(media_id=str(command.media_id))
+            except Exception as dispatch_exc:  # best-effort scheduling
+                logger.warning(
+                    "media_management.reprocess_media.schedule_failed",
+                    media_id=str(command.media_id),
+                    error=str(dispatch_exc),
+                )
             success = True
             logger.info(
                 f"media_management.{operation_name}.completed",

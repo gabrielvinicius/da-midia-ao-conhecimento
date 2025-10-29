@@ -1,12 +1,13 @@
 """Composition root helpers for the auth module."""
 from dataclasses import dataclass
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.container import AuthContainer
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.auth.config.settings import AuthSettings
+
 from src.auth.application.queries.auth_queries import AuthQueries
 from src.auth.application.services.auth_service import AuthService
-from src.auth.application.services.user_service import UserService
-from src.auth.config.settings import AuthSettings
+from src.auth.container import AuthContainer
+from src.user_management.application.services import UserService
 
 
 @dataclass

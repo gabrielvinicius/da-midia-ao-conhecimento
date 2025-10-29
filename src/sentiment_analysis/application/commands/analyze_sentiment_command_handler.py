@@ -11,8 +11,6 @@ from src.sentiment_analysis.application.commands.analyze_sentiment_command impor
     AnalyzeSentimentCommand,
 )
 from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysis
-from src.shared.events.domain_events import SentimentAnalysisCompleted
-from src.shared.events.event_bus import EventBus
 from src.shared.exceptions.domain_exceptions import ProcessingError, ValidationError
 from src.transcription.domain.transcription import TranscriptionStatus
 
@@ -28,14 +26,12 @@ class AnalyzeSentimentCommandHandler:
         sentiment_service: Any,
         analysis_repository: Any,
         transcription_queries: Any,
-        event_bus: EventBus,
         connection_manager: Any,
         metrics_service: Any,
     ) -> None:
         self._sentiment_service = sentiment_service
         self._repository = analysis_repository
         self._transcription_queries = transcription_queries
-        self._event_bus = event_bus
         self._connection_manager = connection_manager
         self._metrics = metrics_service
 
@@ -125,7 +121,7 @@ class AnalyzeSentimentCommandHandler:
             analysis_id=saved_analysis.id,
         )
 
-        await self._publish_completion_event(saved_analysis)
+        # EventBus removido: notificação ocorre via ConnectionManager/estado
 
         return saved_analysis
 
@@ -162,15 +158,4 @@ class AnalyzeSentimentCommandHandler:
         except Exception:  # pragma: no cover - progress updates should not fail command
             logger.debug("sentiment_analysis.progress_notification_failed", message=message)
 
-    async def _publish_completion_event(self, analysis: SentimentAnalysis) -> None:
-        event = SentimentAnalysisCompleted(
-            analysis_id=analysis.id,
-            transcription_id=analysis.transcription_id,
-            overall_sentiment=analysis.overall_sentiment,
-            sentiment_score=analysis.sentiment_score,
-            confidence=analysis.confidence,
-            emotions=analysis.emotions,
-        )
-
-        await self._event_bus.publish(event)
-
+    # EventBus removido: método de publicação não é mais necessário

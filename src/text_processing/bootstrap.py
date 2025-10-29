@@ -1,28 +1,26 @@
 # src/text_processing/bootstrap.py
 from dataclasses import dataclass
+
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# Concrete Implementations
-from src.text_processing.infrastructure.text_processor import TextProcessor
-from src.text_processing.infrastructure.text_extractor import TextExtractor
-from src.text_processing.infrastructure.task_scheduler import (
-    CeleryTextProcessingTaskScheduler,
-)
-from src.text_processing.infrastructure.pipelines.extraction_pipeline import (
-    TextExtractionPipelineFactory,
-)
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
-from src.shared.events.event_bus import EventBus
-# TODO: Adicionar logger e metrics específicos para text_processing
-
 # Consolidated Service
 from src.text_processing.application.text_processing_service import (
     TextProcessingService,
 )
-from src.text_processing.application.event_handlers import (
-    register_event_handlers as register_text_handlers,
+from src.text_processing.infrastructure.pipelines.extraction_pipeline import (
+    TextExtractionPipelineFactory,
 )
+from src.text_processing.infrastructure.task_scheduler import (
+    CeleryTextProcessingTaskScheduler,
+)
+from src.text_processing.infrastructure.text_extractor import TextExtractor
+# Concrete Implementations
+from src.text_processing.infrastructure.text_processor import TextProcessor
+
+
+# TODO: Adicionar logger e metrics específicos para text_processing
 
 
 class TextProcessingContainer(containers.DeclarativeContainer):
@@ -66,15 +64,12 @@ class TextProcessingModule:
 
 async def build_text_processing_module(
     session: AsyncSession,
-    *,
-    event_bus: EventBus,
 ) -> TextProcessingModule:
     container = TextProcessingContainer(db=session)
     module = TextProcessingModule(
         service=container.text_processing_service(),
         task_scheduler=container.text_processing_task_scheduler(),
     )
-    await register_text_handlers(event_bus, module.task_scheduler)
     return module
 
 

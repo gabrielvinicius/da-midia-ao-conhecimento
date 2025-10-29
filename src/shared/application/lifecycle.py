@@ -4,8 +4,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from src.shared.events.event_bus import EventBus
-
 
 class CacheClient(Protocol):
     """Minimal cache protocol used during application bootstrap."""
@@ -19,16 +17,14 @@ class CacheClient(Protocol):
 
 @dataclass
 class ApplicationResources:
-    """Infrastructure resources that require explicit lifecycle management."""
+    """Infra que requer gerenciamento explícito de ciclo de vida."""
 
-    event_bus: EventBus
     cache: CacheClient
 
 
 async def start_application_resources(resources: ApplicationResources) -> None:
     """Initialize long-lived infrastructure resources."""
 
-    await resources.event_bus.start_listener()
     await resources.cache.connect()
 
 
@@ -36,7 +32,6 @@ async def stop_application_resources(resources: ApplicationResources) -> None:
     """Gracefully release infrastructure resources."""
 
     await resources.cache.disconnect()
-    await resources.event_bus.stop_listener()
 
 
 __all__ = [

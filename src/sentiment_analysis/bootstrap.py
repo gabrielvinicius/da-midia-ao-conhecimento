@@ -15,15 +15,11 @@ from src.sentiment_analysis.application.sentiment_analysis_service import (
 )
 from src.sentiment_analysis.infrastructure.logging import StructuredSentimentLogger
 from src.sentiment_analysis.infrastructure.metrics import PrometheusSentimentMetrics
-from src.sentiment_analysis.infrastructure.sentiment_analyzer import (
-    SimpleSentimentAnalyzer,
-)
 from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
     SentimentAnalysisRepository,
 )
-from src.shared.events.event_bus import EventBus
-from src.sentiment_analysis.application.event_handlers import (
-    register_event_handlers as register_sentiment_handlers,
+from src.sentiment_analysis.infrastructure.sentiment_analyzer import (
+    SimpleSentimentAnalyzer,
 )
 
 
@@ -31,7 +27,6 @@ class SentimentAnalysisContainer(containers.DeclarativeContainer):
     """Composition root for the sentiment analysis sub-system."""
 
     db: providers.Dependency[AsyncSession] = providers.Dependency()
-    event_bus = providers.Dependency(default=None)
     transcription_queries = providers.Dependency(default=None)
     connection_manager = providers.Dependency(default=None)
     metrics_service = providers.Dependency(default=None)
@@ -65,7 +60,6 @@ class SentimentAnalysisContainer(containers.DeclarativeContainer):
         sentiment_service=sentiment_analysis_service,
         analysis_repository=repository,
         transcription_queries=transcription_queries,
-        event_bus=event_bus,
         connection_manager=connection_manager,
         metrics_service=_handler_metrics,
     )
@@ -79,14 +73,12 @@ class SentimentAnalysisModule:
 
 async def build_sentiment_analysis_module(
     session: AsyncSession,
-    event_bus: EventBus,
     transcription_queries,
     connection_manager,
     metrics_service,
 ) -> SentimentAnalysisModule:
     container = SentimentAnalysisContainer(
         db=session,
-        event_bus=event_bus,
         transcription_queries=providers.Object(transcription_queries),
         connection_manager=providers.Object(connection_manager),
         metrics_service=providers.Object(metrics_service),
@@ -96,7 +88,7 @@ async def build_sentiment_analysis_module(
         service=container.sentiment_analysis_service(),
         repository=container.sentiment_analysis_repository(),
     )
-    await register_sentiment_handlers(event_bus)
+    # EventBus handler registration disabled; use Celery-triggered workflows
     return module
 
 

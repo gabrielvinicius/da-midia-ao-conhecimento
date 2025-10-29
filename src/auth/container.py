@@ -1,11 +1,11 @@
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.auth.application.services.auth_service import AuthService
-from src.auth.application.services.user_service import UserService
-from src.auth.application.queries.auth_queries import AuthQueries
 from src.auth.config.settings import AuthSettings
+
+from src.auth.application.queries.auth_queries import AuthQueries
+from src.auth.application.services.auth_service import AuthService
 from src.auth.infrastructure.user_repository import UserRepository
+from src.user_management.application.services import UserService
 
 
 class AuthContainer(containers.DeclarativeContainer):

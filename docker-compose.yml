@@ -75,6 +75,8 @@ services:
       - DB_HOST=postgres
       - REDIS_HOST=redis
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
     env_file:
       - .env
     depends_on:
@@ -99,12 +101,14 @@ services:
       dockerfile: Dockerfile
       target: runtime
     container_name: video_summarizer_worker
-    command: celery -A src.shared.events.event_bus.celery worker --loglevel=info --concurrency=2
+    command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=2
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DB_HOST=postgres
       - REDIS_HOST=redis
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
     env_file:
       - .env
     depends_on:
@@ -122,7 +126,7 @@ services:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "celery", "-A", "src.shared.events.event_bus.celery", "inspect", "ping"]
+      test: [ "CMD", "celery", "-A", "src.celery_app:celery", "inspect", "ping" ]
       interval: 30s
       timeout: 10s
       retries: 3

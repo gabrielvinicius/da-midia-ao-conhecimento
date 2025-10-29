@@ -1,8 +1,17 @@
 # src/video_processing/bootstrap.py
 from dataclasses import dataclass
+
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
+# Consolidated Service
+from src.video_processing.application.video_processing_service import (
+    VideoProcessingService,
+)
+from src.video_processing.infrastructure.task_scheduler import (
+    CeleryVideoProcessingTaskScheduler,
+)
 # Concrete Implementations
 from src.video_processing.infrastructure.video_audio_extractor import (
     FFmpegVideoAudioExtractor,
@@ -10,20 +19,9 @@ from src.video_processing.infrastructure.video_audio_extractor import (
 from src.video_processing.infrastructure.video_thumbnail_generator import (
     FFmpegVideoThumbnailGenerator,
 )
-from src.video_processing.infrastructure.task_scheduler import (
-    CeleryVideoProcessingTaskScheduler,
-)
-from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
-from src.shared.events.event_bus import EventBus
-# TODO: Adicionar logger e metrics específicos para video_processing
 
-# Consolidated Service
-from src.video_processing.application.video_processing_service import (
-    VideoProcessingService,
-)
-from src.video_processing.application.event_handlers import (
-    register_event_handlers as register_video_handlers,
-)
+
+# TODO: Adicionar logger e metrics específicos para video_processing
 
 
 class VideoProcessingContainer(containers.DeclarativeContainer):
@@ -55,15 +53,12 @@ class VideoProcessingModule:
 
 async def build_video_processing_module(
     session: AsyncSession,
-    *,
-    event_bus: EventBus,
 ) -> VideoProcessingModule:
     container = VideoProcessingContainer(db=session)
     module = VideoProcessingModule(
         service=container.video_processing_service(),
         task_scheduler=container.video_processing_task_scheduler(),
     )
-    await register_video_handlers(event_bus, module.task_scheduler)
     return module
 
 

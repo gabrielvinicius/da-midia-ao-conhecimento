@@ -27,7 +27,6 @@ from .components import (
     StorageUploader,
     UploadMetadataMapper,
 )
-
 from .create_media_command import CreateMediaCommand
 
 logger = structlog.get_logger(__name__)
@@ -77,7 +76,6 @@ class CreateMediaCommandHandler:
         cls,
         media_repository: Any,
         storage_service_factory: Any,
-        event_bus: Any,
         metrics_service: Any,
     ) -> "CreateMediaCommandHandler":
         """Build a handler with the default component implementations."""
@@ -90,7 +88,7 @@ class CreateMediaCommandHandler:
             metadata_mapper=DefaultUploadMetadataMapper(),
             side_effect_publisher=DefaultMediaUploadSideEffectPublisher(
                 metrics_publisher=DefaultMediaMetricsPublisher(metrics_service=metrics_service),
-                event_publisher=DefaultMediaEventPublisher(event_bus=event_bus),
+                event_publisher=DefaultMediaEventPublisher(),
             ),
             file_validator=FileSizeMediaFileValidator(
                 min_size_bytes=cls.MIN_FILE_SIZE_BYTES,

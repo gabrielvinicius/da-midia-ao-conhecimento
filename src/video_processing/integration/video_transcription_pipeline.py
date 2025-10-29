@@ -2,13 +2,15 @@
 Video to Transcription Pipeline Integration
 Connects video processing with transcription using FastWhisper
 """
-import structlog
 from typing import Dict, Any, Optional
 from uuid import UUID
 
-from ..application.services.video_orchestrator import video_orchestrator
+import structlog
+
 from src.transcription.application.services.fastwhisper_service import fastwhisper_service
-from src.shared.events.unified_events import publish_processing_completed, publish_processing_failed
+from ..application.services.video_orchestrator import video_orchestrator
+
+# EventBus/unified events removidos. Usar logs/retornos em vez de publicação.
 
 logger = structlog.get_logger(__name__)
 
@@ -120,14 +122,8 @@ class VideoTranscriptionPipeline:
                     'text_length': len(transcription_result.get('text', ''))
                 }
             }
-            
-            # Publish success event
-            await publish_processing_completed(
-                entity_type="video_transcription_pipeline",
-                entity_id=str(media_id),
-                user_id=str(user_id),
-                **complete_result['pipeline_info']
-            )
+
+            # Sucesso registrado via logs; publicação de eventos removida
             
             logger.info("Video to transcription pipeline completed successfully", 
                        media_id=str(media_id),
@@ -137,13 +133,7 @@ class VideoTranscriptionPipeline:
             return complete_result
             
         except Exception as e:
-            # Publish failure event
-            await publish_processing_failed(
-                entity_type="video_transcription_pipeline",
-                entity_id=str(media_id),
-                user_id=str(user_id),
-                error=str(e)
-            )
+            # Publicação de falha removida; usar logs/observabilidade
             
             logger.error("Video to transcription pipeline failed", 
                         media_id=str(media_id),

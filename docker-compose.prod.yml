@@ -67,7 +67,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    command: celery -A src.shared.events.event_bus.celery worker --loglevel=info -c 4
+    command: celery -A src.celery_app:celery worker --loglevel=info -c 4
     env_file:
       - .env
     depends_on:

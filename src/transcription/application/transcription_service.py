@@ -1,9 +1,10 @@
 # src/transcription/application/transcription_service.py
-import structlog
 from typing import Dict, Any, Optional
 from uuid import UUID
 
-from src.transcription.domain.transcription import Transcription, TranscriptionStatus
+import structlog
+
+from src.transcription.domain.transcription import Transcription
 
 logger = structlog.get_logger(__name__)
 
@@ -13,10 +14,10 @@ class TranscriptionService:
 
     def __init__(
         self,
-        transcription_repo: ITranscriptionRepository,
-        task_scheduler: ITranscriptionTaskScheduler,
-        transcription_logger: TranscriptionOperationLogger,
-        transcription_metrics: TranscriptionMetrics
+            transcription_repo: Any,
+            task_scheduler: Any,
+            transcription_logger: Any,
+            transcription_metrics: Any,
     ):
         self.transcription_repo = transcription_repo
         self.task_scheduler = task_scheduler

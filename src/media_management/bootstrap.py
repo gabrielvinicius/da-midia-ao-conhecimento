@@ -47,7 +47,6 @@ def build_media_components(
     session: AsyncSession,
     *,
     storage_service_factory: Any,
-    event_bus: Any,
     metrics_service: Any,
 ) -> Tuple[MediaModule, MediaAdminContext]:
     """Compose the media module without relying on dependency-injector."""
@@ -61,7 +60,6 @@ def build_media_components(
     create_media_handler = CreateMediaCommandHandler.with_default_components(
         media_repository=media_repository,
         storage_service_factory=storage_service_factory,
-        event_bus=event_bus,
         metrics_service=metrics_service,
     )
 

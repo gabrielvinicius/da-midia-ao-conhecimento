@@ -1,49 +1,51 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Response
-from fastapi.middleware.cors import CORSMiddleware
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
+from fastapi import FastAPI, Response
+from fastapi.middleware.cors import CORSMiddleware
 # OpenTelemetry Imports
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from src.shared.infrastructure.tracing import configure_tracer
-from src.shared.infrastructure.logging_config import configure_logging, get_logger
-from src.shared.exceptions.api_errors import register_exception_handlers
-from src.shared.middleware.validation_middleware import register_validation_middleware
-from src.shared.middleware.performance_middleware import register_performance_middleware
-# from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
-from src.shared.infrastructure.cache import cache
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
-from src.shared.application.modules import register_module_dependencies
+from src.admin.bootstrap import build_admin_module
+from src.media_management.bootstrap import build_media_components
+from src.monitoring.bootstrap import build_monitoring_module
+from src.notifications.bootstrap import build_notification_module
+from src.notifications.infrastructure.connection_manager import manager
+from src.providers.bootstrap import build_providers_module
+from src.sentiment_analysis.bootstrap import build_sentiment_analysis_module
 from src.shared.application.lifecycle import (
     ApplicationResources,
     start_application_resources,
     stop_application_resources,
 )
-from src.shared.events.event_bus import EventBus, create_inmemory_event_bus
+from src.shared.application.modules import register_module_dependencies
+from src.shared.exceptions.api_errors import register_exception_handlers
+# from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
+from src.shared.infrastructure.cache import cache
+from src.shared.infrastructure.database import Base, engine, AsyncSessionLocal
+from src.shared.infrastructure.logging_config import configure_logging, get_logger
+from src.shared.infrastructure.tracing import configure_tracer
+from src.shared.middleware.performance_middleware import register_performance_middleware
+from src.shared.middleware.validation_middleware import register_validation_middleware
 from src.storage.infrastructure.dependencies import StorageServiceFactory
-
-from src.auth.bootstrap import build_auth_module
-from src.monitoring.bootstrap import build_monitoring_module
-from src.media_management.bootstrap import build_media_components
-from src.video_processing.bootstrap import build_video_processing_module
-from src.text_processing.bootstrap import build_text_processing_module
-from src.transcription.bootstrap import (
-    create_transcription_container,
-    build_transcription_module,
-)
-from src.notifications.bootstrap import build_notification_module
 from src.summarization.bootstrap import (
     create_summarization_container,
     build_summarization_module,
 )
-from src.providers.bootstrap import build_providers_module
-from src.sentiment_analysis.bootstrap import build_sentiment_analysis_module
+from src.text_processing.bootstrap import build_text_processing_module
 from src.topic_modeling.bootstrap import build_topic_modeling_module
-from src.admin.bootstrap import build_admin_module
+from src.transcription.bootstrap import (
+    create_transcription_container,
+    build_transcription_module,
+)
+from src.user_management.bootstrap import build_user_management_module
+from src.video_processing.bootstrap import build_video_processing_module
 
-from src.notifications.infrastructure.connection_manager import manager
-
-from src.shared.infrastructure.database import Base, engine, AsyncSessionLocal
+# Ensure Celery app is importable during API startup
+try:  # noqa: SIM105 - best-effort import
+    from src.celery_app import celery as _celery_app  # type: ignore F401
+except Exception:
+    _celery_app = None  # Celery not required for API process to start
 
 # API Routers
 from src.auth.api.routers import router as auth_router
@@ -59,10 +61,7 @@ from src.topic_modeling.api.routers import router as topic_modeling_router
 from src.admin.api.routers import router as admin_router
 
 
-def build_event_bus() -> EventBus:
-    """Return the configured application event bus instance."""
-
-    return create_inmemory_event_bus()
+# EventBus removido
 
 
 @asynccontextmanager
@@ -83,39 +82,28 @@ async def lifespan(app: FastAPI):
     logger.info("Inicializando módulos e compondo aplicação", component="bootstrap")
     async with AsyncSessionLocal() as session:
         storage_factory = StorageServiceFactory()
-        event_bus = build_event_bus()
-
-        auth_module = build_auth_module(session)
+        auth_module = build_user_management_module(session)
         monitoring_module = build_monitoring_module(session)
 
         media_module, media_admin_context = build_media_components(
             session=session,
             storage_service_factory=storage_factory,
-            event_bus=event_bus,
             metrics_service=monitoring_module.metrics_service,
         )
 
-        video_module = await build_video_processing_module(
-            session,
-            event_bus=event_bus,
-        )
+        video_module = await build_video_processing_module(session)
 
-        text_module = await build_text_processing_module(
-            session,
-            event_bus=event_bus,
-        )
+        text_module = await build_text_processing_module(session)
 
         transcription_container = create_transcription_container(session)
         transcription_module = await build_transcription_module(
             transcription_container,
-            event_bus=event_bus,
             media_queries=media_module.queries,
         )
 
         notification_module = await build_notification_module(
             session=session,
             auth_queries=auth_module.auth_queries,
-            event_bus=event_bus,
         )
 
         summarization_container = create_summarization_container(session=session)
@@ -124,14 +112,12 @@ async def lifespan(app: FastAPI):
         providers_module = build_providers_module()
         sentiment_module = await build_sentiment_analysis_module(
             session=session,
-            event_bus=event_bus,
             transcription_queries=transcription_module.queries,
             connection_manager=manager,
             metrics_service=monitoring_module.metrics_service,
         )
         topic_module = await build_topic_modeling_module(
             session=session,
-            event_bus=event_bus,
             media_queries=media_module.queries,
             transcription_queries=transcription_module.queries,
         )
@@ -156,9 +142,7 @@ async def lifespan(app: FastAPI):
             topic_modeling=topic_module,
             admin=admin_module,
         )
-        app.state.event_bus = event_bus
-
-        resources = ApplicationResources(event_bus=event_bus, cache=cache)
+        resources = ApplicationResources(cache=cache)
 
         logger.info("Inicializando recursos compartilhados", component="bootstrap")
         await start_application_resources(resources)

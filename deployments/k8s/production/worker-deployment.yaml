@@ -70,7 +70,7 @@ spec:
             command:
             - /bin/sh
             - -c
-            - "celery -A src.shared.events.event_bus.celery inspect ping"
+            - "celery -A src.celery_app:celery inspect ping"
           initialDelaySeconds: 60
           periodSeconds: 60
           timeoutSeconds: 30
@@ -81,7 +81,7 @@ spec:
             command:
             - /bin/sh
             - -c
-            - "celery -A src.shared.events.event_bus.celery inspect active"
+            - "celery -A src.celery_app:celery inspect active"
           initialDelaySeconds: 30
           periodSeconds: 30
           timeoutSeconds: 15

@@ -1,27 +1,24 @@
 # src/transcription/bootstrap.py
 from dataclasses import dataclass
+
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.media_management.application.queries.media_queries import MediaQueries
+from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
+from src.transcription.application.queries import TranscriptionQueries
+# Consolidated Service
+from src.transcription.application.transcription_service import TranscriptionService
+from src.transcription.infrastructure.logging import StructuredTranscriptionLogger
+from src.transcription.infrastructure.metrics import PrometheusTranscriptionMetrics
 # Concrete Implementations
 from src.transcription.infrastructure.speech_recognizer import (
     WhisperSpeechRecognizer,
 )
+from src.transcription.infrastructure.task_scheduler import CeleryTranscriptionTaskScheduler
 from src.transcription.infrastructure.transcription_repository import (
     TranscriptionRepository,
 )
-from src.transcription.infrastructure.logging import StructuredTranscriptionLogger
-from src.transcription.infrastructure.metrics import PrometheusTranscriptionMetrics
-from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
-from src.transcription.application.queries import TranscriptionQueries
-from src.shared.events.event_bus import EventBus
-from src.media_management.application.queries.media_queries import MediaQueries
-from src.transcription.application.event_handlers import (
-    register_event_handlers as register_transcription_handlers,
-)
-
-# Consolidated Service
-from src.transcription.application.transcription_service import TranscriptionService
 
 
 class TranscriptionContainer(containers.DeclarativeContainer):
@@ -37,15 +34,15 @@ class TranscriptionContainer(containers.DeclarativeContainer):
     )
     transcription_logger = providers.Singleton(StructuredTranscriptionLogger)
     transcription_metrics = providers.Singleton(PrometheusTranscriptionMetrics)
+    task_scheduler = providers.Factory(CeleryTranscriptionTaskScheduler)
 
     # Consolidated Application Service
     transcription_service = providers.Factory(
         TranscriptionService,
         transcription_repo=transcription_repository,
-        speech_recognizer=speech_recognizer,
-        storage_service=storage_service,
+        task_scheduler=task_scheduler,
         transcription_logger=transcription_logger,
-        transcription_metrics=transcription_metrics
+        transcription_metrics=transcription_metrics,
     )
 
 
@@ -66,19 +63,13 @@ def create_transcription_container(session: AsyncSession) -> TranscriptionContai
 async def build_transcription_module(
     container: TranscriptionContainer,
     *,
-    event_bus: EventBus,
     media_queries: MediaQueries,
 ) -> TranscriptionModule:
     module = TranscriptionModule(
         service=container.transcription_service(),
         queries=container.transcription_queries(),
     )
-    repository = container.transcription_repository()
-    await register_transcription_handlers(
-        event_bus,
-        repository,
-        media_queries,
-    )
+    # Skip EventBus handler registration; pipeline runs via Celery tasks
     return module
 
 
