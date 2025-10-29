@@ -7,6 +7,7 @@ from sqlalchemy import Column, String, DateTime, Enum, Integer, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 # FIXED: Domain should not import Infrastructure - Critical DDD violation
 from src.shared.domain.base_entity import BaseEntity
+from src.shared.infrastructure.database import Base
 
 
 class NotificationType(PyEnum):

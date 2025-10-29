@@ -1,3 +1,5 @@
 """Text analysis module (summarization, sentiment, topics)."""
 
-__all__ = []
+from .application import TextAnalysisService
+
+__all__ = ["TextAnalysisService"]

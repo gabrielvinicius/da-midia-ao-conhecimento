@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependency_injector import providers
 
+from src.admin.adapters import MediaManagementAdapter, UserManagementAdapter
+from src.admin.application.facade import AdminFacade, is_admin_facade_enabled
 from src.admin.container import AdminContainer
 from src.admin.application.queries.admin_queries import AdminQueries
 from src.admin.application.services.admin_audit_service import AdminAuditService
@@ -24,6 +26,8 @@ class AdminModule:
     audit_service: AdminAuditService
     user_service: AdminUserService
     media_service: AdminMediaService
+    facade: AdminFacade
+    facade_enabled: bool
 
 
 def build_admin_module(
@@ -39,9 +43,37 @@ def build_admin_module(
     container.delete_media_handler.override(providers.Object(delete_media_handler))
     container.reprocess_media_handler.override(providers.Object(reprocess_media_handler))
 
+    admin_queries = container.admin_queries()
+    audit_service = container.admin_audit_service()
+    user_service = container.admin_user_service()
+    media_service = container.admin_media_service()
+
+    user_adapter = UserManagementAdapter(
+        auth_queries=auth_queries,
+        admin_user_service=user_service,
+    )
+    media_adapter = MediaManagementAdapter(
+        media_queries=media_queries,
+        admin_media_service=media_service,
+    )
+    facade_enabled = is_admin_facade_enabled()
+    facade = AdminFacade(
+        admin_queries=admin_queries,
+        audit_service=audit_service,
+        auth_queries=auth_queries,
+        media_queries=media_queries,
+        admin_user_service=user_service,
+        admin_media_service=media_service,
+        user_adapter=user_adapter,
+        media_adapter=media_adapter,
+        enabled=facade_enabled,
+    )
+
     return AdminModule(
-        admin_queries=container.admin_queries(),
-        audit_service=container.admin_audit_service(),
-        user_service=container.admin_user_service(),
-        media_service=container.admin_media_service(),
+        admin_queries=admin_queries,
+        audit_service=audit_service,
+        user_service=user_service,
+        media_service=media_service,
+        facade=facade,
+        facade_enabled=facade_enabled,
     )

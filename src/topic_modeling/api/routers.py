@@ -8,7 +8,12 @@ from src.auth.domain.user import User
 from src.media_management.application.queries.media_queries import MediaQueries # Manter por enquanto, mas idealmente injetar via container
 from src.transcription.application.queries.transcription_queries import TranscriptionQueries # Manter por enquanto, mas idealmente injetar via container
 
-from .dependencies import get_topic_modeling_service, get_analyze_topics_command_handler
+from .dependencies import (
+    get_analyze_topics_command_handler,
+    get_media_queries,
+    get_topic_modeling_service,
+    get_transcription_queries,
+)
 from .schemas import TopicModelingResponse
 from src.topic_modeling.application.topic_modeling_service import TopicModelingService
 from src.topic_modeling.application.commands.commands import AnalyzeTopicsCommand
@@ -45,6 +50,7 @@ async def analyze_topics(
     provider: str = Form("bertopic_placeholder", description="Provider to use for topic modeling"), # Adicionar provider
     language: str = Form("en", description="Language of the text"), # Adicionar language
     options: Optional[Dict[str, Any]] = Form(None, description="Additional options for topic modeling"), # Adicionar options
+    *,
     current_user: User = Depends(get_current_user),
     analyze_topics_handler: Annotated[AnalyzeTopicsCommandHandler, Depends(get_analyze_topics_command_handler)],
 ):
@@ -88,6 +94,7 @@ async def reprocess_topic_modeling(
     provider: Optional[str] = Form(None, description="Provider to use for topic modeling"),
     language: str = Form("en", description="Language of the text"),
     force: bool = Form(False, description="Force reprocessing"),
+    *,
     current_user: User = Depends(get_current_user),
     analyze_topics_handler: Annotated[AnalyzeTopicsCommandHandler, Depends(get_analyze_topics_command_handler)],
     media_queries: MediaQueries = Depends(get_media_queries), # Manter por enquanto

@@ -1,4 +1,8 @@
 # src/video_processing/infrastructure/task_scheduler.py
+from typing import Any
+
+import structlog
+
 from src.media_processing.tasks import process_video_task
 
 logger = structlog.get_logger(__name__)

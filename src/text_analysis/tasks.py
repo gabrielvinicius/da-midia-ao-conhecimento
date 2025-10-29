@@ -19,11 +19,6 @@ from src.summarization.domain.summary import Summary # Will be refactored
 from src.summarization.infrastructure.summarization_repository import SummarizationRepository # Will be refactored
 from src.summarization.infrastructure.summarizer import TextRankSummarizer # Will be refactored
 
-# Imports for sentiment analysis tasks
-from src.sentiment_analysis.application.sentiment_analysis_service import SentimentAnalysisService # Will be refactored
-from src.sentiment_analysis.infrastructure.sentiment_analyzer import HuggingFaceSentimentAnalyzer # Will be refactored
-from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import SentimentAnalysisRepository # Will be refactored
-
 # Imports for topic modeling tasks
 from src.topic_modeling.domain.topic_modeling import TopicModelingResult # Will be refactored
 from src.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository # Will be refactored
@@ -260,8 +255,18 @@ async def _run_sentiment_analysis(
 ) -> Optional[Dict[str, Any]]:
     start_time = time.perf_counter()
     # TODO: Resolve dependencies via DI container later
-    analyzer = HuggingFaceSentimentAnalyzer() # Placeholder, will be dynamic
-    repository = SentimentAnalysisRepository() # Placeholder, will be dynamic
+    from src.sentiment_analysis.application.sentiment_analysis_service import (
+        SentimentAnalysisService,
+    )  # local import to avoid circular dependency
+    from src.sentiment_analysis.infrastructure.sentiment_analyzer import (
+        HuggingFaceSentimentAnalyzer,
+    )
+    from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
+        SentimentAnalysisRepository,
+    )
+
+    analyzer = HuggingFaceSentimentAnalyzer()  # Placeholder, will be dynamic
+    repository = SentimentAnalysisRepository()  # Placeholder, will be dynamic
     service = SentimentAnalysisService(analyzer=analyzer, repository=repository)
 
     logger.info("sentiment_analysis.started", transcription_id=transcription_id, provider=provider)

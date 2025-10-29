@@ -48,6 +48,7 @@ async def list_providers(
     provider_type: Optional[ProviderType] = Query(None, description="Filter by provider type"),
     capability: Optional[ProviderCapability] = Query(None, description="Filter by capability"),
     active_only: bool = Query(True, description="Only return active providers"),
+    *,
     provider_registry: Annotated[IProviderRegistry, Depends(get_provider_registry)],
     current_user: User = Depends(get_current_user),
 ):

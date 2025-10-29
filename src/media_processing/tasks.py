@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, cast
 from uuid import UUID
 import time
 
@@ -10,14 +10,19 @@ import structlog
 from celery import shared_task
 
 from src.shared.infrastructure.database import get_db
-from src.transcription.bootstrap import TranscriptionContainer # Will be refactored
-from src.transcription.domain.transcription import Transcription # Will be refactored
-from src.transcription.infrastructure.transcription_repository import TranscriptionRepository # Will be refactored
-
-# Imports for video processing task
-from src.video_processing.infrastructure.video_audio_extractor import FFmpegVideoAudioExtractor # Will be refactored
-from src.video_processing.infrastructure.video_thumbnail_generator import FFmpegVideoThumbnailGenerator # Will be refactored
-from src.shared.infrastructure.storage.s3_storage_service import S3StorageService # Will be refactored
+if TYPE_CHECKING:
+    from src.transcription.bootstrap import TranscriptionContainer  # pragma: no cover
+    from src.transcription.domain.transcription import Transcription  # pragma: no cover
+    from src.transcription.infrastructure.transcription_repository import (  # pragma: no cover
+        TranscriptionRepository,
+    )
+    from src.video_processing.infrastructure.video_audio_extractor import (  # pragma: no cover
+        FFmpegVideoAudioExtractor,
+    )
+    from src.video_processing.infrastructure.video_thumbnail_generator import (  # pragma: no cover
+        FFmpegVideoThumbnailGenerator,
+    )
+    from src.shared.infrastructure.storage.s3_storage_service import S3StorageService  # pragma: no cover
 
 
 logger = structlog.get_logger(__name__)
@@ -27,6 +32,8 @@ def placeholder_media_processing_task():
     """Placeholder task for media processing."""
     pass
 
+# Backward compatibility: some modules still import process_media_task explicitly
+process_media_task = placeholder_media_processing_task
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
 def process_transcription_task(
         self,
@@ -57,6 +64,13 @@ async def _run_transcription(
     transcription_provider: str,
     language: str,
 ) -> Optional[str]:
+    # Lazy imports to avoid circular dependency during module import
+    from src.transcription.bootstrap import TranscriptionContainer  # Will be refactored
+    from src.transcription.domain.transcription import Transcription  # Will be refactored
+    from src.transcription.infrastructure.transcription_repository import (  # Will be refactored
+        TranscriptionRepository,
+    )
+
     media_uuid = UUID(media_id)
     async for db in get_db():
         container = TranscriptionContainer(db=db)
@@ -131,6 +145,15 @@ async def _run_video_processing(
     file_path: str,
     storage_provider: str,
 ) -> Optional[Dict[str, Any]]:
+    # Lazy imports to avoid loading heavy dependencies before they are needed
+    from src.video_processing.infrastructure.video_audio_extractor import (  # Will be refactored
+        FFmpegVideoAudioExtractor,
+    )
+    from src.video_processing.infrastructure.video_thumbnail_generator import (  # Will be refactored
+        FFmpegVideoThumbnailGenerator,
+    )
+    from src.shared.infrastructure.storage.s3_storage_service import S3StorageService  # Will be refactored
+
     start_time = time.monotonic()
     success = False
     error = None

@@ -1,3 +1,5 @@
 """Media processing module (consolidated tasks and services)."""
 
-__all__ = []
+from .application import MediaProcessingService
+
+__all__ = ["MediaProcessingService"]

@@ -68,6 +68,7 @@ async def reprocess_summarization(
     provider: Optional[str] = Form(None, description="Provider to use for summarization"),
     # max_length: Optional[int] = Form(None, description="Maximum summary length"), # Removido, pois o handler de comando deve lidar com isso
     # force: bool = Form(False, description="Force reprocessing even if already completed"), # Removido, pois o handler de comando deve lidar com isso
+    *,
     current_user: User = Depends(get_current_user),
     summarization_service: Annotated[SummarizationService, Depends(get_summarization_service)],
     media_queries: MediaQueries = Depends(get_media_queries), # Manter por enquanto
