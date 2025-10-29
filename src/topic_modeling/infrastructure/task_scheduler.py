@@ -2,6 +2,8 @@
 import structlog
 from typing import Dict, Any, Optional
 
+from src.text_analysis.tasks import process_topic_modeling_task
+
 logger = structlog.get_logger(__name__)
 
 class CeleryTopicModelingTaskScheduler:
@@ -14,19 +16,15 @@ class CeleryTopicModelingTaskScheduler:
             provider=provider,
             language=language
         )
-        # Placeholder para chamar a tarefa Celery real
-        # task = analyze_topics_task.delay(
-        #     media_id=media_id,
-        #     text_content=text_content,
-        #     provider=provider,
-        #     language=language
-        # )
-        # logger.info(
-        #     "celery_task_scheduler.topic_modeling_task_scheduled",
-        #     media_id=media_id,
-        #     task_id=task.id
-        # )
-        # return {"task_id": task.id}
-        
-        # Retorno placeholder para compilação
-        return {"task_id": f"mock_task_id_{media_id}"}
+        task = process_topic_modeling_task.delay(
+            media_id=media_id,
+            text_content=text_content,
+            provider=provider,
+            language=language
+        )
+        logger.info(
+            "celery_task_scheduler.topic_modeling_task_scheduled",
+            media_id=media_id,
+            task_id=task.id
+        )
+        return {"task_id": task.id}

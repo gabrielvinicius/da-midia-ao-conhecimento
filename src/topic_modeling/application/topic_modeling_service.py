@@ -36,91 +36,24 @@ class TopicModelingService:
         self.logger = topic_logger
         self.metrics = topic_metrics
 
-    async def analyze_topics(self, media_id: UUID, text_content: str, provider: str, language: str, options: Optional[Dict[str, Any]] = None) -> TopicModelingResult:
-        """Performs topic modeling on text content and saves the result."""
-        start_time = time.monotonic()
-        success = False
-        error = None
-        result_id = None
-        num_topics = 0
-
-        logger.info("topic_modeling.analyze.started", media_id=str(media_id), provider=provider)
-        try:
-            # 1. Perform topic modeling
-            modeling_data = await self.modeler.model_topics(
-                text_content=text_content,
-                language=language,
-                options=options
-            )
-            num_topics = modeling_data.get("num_topics", 0)
-
-            # 2. Create or update TopicModelingResult entity
-            existing_result = await self.repo.get_by_media_id(media_id)
-
-            if existing_result:
-                existing_result.mark_as_completed(modeling_data.get("topics", {}))
-                await self.repo.update(existing_result)
-                topic_result = existing_result
-            else:
-                topic_result = TopicModelingResult.create(
-                    media_id=media_id,
-                    provider=provider
-                )
-                topic_result.mark_as_completed(modeling_data.get("topics", {}))
-                await self.repo.add(topic_result)
-            
-            result_id = topic_result.id
-            success = True
-
-            logger.info("topic_modeling.analyze.completed", media_id=str(media_id), result_id=str(result_id))
-            return topic_result
-
-        except Exception as e:
-            error = e
-            logger.error("topic_modeling.analyze.failed", media_id=str(media_id), error=str(e))
-            raise
-        finally:
-            duration = time.monotonic() - start_time
-            await self.logger.log_operation(
-                operation="analyze_topics",
-                media_id=str(media_id),
-                provider=provider,
-                success=success,
-                duration=duration,
-                error=error
-            )
-            await self.metrics.record_operation(
-                operation="analyze_topics",
-                provider=provider,
-                duration=duration,
-                success=success,
-                input_text_length_chars=len(text_content),
-                num_topics=num_topics
-            )
-
     async def request_topic_analysis(self, media_id: UUID, text_content: str, provider: str, language: str) -> Dict[str, Any]:
         """Requests the topic analysis of a text for a given media item by scheduling a task."""
         logger.info("topic_modeling.request.started", media_id=str(media_id), provider=provider)
         try:
-            # In a real scenario, this would schedule an async task.
-            # For now, we'll call the analysis directly.
-            topic_result = await self.analyze_topics(media_id, text_content, provider, language)
+            task_result = await self.task_scheduler.schedule_topic_modeling_task(
+                media_id=str(media_id),
+                text_content=text_content,
+                provider=provider,
+                language=language
+            )
             
-            logger.info("topic_modeling.request.completed", media_id=str(media_id), result_id=str(topic_result.id))
+            logger.info("topic_modeling.request.completed", media_id=str(media_id), task_id=task_result.get("task_id"))
             return {
                 "success": True,
                 "media_id": str(media_id),
-                "result_id": str(topic_result.id),
-                "message": "Topic analysis completed directly (or scheduled)"
+                "task_id": task_result.get("task_id"),
+                "message": "Topic analysis task scheduled successfully"
             }
         except Exception as e:
             logger.error("topic_modeling.request.failed", media_id=str(media_id), error=str(e))
             raise
-
-    async def get_topic_modeling_result(self, media_id: UUID) -> Optional[TopicModelingResult]:
-        """Retrieves a topic modeling result by its associated media ID."""
-        return await self.repo.get_by_media_id(media_id)
-
-    async def get_topic_modeling_result_by_id(self, result_id: UUID) -> Optional[TopicModelingResult]:
-        """Retrieves a topic modeling result by its ID."""
-        return await self.repo.get_by_id(result_id)

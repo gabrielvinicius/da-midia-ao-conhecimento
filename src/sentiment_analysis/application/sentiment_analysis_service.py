@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any, Dict, Optional
 
+from src.sentiment_analysis.infrastructure.task_scheduler import CelerySentimentAnalysisTaskScheduler
 
 class SentimentAnalysisService:
     """High-level service coordinating sentiment analysis operations."""
@@ -14,11 +15,13 @@ class SentimentAnalysisService:
         *,
         analyzer: Any,
         repository: Any,
+        sentiment_analysis_task_scheduler: CelerySentimentAnalysisTaskScheduler,
         logger: Any = None,
         metrics: Any = None,
     ) -> None:
         self._analyzer = analyzer
         self._repository = repository
+        self._task_scheduler = sentiment_analysis_task_scheduler
         self._logger = logger
         self._metrics = metrics
 
@@ -32,62 +35,20 @@ class SentimentAnalysisService:
         media_id: Optional[str] = None,
         language: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Run sentiment analysis using the configured provider."""
-
-        start_time = time.perf_counter()
-        self._log("sentiment_analysis.started", transcription_id=transcription_id, provider=provider)
-
-        try:
-            payload = await self._analyzer.analyze(
-                text=text,
-                provider=provider,
-                model=model,
-                language=language,
-            )
-        except Exception as exc:  # pragma: no cover - defensive
-            self._log(
-                "sentiment_analysis.failed",
-                level="error",
-                transcription_id=transcription_id,
-                provider=provider,
-                error=str(exc),
-            )
-            raise
-
-        duration = time.perf_counter() - start_time
-        payload.setdefault("provider", provider)
-        payload.setdefault("model", model)
-        payload.setdefault("media_id", media_id)
-        payload.setdefault("processing_time", duration)
-
-        self._record_metrics(provider=provider, duration=duration, success=True)
-        self._log(
-            "sentiment_analysis.completed",
+        """Requests sentiment analysis by scheduling a task."""
+        self._log("sentiment_analysis.request.started", transcription_id=transcription_id, provider=provider)
+        task_result = await self._task_scheduler.schedule_sentiment_analysis_task(
             transcription_id=transcription_id,
+            text=text,
             provider=provider,
-            duration=duration,
+            model=model,
+            media_id=media_id,
+            language=language
         )
-
-        return payload
-
-    def _log(self, event: str, level: str = "info", **kwargs: Any) -> None:
-        if not self._logger:
-            return
-        log_method = getattr(self._logger, level, None)
-        if callable(log_method):
-            log_method(event, **kwargs)
-
-    def _record_metrics(self, *, provider: str, duration: float, success: bool) -> None:
-        if not self._metrics:
-            return
-        if hasattr(self._metrics, "record_operation"):
-            self._metrics.record_operation(
-                operation="analyze_sentiment",
-                provider=provider,
-                duration=duration,
-                success=success,
-            )
-
-
-__all__ = ["SentimentAnalysisService"]
-
+        self._log("sentiment_analysis.request.completed", transcription_id=transcription_id, task_id=task_result.get("task_id"))
+        return {
+            "success": True,
+            "transcription_id": transcription_id,
+            "task_id": task_result.get("task_id"),
+            "message": "Sentiment analysis task scheduled successfully"
+        }
