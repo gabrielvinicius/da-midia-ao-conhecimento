@@ -36,68 +36,22 @@ class VideoProcessingService:
         # self.logger = video_processing_logger # Placeholder
         # self.metrics = video_processing_metrics # Placeholder
 
-    async def process_video(self, media_id: UUID, file_path: str, storage_provider: str) -> Dict[str, Any]:
-        """Processes a video file by extracting audio and generating a thumbnail."""
-        start_time = time.monotonic()
-        success = False
-        error = None
-
-        logger.info("video_processing.process.started", media_id=str(media_id), file_path=file_path)
-        try:
-            # 1. Download the video file
-            video_data = await self.storage.download_file(file_path)
-            
-            # 2. Extract audio
-            audio_result = await self.audio_extractor.extract_audio(
-                video_data=video_data,
-                filename=file_path,
-                output_format='wav'
-            )
-            
-            # 3. Generate thumbnail
-            thumbnail_result = await self.thumbnail_generator.generate_thumbnail(
-                video_data=video_data,
-                filename=file_path,
-                size='medium',
-                timestamp=5.0
-            )
-            
-            success = True
-            logger.info("video_processing.process.completed", media_id=str(media_id))
-            return {
-                "success": True,
-                "media_id": str(media_id),
-                "audio_extraction_result": audio_result,
-                "thumbnail_generation_result": thumbnail_result,
-                "message": "Video processed successfully"
-            }
-        except Exception as e:
-            error = e
-            logger.error("video_processing.process.failed", media_id=str(media_id), error=str(e))
-            raise
-        finally:
-            duration = time.monotonic() - start_time
-            # TODO: Adicionar logging e métricas aqui
-            # await self.logger.log_operation(...) # Placeholder
-            # await self.metrics.record_operation(...) # Placeholder
-
     async def request_video_processing(self, media_id: UUID, file_path: str, storage_provider: str) -> Dict[str, Any]:
         """Requests the processing of a video for a given media item by scheduling a task."""
         logger.info("video_processing.request.started", media_id=str(media_id), file_path=file_path)
         try:
-            # In a real scenario, this would schedule an async task.
-            # For now, we'll call the processing directly.
-            processing_result = await self.process_video(media_id, file_path, storage_provider)
+            task_result = await self.task_scheduler.schedule_process_video_task(
+                media_id=str(media_id),
+                file_path=file_path
+            )
             
-            logger.info("video_processing.request.completed", media_id=str(media_id))
+            logger.info("video_processing.request.completed", media_id=str(media_id), task_id=task_result.get("task_id"))
             return {
                 "success": True,
                 "media_id": str(media_id),
-                "message": "Video processing completed directly (or scheduled)"
+                "task_id": task_result.get("task_id"),
+                "message": "Video processing task scheduled successfully"
             }
         except Exception as e:
             logger.error("video_processing.request.failed", media_id=str(media_id), error=str(e))
             raise
-
-    # TODO: Adicionar outros métodos de serviço conforme necessário
-    # Ex: get_video_processing_status, get_video_metadata, etc.

@@ -3,7 +3,7 @@ from typing import Any
 
 import structlog
 
-from src.transcription.tasks.tasks import process_transcription_task
+from src.media_processing.tasks import process_transcription_task
 
 logger = structlog.get_logger(__name__)
 
