@@ -77,6 +77,9 @@ class CreateMediaCommandHandler:
         media_repository: Any,
         storage_service_factory: Any,
         metrics_service: Any,
+        *,
+        event_bus: Any = None,
+        emit_legacy_task: bool = True,
     ) -> "CreateMediaCommandHandler":
         """Build a handler with the default component implementations."""
 
@@ -88,7 +91,10 @@ class CreateMediaCommandHandler:
             metadata_mapper=DefaultUploadMetadataMapper(),
             side_effect_publisher=DefaultMediaUploadSideEffectPublisher(
                 metrics_publisher=DefaultMediaMetricsPublisher(metrics_service=metrics_service),
-                event_publisher=DefaultMediaEventPublisher(),
+                event_publisher=DefaultMediaEventPublisher(
+                    event_bus=event_bus,
+                    emit_legacy_task=emit_legacy_task,
+                ),
             ),
             file_validator=FileSizeMediaFileValidator(
                 min_size_bytes=cls.MIN_FILE_SIZE_BYTES,

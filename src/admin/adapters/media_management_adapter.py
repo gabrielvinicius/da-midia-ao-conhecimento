@@ -6,7 +6,7 @@ from typing import Optional
 from uuid import UUID
 
 from src.auth.domain.user import User
-from src.media_management.application.queries.media_queries import MediaQueries
+from src.media_management.application.facade import MediaManagementFacade
 from src.admin.application.services.admin_media_service import AdminMediaService
 
 
@@ -14,7 +14,7 @@ from src.admin.application.services.admin_media_service import AdminMediaService
 class MediaManagementAdapter:
     """Wrapper around media queries and admin media service used by the façade."""
 
-    media_queries: MediaQueries
+    media_facade: MediaManagementFacade
     admin_media_service: AdminMediaService
 
     async def list_media(
@@ -24,7 +24,11 @@ class MediaManagementAdapter:
         limit: int,
         search: Optional[str],
     ):
-        return await self.media_queries.list_all(page=page, limit=limit, search=search)
+        return await self.media_facade.list_media(
+            page=page,
+            limit=limit,
+            search=search,
+        )
 
     async def delete_media(self, *, media_id: UUID, admin_user: User) -> None:
         await self.admin_media_service.delete_media(media_id, admin_user)

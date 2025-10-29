@@ -1,5 +1,7 @@
 from dataclasses import dataclass
-from typing import Any, Tuple
+from typing import Any, Tuple, Optional
+
+from src.shared.events.bus import SupportsEventBus
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +14,7 @@ from src.media_management.application.commands.handlers import (
 )
 from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.application.queries.media_queries import MediaQueries
+from src.media_management.application.facade import MediaManagementFacade
 from src.media_management.application.services import (
     MediaLifecycleService,
     MediaQueryService,
@@ -32,6 +35,8 @@ class MediaModule:
     upload_service: MediaUploadService
     lifecycle_service: MediaLifecycleService
     query_service: MediaQueryService
+    facade: MediaManagementFacade
+    access_policy: MediaAccessPolicy
 
 
 @dataclass
@@ -48,6 +53,8 @@ def build_media_components(
     *,
     storage_service_factory: Any,
     metrics_service: Any,
+    event_bus: Optional[SupportsEventBus] = None,
+    emit_legacy_media_task: bool = True,
 ) -> Tuple[MediaModule, MediaAdminContext]:
     """Compose the media module without relying on dependency-injector."""
 
@@ -61,6 +68,8 @@ def build_media_components(
         media_repository=media_repository,
         storage_service_factory=storage_service_factory,
         metrics_service=metrics_service,
+        event_bus=event_bus,
+        emit_legacy_task=emit_legacy_media_task,
     )
 
     delete_media_handler = DeleteMediaCommandHandler(
@@ -94,11 +103,23 @@ def build_media_components(
         access_policy=media_access_policy,
     )
 
+    facade = MediaManagementFacade(
+        queries=media_queries,
+        upload_service=media_upload_service,
+        lifecycle_service=media_lifecycle_service,
+        query_service=media_query_service,
+        access_policy=media_access_policy,
+        delete_media_handler=delete_media_handler,
+        reprocess_media_handler=reprocess_media_handler,
+    )
+
     module = MediaModule(
         queries=media_queries,
         upload_service=media_upload_service,
         lifecycle_service=media_lifecycle_service,
         query_service=media_query_service,
+        facade=facade,
+        access_policy=media_access_policy,
     )
 
     admin_context = MediaAdminContext(
