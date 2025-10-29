@@ -2,7 +2,7 @@
 # Agent Orchestrator Protocol
 
 **DIRECTIVE**: AI Agents must follow these instructions when collaborating through the orchestrator
-**APPLIES TO**: Claude Code, Codex CLI, and all future agents
+**APPLIES TO**: Gemini, Codex CLI, and all future agents
 **ENFORCEMENT**: Users will provide these instructions at session start
 
 ---
@@ -121,10 +121,10 @@ Critical keyword detected
 
 #### Agent Assignment Signals
 ```
-"ask Codex" / "ask Claude"
-"Codex, ..." / "Claude, ..."
-"have Codex" / "have Claude"
-"get Codex to" / "get Claude to"
+"ask Codex" / "ask Gemini"
+"Codex, ..." / "Gemini, ..."
+"have Codex" / "have Gemini"
+"get Codex to" / "get Gemini to"
 ```
 **ACTION**: Use `assign_task`, set `assignToAgent` directive
 
@@ -194,7 +194,7 @@ Critical keyword detected
 
 ```json
 {
-  "agentId": "claude-code"  // Optional, defaults to you
+  "agentId": "gemini"  // Optional, defaults to you
 }
 ```
 
@@ -415,7 +415,7 @@ Directives are internal routing controls that agents set based on user intent de
 | `forceConsensus` | consensus tasks | Force multi-agent collaboration | "get {agent}'s input", "need consensus", "want {agent} to review" |
 | `preventConsensus` | consensus tasks | Override consensus requirement | "skip consensus", "no review needed" (use with emergency) |
 | `skipConsensus` | simple tasks | Bypass consensus for simple work | "solo", "just do it", "quick fix" |
-| `assignToAgent` | all task types | Route to specific agent | "ask Codex", "have Claude", "Codex, please..." |
+| `assignToAgent` | all task types | Route to specific agent | "ask Codex", "have Gemini", "Codex, please..." |
 | `isEmergency` | all task types | Flag for immediate execution + audit | "production down", "NOW", "hotfix", "urgent" |
 | `immediate` | all task types | Alias for isEmergency | "ASAP", "immediate", "right now" |
 | `originalText` | all task types | Preserve exact user wording | Auto-populated with user's request verbatim |
@@ -485,7 +485,7 @@ Directives are internal routing controls that agents set based on user intent de
 - **Set when**: User names a specific agent for the task
 - **Example**: "Ask Codex to design the schema" → Direct agent call-out
 - **Effect**: Routes to specified agent; other agents won't be considered
-- **Values**: `"claude-code"`, `"codex-cli"`, or other configured agent IDs
+- **Values**: `"gemini"`, `"codex-cli"`, or other configured agent IDs
 
 #### `isEmergency` / `immediate`
 - **Set when**: Production issues, critical bugs, time-sensitive fixes
@@ -659,7 +659,7 @@ Response: [
 You tell user:
   "Found 1 pending task:
    📋 Task #456: OAuth2 Authentication System
-      Requested by: Claude Code
+      Requested by: Gemini
       Needs: Architectural plan
 
    Would you like me to analyze this task?"
