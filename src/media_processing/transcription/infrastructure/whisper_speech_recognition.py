@@ -11,7 +11,7 @@ import resampy
 import logging
 
 
-from src.transcription.infrastructure.dependencies import register_speech_recognition
+from src.media_processing.transcription.infrastructure.dependencies import register_speech_recognition
 
 logger = logging.getLogger(__name__)
 

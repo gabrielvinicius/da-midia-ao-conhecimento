@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 import numpy as np
 import asyncio
-from src.transcription.infrastructure.speech_recognition import WhisperTranscriber
+from src.media_processing.transcription.infrastructure.speech_recognition import WhisperTranscriber
 
 
 @pytest.mark.asyncio

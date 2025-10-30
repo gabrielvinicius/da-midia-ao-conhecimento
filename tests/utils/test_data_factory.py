@@ -10,7 +10,7 @@ import random
 
 from src.auth.domain.user import User, UserRole
 from src.media_management.domain.media import Media, MediaType, MediaStatus
-from src.transcription.domain.transcription import Transcription, TranscriptionStatus
+from src.media_processing.transcription.domain.transcription import Transcription, TranscriptionStatus
 from src.summarization.domain.summary import Summary
 from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysisResult
 from src.topic_modeling.domain.topic_modeling import TopicModelingResult

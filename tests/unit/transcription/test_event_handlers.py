@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock
 
 from src.media_management.domain.enums import MediaType
 from src.shared.events.domain_events import AudioExtracted, MediaDeleted, MediaUploaded
-from src.transcription.application.event_handlers import (
+from src.media_processing.transcription.application.event_handlers import (
     DEFAULT_TRANSCRIPTION_PROVIDER,
     register_event_handlers,
 )

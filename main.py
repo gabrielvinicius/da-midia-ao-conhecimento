@@ -56,12 +56,7 @@ try:  # noqa: SIM105 - optional module during refactor
     from src.topic_modeling.bootstrap import build_topic_modeling_module
 except Exception:  # pragma: no cover
     build_topic_modeling_module = None  # type: ignore[assignment]
-from src.transcription.bootstrap import (
-    create_transcription_container,
-    build_transcription_module,
-)
 from src.user_management.bootstrap import build_user_management_module
-from src.video_processing.bootstrap import build_video_processing_module
 
 # Ensure Celery app is importable during API startup
 try:  # noqa: SIM105 - best-effort import
@@ -79,7 +74,7 @@ try:  # noqa: SIM105 - optional router during refactor
     from src.summarization.api.routers import router as summary_router
 except Exception:  # pragma: no cover
     summary_router = None
-from src.transcription.api.routers import router as transcription_router
+from src.media_processing.transcription.api.routers import router as transcription_router
 from src.media_management.api.routers import router as media_router
 try:  # noqa: SIM105 - optional router during refactor
     from src.sentiment_analysis.api.routers import router as sentiment_router
@@ -157,11 +152,6 @@ async def lifespan(app: FastAPI):
             emit_legacy_media_task=not lightweight_mode,
         )
 
-        if not lightweight_mode and build_video_processing_module is not None:
-            video_module = await build_video_processing_module(session)
-        else:
-            video_module = SimpleNamespace(service=None)
-
         if build_text_processing_module is not None and not lightweight_mode:
             text_module = await build_text_processing_module(session)
         else:
@@ -170,12 +160,6 @@ async def lifespan(app: FastAPI):
                 error=str(_text_processing_import_error) if _text_processing_import_error else None,
             )
             text_module = SimpleNamespace(service=None, task_scheduler=None)
-
-        transcription_container = create_transcription_container(session)
-        transcription_module = await build_transcription_module(
-            transcription_container,
-            media_queries=media_module.queries,
-        )
 
         if not lightweight_mode:
             notification_module = await build_notification_module(
@@ -208,7 +192,7 @@ async def lifespan(app: FastAPI):
         if build_sentiment_analysis_module is not None and not lightweight_mode:
             sentiment_module = await build_sentiment_analysis_module(
                 session=session,
-                transcription_queries=transcription_module.queries,
+                transcription_queries=media_module.transcription_queries,
                 connection_manager=manager,
                 metrics_service=monitoring_module.metrics_service,
             )
@@ -225,7 +209,7 @@ async def lifespan(app: FastAPI):
             topic_module = await build_topic_modeling_module(
                 session=session,
                 media_queries=media_module.queries,
-                transcription_queries=transcription_module.queries,
+                transcription_queries=media_module.transcription_queries,
             )
         else:
             if build_topic_modeling_module is None:
@@ -247,7 +231,6 @@ async def lifespan(app: FastAPI):
             auth=auth_module,
             monitoring=monitoring_module,
             media=media_module,
-            transcription=transcription_module,
             notifications=notification_module,
             summarization=summarization_module,
             providers=providers_module,

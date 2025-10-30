@@ -6,17 +6,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
 # Consolidated Service
-from src.video_processing.application.video_processing_service import (
+from src.media_processing.video_processing.application.video_processing_service import (
     VideoProcessingService,
 )
-from src.video_processing.infrastructure.task_scheduler import (
+from src.media_processing.video_processing.infrastructure.task_scheduler import (
     CeleryVideoProcessingTaskScheduler,
 )
 # Concrete Implementations
-from src.video_processing.infrastructure.video_audio_extractor import (
+from src.media_processing.video_processing.infrastructure.video_audio_extractor import (
     FFmpegVideoAudioExtractor,
 )
-from src.video_processing.infrastructure.video_thumbnail_generator import (
+from src.media_processing.video_processing.infrastructure.video_thumbnail_generator import (
     FFmpegVideoThumbnailGenerator,
 )
 

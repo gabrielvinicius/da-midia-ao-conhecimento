@@ -7,7 +7,7 @@ from uuid import UUID
 
 import structlog
 
-from src.transcription.application.services.fastwhisper_service import fastwhisper_service
+from src.media_processing.transcription.application.services.fastwhisper_service import fastwhisper_service
 from ..application.services.video_orchestrator import video_orchestrator
 
 # EventBus/unified events removidos. Usar logs/retornos em vez de publicação.

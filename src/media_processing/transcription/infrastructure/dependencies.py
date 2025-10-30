@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict
 
-from src.transcription.infrastructure.speech_recognizer import WhisperSpeechRecognizer
-from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
+from src.media_processing.transcription.infrastructure.speech_recognizer import WhisperSpeechRecognizer
+from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
 
 _SPEECH_RECOGNIZERS: Dict[str, Callable[[], Any]] = {}
 

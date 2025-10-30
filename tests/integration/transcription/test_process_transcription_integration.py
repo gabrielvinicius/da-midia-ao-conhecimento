@@ -9,10 +9,10 @@ from src.media_management.domain.media import Media, MediaType, MediaStatus
 from src.media_management.infrastructure.orm.media_entity import MediaEntity
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.application.queries.media_queries import MediaQueries
-from src.transcription.domain.transcription import Transcription
-from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
-from src.transcription.application.commands.process_transcription_command import ProcessTranscriptionCommand
-from src.transcription.application.commands.process_transcription_command_handler import ProcessTranscriptionCommandHandler
+from src.media_processing.transcription.domain.transcription import Transcription
+from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
+from src.media_processing.transcription.application.commands.process_transcription_command import ProcessTranscriptionCommand
+from src.media_processing.transcription.application.commands.process_transcription_command_handler import ProcessTranscriptionCommandHandler
 
 pytestmark = pytest.mark.integration
 

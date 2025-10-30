@@ -6,17 +6,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
-from src.transcription.application.queries import TranscriptionQueries
+from src.media_processing.transcription.application.queries import TranscriptionQueries
 # Consolidated Service
-from src.transcription.application.transcription_service import TranscriptionService
-from src.transcription.infrastructure.logging import StructuredTranscriptionLogger
-from src.transcription.infrastructure.metrics import PrometheusTranscriptionMetrics
+from src.media_processing.transcription.application.transcription_service import TranscriptionService
+from src.media_processing.transcription.infrastructure.logging import StructuredTranscriptionLogger
+from src.media_processing.transcription.infrastructure.metrics import PrometheusTranscriptionMetrics
 # Concrete Implementations
-from src.transcription.infrastructure.speech_recognizer import (
+from src.media_processing.transcription.infrastructure.speech_recognizer import (
     WhisperSpeechRecognizer,
 )
-from src.transcription.infrastructure.task_scheduler import CeleryTranscriptionTaskScheduler
-from src.transcription.infrastructure.transcription_repository import (
+from src.media_processing.transcription.infrastructure.task_scheduler import CeleryTranscriptionTaskScheduler
+from src.media_processing.transcription.infrastructure.transcription_repository import (
     TranscriptionRepository,
 )
 

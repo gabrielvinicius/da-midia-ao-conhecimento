@@ -20,10 +20,10 @@ from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import 
     SentimentAnalysisRepository,
 )
 from src.shared.infrastructure.database import get_db
-from src.transcription.application.queries.transcription_queries import (
+from src.media_processing.transcription.application.queries.transcription_queries import (
     TranscriptionQueries,
 )
-from src.transcription.infrastructure.transcription_repository import (
+from src.media_processing.transcription.infrastructure.transcription_repository import (
     TranscriptionRepository,
 )
 

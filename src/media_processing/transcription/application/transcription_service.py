@@ -4,7 +4,7 @@ from uuid import UUID
 
 import structlog
 
-from src.transcription.domain.transcription import Transcription
+from src.media_processing.transcription.domain.transcription import Transcription
 
 logger = structlog.get_logger(__name__)
 

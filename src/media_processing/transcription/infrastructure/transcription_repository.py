@@ -4,7 +4,7 @@ from sqlalchemy import select
 from typing import Optional
 from uuid import UUID
 
-from src.transcription.domain.transcription import Transcription
+from src.media_processing.transcription.domain.transcription import Transcription
 
 
 class TranscriptionRepository:

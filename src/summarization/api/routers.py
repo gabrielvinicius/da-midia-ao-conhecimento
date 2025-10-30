@@ -10,7 +10,7 @@ from src.shared.api.dependencies import get_current_user
 from src.shared.api.unified_schemas import BaseResponseSchema, create_error_response, create_success_response
 from src.summarization.application.summarization_service import SummarizationService
 from src.summarization.domain.summary import Summary
-from src.transcription.application.queries.transcription_queries import TranscriptionQueries
+from src.media_processing.transcription.application.queries.transcription_queries import TranscriptionQueries
 
 from .dependencies import (
     get_media_queries,

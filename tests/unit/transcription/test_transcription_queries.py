@@ -3,8 +3,8 @@ import pytest
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from src.transcription.application.queries.transcription_queries import TranscriptionQueries
-from src.transcription.domain.transcription import Transcription
+from src.media_processing.transcription.application.queries.transcription_queries import TranscriptionQueries
+from src.media_processing.transcription.domain.transcription import Transcription
 
 
 @pytest.fixture
@@ -17,7 +17,7 @@ async def test_get_by_id(mock_transcription_repository):
     """Tests retrieving a transcription by its ID."""
     # Arrange
     transcription_id = str(uuid4())
-    expected_transcription = Transcription(id=transcription_id, video_id=str(uuid4()))
+    expected_transcription = Transcription(id=transcription_id, media_id=str(uuid4()))
     mock_transcription_repository.find_by_id.return_value = expected_transcription
 
     queries = TranscriptionQueries(transcription_repository=mock_transcription_repository)
@@ -31,18 +31,18 @@ async def test_get_by_id(mock_transcription_repository):
 
 
 @pytest.mark.asyncio
-async def test_get_by_video_id(mock_transcription_repository):
-    """Tests retrieving a transcription by its video ID."""
+async def test_get_by_media_id(mock_transcription_repository):
+    """Tests retrieving a transcription by its media ID."""
     # Arrange
-    video_id = str(uuid4())
-    expected_transcription = Transcription(id=str(uuid4()), video_id=video_id)
-    mock_transcription_repository.find_by_video_id.return_value = expected_transcription
+    media_id = str(uuid4())
+    expected_transcription = Transcription(id=str(uuid4()), media_id=media_id)
+    mock_transcription_repository.find_by_media_id.return_value = expected_transcription
 
     queries = TranscriptionQueries(transcription_repository=mock_transcription_repository)
 
     # Act
-    result = await queries.get_by_video_id(video_id)
+    result = await queries.get_by_media_id(media_id)
 
     # Assert
     assert result == expected_transcription
-    mock_transcription_repository.find_by_video_id.assert_awaited_once_with(video_id)
+    mock_transcription_repository.find_by_media_id.assert_awaited_once_with(media_id)

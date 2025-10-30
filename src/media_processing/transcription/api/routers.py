@@ -12,8 +12,8 @@ from .dependencies import (
     get_media_queries,
 )
 from .schemas import TranscriptionResponse, SpeakerAliasesUpdateRequest
-from src.transcription.application.transcription_service import TranscriptionService
-from src.transcription.application.queries import TranscriptionQueries
+from src.media_processing.transcription.application.transcription_service import TranscriptionService
+from src.media_processing.transcription.application.queries import TranscriptionQueries
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.shared.api.unified_schemas import (
     create_success_response,

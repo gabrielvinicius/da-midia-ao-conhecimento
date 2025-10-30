@@ -12,7 +12,7 @@ from src.sentiment_analysis.application.commands.analyze_sentiment_command impor
 )
 from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysis
 from src.shared.exceptions.domain_exceptions import ProcessingError, ValidationError
-from src.transcription.domain.transcription import TranscriptionStatus
+from src.media_processing.transcription.domain.transcription import TranscriptionStatus
 
 logger = structlog.get_logger(__name__)
 

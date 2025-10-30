@@ -1,7 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Tuple, Optional
-
-from src.shared.events.bus import SupportsEventBus
+from typing import Any, Optional, Tuple
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,9 +10,9 @@ from src.media_management.application.commands.handlers import (
     DeleteMediaCommandHandler,
     ReprocessMediaCommandHandler,
 )
+from src.media_management.application.facade import MediaManagementFacade
 from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_management.application.facade import MediaManagementFacade
 from src.media_management.application.services import (
     MediaLifecycleService,
     MediaQueryService,
@@ -25,6 +23,40 @@ from src.media_management.config.settings import MediaSettings
 from src.media_management.infrastructure.logging import StructuredMediaLogger
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
+from src.media_processing.application.services import MediaProcessingService
+from src.media_processing.transcription.application.queries import (
+    TranscriptionQueries,
+)
+from src.media_processing.transcription.application.transcription_service import (
+    TranscriptionService,
+)
+from src.media_processing.video_processing.application.video_processing_service import (
+    VideoProcessingService,
+)
+from src.media_processing.transcription.infrastructure.logging import (
+    StructuredTranscriptionLogger,
+)
+from src.media_processing.transcription.infrastructure.metrics import (
+    PrometheusTranscriptionMetrics,
+)
+from src.media_processing.transcription.infrastructure.task_scheduler import (
+    CeleryTranscriptionTaskScheduler,
+)
+from src.media_processing.transcription.infrastructure.transcription_repository import (
+    TranscriptionRepository,
+)
+from src.media_processing.video_processing.infrastructure.task_scheduler import (
+    CeleryVideoProcessingTaskScheduler,
+)
+from src.media_processing.video_processing.infrastructure.video_audio_extractor import (
+    FFmpegVideoAudioExtractor,
+)
+from src.media_processing.video_processing.infrastructure.video_thumbnail_generator import (
+    FFmpegVideoThumbnailGenerator,
+)
+from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
+from src.shared.events.bus import SupportsEventBus
+from src.shared.events.domain_events import MediaUploaded, TextContentReady
 
 
 @dataclass
@@ -37,6 +69,10 @@ class MediaModule:
     query_service: MediaQueryService
     facade: MediaManagementFacade
     access_policy: MediaAccessPolicy
+    processing_service: MediaProcessingService
+    transcription_service: TranscriptionService
+    transcription_queries: TranscriptionQueries
+    video_processing_service: VideoProcessingService
 
 
 @dataclass
@@ -63,6 +99,29 @@ def build_media_components(
     media_logger = StructuredMediaLogger()
     media_metrics = PrometheusMediaMetrics()
     media_access_policy = MediaAccessPolicy()
+
+    # Consolidated processing dependencies
+    transcription_repository = TranscriptionRepository(db=session)
+    transcription_service = TranscriptionService(
+        transcription_repo=transcription_repository,
+        task_scheduler=CeleryTranscriptionTaskScheduler(),
+        transcription_logger=StructuredTranscriptionLogger(),
+        transcription_metrics=PrometheusTranscriptionMetrics(),
+    )
+    transcription_queries = TranscriptionQueries(transcription_repository=transcription_repository)
+
+    video_processing_service = VideoProcessingService(
+        video_audio_extractor=FFmpegVideoAudioExtractor(),
+        video_thumbnail_generator=FFmpegVideoThumbnailGenerator(),
+        video_processing_task_scheduler=CeleryVideoProcessingTaskScheduler(),
+        storage_service=S3StorageService(),
+    )
+
+    processing_service = MediaProcessingService(
+        transcription_service=transcription_service,
+        transcription_queries=transcription_queries,
+        video_service=video_processing_service,
+    )
 
     create_media_handler = CreateMediaCommandHandler.with_default_components(
         media_repository=media_repository,
@@ -115,6 +174,10 @@ def build_media_components(
         storage_factory=storage_service_factory,
     )
 
+    if event_bus is not None:
+        event_bus.subscribe(MediaUploaded, processing_service.handle_media_uploaded)
+        event_bus.subscribe(TextContentReady, processing_service.handle_text_content_ready)
+
     module = MediaModule(
         queries=media_queries,
         upload_service=media_upload_service,
@@ -122,6 +185,10 @@ def build_media_components(
         query_service=media_query_service,
         facade=facade,
         access_policy=media_access_policy,
+        processing_service=processing_service,
+        transcription_service=transcription_service,
+        transcription_queries=transcription_queries,
+        video_processing_service=video_processing_service,
     )
 
     admin_context = MediaAdminContext(

@@ -10,12 +10,12 @@ import asyncio
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 
-from src.transcription.domain.transcription import Transcription, TranscriptionStatus
-from src.transcription.infrastructure.transcription_repository import TranscriptionRepository
-from src.transcription.infrastructure.speech_recognizer import WhisperSpeechRecognizer
+from src.media_processing.transcription.domain.transcription import Transcription, TranscriptionStatus
+from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
+from src.media_processing.transcription.infrastructure.speech_recognizer import WhisperSpeechRecognizer
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
-from src.transcription.infrastructure.logging import StructuredTranscriptionLogger
-from src.transcription.infrastructure.metrics import PrometheusTranscriptionMetrics
+from src.media_processing.transcription.infrastructure.logging import StructuredTranscriptionLogger
+from src.media_processing.transcription.infrastructure.metrics import PrometheusTranscriptionMetrics
 
 logger = structlog.get_logger(__name__)
 

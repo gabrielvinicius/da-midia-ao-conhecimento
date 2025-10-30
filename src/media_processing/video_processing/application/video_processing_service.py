@@ -7,9 +7,9 @@ from typing import Dict, Any, Optional
 from uuid import UUID
 import time
 
-from src.video_processing.infrastructure.video_audio_extractor import FFmpegVideoAudioExtractor
-from src.video_processing.infrastructure.video_thumbnail_generator import FFmpegVideoThumbnailGenerator
-from src.video_processing.infrastructure.task_scheduler import CeleryVideoProcessingTaskScheduler
+from src.media_processing.video_processing.infrastructure.video_audio_extractor import FFmpegVideoAudioExtractor
+from src.media_processing.video_processing.infrastructure.video_thumbnail_generator import FFmpegVideoThumbnailGenerator
+from src.media_processing.video_processing.infrastructure.task_scheduler import CeleryVideoProcessingTaskScheduler
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
 # TODO: Adicionar logger e metrics específicos para video_processing
 

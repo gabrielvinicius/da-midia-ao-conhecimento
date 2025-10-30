@@ -9,10 +9,10 @@ from unittest.mock import AsyncMock, MagicMock, call
 import json
 from datetime import datetime
 
-from src.transcription.application.commands.process_transcription_command_handler import ProcessTranscriptionCommandHandler
-from src.transcription.application.commands.process_transcription_command import ProcessTranscriptionCommand
+from src.media_processing.transcription.application.commands.process_transcription_command_handler import ProcessTranscriptionCommandHandler
+from src.media_processing.transcription.application.commands.process_transcription_command import ProcessTranscriptionCommand
 from src.media_management.domain.media import Media, MediaType, MediaStatus
-from src.transcription.domain.transcription import Transcription, TranscriptionStatus
+from src.media_processing.transcription.domain.transcription import Transcription, TranscriptionStatus
 from src.shared.events.domain_events import TranscriptionStarted, TranscriptionCompleted, TranscriptionFailed
 from src.shared.exceptions.domain_exceptions import ValidationError, ProcessingError
 

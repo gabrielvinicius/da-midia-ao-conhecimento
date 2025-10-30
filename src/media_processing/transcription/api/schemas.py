@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 
-from src.transcription.domain.transcription import TranscriptionStatus
+from src.media_processing.transcription.domain.transcription import TranscriptionStatus
 
 
 class TranscriptionResponse(BaseModel):

@@ -5,8 +5,8 @@ from typing import Annotated
 from fastapi import Depends
 
 from src.media_management.api.dependencies import get_media_queries
-from src.transcription.application.transcription_service import TranscriptionService
-from src.transcription.application.queries import TranscriptionQueries
+from src.media_processing.transcription.application.transcription_service import TranscriptionService
+from src.media_processing.transcription.application.queries import TranscriptionQueries
 
 
 class TranscriptionDependenciesNotConfigured(RuntimeError):

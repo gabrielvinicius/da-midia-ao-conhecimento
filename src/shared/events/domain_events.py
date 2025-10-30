@@ -17,6 +17,18 @@ class DomainEvent:
     )
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def event_name(self) -> str:
+        """Convenience snake_case identifier derived from the class name."""
+
+        name = self.__class__.__name__
+        parts = []
+        for index, char in enumerate(name):
+            if char.isupper() and index > 0:
+                parts.append("_")
+            parts.append(char.lower())
+        return "".join(parts)
+
     def with_metadata(self, **extra: Any) -> "DomainEvent":
         """Return a new event instance enriched with metadata."""
         merged = {**self.metadata, **extra}
@@ -31,6 +43,8 @@ class MediaUploaded(DomainEvent):
     user_id: str = ""
     storage_provider: Optional[str] = None
     filename: Optional[str] = None
+    media_type: Optional[Any] = None
+    file_path: Optional[str] = None
 
 
 @dataclass(frozen=True, slots=True)

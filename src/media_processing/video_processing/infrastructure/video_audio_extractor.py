@@ -1,14 +1,16 @@
-# src/video_processing/infrastructure/video_audio_extractor.py
-import structlog
-from typing import Optional, Dict, Any
-import tempfile
-import os
-from pathlib import Path
-import subprocess
+# src/media_processing/video_processing/infrastructure/video_audio_extractor.py
 import asyncio
-import moviepy.editor as mp
 import io
+import os
+import subprocess
+import tempfile
 import wave
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 class FFmpegVideoAudioExtractor:
     """Concrete implementation of IVideoAudioExtractor using FFmpeg and MoviePy as fallback."""

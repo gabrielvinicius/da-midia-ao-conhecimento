@@ -1,15 +1,22 @@
-# src/video_processing/infrastructure/video_thumbnail_generator.py
-import structlog
-from typing import Dict, Any, Optional
-import tempfile
-import os
-from pathlib import Path
-import subprocess
+# src/media_processing/video_processing/infrastructure/video_thumbnail_generator.py
 import asyncio
-import moviepy.editor as mp
-from PIL import Image, ImageDraw, ImageFont
 import io
-import wave # Não usado aqui, mas estava no original
+import os
+import subprocess
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+import structlog
+
+try:  # pragma: no cover - optional dependency
+    from PIL import Image, ImageDraw, ImageFont  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - degraded mode
+    Image = None  # type: ignore[assignment]
+    ImageDraw = None  # type: ignore[assignment]
+    ImageFont = None  # type: ignore[assignment]
+
+logger = structlog.get_logger(__name__)
 
 class FFmpegVideoThumbnailGenerator:
     """Concrete implementation of IVideoThumbnailGenerator using FFmpeg and MoviePy/PIL as fallback."""
@@ -119,14 +126,17 @@ class FFmpegVideoThumbnailGenerator:
             'aspect_ratio': width / height
         }
         
-        try:
-            img = Image.open(io.BytesIO(thumbnail_data))
-            metadata.update({
-                'mode': img.mode,
-                'actual_width': img.width,
-                'actual_height': img.height
-            })
-        except Exception as e:
-            logger.warning("Failed to extract detailed thumbnail metadata", error=str(e))
-        
+        if Image is not None:
+            try:
+                img = Image.open(io.BytesIO(thumbnail_data))
+                metadata.update({
+                    'mode': img.mode,
+                    'actual_width': img.width,
+                    'actual_height': img.height
+                })
+            except Exception as e:  # pragma: no cover - best effort
+                logger.warning("Failed to extract detailed thumbnail metadata", error=str(e))
+        else:  # pragma: no cover - optional dependency not installed
+            logger.debug("Pillow not available; skipping thumbnail metadata enrichment")
+
         return metadata

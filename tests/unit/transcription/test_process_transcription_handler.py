@@ -3,10 +3,10 @@ import pytest
 from unittest.mock import AsyncMock, patch
 from pybreaker import CircuitBreakerError
 
-from src.transcription.application.commands.process_transcription_command import ProcessTranscriptionCommand
-from src.transcription.application.commands.process_transcription_command_handler import ProcessTranscriptionCommandHandler
+from src.media_processing.transcription.application.commands.process_transcription_command import ProcessTranscriptionCommand
+from src.media_processing.transcription.application.commands.process_transcription_command_handler import ProcessTranscriptionCommandHandler
 from src.video_management.domain.video import Video, VideoStatus
-from src.transcription.domain.transcription import Transcription, TranscriptionStatus
+from src.media_processing.transcription.domain.transcription import Transcription, TranscriptionStatus
 from src.shared.events.domain_events import TranscriptionStarted, TranscriptionCompleted, TranscriptionFailed
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def handler_mocks():
     }
 
 @pytest.mark.asyncio
-@patch("src.transcription.application.commands.process_transcription_command_handler.get_circuit_breaker")
+@patch("src.media_processing.transcription.application.commands.process_transcription_command_handler.get_circuit_breaker")
 async def test_handle_new_transcription_success(mock_get_breaker, handler_mocks):
     """Tests the successful processing of a new transcription."""
     # Arrange
@@ -53,7 +53,7 @@ async def test_handle_new_transcription_success(mock_get_breaker, handler_mocks)
     mock_breaker.call_async.assert_awaited_once()
 
 @pytest.mark.asyncio
-@patch("src.transcription.application.commands.process_transcription_command_handler.get_circuit_breaker")
+@patch("src.media_processing.transcription.application.commands.process_transcription_command_handler.get_circuit_breaker")
 async def test_handle_transcription_failure(mock_get_breaker, handler_mocks):
     """Tests failure handling when the speech recognition service fails."""
     # Arrange

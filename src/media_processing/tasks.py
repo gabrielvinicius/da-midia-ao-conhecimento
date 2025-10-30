@@ -11,15 +11,15 @@ from celery import shared_task
 
 from src.shared.infrastructure.database import get_db
 if TYPE_CHECKING:
-    from src.transcription.bootstrap import TranscriptionContainer  # pragma: no cover
-    from src.transcription.domain.transcription import Transcription  # pragma: no cover
-    from src.transcription.infrastructure.transcription_repository import (  # pragma: no cover
+    from src.media_processing.transcription.bootstrap import TranscriptionContainer  # pragma: no cover
+    from src.media_processing.transcription.domain.transcription import Transcription  # pragma: no cover
+    from src.media_processing.transcription.infrastructure.transcription_repository import (  # pragma: no cover
         TranscriptionRepository,
     )
-    from src.video_processing.infrastructure.video_audio_extractor import (  # pragma: no cover
+    from src.media_processing.video_processing.infrastructure.video_audio_extractor import (  # pragma: no cover
         FFmpegVideoAudioExtractor,
     )
-    from src.video_processing.infrastructure.video_thumbnail_generator import (  # pragma: no cover
+    from src.media_processing.video_processing.infrastructure.video_thumbnail_generator import (  # pragma: no cover
         FFmpegVideoThumbnailGenerator,
     )
     from src.shared.infrastructure.storage.s3_storage_service import S3StorageService  # pragma: no cover
@@ -65,9 +65,9 @@ async def _run_transcription(
     language: str,
 ) -> Optional[str]:
     # Lazy imports to avoid circular dependency during module import
-    from src.transcription.bootstrap import TranscriptionContainer  # Will be refactored
-    from src.transcription.domain.transcription import Transcription  # Will be refactored
-    from src.transcription.infrastructure.transcription_repository import (  # Will be refactored
+    from src.media_processing.transcription.bootstrap import TranscriptionContainer  # Will be refactored
+    from src.media_processing.transcription.domain.transcription import Transcription  # Will be refactored
+    from src.media_processing.transcription.infrastructure.transcription_repository import (  # Will be refactored
         TranscriptionRepository,
     )
 
@@ -146,10 +146,10 @@ async def _run_video_processing(
     storage_provider: str,
 ) -> Optional[Dict[str, Any]]:
     # Lazy imports to avoid loading heavy dependencies before they are needed
-    from src.video_processing.infrastructure.video_audio_extractor import (  # Will be refactored
+    from src.media_processing.video_processing.infrastructure.video_audio_extractor import (  # Will be refactored
         FFmpegVideoAudioExtractor,
     )
-    from src.video_processing.infrastructure.video_thumbnail_generator import (  # Will be refactored
+    from src.media_processing.video_processing.infrastructure.video_thumbnail_generator import (  # Will be refactored
         FFmpegVideoThumbnailGenerator,
     )
     from src.shared.infrastructure.storage.s3_storage_service import S3StorageService  # Will be refactored
