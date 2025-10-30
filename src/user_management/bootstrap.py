@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.user_management.config.settings import AuthSettings
 
 from src.user_management.infrastructure.user_repository import UserRepository
-from src.user_management.application import AuthQueries, AuthService, UserService
+from src.user_management.application import AuthQueries, AuthService
+from src.user_management.application.user_service import UserService
 
 
 @dataclass

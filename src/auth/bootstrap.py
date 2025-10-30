@@ -7,7 +7,7 @@ from src.user_management.config.settings import AuthSettings
 from src.user_management.application.queries.auth_queries import AuthQueries
 from src.user_management.application.services.auth_service import AuthService
 from src.user_management.container import AuthContainer
-from src.user_management.application.services import UserService
+from src.user_management.application.user_service import UserService
 
 
 @dataclass
