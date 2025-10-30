@@ -6,10 +6,10 @@ from __future__ import annotations
 from typing import Optional, Any, Dict
 from uuid import UUID
 
-from src.summarization.domain.summary import Summary
-from src.summarization.infrastructure.summarization_repository import SummarizationRepository
-from src.summarization.infrastructure.summarizer import TextRankSummarizer
-from src.summarization.infrastructure.task_scheduler import CelerySummarizationTaskScheduler
+from src.text_analysis.summarization.domain.summary import Summary
+from src.text_analysis.summarization.infrastructure.summarization_repository import SummarizationRepository
+from src.text_analysis.summarization.infrastructure.summarizer import TextRankSummarizer
+from src.text_analysis.application.services import TextAnalysisService # New import
 
 def _ensure_uuid(value: UUID | str) -> UUID:
     if isinstance(value, UUID):
@@ -25,11 +25,11 @@ class SummarizationService:
         *,
         summarization_repo: SummarizationRepository,
         summarizer: TextRankSummarizer,
-        summarization_task_scheduler: CelerySummarizationTaskScheduler,
+        text_analysis_service: TextAnalysisService, # Injected TextAnalysisService
     ) -> None:
         self._repo = summarization_repo
         self._summarizer = summarizer
-        self._task_scheduler = summarization_task_scheduler
+        self._text_analysis_service = text_analysis_service # Store the injected service
 
     async def generate_summary(
         self,
@@ -41,7 +41,7 @@ class SummarizationService:
     ) -> Dict[str, Any]:
         """Requests the generation of a summary for the supplied media by scheduling a task."""
         media_uuid = _ensure_uuid(media_id)
-        task_result = await self._task_scheduler.schedule_summarization_task(
+        task_result = await self._text_analysis_service.schedule_summarization_task(
             media_id=str(media_uuid),
             text_content=text_content,
             provider=provider,

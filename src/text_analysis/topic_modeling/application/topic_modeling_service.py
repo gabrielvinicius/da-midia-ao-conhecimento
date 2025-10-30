@@ -7,12 +7,12 @@ from typing import Dict, Any, Optional
 from uuid import UUID
 import time
 
-from src.topic_modeling.domain.topic_modeling import TopicModelingResult
-from src.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
-from src.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
-from src.topic_modeling.infrastructure.task_scheduler import CeleryTopicModelingTaskScheduler
-from src.topic_modeling.infrastructure.logging import StructuredTopicModelingLogger
-from src.topic_modeling.infrastructure.metrics import PrometheusTopicModelingMetrics
+from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult
+from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
+from src.text_analysis.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
+from src.text_analysis.application.services import TextAnalysisService # New import
+from src.text_analysis.topic_modeling.infrastructure.logging import StructuredTopicModelingLogger
+from src.text_analysis.topic_modeling.infrastructure.metrics import PrometheusTopicModelingMetrics
 
 logger = structlog.get_logger(__name__)
 
@@ -26,13 +26,13 @@ class TopicModelingService:
         self,
         topic_modeler: BERTopicModeler,
         topic_modeling_repo: TopicModelingRepository,
-        task_scheduler: CeleryTopicModelingTaskScheduler,
+        text_analysis_service: TextAnalysisService, # Injected TextAnalysisService
         topic_logger: StructuredTopicModelingLogger,
         topic_metrics: PrometheusTopicModelingMetrics
     ):
         self.modeler = topic_modeler
         self.repo = topic_modeling_repo
-        self.task_scheduler = task_scheduler
+        self.text_analysis_service = text_analysis_service # Store the injected service
         self.logger = topic_logger
         self.metrics = topic_metrics
 
@@ -40,7 +40,7 @@ class TopicModelingService:
         """Requests the topic analysis of a text for a given media item by scheduling a task."""
         logger.info("topic_modeling.request.started", media_id=str(media_id), provider=provider)
         try:
-            task_result = await self.task_scheduler.schedule_topic_modeling_task(
+            task_result = await self.text_analysis_service.schedule_topic_modeling_task(
                 media_id=str(media_id),
                 text_content=text_content,
                 provider=provider,
