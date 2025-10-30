@@ -1,5 +1,5 @@
 # src/transcription/api/schemas.py
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 
@@ -19,8 +19,7 @@ class TranscriptionResponse(BaseModel):
     segments: List[Dict[str, Any]]
     speaker_aliases: Dict[str, str]
 
-    class Config:
-        from_attributes = True # ou orm_mode = True para Pydantic v1
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SpeakerAliasesUpdateRequest(BaseModel):

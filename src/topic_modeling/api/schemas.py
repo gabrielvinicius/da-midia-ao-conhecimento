@@ -1,7 +1,7 @@
 """
 Topic Modeling API schemas - Following DDD pattern like transcription module
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from uuid import UUID
@@ -14,5 +14,4 @@ class TopicModelingResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

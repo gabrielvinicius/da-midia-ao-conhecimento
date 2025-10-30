@@ -1,7 +1,7 @@
 # src/notifications/api/schemas.py
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from src.notifications.domain.notification import NotificationType
 
 
@@ -19,5 +19,4 @@ class NotificationResponse(BaseModel):
     status: str
     error_message: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
