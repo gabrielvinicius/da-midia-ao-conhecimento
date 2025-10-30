@@ -39,23 +39,7 @@ from src.shared.infrastructure.cache import cache
 from src.shared.infrastructure.database import Base, engine, AsyncSessionLocal
 from src.shared.infrastructure.logging_config import configure_logging, get_logger
 from src.shared.infrastructure.tracing import configure_tracer
-from src.shared.middleware.performance_middleware import register_performance_middleware
-from src.shared.middleware.validation_middleware import register_validation_middleware
-from src.storage.infrastructure.dependencies import StorageServiceFactory
-from src.summarization.bootstrap import (
-    create_summarization_container,
-    build_summarization_module,
-)
-try:  # noqa: SIM105 - tolerate partial availability
-    from src.text_processing.bootstrap import build_text_processing_module
-except Exception as _text_processing_import_error:  # pragma: no cover - fallback path
-    build_text_processing_module = None  # type: ignore[assignment]
-else:
-    _text_processing_import_error = None
-try:  # noqa: SIM105 - optional module during refactor
-    from src.topic_modeling.bootstrap import build_topic_modeling_module
-except Exception:  # pragma: no cover
-    build_topic_modeling_module = None  # type: ignore[assignment]
+from src.text_analysis.bootstrap import build_text_analysis_module
 from src.user_management.bootstrap import build_user_management_module
 
 # Ensure Celery app is importable during API startup
@@ -70,21 +54,10 @@ from src.user_management.api.routers import router as auth_router
 from src.monitoring.api.routers import router as monitoring_router
 from src.notifications.api.routers import router as notification_router
 from src.providers.api.routers import router as providers_router
-try:  # noqa: SIM105 - optional router during refactor
-    from src.summarization.api.routers import router as summary_router
-except Exception:  # pragma: no cover
-    summary_router = None
 from src.media_processing.transcription.api.routers import router as transcription_router
 from src.media_management.api.routers import router as media_router
-try:  # noqa: SIM105 - optional router during refactor
-    from src.sentiment_analysis.api.routers import router as sentiment_router
-except Exception:  # pragma: no cover
-    sentiment_router = None
-try:  # noqa: SIM105 - optional router during refactor
-    from src.topic_modeling.api.routers import router as topic_modeling_router
-except Exception:  # pragma: no cover
-    topic_modeling_router = None
 from src.admin.api.routers import router as admin_router
+# TODO: Add text_analysis_router once it's created and consolidated
 
 
 async def _noop_media_uploaded_handler(event: MediaUploaded) -> None:
@@ -152,71 +125,12 @@ async def lifespan(app: FastAPI):
             emit_legacy_media_task=not lightweight_mode,
         )
 
-        if build_text_processing_module is not None and not lightweight_mode:
-            text_module = await build_text_processing_module(session)
-        else:
-            logger.warning(
-                "text_processing.bootstrap_unavailable",
-                error=str(_text_processing_import_error) if _text_processing_import_error else None,
-            )
-            text_module = SimpleNamespace(service=None, task_scheduler=None)
-
         if not lightweight_mode:
-            notification_module = await build_notification_module(
-                session=session,
-                auth_queries=auth_module.auth_queries,
-            )
+            text_analysis_module = await build_text_analysis_module(session)
         else:
-            logger.warning("notifications.bootstrap_skipped", reason="lightweight_mode")
-            notification_module = SimpleNamespace(service=None, queries=None)
+            logger.warning("text_analysis.bootstrap_skipped", reason="lightweight_mode")
+            text_analysis_module = SimpleNamespace(service=None)
 
-        if not lightweight_mode:
-            try:
-                summarization_container = create_summarization_container(session=session)
-                summarization_module = await build_summarization_module(summarization_container)
-            except Exception as exc:  # pragma: no cover
-                logger.warning(
-                    "summarization.bootstrap_unavailable",
-                    error=str(exc),
-                )
-                summarization_module = SimpleNamespace(service=None)
-        else:
-            logger.warning("summarization.bootstrap_skipped", reason="lightweight_mode")
-            summarization_module = SimpleNamespace(service=None)
-
-        if not lightweight_mode:
-            providers_module = build_providers_module()
-        else:
-            providers_module = SimpleNamespace(provider_registry=None)
-
-        if build_sentiment_analysis_module is not None and not lightweight_mode:
-            sentiment_module = await build_sentiment_analysis_module(
-                session=session,
-                transcription_queries=media_module.transcription_queries,
-                connection_manager=manager,
-                metrics_service=monitoring_module.metrics_service,
-            )
-        else:
-            if _sentiment_import_error:
-                logger.warning(
-                    "sentiment_analysis.bootstrap_unavailable",
-                    error=str(_sentiment_import_error),
-                )
-            elif lightweight_mode:
-                logger.warning("sentiment_analysis.bootstrap_skipped", reason="lightweight_mode")
-            sentiment_module = SimpleNamespace(service=None, repository=None)
-        if build_topic_modeling_module is not None and not lightweight_mode:
-            topic_module = await build_topic_modeling_module(
-                session=session,
-                media_queries=media_module.queries,
-                transcription_queries=media_module.transcription_queries,
-            )
-        else:
-            if build_topic_modeling_module is None:
-                logger.warning("topic_modeling.bootstrap_unavailable")
-            else:
-                logger.warning("topic_modeling.bootstrap_skipped", reason="lightweight_mode")
-            topic_module = SimpleNamespace(service=None, repository=None)
         admin_module = build_admin_module(
             session=session,
             auth_queries=auth_module.auth_queries,
@@ -230,10 +144,8 @@ async def lifespan(app: FastAPI):
             monitoring=monitoring_module,
             media=media_module,
             notifications=notification_module,
-            summarization=summarization_module,
             providers=providers_module,
-            sentiment_analysis=sentiment_module,
-            topic_modeling=topic_module,
+            text_analysis=text_analysis_module,
             admin=admin_module,
         )
         domain_registry = build_domain_service_registry(
