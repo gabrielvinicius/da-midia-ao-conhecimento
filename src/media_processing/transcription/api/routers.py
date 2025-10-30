@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Form, HTTPException, status
 
 from src.shared.api.dependencies import get_current_user
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 
 from .dependencies import (
     get_transcription_service,

@@ -1,8 +1,8 @@
 # src/auth/application/services/permission_service.py
 from uuid import UUID
 
-from src.auth.domain.interfaces import IUserPermissionService
-from src.auth.domain.user import User
+from src.user_management.domain.interfaces import IUserPermissionService
+from src.user_management.domain.user import User
 
 
 class UserPermissionService(IUserPermissionService):

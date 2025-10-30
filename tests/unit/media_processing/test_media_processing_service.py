@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 from src.media_processing.application.services import MediaProcessingService
@@ -32,7 +32,7 @@ def processing_service():
 
 
 @pytest.mark.asyncio
-async def test_handle_media_uploaded_triggers_transcription_and_video(processing_service):
+async def test_handle_media_uploaded_enqueues_tasks(processing_service, monkeypatch):
     (
         service,
         transcription_service,
@@ -40,6 +40,14 @@ async def test_handle_media_uploaded_triggers_transcription_and_video(processing
         transcription_metrics,
         video_metrics,
     ) = processing_service
+
+    from src.media_processing.application import services as services_module
+
+    transcription_delay = MagicMock()
+    video_delay = MagicMock()
+
+    monkeypatch.setattr(services_module.process_transcription_task, "delay", transcription_delay)
+    monkeypatch.setattr(services_module.process_video_task, "delay", video_delay)
 
     event = MediaUploaded(
         media_id=str(uuid4()),
@@ -59,17 +67,24 @@ async def test_handle_media_uploaded_triggers_transcription_and_video(processing
         },
     )
 
-    transcription_service.request_transcription_generation.assert_awaited_once()
-    video_service.request_video_processing.assert_awaited_once()
-    assert transcription_metrics.record_operation.await_count == 1
-    assert video_metrics.record_operation.await_count == 1
-    assert video_metrics.record_operation.await_args.kwargs["success"] is True
-    assert transcription_metrics.record_operation.await_args.kwargs["success"] is True
-    assert video_metrics.record_operation.await_args.kwargs["success"] is True
+    transcription_delay.assert_called_once_with(
+        media_id=event.media_id,
+        file_path="/path/to/media.mp4",
+        storage_provider="local",
+        transcription_provider="whisper",
+        language="pt",
+    )
+    video_delay.assert_called_once_with(
+        media_id=event.media_id,
+        file_path="/path/to/media.mp4",
+        storage_provider="local",
+    )
+    transcription_service.request_transcription_generation.assert_not_called()
+    video_service.request_video_processing.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_handle_media_uploaded_records_failure(processing_service):
+async def test_handle_media_uploaded_swallows_task_errors(processing_service, monkeypatch):
     (
         service,
         transcription_service,
@@ -78,7 +93,13 @@ async def test_handle_media_uploaded_records_failure(processing_service):
         video_metrics,
     ) = processing_service
 
-    transcription_service.request_transcription_generation.side_effect = RuntimeError("boom")
+    from src.media_processing.application import services as services_module
+
+    transcription_delay = MagicMock(side_effect=RuntimeError("boom"))
+    video_delay = MagicMock()
+
+    monkeypatch.setattr(services_module.process_transcription_task, "delay", transcription_delay)
+    monkeypatch.setattr(services_module.process_video_task, "delay", video_delay)
 
     event = MediaUploaded(
         media_id=str(uuid4()),
@@ -95,12 +116,10 @@ async def test_handle_media_uploaded_records_failure(processing_service):
         },
     )
 
-    transcription_service.request_transcription_generation.assert_awaited_once()
-    assert transcription_metrics.record_operation.await_count == 1
-    assert transcription_metrics.record_operation.await_args.kwargs["success"] is False
-    video_service.request_video_processing.assert_awaited_once()
-    assert video_metrics.record_operation.await_count == 1
-    assert video_metrics.record_operation.await_args.kwargs["success"] is True
+    transcription_delay.assert_called_once()
+    video_delay.assert_called_once()
+    transcription_service.request_transcription_generation.assert_not_called()
+    video_service.request_video_processing.assert_not_called()
 
 
 @pytest.mark.asyncio

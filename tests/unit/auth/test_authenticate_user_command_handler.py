@@ -2,10 +2,10 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.auth.application.commands.authenticate_user_command import AuthenticateUserCommand
-from src.auth.application.commands.authenticate_user_command_handler import AuthenticateUserCommandHandler
-from src.auth.domain.user import User
-from src.auth.config.settings import AuthSettings
+from src.user_management.application.commands.authenticate_user_command import AuthenticateUserCommand
+from src.user_management.application.commands.authenticate_user_command_handler import AuthenticateUserCommandHandler
+from src.user_management.domain.user import User
+from src.user_management.config.settings import AuthSettings
 
 
 @pytest.fixture
@@ -19,8 +19,8 @@ def auth_settings():
 
 
 @pytest.mark.asyncio
-@patch("src.auth.application.commands.authenticate_user_command_handler.pwd_context")
-@patch("src.auth.application.commands.authenticate_user_command_handler.create_access_token")
+@patch("src.user_management.application.commands.authenticate_user_command_handler.pwd_context")
+@patch("src.user_management.application.commands.authenticate_user_command_handler.create_access_token")
 async def test_authenticate_user_success(mock_create_token, mock_pwd_context, user_repository, auth_settings):
     """Tests successful user authentication and token generation."""
     # Arrange
@@ -43,7 +43,7 @@ async def test_authenticate_user_success(mock_create_token, mock_pwd_context, us
 
 
 @pytest.mark.asyncio
-@patch("src.auth.application.commands.authenticate_user_command_handler.pwd_context")
+@patch("src.user_management.application.commands.authenticate_user_command_handler.pwd_context")
 async def test_authenticate_user_wrong_password(mock_pwd_context, user_repository, auth_settings):
     """Tests that authentication fails with an incorrect password."""
     # Arrange

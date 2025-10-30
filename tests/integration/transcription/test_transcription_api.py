@@ -3,7 +3,7 @@ import pytest
 from httpx import AsyncClient
 from uuid import uuid4
 
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 from src.media_management.domain.enums import MediaStatus, MediaType
 from src.media_management.infrastructure.orm.media_entity import MediaEntity
 from src.media_processing.transcription.domain.transcription import Transcription, TranscriptionStatus

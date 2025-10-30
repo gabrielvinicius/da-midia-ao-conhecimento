@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict
 from uuid import UUID
 
-from src.auth.application.queries.auth_queries import AuthQueries
+from src.user_management.application.queries.auth_queries import AuthQueries
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.domain.enums import MediaStatus
 

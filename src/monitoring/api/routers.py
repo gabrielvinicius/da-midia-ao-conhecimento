@@ -8,7 +8,7 @@ from typing import Optional
 from uuid import UUID
 
 from src.shared.api.dependencies import get_current_user
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 from src.monitoring.domain.interfaces import TimeRange, ProcessingType
 from .dependencies import (
     get_analytics_queries, 

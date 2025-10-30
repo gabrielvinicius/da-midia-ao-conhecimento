@@ -3,7 +3,7 @@
 from typing import Optional
 from uuid import UUID
 
-from src.auth.domain.user import UserRole
+from src.user_management.domain.user import UserRole
 from src.media_management.application.commands.commands import (
     DeleteMediaCommand,
     ReprocessMediaCommand,

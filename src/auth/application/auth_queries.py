@@ -5,7 +5,7 @@ from uuid import UUID
 # FIXED: Application should not import Infrastructure directly
 from src.shared.application.dependency_injection import get_user_repository
 
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 
 
 class AuthQueries:

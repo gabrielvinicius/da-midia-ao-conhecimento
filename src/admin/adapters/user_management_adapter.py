@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from typing import Optional
 from uuid import UUID
 
-from src.auth.application.queries.auth_queries import AuthQueries
-from src.auth.domain.user import User
+from src.user_management.application.queries.auth_queries import AuthQueries
+from src.user_management.domain.user import User
 from src.admin.application.services.admin_user_service import AdminUserService
 
 

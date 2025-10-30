@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Form
 from uuid import UUID # Manter se necessário para IDs de provedor
 
 from src.shared.api.dependencies import get_current_user
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 from src.providers.domain.interfaces import ProviderType, ProviderCapability, IProviderRegistry
 from src.providers.domain.provider import Provider # Para o retorno de get_provider_details
 from .dependencies import get_provider_registry

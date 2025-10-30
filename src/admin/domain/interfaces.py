@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 from src.media_management.domain.media import Media, MediaStatus
 
 

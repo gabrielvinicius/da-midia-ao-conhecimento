@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 from uuid import uuid4
 import random
 
-from src.auth.domain.user import User, UserRole
+from src.user_management.domain.user import User, UserRole
 from src.media_management.domain.media import Media, MediaType, MediaStatus
 from src.media_processing.transcription.domain.transcription import Transcription, TranscriptionStatus
 from src.summarization.domain.summary import Summary

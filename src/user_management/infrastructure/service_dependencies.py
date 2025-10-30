@@ -1,24 +1,24 @@
 """
 Auth Service Dependencies - Dependency Injection for Refactored Services
 """
-from src.auth.application.services.authentication_service import AuthenticationService
-from src.auth.application.services.user_registration_service import UserRegistrationService
-from src.auth.application.services.user_administration_service import UserAdministrationService
-from src.auth.application.services.password_service import PasswordService
-from src.auth.application.auth_service import AuthService
+from src.user_management.application.services.authentication_service import AuthenticationService
+from src.user_management.application.services.user_registration_service import UserRegistrationService
+from src.user_management.application.services.user_administration_service import UserAdministrationService
+from src.user_management.application.services.password_service import PasswordService
+from src.user_management.application.auth_service import AuthService
 
 # Import command handlers
-from src.auth.application.commands.authenticate_user_command_handler import AuthenticateUserCommandHandler
-from src.auth.application.commands.create_user_command_handler import CreateUserCommandHandler
-from src.auth.application.commands.update_user_command_handler import UpdateUserCommandHandler
-from src.auth.application.commands.delete_user_command_handler import DeleteUserCommandHandler
-from src.auth.application.commands.change_password_command_handler import ChangePasswordCommandHandler
+from src.user_management.application.commands.authenticate_user_command_handler import AuthenticateUserCommandHandler
+from src.user_management.application.commands.create_user_command_handler import CreateUserCommandHandler
+from src.user_management.application.commands.update_user_command_handler import UpdateUserCommandHandler
+from src.user_management.application.commands.delete_user_command_handler import DeleteUserCommandHandler
+from src.user_management.application.commands.change_password_command_handler import ChangePasswordCommandHandler
 
 # Import queries
-from src.auth.application.queries.auth_queries import AuthQueries
+from src.user_management.application.queries.auth_queries import AuthQueries
 
 # Import repository
-from src.auth.infrastructure.user_repository import UserRepository
+from src.user_management.infrastructure.user_repository import UserRepository
 
 
 def get_authentication_service(

@@ -12,8 +12,8 @@ import secrets
 import hashlib
 from jose import jwt, JWTError
 
-from src.auth.config.settings import AuthSettings
-from src.auth.domain.user import User
+from src.user_management.config.settings import AuthSettings
+from src.user_management.domain.user import User
 from src.shared.infrastructure.logging_config import get_logger
 from src.shared.exceptions.domain_exceptions import AuthenticationError, AuthorizationError
 

@@ -8,9 +8,9 @@ from uuid import UUID
 import structlog
 
 from src.admin.domain.interfaces import IAdminUserService, IAdminAuditService
-from src.auth.domain.interfaces import IUserPermissionService
-from src.auth.domain.user import User, UserRole
-from src.auth.infrastructure.user_repository import UserRepository
+from src.user_management.domain.interfaces import IUserPermissionService
+from src.user_management.domain.user import User, UserRole
+from src.user_management.infrastructure.user_repository import UserRepository
 
 logger = structlog.get_logger(__name__)
 

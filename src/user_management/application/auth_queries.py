@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import List, Optional
 from uuid import UUID
 
-from src.auth.domain.user import User
-from src.auth.infrastructure.user_repository import UserRepository
+from src.user_management.domain.user import User
+from src.user_management.infrastructure.user_repository import UserRepository
 
 
 class AuthQueries:
@@ -12,6 +12,12 @@ class AuthQueries:
 
     def __init__(self, user_repository: UserRepository) -> None:
         self.user_repository = user_repository
+
+    async def get_by_id(self, user_id: str | UUID) -> Optional[User]:
+        """Backward-compatible helper preserved for legacy tests/routes."""
+        if not isinstance(user_id, UUID):
+            user_id = UUID(str(user_id))
+        return await self.get_user_by_id(user_id)
 
     async def get_user_by_id(self, user_id: UUID) -> Optional[User]:
         return await self.user_repository.find_by_id(user_id)

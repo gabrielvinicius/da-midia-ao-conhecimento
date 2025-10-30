@@ -65,7 +65,7 @@ except Exception:
     _celery_app = None  # Celery not required for API process to start
 
 # API Routers
-from src.auth.api.routers import router as auth_router
+from src.user_management.api.routers import router as auth_router
 
 from src.monitoring.api.routers import router as monitoring_router
 from src.notifications.api.routers import router as notification_router

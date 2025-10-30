@@ -3,7 +3,7 @@ import pytest
 import main
 
 from main import create_app
-from src.auth.api.dependencies import get_auth_dependencies
+from src.user_management.api.dependencies import get_auth_dependencies
 from src.media_management.api.dependencies import get_media_dependencies
 from src.shared.events.domain_events import MediaUploaded, TextContentReady
 from src.shared.middleware.performance_middleware import PerformanceMetricsMiddleware

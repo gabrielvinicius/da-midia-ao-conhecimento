@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 from uuid import UUID
 
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 from src.media_management.application.facade import MediaManagementFacade
 from src.admin.application.services.admin_media_service import AdminMediaService
 

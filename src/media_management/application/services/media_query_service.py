@@ -3,7 +3,7 @@
 from typing import Dict, Any, List, Optional
 from uuid import UUID
 
-from src.auth.domain.user import UserRole
+from src.user_management.domain.user import UserRole
 from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.domain.enums import MediaStatus

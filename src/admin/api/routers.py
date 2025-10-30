@@ -4,8 +4,8 @@ from typing import Optional, List
 from uuid import UUID
 
 from src.shared.api.dependencies import get_current_admin_user
-from src.auth.domain.user import User
-from src.auth.api.schemas import UserResponse
+from src.user_management.domain.user import User
+from src.user_management.api.schemas import UserResponse
 from src.media_management.api.schemas import MediaResponse
 from .schemas import UserUpdateRequest, SystemStatsResponse
 

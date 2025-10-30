@@ -5,9 +5,9 @@ from src.admin.application.queries.admin_queries import AdminQueries
 from src.admin.application.services.admin_audit_service import AdminAuditService
 from src.admin.application.services.admin_media_service import AdminMediaService
 from src.admin.application.services.admin_user_service import AdminUserService
-from src.auth.application.queries.auth_queries import AuthQueries
-from src.auth.application.services.permission_service import UserPermissionService
-from src.auth.infrastructure.user_repository import UserRepository
+from src.user_management.application.queries.auth_queries import AuthQueries
+from src.user_management.application.services.permission_service import UserPermissionService
+from src.user_management.infrastructure.user_repository import UserRepository
 from src.media_management.application.facade import MediaManagementFacade
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository

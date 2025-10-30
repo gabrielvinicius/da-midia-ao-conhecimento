@@ -2,7 +2,7 @@
 from pydantic import BaseModel
 from typing import Optional
 
-from src.auth.domain.user import UserRole
+from src.user_management.domain.user import UserRole
 
 class UserUpdateRequest(BaseModel):
     """Schema for updating a user's details."""

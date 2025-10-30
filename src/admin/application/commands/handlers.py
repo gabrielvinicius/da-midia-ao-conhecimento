@@ -7,8 +7,8 @@ from typing import Dict, Any
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.storage.infrastructure.dependencies import StorageServiceFactory
-from src.auth.infrastructure.user_repository import UserRepository
-from src.auth.application.queries.user_queries import UserQueries
+from src.user_management.infrastructure.user_repository import UserRepository
+from src.user_management.application.queries.user_queries import UserQueries
 from .commands import (
     DeleteMediaCommand,
     DeleteUserCommand,

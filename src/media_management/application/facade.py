@@ -9,7 +9,7 @@ from uuid import UUID
 
 import structlog
 
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.application.services import (

@@ -7,7 +7,7 @@ from src.notifications.infrastructure.logging import StructuredNotificationLogge
 from src.notifications.infrastructure.metrics import PrometheusNotificationMetrics
 
 # External Dependencies
-from src.auth.application.queries.auth_queries import AuthQueries
+from src.user_management.application.queries.auth_queries import AuthQueries
 from src.notifications.application.queries.notification_queries import NotificationQueries
 # Consolidated Service
 from src.notifications.application.services.notification_service import NotificationService

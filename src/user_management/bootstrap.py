@@ -2,9 +2,9 @@
 from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.auth.config.settings import AuthSettings
+from src.user_management.config.settings import AuthSettings
 
-from src.auth.infrastructure.user_repository import UserRepository
+from src.user_management.infrastructure.user_repository import UserRepository
 from src.user_management.application import AuthQueries, AuthService, UserService
 
 

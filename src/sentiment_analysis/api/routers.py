@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, HTTPException, status
 
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.sentiment_analysis.api.dependencies import (
     get_analyze_sentiment_command_handler,

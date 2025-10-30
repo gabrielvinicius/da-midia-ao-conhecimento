@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from uuid import UUID
 from typing import Optional
-from src.auth.domain.user import User, UserRole
-from src.auth.config.settings import AuthSettings  # Importação corrigida
+from src.user_management.domain.user import User, UserRole
+from src.user_management.config.settings import AuthSettings  # Importação corrigida
 
 settings = AuthSettings()
 

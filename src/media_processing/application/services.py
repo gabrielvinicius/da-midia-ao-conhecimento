@@ -16,6 +16,7 @@ from src.media_processing.transcription.application.transcription_service import
 from src.media_processing.video_processing.application.video_processing_service import (
     VideoProcessingService,
 )
+from src.media_processing.tasks import process_transcription_task, process_video_task
 from src.shared.events.domain_events import MediaUploaded, TextContentReady
 
 
@@ -173,35 +174,42 @@ class MediaProcessingService:
         file_size_bytes = context.get("file_size_bytes", 0)
 
         try:
-            await self.request_transcription(
-                media_id=media_id,
+            process_transcription_task.delay(
+                media_id=str(media_id),
                 file_path=file_path,
                 storage_provider=storage_provider,
                 transcription_provider=transcription_provider,
                 language=language,
-                metrics_payload={
-                    "input_audio_length_seconds": context.get("input_audio_length_seconds", 0.0),
-                },
+            )
+            self._logger.debug(
+                "media_uploaded.transcription_task_enqueued",
+                media_id=str(media_id),
+                storage_provider=storage_provider,
+                transcription_provider=transcription_provider,
+                language=language,
             )
         except Exception as exc:  # pragma: no cover - defensive logging
             self._logger.error(
-                "media_uploaded.transcription_failed",
+                "media_uploaded.transcription_enqueue_failed",
                 media_id=str(media_id),
                 error=str(exc),
             )
 
         try:
-            await self.request_video_processing(
-                media_id=media_id,
+            process_video_task.delay(
+                media_id=str(media_id),
                 file_path=file_path,
                 storage_provider=storage_provider,
-                metrics_payload={
-                    "file_size_bytes": file_size_bytes,
-                },
+            )
+            self._logger.debug(
+                "media_uploaded.video_task_enqueued",
+                media_id=str(media_id),
+                storage_provider=storage_provider,
+                file_size_bytes=file_size_bytes,
             )
         except Exception as exc:  # pragma: no cover - defensive logging
             self._logger.error(
-                "media_uploaded.video_failed",
+                "media_uploaded.video_enqueue_failed",
                 media_id=str(media_id),
                 error=str(exc),
             )
