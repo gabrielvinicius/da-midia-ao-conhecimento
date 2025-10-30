@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any, Dict, Optional
 
-from src.sentiment_analysis.infrastructure.task_scheduler import CelerySentimentAnalysisTaskScheduler
+from src.text_analysis.application.services import TextAnalysisService # New import
 
 class SentimentAnalysisService:
     """High-level service coordinating sentiment analysis operations."""
@@ -15,13 +15,13 @@ class SentimentAnalysisService:
         *,
         analyzer: Any,
         repository: Any,
-        sentiment_analysis_task_scheduler: CelerySentimentAnalysisTaskScheduler,
+        text_analysis_service: TextAnalysisService, # Injected TextAnalysisService
         logger: Any = None,
         metrics: Any = None,
     ) -> None:
         self._analyzer = analyzer
         self._repository = repository
-        self._task_scheduler = sentiment_analysis_task_scheduler
+        self._text_analysis_service = text_analysis_service # Store the injected service
         self._logger = logger
         self._metrics = metrics
 
@@ -37,7 +37,7 @@ class SentimentAnalysisService:
     ) -> Dict[str, Any]:
         """Requests sentiment analysis by scheduling a task."""
         self._log("sentiment_analysis.request.started", transcription_id=transcription_id, provider=provider)
-        task_result = await self._task_scheduler.schedule_sentiment_analysis_task(
+        task_result = await self._text_analysis_service.schedule_sentiment_analysis_task(
             transcription_id=transcription_id,
             text=text,
             provider=provider,
