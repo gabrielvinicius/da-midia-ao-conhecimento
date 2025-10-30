@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional
 from uuid import UUID
 
 import structlog
+import time
 
 from src.media_processing.transcription.domain.transcription import Transcription
 
@@ -34,6 +35,8 @@ class TranscriptionService:
             transcription_provider=transcription_provider,
             language=language
         )
+        start_time = time.monotonic()
+        success = False
         try:
             # 1. Create a new transcription entity in PENDING state
             new_transcription = Transcription(
@@ -58,6 +61,7 @@ class TranscriptionService:
                 transcription_id=str(new_transcription.id),
                 task_id=task_result.get("task_id")
             )
+            success = True
             return {
                 "success": True,
                 "media_id": str(media_id),
@@ -72,6 +76,21 @@ class TranscriptionService:
                 error=str(e)
             )
             raise
+        finally:
+            try:
+                await self.transcription_metrics.record_operation(
+                    operation="request_transcription_generation",
+                    provider=transcription_provider,
+                    duration=time.monotonic() - start_time,
+                    success=success,
+                    input_audio_length_seconds=0.0,
+                    output_text_length_chars=0,
+                )
+            except Exception:  # pragma: no cover - metrics best effort
+                logger.warning(
+                    "transcription_metrics.record_failed",
+                    media_id=str(media_id),
+                )
 
     async def get_transcription_by_media_id(self, media_id: UUID) -> Optional[Transcription]:
         """Retrieves a transcription by its associated media ID."""

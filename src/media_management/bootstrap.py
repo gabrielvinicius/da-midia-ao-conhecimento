@@ -54,6 +54,9 @@ from src.media_processing.video_processing.infrastructure.video_audio_extractor 
 from src.media_processing.video_processing.infrastructure.video_thumbnail_generator import (
     FFmpegVideoThumbnailGenerator,
 )
+from src.media_processing.video_processing.infrastructure.metrics import (
+    PrometheusVideoProcessingMetrics,
+)
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
 from src.shared.events.bus import SupportsEventBus
 from src.shared.events.domain_events import MediaUploaded, TextContentReady
@@ -102,11 +105,12 @@ def build_media_components(
 
     # Consolidated processing dependencies
     transcription_repository = TranscriptionRepository(db=session)
+    transcription_metrics = PrometheusTranscriptionMetrics()
     transcription_service = TranscriptionService(
         transcription_repo=transcription_repository,
         task_scheduler=CeleryTranscriptionTaskScheduler(),
         transcription_logger=StructuredTranscriptionLogger(),
-        transcription_metrics=PrometheusTranscriptionMetrics(),
+        transcription_metrics=transcription_metrics,
     )
     transcription_queries = TranscriptionQueries(transcription_repository=transcription_repository)
 
@@ -117,10 +121,13 @@ def build_media_components(
         storage_service=S3StorageService(),
     )
 
+    video_metrics = PrometheusVideoProcessingMetrics()
     processing_service = MediaProcessingService(
         transcription_service=transcription_service,
         transcription_queries=transcription_queries,
         video_service=video_processing_service,
+        transcription_metrics=transcription_metrics,
+        video_metrics=video_metrics,
     )
 
     create_media_handler = CreateMediaCommandHandler.with_default_components(
