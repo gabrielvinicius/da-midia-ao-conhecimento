@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 from uuid import UUID, uuid4
 
 
@@ -57,6 +57,10 @@ class TextContentReady(DomainEvent):
     sentiment_id: Optional[str] = None
 
 
+if TYPE_CHECKING:
+    from src.media_management.domain.media import Media
+
+
 @dataclass(frozen=True, slots=True)
 class MediaDeleted(DomainEvent):
     """Event emitted when a media asset is removed from the catalogue."""
@@ -66,6 +70,17 @@ class MediaDeleted(DomainEvent):
     triggered_by: str = ""
     actor_id: Optional[str] = None
 
+    @classmethod
+    def for_user(cls, media: "Media", actor_id: UUID | str) -> "MediaDeleted":
+        """Factory helper for user initiated deletions."""
+
+        return cls(
+            media_id=str(media.id),
+            user_id=str(media.user_id),
+            triggered_by="user",
+            actor_id=str(actor_id),
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class MediaReprocessRequested(DomainEvent):
@@ -74,6 +89,16 @@ class MediaReprocessRequested(DomainEvent):
     media_id: str = ""
     triggered_by: str = ""
     actor_id: Optional[str] = None
+
+    @classmethod
+    def for_user(cls, media_id: UUID | str, actor_id: UUID | str) -> "MediaReprocessRequested":
+        """Factory helper for user initiated reprocess requests."""
+
+        return cls(
+            media_id=str(media_id),
+            triggered_by="user",
+            actor_id=str(actor_id),
+        )
 
 
 __all__ = [

@@ -377,21 +377,8 @@ class MediaManagementFacade:
             acting_user.role,
         )
         await self.lifecycle_service.delete_media(media_id, acting_user.id, acting_user.role)
-        await self._publish_event(
-            MediaDeleted(
-                media_id=str(media_id),
-                user_id=str(media.user_id),
-                triggered_by="user",
-                actor_id=str(acting_user.id),
-            )
-        )
+        await self._publish_event(MediaDeleted.for_user(media, acting_user.id))
 
     async def reprocess_media_for_user(self, *, media_id: UUID, acting_user: User) -> None:
         await self.lifecycle_service.reprocess_media(media_id, acting_user.id, acting_user.role)
-        await self._publish_event(
-            MediaReprocessRequested(
-                media_id=str(media_id),
-                triggered_by="user",
-                actor_id=str(acting_user.id),
-            )
-        )
+        await self._publish_event(MediaReprocessRequested.for_user(media_id, acting_user.id))

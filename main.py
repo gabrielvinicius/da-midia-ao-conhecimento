@@ -221,9 +221,7 @@ async def lifespan(app: FastAPI):
             session=session,
             auth_queries=auth_module.auth_queries,
             media_queries=media_admin_context.queries,
-            delete_media_handler=media_admin_context.delete_media_handler,
-            reprocess_media_handler=media_admin_context.reprocess_media_handler,
-            media_facade=media_module.facade,
+            media_facade=media_admin_context.facade,
         )
 
         register_module_dependencies(

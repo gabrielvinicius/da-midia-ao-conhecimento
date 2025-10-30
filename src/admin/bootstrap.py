@@ -15,10 +15,6 @@ from src.admin.application.services.admin_user_service import AdminUserService
 from src.auth.application.queries.auth_queries import AuthQueries
 from src.media_management.application.facade import MediaManagementFacade
 from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_management.application.commands.handlers import (
-    DeleteMediaCommandHandler,
-    ReprocessMediaCommandHandler,
-)
 
 
 @dataclass
@@ -35,15 +31,11 @@ def build_admin_module(
     session: AsyncSession,
     auth_queries: AuthQueries,
     media_queries: MediaQueries,
-    delete_media_handler: DeleteMediaCommandHandler,
-    reprocess_media_handler: ReprocessMediaCommandHandler,
     media_facade: MediaManagementFacade,
 ) -> AdminModule:
     container = AdminContainer(db=session)
     container.auth_queries.override(providers.Object(auth_queries))
     container.media_queries.override(providers.Object(media_queries))
-    container.delete_media_handler.override(providers.Object(delete_media_handler))
-    container.reprocess_media_handler.override(providers.Object(reprocess_media_handler))
     container.media_facade.override(providers.Object(media_facade))
 
     admin_queries = container.admin_queries()

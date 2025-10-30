@@ -83,8 +83,7 @@ class MediaAdminContext:
     """Administrative operations that can be shared with other modules."""
 
     queries: MediaQueries
-    delete_media_handler: DeleteMediaCommandHandler
-    reprocess_media_handler: ReprocessMediaCommandHandler
+    facade: MediaManagementFacade
 
 
 def build_media_components(
@@ -200,8 +199,7 @@ def build_media_components(
 
     admin_context = MediaAdminContext(
         queries=media_queries,
-        delete_media_handler=delete_media_handler,
-        reprocess_media_handler=reprocess_media_handler,
+        facade=facade,
     )
 
     return module, admin_context

@@ -8,10 +8,6 @@ from src.admin.application.services.admin_user_service import AdminUserService
 from src.auth.application.queries.auth_queries import AuthQueries
 from src.auth.application.services.permission_service import UserPermissionService
 from src.auth.infrastructure.user_repository import UserRepository
-from src.media_management.application.commands.handlers import (
-    DeleteMediaCommandHandler,
-    ReprocessMediaCommandHandler,
-)
 from src.media_management.application.facade import MediaManagementFacade
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
@@ -21,8 +17,6 @@ class AdminContainer(containers.DeclarativeContainer):
     db: providers.Provider[AsyncSession] = providers.Dependency()
     auth_queries: providers.Provider[AuthQueries] = providers.Dependency()
     media_queries: providers.Provider[MediaQueries] = providers.Dependency()
-    delete_media_handler: providers.Provider[DeleteMediaCommandHandler] = providers.Dependency()
-    reprocess_media_handler: providers.Provider[ReprocessMediaCommandHandler] = providers.Dependency()
     media_facade: providers.Provider[MediaManagementFacade] = providers.Dependency()
 
     user_repository = providers.Factory(UserRepository, db=db)
@@ -42,8 +36,6 @@ class AdminContainer(containers.DeclarativeContainer):
         media_repository=media_repository,
         permission_service=permission_service,
         audit_service=admin_audit_service,
-        delete_media_handler=delete_media_handler,
-        reprocess_media_handler=reprocess_media_handler,
         media_facade=media_facade,
     )
 

@@ -8,14 +8,6 @@ import structlog
 from src.admin.domain.interfaces import IAdminAuditService, IAdminMediaService
 from src.auth.domain.interfaces import IUserPermissionService
 from src.auth.domain.user import User
-from src.media_management.application.commands.commands import (
-    DeleteMediaCommand,
-    ReprocessMediaCommand,
-)
-from src.media_management.application.commands.handlers import (
-    DeleteMediaCommandHandler,
-    ReprocessMediaCommandHandler,
-)
 from src.media_management.application.facade import MediaManagementFacade
 from src.media_management.domain.enums import MediaStatus
 from src.media_management.domain.media import Media
@@ -38,15 +30,11 @@ class AdminMediaService(IAdminMediaService):
         media_repository: MediaRepository,
         permission_service: IUserPermissionService,
         audit_service: IAdminAuditService,
-        delete_media_handler: DeleteMediaCommandHandler,
-        reprocess_media_handler: ReprocessMediaCommandHandler,
-        media_facade: Optional[MediaManagementFacade] = None,
+        media_facade: MediaManagementFacade,
     ):
         self.media_repository = media_repository
         self.permission_service = permission_service
         self.audit_service = audit_service
-        self.delete_media_handler = delete_media_handler
-        self.reprocess_media_handler = reprocess_media_handler
         self.media_facade = media_facade
 
     async def _dispatch_admin_delete(
@@ -56,18 +44,13 @@ class AdminMediaService(IAdminMediaService):
         actor_id: Optional[str] = None,
         triggered_by: str = "admin",
     ) -> None:
-        """Bridge admin deletions to the consolidated media facade when present."""
+        """Bridge admin deletions to the consolidated media facade."""
 
-        if self.media_facade is not None:
-            await self.media_facade.delete_media_as_admin(
-                media_id=media_id,
-                actor_id=actor_id,
-                triggered_by=triggered_by,
-            )
-            return
-
-        command = DeleteMediaCommand(media_id=media_id)
-        await self.delete_media_handler.handle(command)
+        await self.media_facade.delete_media_as_admin(
+            media_id=media_id,
+            actor_id=actor_id,
+            triggered_by=triggered_by,
+        )
 
     async def _dispatch_admin_reprocess(
         self,
@@ -78,43 +61,24 @@ class AdminMediaService(IAdminMediaService):
     ) -> None:
         """Bridge admin reprocess requests to the facade/event bus orchestration."""
 
-        if self.media_facade is not None:
-            await self.media_facade.reprocess_media_as_admin(
-                media_id=media_id,
-                actor_id=actor_id,
-                triggered_by=triggered_by,
-            )
-            return
-
-        command = ReprocessMediaCommand(media_id=media_id)
-        await self.reprocess_media_handler.handle(command)
+        await self.media_facade.reprocess_media_as_admin(
+            media_id=media_id,
+            actor_id=actor_id,
+            triggered_by=triggered_by,
+        )
 
     async def _dispatch_bulk_reprocess(self, failed_media: List[Media], admin_user: User) -> int:
-        """Execute bulk reprocess leveraging the facade when configured."""
+        """Execute bulk reprocess leveraging the consolidated media facade."""
 
-        if self.media_facade is not None:
-            return await self.media_facade.bulk_reprocess_failed_media(candidates=failed_media, actor_id=str(admin_user.id))
-
-        reprocessed_count = 0
-        for media in failed_media:
-            try:
-                await self.reprocess_media(media.id, admin_user)
-                reprocessed_count += 1
-            except Exception as exc:  # pragma: no cover - defensive logging
-                logger.warning(
-                    "admin.media.bulk_reprocess.failed",
-                    media_id=str(media.id),
-                    error=str(exc),
-                    admin_id=str(admin_user.id),
-                )
-        return reprocessed_count
+        return await self.media_facade.bulk_reprocess_failed_media(
+            candidates=failed_media,
+            actor_id=str(admin_user.id),
+        )
 
     async def _dispatch_cleanup_orphans(self, admin_user: User) -> int:
-        """Delegate orphan cleanup to the new facade, preserving fallback behaviour."""
+        """Delegate orphan cleanup to the consolidated media facade."""
 
-        if self.media_facade is not None:
-            return await self.media_facade.cleanup_orphaned_files(actor_id=str(admin_user.id))
-        return 0
+        return await self.media_facade.cleanup_orphaned_files(actor_id=str(admin_user.id))
     
     async def delete_media(self, media_id: UUID, admin_user: User) -> None:
         """
