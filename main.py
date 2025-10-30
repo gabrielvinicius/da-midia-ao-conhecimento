@@ -153,6 +153,8 @@ async def lifespan(app: FastAPI):
             session=session,
             storage_service_factory=storage_factory,
             metrics_service=monitoring_module.metrics_service,
+            event_bus=event_bus,
+            emit_legacy_media_task=not lightweight_mode,
         )
 
         if not lightweight_mode and build_video_processing_module is not None:
@@ -237,6 +239,7 @@ async def lifespan(app: FastAPI):
             media_queries=media_admin_context.queries,
             delete_media_handler=media_admin_context.delete_media_handler,
             reprocess_media_handler=media_admin_context.reprocess_media_handler,
+            media_facade=media_module.facade,
         )
 
         register_module_dependencies(

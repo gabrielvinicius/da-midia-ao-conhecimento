@@ -12,6 +12,7 @@ from src.media_management.application.commands.handlers import (
     DeleteMediaCommandHandler,
     ReprocessMediaCommandHandler,
 )
+from src.media_management.application.facade import MediaManagementFacade
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
 
@@ -22,6 +23,7 @@ class AdminContainer(containers.DeclarativeContainer):
     media_queries: providers.Provider[MediaQueries] = providers.Dependency()
     delete_media_handler: providers.Provider[DeleteMediaCommandHandler] = providers.Dependency()
     reprocess_media_handler: providers.Provider[ReprocessMediaCommandHandler] = providers.Dependency()
+    media_facade: providers.Provider[MediaManagementFacade] = providers.Dependency()
 
     user_repository = providers.Factory(UserRepository, db=db)
     media_repository = providers.Factory(MediaRepository, db=db)
@@ -42,6 +44,7 @@ class AdminContainer(containers.DeclarativeContainer):
         audit_service=admin_audit_service,
         delete_media_handler=delete_media_handler,
         reprocess_media_handler=reprocess_media_handler,
+        media_facade=media_facade,
     )
 
     admin_queries = providers.Factory(

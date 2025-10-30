@@ -6,6 +6,7 @@ Fornece uma API simples compatível com os chamadores atuais.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.storage.infrastructure.local_storage_service import LocalStorageService
@@ -46,6 +47,13 @@ class StorageServiceFactory:
     def create_storage_service(self, provider: str) -> Any:
         # No momento, só há adapter local; pode ser estendido para S3/Azure etc
         return _UploadAdapter(self._local)
+
+    def get_provider_root(self, provider: str) -> Path:
+        """Retorna o diretório raiz do provider configurado."""
+
+        if provider == self._local.provider_name:
+            return self._local._root
+        raise ValueError(f"Provider '{provider}' não suportado pelo StorageServiceFactory atual")
 
 
 def get_storage_service_factory() -> StorageServiceFactory:

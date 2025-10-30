@@ -1,6 +1,6 @@
 """Administrative media management services."""
 
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 import structlog
@@ -16,6 +16,7 @@ from src.media_management.application.commands.handlers import (
     DeleteMediaCommandHandler,
     ReprocessMediaCommandHandler,
 )
+from src.media_management.application.facade import MediaManagementFacade
 from src.media_management.domain.enums import MediaStatus
 from src.media_management.domain.media import Media
 from src.media_management.infrastructure.media_repository import MediaRepository
@@ -39,12 +40,81 @@ class AdminMediaService(IAdminMediaService):
         audit_service: IAdminAuditService,
         delete_media_handler: DeleteMediaCommandHandler,
         reprocess_media_handler: ReprocessMediaCommandHandler,
+        media_facade: Optional[MediaManagementFacade] = None,
     ):
         self.media_repository = media_repository
         self.permission_service = permission_service
         self.audit_service = audit_service
         self.delete_media_handler = delete_media_handler
         self.reprocess_media_handler = reprocess_media_handler
+        self.media_facade = media_facade
+
+    async def _dispatch_admin_delete(
+        self,
+        media_id: UUID,
+        *,
+        actor_id: Optional[str] = None,
+        triggered_by: str = "admin",
+    ) -> None:
+        """Bridge admin deletions to the consolidated media facade when present."""
+
+        if self.media_facade is not None:
+            await self.media_facade.delete_media_as_admin(
+                media_id=media_id,
+                actor_id=actor_id,
+                triggered_by=triggered_by,
+            )
+            return
+
+        command = DeleteMediaCommand(media_id=media_id)
+        await self.delete_media_handler.handle(command)
+
+    async def _dispatch_admin_reprocess(
+        self,
+        media_id: UUID,
+        *,
+        actor_id: Optional[str] = None,
+        triggered_by: str = "admin",
+    ) -> None:
+        """Bridge admin reprocess requests to the facade/event bus orchestration."""
+
+        if self.media_facade is not None:
+            await self.media_facade.reprocess_media_as_admin(
+                media_id=media_id,
+                actor_id=actor_id,
+                triggered_by=triggered_by,
+            )
+            return
+
+        command = ReprocessMediaCommand(media_id=media_id)
+        await self.reprocess_media_handler.handle(command)
+
+    async def _dispatch_bulk_reprocess(self, failed_media: List[Media], admin_user: User) -> int:
+        """Execute bulk reprocess leveraging the facade when configured."""
+
+        if self.media_facade is not None:
+            return await self.media_facade.bulk_reprocess_failed_media(candidates=failed_media, actor_id=str(admin_user.id))
+
+        reprocessed_count = 0
+        for media in failed_media:
+            try:
+                await self.reprocess_media(media.id, admin_user)
+                reprocessed_count += 1
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.warning(
+                    "admin.media.bulk_reprocess.failed",
+                    media_id=str(media.id),
+                    error=str(exc),
+                    admin_id=str(admin_user.id),
+                )
+        return reprocessed_count
+
+    async def _dispatch_cleanup_orphans(self, admin_user: User) -> int:
+        """Delegate orphan cleanup to the new facade, preserving fallback behaviour."""
+
+        if self.media_facade is not None:
+            return await self.media_facade.cleanup_orphaned_files(actor_id=str(admin_user.id))
+        return 0
     
     async def delete_media(self, media_id: UUID, admin_user: User) -> None:
         """
@@ -64,8 +134,10 @@ class AdminMediaService(IAdminMediaService):
 
         self.permission_service.validate_admin_operation(admin_user, media.user_id)
 
-        command = DeleteMediaCommand(media_id=media_id)
-        await self.delete_media_handler.handle(command)
+        await self._dispatch_admin_delete(
+            media_id,
+            actor_id=str(admin_user.id),
+        )
 
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
@@ -108,8 +180,10 @@ class AdminMediaService(IAdminMediaService):
         if media.status != MediaStatus.FAILED:
             raise ValueError(f"Media {media_id} is not in failed state (current: {media.status.value})")
         
-        command = ReprocessMediaCommand(media_id=media_id)
-        await self.reprocess_media_handler.handle(command)
+        await self._dispatch_admin_reprocess(
+            media_id,
+            actor_id=str(admin_user.id),
+        )
         
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
@@ -144,24 +218,13 @@ class AdminMediaService(IAdminMediaService):
         Raises:
             PermissionError: If admin doesn't have permission
         """
-        self.permission_service.validate_admin_operation(admin_user,
-                                                         admin_user.id)  # Pass admin_user.id as target_user_id
-        
+        self.permission_service.validate_admin_operation(
+            admin_user,
+            admin_user.id,
+        )  # Pass admin_user.id as target_user_id
+
         failed_media = await self.get_media_by_status(MediaStatus.FAILED)
-        
-        reprocessed_count = 0
-        for media in failed_media:
-            try:
-                await self.reprocess_media(media.id, admin_user)
-                reprocessed_count += 1
-            except Exception as e:
-                logger.warning(
-                    "admin.media.bulk_reprocess.failed",
-                    media_id=str(media.id),
-                    error=str(e),
-                    admin_id=str(admin_user.id)
-                )
-                continue
+        reprocessed_count = await self._dispatch_bulk_reprocess(failed_media, admin_user)
         
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
@@ -197,15 +260,8 @@ class AdminMediaService(IAdminMediaService):
             PermissionError: If admin doesn't have permission
         """
         self.permission_service.validate_admin_operation(admin_user, admin_user.id)
-        
-        # This is a placeholder implementation
-        # In a real system, this would:
-        # 1. List all files in storage
-        # 2. Compare with media records in database
-        # 3. Delete files that don't have corresponding records
-        # 4. Handle concurrent access and safety checks
-        
-        cleaned_count = 0  # Placeholder
+
+        cleaned_count = await self._dispatch_cleanup_orphans(admin_user)
         
         await self.audit_service.log_admin_action(
             admin_user=admin_user,

@@ -43,8 +43,29 @@ class TextContentReady(DomainEvent):
     sentiment_id: Optional[str] = None
 
 
+@dataclass(frozen=True, slots=True)
+class MediaDeleted(DomainEvent):
+    """Event emitted when a media asset is removed from the catalogue."""
+
+    media_id: str = ""
+    user_id: Optional[str] = None
+    triggered_by: str = ""
+    actor_id: Optional[str] = None
+
+
+@dataclass(frozen=True, slots=True)
+class MediaReprocessRequested(DomainEvent):
+    """Event emitted when a media reprocess flow is requested."""
+
+    media_id: str = ""
+    triggered_by: str = ""
+    actor_id: Optional[str] = None
+
+
 __all__ = [
     "DomainEvent",
     "MediaUploaded",
     "TextContentReady",
+    "MediaDeleted",
+    "MediaReprocessRequested",
 ]

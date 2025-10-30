@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import os
-from typing import Union
+import secrets
+from typing import Optional, Union
 
 try:  # noqa: SIM105 - bcrypt nem sempre disponível em ambientes de teste
     import bcrypt  # type: ignore
@@ -15,9 +17,32 @@ except ModuleNotFoundError:  # pragma: no cover - fallback path
 class PasswordHasher:
     """Gerenciador de hash de senhas com fallback robusto."""
 
-    def __init__(self, rounds: int = 12, fallback_iterations: int = 260_000):
+    DEFAULT_BCRYPT_ROUNDS = 12
+    DEFAULT_FALLBACK_ITERATIONS = 260_000
+    MIN_FALLBACK_ITERATIONS = 200_000
+
+    def __init__(
+        self,
+        rounds: int = DEFAULT_BCRYPT_ROUNDS,
+        fallback_iterations: Optional[int] = None,
+    ):
         self.rounds = rounds
-        self.fallback_iterations = fallback_iterations
+        env_iterations = os.getenv("PASSWORD_FALLBACK_ITERATIONS")
+        chosen_iterations = fallback_iterations
+
+        if chosen_iterations is None and env_iterations:
+            try:
+                chosen_iterations = int(env_iterations)
+            except ValueError:
+                chosen_iterations = None
+
+        if chosen_iterations is None:
+            chosen_iterations = self.DEFAULT_FALLBACK_ITERATIONS
+
+        if chosen_iterations < self.MIN_FALLBACK_ITERATIONS:
+            chosen_iterations = self.MIN_FALLBACK_ITERATIONS
+
+        self.fallback_iterations = chosen_iterations
 
     def hash_password(self, password: Union[str, bytes]) -> str:
         password_bytes = self._ensure_bytes(password)
@@ -30,7 +55,7 @@ class PasswordHasher:
             return hashed.decode("utf-8")
 
         # Fallback seguro utilizando PBKDF2
-        salt = os.urandom(16)
+        salt = secrets.token_bytes(16)
         derived = hashlib.pbkdf2_hmac(
             "sha256",
             password_bytes,
@@ -66,7 +91,7 @@ class PasswordHasher:
                 salt,
                 iterations,
             )
-            return hashlib.compare_digest(computed, expected)
+            return hmac.compare_digest(computed, expected)
         except Exception:
             return False
 

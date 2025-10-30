@@ -111,6 +111,8 @@ def build_media_components(
         access_policy=media_access_policy,
         delete_media_handler=delete_media_handler,
         reprocess_media_handler=reprocess_media_handler,
+        event_bus=event_bus,
+        storage_factory=storage_service_factory,
     )
 
     module = MediaModule(
