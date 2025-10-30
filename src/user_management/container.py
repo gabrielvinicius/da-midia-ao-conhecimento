@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.user_management.config.settings import AuthSettings
 
 from src.user_management.application.queries.auth_queries import AuthQueries
-from src.user_management.application.services.auth_service import AuthService
+from src.user_management.application.auth_service import AuthService
 from src.user_management.infrastructure.user_repository import UserRepository
 from src.user_management.application.user_service import UserService
 
@@ -23,13 +23,14 @@ class AuthContainer(containers.DeclarativeContainer):
         user_repository=user_repository,
     )
 
-    auth_service = providers.Factory(
-        AuthService,
+    user_service = providers.Factory(
+        UserService,
         user_repository=user_repository,
         settings=auth_settings,
     )
 
-    user_service = providers.Factory(
-        UserService,
-        user_repository=user_repository,
+    auth_service = providers.Factory(
+        AuthService,
+        user_service=user_service,
+        settings=auth_settings,
     )

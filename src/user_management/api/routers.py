@@ -1,16 +1,13 @@
-# src/auth/api/routers.py
 from typing import List, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from src.user_management.application.queries.auth_queries import AuthQueries
-from src.user_management.application.services.auth_service import AuthService
+from src.user_management.application.user_service import UserService
+from src.user_management.application.auth_service import AuthService
 from src.user_management.domain.user import User
 from src.shared.api.dependencies import get_current_user, get_current_admin_user
-from src.user_management.application.user_service import UserService
-# Import dependencies from their correct, decoupled locations
-from .dependencies import get_user_service, get_auth_service, get_auth_queries
+from .dependencies import get_user_service, get_auth_service
 from .schemas import Token, UserResponse, UserCreate
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -47,5 +44,6 @@ async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]
 
 
 @router.get("/users", response_model=List[UserResponse], dependencies=[Depends(get_current_admin_user)])
-async def list_all_users(auth_queries: AuthQueries = Depends(get_auth_queries)):
-    return await auth_queries.list_all()
+async def list_all_users(user_service: UserService = Depends(get_user_service)):
+    return await user_service.list_users()
+

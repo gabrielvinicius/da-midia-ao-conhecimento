@@ -22,9 +22,9 @@ def build_user_management_module(session: AsyncSession) -> UserManagementModule:
 
     user_repo = UserRepository(db=session)
     settings = AuthSettings()
-    auth_service = AuthService(user_repository=user_repo, settings=settings)
+    user_service = UserService(user_repository=user_repo, settings=settings)
+    auth_service = AuthService(user_service=user_service, settings=settings)
     auth_queries = AuthQueries(user_repository=user_repo)
-    user_service = UserService(user_repository=user_repo)
 
     return UserManagementModule(
         auth_service=auth_service,

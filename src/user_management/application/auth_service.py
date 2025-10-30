@@ -4,174 +4,68 @@ import structlog
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from src.user_management.application.user_service import UserService
 from src.user_management.domain.user import User, UserRole
-from src.user_management.infrastructure.user_repository import UserRepository
-from src.user_management.utils.token import create_access_token
-from src.shared.utils.id_generator import generate_id
-from src.shared.utils.password_utils import hash_password, verify_password
 
 logger = structlog.get_logger(__name__)
 
 
 class AuthService:
     """
-    Consolidated service for all user and authentication operations.
-    Handles: User CRUD, Authentication, Authorization, Password Management.
+    Thin facade over UserService kept for compatibility with API wiring.
     """
 
     def __init__(
         self,
-        user_repository: UserRepository,
+        user_service: UserService,
         settings: Any,
     ) -> None:
-        self.user_repository = user_repository
+        self.user_service = user_service
         self.settings = settings
 
     async def authenticate_user(self, email: str, password: str) -> Dict[str, Any]:
-        """Authenticate user and return token."""
         logger.info("auth.authenticate.started", email=email)
-        user = await self.user_repository.find_by_email(email)
-        if not user or not self._verify_password(password, user.password_hash):
+        try:
+            result = await self.user_service.authenticate_user(email, password)
+        except ValueError:
             logger.warning("auth.authenticate.failed", email=email, reason="invalid_credentials")
-            raise ValueError("Invalid credentials")
+            raise
+        logger.info("auth.authenticate.success", email=email)
+        return result
 
-        token = create_access_token(user.id)
-        logger.info("auth.authenticate.success", user_id=str(user.id))
+    async def create_user(self, email: str, password: str, role: str = "user"):
+        return await self.user_service.create_user(email=email, password=password, role=role)
 
-        return {
-            "token": token,
-            "user": {
-                "id": str(user.id),
-                "email": user.email,
-                "role": user.role.value,
-            },
-        }
-
-    async def create_user(self, email: str, password: str, role: str = "user") -> User:
-        """Create a new user with validation."""
-        logger.info("user.create.started", email=email, role=role)
-        self._validate_email_format(email)
-        await self._validate_email_available(email)
-        self._validate_password_strength(password)
-        self._validate_role(role)
-
-        password_hash = self._hash_password(password)
-
-        new_user = User(
-            id=generate_id(),
-            email=email,
-            password_hash=password_hash,
-            role=UserRole(role),
-        )
-
-        created_user = await self.user_repository.save(new_user)
-        logger.info("user.create.completed", user_id=str(created_user.id), email=email)
-        return created_user
-
-    async def update_user(self, user_id: UUID, updates: Dict[str, Any], admin_user_id: Optional[UUID] = None) -> User:
-        """Update user information."""
+    async def update_user(self, user_id: UUID, updates: Dict[str, Any], admin_user_id: Optional[UUID] = None):
         logger.info("user.update.started", user_id=str(user_id), updates=updates, admin_user_id=str(admin_user_id))
-        user = await self._validate_user_exists(user_id)
-        self._validate_user_updates(updates)
-
-        for key, value in updates.items():
-            setattr(user, key, value)
-
-        updated_user = await self.user_repository.save(user)
-        logger.info("user.update.completed", user_id=str(updated_user.id))
-        return updated_user
+        updated = await self.user_service.update_user(user_id, updates)
+        logger.info("user.update.completed", user_id=str(updated.id))
+        return updated
 
     async def delete_user(self, user_id: UUID, admin_user_id: Optional[UUID] = None) -> bool:
-        """Delete a user."""
         logger.info("user.delete.started", user_id=str(user_id), admin_user_id=str(admin_user_id))
-        await self._validate_user_exists(user_id)
-        success = await self.user_repository.delete(user_id)
-        if success:
-            logger.info("user.delete.completed", user_id=str(user_id))
-        else:
-            logger.error("user.delete.failed", user_id=str(user_id))
-        return success
+        await self.user_service.delete_user(user_id)
+        logger.info("user.delete.completed", user_id=str(user_id))
+        return True
 
     async def change_password(self, user_id: UUID, old_password: str, new_password: str) -> bool:
-        """Change a user's password."""
-        logger.info("user.change_password.started", user_id=str(user_id))
-        user = await self._validate_user_exists(user_id)
-        if not self._verify_password(old_password, user.password_hash):
-            logger.warning("user.change_password.failed", reason="invalid_old_password", user_id=str(user_id))
-            raise ValueError("Invalid old password")
-
-        self._validate_password_strength(new_password)
-        new_password_hash = self._hash_password(new_password)
-        user.password_hash = new_password_hash
-        await self.user_repository.save(user)
-
-        logger.info("user.change_password.completed", user_id=str(user_id))
+        await self.user_service.change_password(user_id, old_password, new_password)
         return True
 
     def require_admin_role(self, user: User) -> None:
-        """Require user to have admin role."""
         if user.role != UserRole.ADMIN:
             raise PermissionError("Admin role required")
 
     def can_modify_user(self, current_user: User, target_user_id: UUID) -> bool:
-        """Check if current user can modify target user."""
         if current_user.role == UserRole.ADMIN:
             return True
         return str(current_user.id) == str(target_user_id)
 
-    async def get_user_by_id(self, user_id: UUID) -> Optional[User]:
-        return await self.user_repository.find_by_id(user_id)
+    async def get_user_by_id(self, user_id: UUID):
+        return await self.user_service.get_user_by_id(user_id)
 
-    async def get_user_by_email(self, email: str) -> Optional[User]:
-        return await self.user_repository.find_by_email(email)
+    async def get_user_by_email(self, email: str):
+        return await self.user_service.get_user_by_email(email)
 
     async def list_users(self) -> List[User]:
-        return await self.user_repository.list_all()
-
-    def _hash_password(self, password: str) -> str:
-        return hash_password(password)
-
-    def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        return verify_password(plain_password, hashed_password)
-
-    async def _validate_user_exists(self, user_id: UUID) -> User:
-        user = await self.user_repository.find_by_id(user_id)
-        if not user:
-            raise ValueError(f"User with id {user_id} not found")
-        return user
-
-    async def _validate_email_available(self, email: str) -> None:
-        if await self.user_repository.find_by_email(email):
-            raise ValueError("Email already registered")
-
-    def _validate_email_format(self, email: str) -> None:
-        if not email or "@" not in email or "." not in email.split("@")[1]:
-            raise ValueError("Invalid email format")
-
-    def _validate_password_strength(self, password: str) -> None:
-        if not password or len(password) < self.settings.password_min_length:
-            raise ValueError(f"Password must be at least {self.settings.password_min_length} characters long")
-        if not any(c.isupper() for c in password):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in password):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in password):
-            raise ValueError("Password must contain at least one number")
-
-    def _validate_role(self, role: str) -> None:
-        valid_roles = [r.value for r in UserRole]
-        if role not in valid_roles:
-            raise ValueError(f"Invalid role. Must be one of: {valid_roles}")
-
-    def _validate_user_updates(self, updates: Dict[str, Any]) -> None:
-        if not updates:
-            raise ValueError("No updates provided")
-        if "email" in updates:
-            self._validate_email_format(updates["email"])
-        if "role" in updates:
-            self._validate_role(updates["role"])
-
-        forbidden_fields = ["id", "password_hash", "created_at"]
-        for field in forbidden_fields:
-            if field in updates:
-                raise ValueError(f"Cannot update field: {field}")
+        return await self.user_service.list_users()
