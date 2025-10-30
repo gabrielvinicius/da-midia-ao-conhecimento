@@ -1,6 +1,11 @@
-# src/transcription/infrastructure/speech_recognizer.py
+"""Speech recognizer placeholder used in transcription workflows."""
+from __future__ import annotations
+
+from typing import Any, Dict, Optional
+
 import structlog
-from typing import Dict, Any, Optional
+
+logger = structlog.get_logger(__name__)
 
 class WhisperSpeechRecognizer:
     """Concrete implementation of ISpeechRecognizer using a placeholder Whisper algorithm."""
