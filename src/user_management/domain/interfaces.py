@@ -1,4 +1,4 @@
-# src/auth/domain/interfaces.py
+# src.user_management/domain/interfaces.py
 from abc import ABC, abstractmethod
 from uuid import UUID
 

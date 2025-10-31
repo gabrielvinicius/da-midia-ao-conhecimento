@@ -7,7 +7,7 @@ from src.notifications.application.commands.request_notification_command import 
 from src.notifications.application.commands.request_notification_command_handler import RequestNotificationCommandHandler
 from src.notifications.domain.notification import NotificationType
 from src.shared.events.domain_events import NotificationRequested
-from src.user_management.domain.user import User, UserRole
+from src.auth.domain.user import User, UserRole
 
 @pytest.fixture
 def mock_auth_queries():

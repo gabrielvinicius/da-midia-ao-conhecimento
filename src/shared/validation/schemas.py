@@ -9,15 +9,7 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 import re
-from pydantic import (
-    BaseModel,
-    Field,
-    HttpUrl,
-    SecretStr,
-    field_validator,
-    ValidationInfo,
-    ConfigDict,
-)
+from pydantic import BaseModel, Field, validator, HttpUrl, SecretStr
 from pydantic.types import conint, confloat
 
 from src.shared.infrastructure.logging_config import get_logger
@@ -64,13 +56,17 @@ class NotificationTypeEnum(str, Enum):
 
 class BaseSchema(BaseModel):
     """Esquema base com configurações padrão."""
-
-    model_config = ConfigDict(
-        str_strip_whitespace=True,
-        validate_assignment=True,
-        arbitrary_types_allowed=False,
-        use_enum_values=True
-    )
+    
+    class Config:
+        # Pydantic v2 configurations
+        str_strip_whitespace = True
+        validate_assignment = True
+        arbitrary_types_allowed = False
+        use_enum_values = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+            UUID: lambda v: str(v)
+        }
 
 
 class TimestampMixin(BaseModel):
@@ -90,9 +86,9 @@ class PaginationParams(BaseSchema):
 class SearchParams(BaseSchema):
     """Parâmetros de busca padronizados."""
     search: Optional[StrictStr] = Field(default=None, description="Termo de busca")
-
-    @field_validator('search')
-    def validate_search_term(cls, v: Optional[str]) -> Optional[str]:
+    
+    @validator('search')
+    def validate_search_term(cls, v):
         if v and len(v.strip()) < 2:
             raise ValueError("Termo de busca deve ter pelo menos 2 caracteres")
         return v
@@ -103,16 +99,16 @@ class SearchParams(BaseSchema):
 class UserBase(BaseSchema):
     """Esquema base para usuário."""
     email: str = Field(..., description="Email do usuário")
-
-    @field_validator('email')
-    def validate_email_domain(cls, v: str) -> str:
+    
+    @validator('email')
+    def validate_email_domain(cls, v):
         # Lista de domínios temporários para bloquear
         blocked_domains = {'10minutemail.com', 'tempmail.org', 'guerrillamail.com'}
         domain = v.split('@')[1].lower()
-
+        
         if domain in blocked_domains:
             raise ValueError(f"Domínio de email temporário não permitido: {domain}")
-
+        
         return v
 
 
@@ -120,16 +116,15 @@ class UserCreate(UserBase):
     """Esquema para criação de usuário."""
     password: SecurePassword = Field(..., description="Senha do usuário")
     confirm_password: str = Field(..., description="Confirmação da senha")
-
-    @field_validator('confirm_password')
-    def passwords_match(cls, v: str, info: ValidationInfo) -> str:
-        password = info.data.get('password')
-        if password is not None and v != password:
+    
+    @validator('confirm_password')
+    def passwords_match(cls, v, values):
+        if 'password' in values and v != values['password']:
             raise ValueError('Senhas não coincidem')
         return v
-
-    @field_validator('password')
-    def validate_password_strength(cls, v: str) -> str:
+    
+    @validator('password')
+    def validate_password_strength(cls, v):
         """Validação robusta de força da senha."""
         errors = []
         
@@ -162,8 +157,9 @@ class UserResponse(UserBase, TimestampMixin):
     id: UUID = Field(..., description="ID único do usuário")
     role: UserRoleEnum = Field(..., description="Papel do usuário")
     is_active: bool = Field(default=True, description="Usuário ativo")
-
-    model_config = ConfigDict(**BaseSchema.model_config, from_attributes=True)
+    
+    class Config(BaseSchema.Config):
+        from_attributes = True
 
 
 # === Esquemas de Mídia ===
@@ -172,9 +168,9 @@ class MediaBase(BaseSchema):
     """Esquema base para mídia."""
     media_type: MediaTypeEnum = Field(..., description="Tipo da mídia")
     language: Optional[str] = Field(default=None, description="Idioma da mídia")
-
-    @field_validator('language')
-    def validate_language_code(cls, v: Optional[str]) -> Optional[str]:
+    
+    @validator('language')
+    def validate_language_code(cls, v):
         if v and not re.match(r'^[a-z]{2}(-[A-Z]{2})?$', v):
             raise ValueError("Código de idioma deve estar no formato ISO 639-1 (ex: 'pt', 'en-US')")
         return v
@@ -185,9 +181,9 @@ class MediaCreate(MediaBase):
     storage_provider: StrictStr = Field(default="local", description="Provedor de storage")
     transcription_provider: Optional[StrictStr] = Field(default=None, description="Provedor de transcrição")
     summarization_provider: Optional[StrictStr] = Field(default=None, description="Provedor de resumo")
-
-    @field_validator('storage_provider')
-    def validate_storage_provider(cls, v: str) -> str:
+    
+    @validator('storage_provider')
+    def validate_storage_provider(cls, v):
         allowed_providers = {'local', 's3', 'gcs', 'azure'}
         if v not in allowed_providers:
             raise ValueError(f"Provedor de storage deve ser um de: {allowed_providers}")
@@ -208,8 +204,9 @@ class MediaResponse(MediaBase, TimestampMixin):
     status: MediaStatusEnum = Field(..., description="Status do processamento")
     error_message: Optional[str] = Field(default=None, description="Mensagem de erro se houver")
     storage_provider: str = Field(..., description="Provedor de storage utilizado")
-
-    model_config = ConfigDict(**BaseSchema.model_config, from_attributes=True)
+    
+    class Config(BaseSchema.Config):
+        from_attributes = True
 
 
 class MediaListResponse(BaseSchema):
@@ -219,13 +216,11 @@ class MediaListResponse(BaseSchema):
     page: int = Field(..., description="Página atual")
     limit: int = Field(..., description="Itens por página")
     total_pages: int = Field(..., description="Total de páginas")
-
-    @field_validator('total_pages', mode='after')
-    def calculate_total_pages(cls, v: int, info: ValidationInfo) -> int:
-        total = info.data.get('total')
-        limit = info.data.get('limit')
-        if total is not None and limit:
-            return (total + limit - 1) // limit
+    
+    @validator('total_pages', pre=True, always=True)
+    def calculate_total_pages(cls, v, values):
+        if 'total' in values and 'limit' in values:
+            return (values['total'] + values['limit'] - 1) // values['limit']
         return v
 
 
@@ -250,11 +245,10 @@ class ChangePasswordRequest(BaseSchema):
     old_password: str = Field(..., min_length=1, description="Senha atual")
     new_password: SecurePassword = Field(..., description="Nova senha")
     confirm_new_password: str = Field(..., description="Confirmação da nova senha")
-
-    @field_validator('confirm_new_password')
-    def passwords_match(cls, v: str, info: ValidationInfo) -> str:
-        new_password = info.data.get('new_password')
-        if new_password is not None and v != new_password:
+    
+    @validator('confirm_new_password')
+    def passwords_match(cls, v, values):
+        if 'new_password' in values and v != values['new_password']:
             raise ValueError('Nova senha e confirmação não coincidem')
         return v
 
@@ -280,8 +274,9 @@ class NotificationResponse(NotificationBase, TimestampMixin):
     user_id: UUID = Field(..., description="ID do usuário destinatário")
     is_read: bool = Field(default=False, description="Notificação foi lida")
     read_at: Optional[datetime] = Field(default=None, description="Data de leitura")
-
-    model_config = ConfigDict(**BaseSchema.model_config, from_attributes=True)
+    
+    class Config(BaseSchema.Config):
+        from_attributes = True
 
 
 # === Validadores Customizados ===

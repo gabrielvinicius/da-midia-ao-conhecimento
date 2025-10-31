@@ -1,4 +1,4 @@
-# src/auth/infrastructure/user_repository.py
+# src.user_management/infrastructure/user_repository.py
 from typing import List, Optional
 from uuid import UUID
 

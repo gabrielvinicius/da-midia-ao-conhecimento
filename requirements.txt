@@ -47,9 +47,6 @@ pymupdf>=1.24.9
 structlog>=24.2.0
 prometheus-client>=0.20.0
 pybreaker>=1.1.0
-psutil>=5.9.8
-dependency-injector>=4.43.0
-trio>=0.26.0
 
 # OpenTelemetry for Distributed Tracing
 opentelemetry-api>=1.21.0

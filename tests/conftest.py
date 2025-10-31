@@ -8,7 +8,6 @@ import os
 import sys
 from pathlib import Path
 import pytest
-import pytest_asyncio
 from typing import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -289,7 +288,7 @@ def valid_jwt_token() -> str:
 # CLEANUP AND TEARDOWN
 # ============================================================================
 
-@pytest_asyncio.fixture(autouse=True)
+@pytest.fixture(autouse=True)
 async def cleanup_test_artifacts():
     """Automatically cleanup test artifacts after each test."""
     yield

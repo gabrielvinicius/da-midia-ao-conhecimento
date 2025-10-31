@@ -13,7 +13,7 @@ from src.shared.infrastructure.database import Base  # Importar a Base
 
 # ---------- Importe todos os modelos aqui ----------
 # Import all models to ensure they are registered with SQLAlchemy
-from src.user_management.domain.user import User
+from src.auth.domain.user import User
 from src.media_management.infrastructure.orm.media_entity import MediaEntity
 from src.notifications.domain.notification import Notification
 from src.summarization.infrastructure.orm.summary_entity import SummaryEntity

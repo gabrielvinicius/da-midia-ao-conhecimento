@@ -1,1 +1,0 @@
-# Video processing template methods using Template Method Pattern

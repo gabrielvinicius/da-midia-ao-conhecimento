@@ -6,9 +6,12 @@ from src.admin.application.services.admin_audit_service import AdminAuditService
 from src.admin.application.services.admin_media_service import AdminMediaService
 from src.admin.application.services.admin_user_service import AdminUserService
 from src.user_management.application.queries.auth_queries import AuthQueries
-from src.user_management.application.permission_service import UserPermissionService
+from src.user_management.application.services.permission_service import UserPermissionService
 from src.user_management.infrastructure.user_repository import UserRepository
-from src.media_management.application.facade import MediaManagementFacade
+from src.media_management.application.commands.handlers import (
+    DeleteMediaCommandHandler,
+    ReprocessMediaCommandHandler,
+)
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
 
@@ -17,7 +20,8 @@ class AdminContainer(containers.DeclarativeContainer):
     db: providers.Provider[AsyncSession] = providers.Dependency()
     auth_queries: providers.Provider[AuthQueries] = providers.Dependency()
     media_queries: providers.Provider[MediaQueries] = providers.Dependency()
-    media_facade: providers.Provider[MediaManagementFacade] = providers.Dependency()
+    delete_media_handler: providers.Provider[DeleteMediaCommandHandler] = providers.Dependency()
+    reprocess_media_handler: providers.Provider[ReprocessMediaCommandHandler] = providers.Dependency()
 
     user_repository = providers.Factory(UserRepository, db=db)
     media_repository = providers.Factory(MediaRepository, db=db)
@@ -36,7 +40,8 @@ class AdminContainer(containers.DeclarativeContainer):
         media_repository=media_repository,
         permission_service=permission_service,
         audit_service=admin_audit_service,
-        media_facade=media_facade,
+        delete_media_handler=delete_media_handler,
+        reprocess_media_handler=reprocess_media_handler,
     )
 
     admin_queries = providers.Factory(

@@ -2,8 +2,8 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.media_processing.video_processing.application.commands.process_video_command import ProcessVideoCommand
-from src.media_processing.video_processing.application.commands.process_video_command_handler import ProcessVideoCommandHandler
+from src.video_processing.application.commands.process_video_command import ProcessVideoCommand
+from src.video_processing.application.commands.process_video_command_handler import ProcessVideoCommandHandler
 from src.media_management.domain.media import Media, MediaType
 from src.shared.events.domain_events import AudioExtracted
 
@@ -19,7 +19,7 @@ def handler_mocks():
     }
 
 @pytest.mark.asyncio
-@patch("src.media_processing.video_processing.application.commands.process_video_command_handler.av")
+@patch("src.video_processing.application.commands.process_video_command_handler.av")
 async def test_process_video_handler_success(mock_av, handler_mocks):
     """Tests that the handler correctly extracts audio and publishes an event."""
     # Arrange

@@ -55,10 +55,11 @@ except Exception:  # pragma: no cover
     TopicModelingDependencies = None  # type: ignore[assignment]
     get_topic_modeling_dependencies = None  # type: ignore[assignment]
     TopicModelingModule = None  # type: ignore[assignment]
-from src.media_processing.transcription.api.dependencies import (
+from src.transcription.api.dependencies import (
     TranscriptionDependencies,
     get_transcription_dependencies,
 )
+from src.transcription.bootstrap import TranscriptionModule
 from src.user_management.bootstrap import UserManagementModule
 
 
@@ -68,6 +69,7 @@ def register_module_dependencies(
         auth: UserManagementModule,
     monitoring: MonitoringModule,
     media: MediaModule,
+    transcription: TranscriptionModule,
     notifications: NotificationModule,
     summarization: object | None,
     providers: ProvidersModule,
@@ -100,8 +102,8 @@ def register_module_dependencies(
 
     app.dependency_overrides[get_transcription_dependencies] = (
         lambda: TranscriptionDependencies(
-            service=media.transcription_service,
-            queries=media.transcription_queries,
+            service=transcription.service,
+            queries=transcription.queries,
         )
     )
 

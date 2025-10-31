@@ -47,11 +47,11 @@ def create_celery() -> Celery:
 
             # Existing task packages
             "src.notifications.tasks",
-            "src.media_processing.transcription.tasks",
+            "src.transcription.tasks",
             "src.text_processing.tasks",
             "src.topic_modeling.tasks",
             "src.sentiment_analysis.tasks",
-            "src.media_processing.video_processing.tasks",
+            "src.video_processing.tasks",
         ]
     )
 

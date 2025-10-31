@@ -11,7 +11,7 @@ from datetime import datetime
 from src.sentiment_analysis.application.commands.analyze_sentiment_command import AnalyzeSentimentCommand
 from src.sentiment_analysis.application.commands.analyze_sentiment_command_handler import AnalyzeSentimentCommandHandler
 from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysis
-from src.media_processing.transcription.domain.transcription import Transcription, TranscriptionStatus
+from src.transcription.domain.transcription import Transcription, TranscriptionStatus
 from src.shared.events.domain_events import SentimentAnalysisCompleted
 from src.shared.exceptions.domain_exceptions import ValidationError, ProcessingError
 

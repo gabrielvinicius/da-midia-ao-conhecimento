@@ -13,8 +13,11 @@ from src.admin.application.services.admin_audit_service import AdminAuditService
 from src.admin.application.services.admin_media_service import AdminMediaService
 from src.admin.application.services.admin_user_service import AdminUserService
 from src.user_management.application.queries.auth_queries import AuthQueries
-from src.media_management.application.facade import MediaManagementFacade
 from src.media_management.application.queries.media_queries import MediaQueries
+from src.media_management.application.commands.handlers import (
+    DeleteMediaCommandHandler,
+    ReprocessMediaCommandHandler,
+)
 
 
 @dataclass
@@ -31,12 +34,14 @@ def build_admin_module(
     session: AsyncSession,
     auth_queries: AuthQueries,
     media_queries: MediaQueries,
-    media_facade: MediaManagementFacade,
+    delete_media_handler: DeleteMediaCommandHandler,
+    reprocess_media_handler: ReprocessMediaCommandHandler,
 ) -> AdminModule:
     container = AdminContainer(db=session)
     container.auth_queries.override(providers.Object(auth_queries))
     container.media_queries.override(providers.Object(media_queries))
-    container.media_facade.override(providers.Object(media_facade))
+    container.delete_media_handler.override(providers.Object(delete_media_handler))
+    container.reprocess_media_handler.override(providers.Object(reprocess_media_handler))
 
     admin_queries = container.admin_queries()
     audit_service = container.admin_audit_service()
@@ -48,7 +53,7 @@ def build_admin_module(
         admin_user_service=user_service,
     )
     media_adapter = MediaManagementAdapter(
-        media_facade=media_facade,
+        media_queries=media_queries,
         admin_media_service=media_service,
     )
     facade_enabled = is_admin_facade_enabled()

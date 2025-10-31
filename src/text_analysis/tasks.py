@@ -10,21 +10,21 @@ import structlog
 from celery import shared_task
 
 # Imports for text processing tasks
-from src.text_analysis.text_processing.infrastructure.text_processor import TextProcessor
-from src.text_analysis.text_processing.infrastructure.text_extractor import TextExtractor
+from src.text_processing.infrastructure.text_processor import TextProcessor # Will be refactored
+from src.text_processing.infrastructure.text_extractor import TextExtractor # Will be refactored
 
 # Imports for summarization tasks
 from src.shared.infrastructure.database import get_db
-from src.text_analysis.summarization.domain.summary import Summary
-from src.text_analysis.summarization.infrastructure.summarization_repository import SummarizationRepository
-from src.text_analysis.summarization.infrastructure.summarizer import TextRankSummarizer
+from src.summarization.domain.summary import Summary # Will be refactored
+from src.summarization.infrastructure.summarization_repository import SummarizationRepository # Will be refactored
+from src.summarization.infrastructure.summarizer import TextRankSummarizer # Will be refactored
 
 # Imports for topic modeling tasks
-from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult
-from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
-from src.text_analysis.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
-from src.text_analysis.topic_modeling.infrastructure.logging import StructuredTopicModelingLogger
-from src.text_analysis.topic_modeling.infrastructure.metrics import PrometheusTopicModelingMetrics
+from src.topic_modeling.domain.topic_modeling import TopicModelingResult # Will be refactored
+from src.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository # Will be refactored
+from src.topic_modeling.infrastructure.topic_modeler import BERTopicModeler # Will be refactored
+from src.topic_modeling.infrastructure.logging import StructuredTopicModelingLogger # Will be refactored
+from src.topic_modeling.infrastructure.metrics import PrometheusTopicModelingMetrics # Will be refactored
 
 logger = structlog.get_logger(__name__)
 
