@@ -7,7 +7,7 @@ from src.admin.api.dependencies import (
     get_admin_dependencies,
 )
 from src.admin.bootstrap import AdminModule
-from src.auth.api.dependencies import AuthDependencies, get_auth_dependencies
+from src.user_management.api.dependencies import AuthDependencies, get_auth_dependencies
 from src.media_management.api.dependencies import (
     MediaDependencies,
     get_media_dependencies,

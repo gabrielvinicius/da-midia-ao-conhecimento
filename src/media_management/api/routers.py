@@ -6,7 +6,7 @@ from fastapi.encoders import jsonable_encoder
 
 # Import dependencies from their correct, decoupled locations
 from src.shared.api.dependencies import get_current_user
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 from .dependencies import (
     get_media_lifecycle_service,
     get_media_query_service,

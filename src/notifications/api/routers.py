@@ -1,7 +1,7 @@
 # src/notifications/api/routers.py
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.auth.domain.user import User, UserRole
+from src.user_management.domain.user import User, UserRole
 from src.shared.api.dependencies import get_current_user
 
 from .dependencies import get_notification_service, get_notification_queries

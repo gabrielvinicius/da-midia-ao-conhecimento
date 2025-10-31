@@ -9,7 +9,7 @@ from src.admin.application.queries.admin_queries import AdminQueries
 from src.admin.application.services.admin_audit_service import AdminAuditService
 from src.admin.application.services.admin_media_service import AdminMediaService
 from src.admin.application.services.admin_user_service import AdminUserService
-from src.auth.api.dependencies import get_auth_queries
+from src.user_management.api.dependencies import get_auth_queries
 from src.media_management.api.dependencies import get_media_queries
 
 

@@ -8,7 +8,7 @@ from datetime import datetime
 import structlog
 
 from src.admin.domain.interfaces import IAdminAuditService
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 
 logger = structlog.get_logger(__name__)
 

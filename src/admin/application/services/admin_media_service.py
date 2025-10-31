@@ -6,8 +6,8 @@ from uuid import UUID
 import structlog
 
 from src.admin.domain.interfaces import IAdminAuditService, IAdminMediaService
-from src.auth.domain.interfaces import IUserPermissionService
-from src.auth.domain.user import User
+from src.user_management.domain.interfaces import IUserPermissionService
+from src.user_management.domain.user import User
 from src.media_management.application.commands.commands import (
     DeleteMediaCommand,
     ReprocessMediaCommand,

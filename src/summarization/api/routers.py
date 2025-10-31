@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Form, HTTPException, status
 from typing import Annotated, Optional
 
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.shared.api.dependencies import get_current_user
 from src.shared.api.unified_schemas import BaseResponseSchema, create_error_response, create_success_response

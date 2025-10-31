@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Form
 from typing import Optional, Annotated, Dict, Any
 
 from src.shared.api.dependencies import get_current_user
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 from src.media_management.application.queries.media_queries import MediaQueries # Manter por enquanto, mas idealmente injetar via container
 from src.transcription.application.queries.transcription_queries import TranscriptionQueries # Manter por enquanto, mas idealmente injetar via container
 

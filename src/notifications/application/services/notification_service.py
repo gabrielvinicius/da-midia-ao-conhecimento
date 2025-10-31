@@ -11,7 +11,7 @@ import structlog
 from src.notifications.infrastructure.logging import StructuredNotificationLogger
 from src.notifications.infrastructure.metrics import PrometheusNotificationMetrics
 
-from src.auth.application.queries.auth_queries import AuthQueries
+from src.user_management.application.queries.auth_queries import AuthQueries
 from src.notifications.domain.notification import Notification, NotificationStatus, NotificationType, \
     NotificationPriority
 from src.notifications.infrastructure.connection_manager import ConnectionManager
