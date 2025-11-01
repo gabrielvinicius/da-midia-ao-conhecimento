@@ -1,4 +1,4 @@
-# src.user_management/utils/token.py
+# src/auth/utils/token.py
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from uuid import UUID

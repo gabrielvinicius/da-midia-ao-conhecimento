@@ -2,7 +2,7 @@
 from typing import Dict, Optional, List
 from uuid import UUID
 
-from src.transcription.domain.transcription import Transcription
+from src.media_processing.transcription.domain.transcription import Transcription
 
 
 class InMemoryTranscriptionRepository:
@@ -16,9 +16,9 @@ class InMemoryTranscriptionRepository:
     async def find_by_id(self, transcription_id: str) -> Optional[Transcription]:
         return self.transcriptions.get(str(transcription_id))
 
-    async def find_by_video_id(self, video_id: str) -> Optional[Transcription]:
+    async def find_by_media_id(self, media_id: str) -> Optional[Transcription]:
         for trans in self.transcriptions.values():
-            if str(trans.video_id) == str(video_id):
+            if str(trans.media_id) == str(media_id):
                 return trans
         return None
 

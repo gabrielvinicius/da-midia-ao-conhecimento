@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 from src.notifications.application.commands.send_notification_command import SendNotificationCommand
 from src.notifications.application.commands.send_notification_command_handler import SendNotificationCommandHandler
 from src.notifications.domain.notification import NotificationType, NotificationStatus

@@ -1,1 +1,0 @@
-# Obsolete: Logic merged into VideoProcessingService

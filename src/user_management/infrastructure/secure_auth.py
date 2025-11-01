@@ -1,4 +1,4 @@
-# src.user_management/infrastructure/secure_auth.py
+# src/auth/infrastructure/secure_auth.py
 """
 Sistema de autenticação segura com cookies httpOnly e proteção CSRF.
 Remove dependência do localStorage para maior segurança.
