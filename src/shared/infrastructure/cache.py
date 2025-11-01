@@ -63,7 +63,6 @@ class RedisCache:
                 port=settings.redis_port,
                 db=settings.redis_db + 1,  # Usar DB diferente do event bus
                 decode_responses=False,  # Para suportar binary data
-                retry_on_timeout=True,
                 socket_connect_timeout=5,
                 socket_timeout=5,
                 max_connections=20
@@ -86,7 +85,7 @@ class RedisCache:
     async def disconnect(self):
         """Desconecta do Redis."""
         if self.redis_client:
-            await self.redis_client.close()
+            await self.redis_client.aclose()
             self.is_connected = False
             logger.info("Redis cache disconnected")
     

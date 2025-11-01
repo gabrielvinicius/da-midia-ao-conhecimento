@@ -38,6 +38,10 @@ class DefaultMediaEventPublisher(MediaEventPublisher):
                         user_id=str(getattr(media, "user_id", "")),
                         storage_provider=getattr(media, "storage_provider", None),
                         filename=getattr(media, "filename", None),
+                        file_path=file_path,
+                        media_type=getattr(getattr(media, "media_type", None), "value", None)
+                        if hasattr(getattr(media, "media_type", None), "value")
+                        else getattr(media, "media_type", None),
                     )
                 )
             except Exception as exc:  # pragma: no cover - fallback

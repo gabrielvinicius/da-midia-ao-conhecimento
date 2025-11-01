@@ -1,13 +1,13 @@
-# src/user_management/api/routers.py
 from typing import List, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
+from src.user_management.application.user_service import UserService
+from src.user_management.application.auth_service import AuthService
 from src.user_management.domain.user import User
 from src.shared.api.dependencies import get_current_user, get_current_admin_user
-from src.user_management.application.services import UserService
-from .dependencies import get_user_service
+from .dependencies import get_user_service, get_auth_service
 from .schemas import Token, UserResponse, UserCreate
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -19,8 +19,8 @@ async def register(
     user_service: UserService = Depends(get_user_service),
 ):
     try:
-        user = await user_service.create_user(user_data.email, user_data.password)
-        return user
+        result = await user_service.register_user(user_data.email, user_data.password)
+        return result["user"]
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -28,22 +28,10 @@ async def register(
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    user_service: UserService = Depends(get_user_service),
+    auth_service: AuthService = Depends(get_auth_service),
 ):
     try:
-        result = await user_service.authenticate_user(form_data.username, form_data.password)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
-
-    return {"access_token": result["token"], "token_type": "bearer"}
-
-@router.post("/token/legacy", response_model=Token)
-async def login_for_access_token_legacy(
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    user_service: UserService = Depends(get_user_service),
-):
-    try:
-        result = await user_service.authenticate_user(form_data.username, form_data.password)
+        result = await auth_service.authenticate_user(form_data.username, form_data.password)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
@@ -58,3 +46,4 @@ async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]
 @router.get("/users", response_model=List[UserResponse], dependencies=[Depends(get_current_admin_user)])
 async def list_all_users(user_service: UserService = Depends(get_user_service)):
     return await user_service.list_users()
+

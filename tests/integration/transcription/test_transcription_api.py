@@ -3,10 +3,10 @@ import pytest
 from httpx import AsyncClient
 from uuid import uuid4
 
-from src.auth.domain.user import User
+from src.user_management.domain.user import User
 from src.media_management.domain.enums import MediaStatus, MediaType
 from src.media_management.infrastructure.orm.media_entity import MediaEntity
-from src.transcription.domain.transcription import Transcription, TranscriptionStatus
+from src.media_processing.transcription.domain.transcription import Transcription, TranscriptionStatus
 
 # A fixture for the async client is assumed to be available, e.g., in a root conftest.py
 # If not, it should be added.

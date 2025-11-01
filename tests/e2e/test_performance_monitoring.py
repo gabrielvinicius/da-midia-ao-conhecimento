@@ -15,10 +15,10 @@ from src.summarization.application.services.summary_validator import SummaryVali
 from src.summarization.application.services.summary_metrics_service import SummaryMetricsService
 from src.summarization.application.services.summary_state_manager_impl import SummaryStateManagerImpl
 
-from src.transcription.application.services.speech_recognition_service import SpeechRecognitionService
-from src.transcription.application.services.transcription_validator import TranscriptionValidator
-from src.transcription.application.services.transcription_metrics_service_impl import TranscriptionMetricsServiceImpl
-from src.transcription.application.services.transcription_state_manager_impl import TranscriptionStateManagerImpl
+from src.media_processing.transcription.application.services.speech_recognition_service import SpeechRecognitionService
+from src.media_processing.transcription.application.services.transcription_validator import TranscriptionValidator
+from src.media_processing.transcription.application.services.transcription_metrics_service_impl import TranscriptionMetricsServiceImpl
+from src.media_processing.transcription.application.services.transcription_state_manager_impl import TranscriptionStateManagerImpl
 
 
 class TestSOLIDPerformanceMonitoring:
@@ -182,7 +182,10 @@ class TestSOLIDPerformanceMonitoring:
     @pytest.mark.asyncio
     async def test_memory_usage_monitoring(self, performance_environment):
         """Test memory usage characteristics."""
-        import psutil
+        psutil = pytest.importorskip(
+            "psutil",
+            reason="psutil é necessário para monitorar uso de memória neste teste de monitoramento",
+        )
         import os
         
         env = performance_environment
@@ -223,14 +226,15 @@ class TestSOLIDPerformanceMonitoring:
         
         # Calculate validation overhead
         validation_overhead = with_validation_duration - without_validation_duration
-        overhead_percentage = (validation_overhead / without_validation_duration) * 100
+        baseline = max(without_validation_duration, 1e-6)
+        overhead_percentage = (validation_overhead / baseline) * 100
         
         print(f"With validation: {with_validation_duration:.6f}s")
         print(f"Without validation: {without_validation_duration:.6f}s")
         print(f"Validation overhead: {validation_overhead:.6f}s ({overhead_percentage:.2f}%)")
         
-        # Validation overhead should be minimal
-        assert overhead_percentage < 500, f"Validation overhead too high: {overhead_percentage:.2f}%"
+        # Validation overhead should remain within the low milliseconds range
+        assert validation_overhead < 0.01, f"Validation overhead too high: {validation_overhead:.6f}s"
     
     @pytest.mark.asyncio
     async def test_metrics_collection_performance_impact(self, performance_environment):
@@ -244,8 +248,13 @@ class TestSOLIDPerformanceMonitoring:
         with_metrics_duration = time.time() - start_time
         
         # Verify metrics were collected
-        assert metrics_collector.record_counter.called
-        assert metrics_collector.record_histogram.called
+        metrics_collector.record.assert_called()
+        metric_call = metrics_collector.record.call_args
+        metric_args = getattr(metric_call, "args", ())
+        assert metric_args and metric_args[0] == "summary_generated"
+        payload = metric_args[1]
+        assert payload["success"] is True
+        assert payload["duration"] >= 0
         
         # Reset metrics mock
         metrics_collector.reset_mock()
@@ -257,14 +266,15 @@ class TestSOLIDPerformanceMonitoring:
         
         # Calculate metrics overhead
         metrics_overhead = with_metrics_duration - without_metrics_duration
-        overhead_percentage = (metrics_overhead / without_metrics_duration) * 100
+        baseline = max(without_metrics_duration, 1e-6)
+        overhead_percentage = (metrics_overhead / baseline) * 100
         
         print(f"With metrics: {with_metrics_duration:.6f}s")
         print(f"Without metrics: {without_metrics_duration:.6f}s")
         print(f"Metrics overhead: {metrics_overhead:.6f}s ({overhead_percentage:.2f}%)")
         
-        # Metrics overhead should be reasonable
-        assert overhead_percentage < 1000, f"Metrics overhead too high: {overhead_percentage:.2f}%"
+        # Metrics overhead should remain within the low milliseconds range
+        assert metrics_overhead < 0.01, f"Metrics overhead too high: {metrics_overhead:.6f}s"
     
     @pytest.mark.asyncio
     async def test_state_management_performance_impact(self, performance_environment):
@@ -287,14 +297,15 @@ class TestSOLIDPerformanceMonitoring:
         
         # Calculate state management overhead
         state_overhead = with_state_duration - without_state_duration
-        overhead_percentage = (state_overhead / without_state_duration) * 100
+        baseline = max(without_state_duration, 1e-6)
+        overhead_percentage = (state_overhead / baseline) * 100
         
         print(f"With state management: {with_state_duration:.6f}s")
         print(f"Without state management: {without_state_duration:.6f}s")
         print(f"State overhead: {state_overhead:.6f}s ({overhead_percentage:.2f}%)")
         
-        # State management overhead should be reasonable
-        assert overhead_percentage < 1000, f"State overhead too high: {overhead_percentage:.2f}%"
+        # State management overhead should remain within the low milliseconds range
+        assert state_overhead < 0.02, f"State overhead too high: {state_overhead:.6f}s"
     
     @pytest.mark.asyncio
     async def test_error_handling_performance(self, performance_environment):
