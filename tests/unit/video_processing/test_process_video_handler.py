@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.media_processing.video_processing.application.commands.process_video_command import ProcessVideoCommand
 from src.media_processing.video_processing.application.commands.process_video_command_handler import ProcessVideoCommandHandler
+from uuid import uuid4
+
 from src.media_management.domain.media import Media, MediaType
 from src.shared.events.domain_events import AudioExtracted
 
@@ -23,13 +25,13 @@ def handler_mocks():
 async def test_process_video_handler_success(mock_av, handler_mocks):
     """Tests that the handler correctly extracts audio and publishes an event."""
     # Arrange
-    media_id = "media1"
-    user_id = "user1"
+    media_id = str(uuid4())
+    user_id = str(uuid4())
     original_path = f"media/{user_id}/{media_id}/video.mp4"
     media = Media(id=media_id, user_id=user_id, original_file_path=original_path, media_type=MediaType.VIDEO, storage_provider="local")
     
     handler_mocks["media_queries"].get_by_id.return_value = media
-    handler_mocks["mock_storage_service"].download.return_value = (b"fake_video_bytes", "video.mp4")
+    handler_mocks["mock_storage_service"].download.return_value = b"fake_video_bytes"
 
     # Mock the PyAV library logic
     mock_av.open.return_value.__enter__.return_value.streams.audio = [MagicMock()]

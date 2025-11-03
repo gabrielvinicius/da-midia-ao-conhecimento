@@ -55,6 +55,48 @@ class TextContentReady(DomainEvent):
     transcription_id: Optional[str] = None
     summary_id: Optional[str] = None
     sentiment_id: Optional[str] = None
+    text_content: Optional[str] = None
+
+
+@dataclass(frozen=True, slots=True)
+class NotificationRequested(DomainEvent):
+    """Event emitted when a notification request is registered."""
+
+    user_id: str = ""
+    message: str = ""
+    notification_type: str = ""
+    contact_info: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class SentimentAnalysisCompleted(DomainEvent):
+    """Event emitted when sentiment analysis concludes."""
+
+    analysis_id: str = ""
+    transcription_id: str = ""
+    sentiment_score: float = 0.0
+    overall_sentiment: Optional[str] = None
+    provider: Optional[str] = None
+
+
+@dataclass(frozen=True, slots=True)
+class VideoUploaded(DomainEvent):
+    """Event emitted when a video upload pipeline completes initial storage."""
+
+    video_id: str = ""
+    user_id: str = ""
+    storage_provider: Optional[str] = None
+    filename: Optional[str] = None
+    media_id: Optional[str] = None
+
+
+@dataclass(frozen=True, slots=True)
+class AudioExtracted(DomainEvent):
+    """Event emitted when audio is extracted from a media asset."""
+
+    media_id: str = ""
+    audio_file_path: str = ""
+    storage_provider: Optional[str] = None
 
 
 if TYPE_CHECKING:
@@ -105,6 +147,10 @@ __all__ = [
     "DomainEvent",
     "MediaUploaded",
     "TextContentReady",
+    "NotificationRequested",
+    "SentimentAnalysisCompleted",
+    "VideoUploaded",
+    "AudioExtracted",
     "MediaDeleted",
     "MediaReprocessRequested",
 ]

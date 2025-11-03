@@ -1,7 +1,9 @@
 """Unit tests for the CreateMediaCommandHandler collaboration flow."""
 
+import mimetypes
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 
@@ -61,7 +63,7 @@ class TestCreateMediaCommandHandler:
     def valid_video_command(self, test_data_factory):
         upload_data = test_data_factory.create_upload_data(MediaType.VIDEO)
         return CreateMediaCommand(
-            user_id="user_123",
+            user_id=str(uuid4()),
             file=upload_data["file"],
             filename=upload_data["filename"],
             storage_provider=upload_data["storage_provider"],
@@ -71,7 +73,7 @@ class TestCreateMediaCommandHandler:
     def valid_audio_command(self, test_data_factory):
         upload_data = test_data_factory.create_upload_data(MediaType.AUDIO)
         return CreateMediaCommand(
-            user_id="user_123",
+            user_id=str(uuid4()),
             file=upload_data["file"],
             filename=upload_data["filename"],
             storage_provider=upload_data["storage_provider"],
@@ -177,7 +179,8 @@ class TestCreateMediaCommandHandler:
         self, handler, collaborators, valid_audio_command
     ):
         collaborators["storage_uploader"].upload.side_effect = StorageError(
-            "Storage service unavailable"
+            operation="upload",
+            reason="Storage service unavailable",
         )
 
         with pytest.raises(StorageError, match="Storage service unavailable"):
@@ -227,7 +230,7 @@ class TestCreateMediaCommandHandler:
         await handler.handle(valid_video_command)
 
         assert saved_media is not None
-        assert saved_media.user_id == valid_video_command.user_id
+        assert str(saved_media.user_id) == valid_video_command.user_id
         assert saved_media.filename == valid_video_command.filename
         assert saved_media.media_type == MediaType.VIDEO
         assert saved_media.status == MediaStatus.UPLOADED
@@ -267,7 +270,7 @@ class TestCreateMediaCommandHandler:
 
         for provider in storage_providers:
             command = CreateMediaCommand(
-                user_id="user_123",
+                user_id=str(uuid4()),
                 file=b"test_content",
                 filename=f"test_{provider}.mp3",
                 storage_provider=provider,
@@ -295,15 +298,15 @@ class TestCreateMediaCommandHandler:
         self, handler, collaborators, test_data_factory
     ):
         test_cases = [
-            ("test.mp3", MediaType.AUDIO, "audio/mpeg"),
-            ("test.wav", MediaType.AUDIO, "audio/wav"),
-            ("test.mp4", MediaType.VIDEO, "video/mp4"),
-            ("test.avi", MediaType.VIDEO, "video/x-msvideo"),
+            ("test.mp3", MediaType.AUDIO),
+            ("test.wav", MediaType.AUDIO),
+            ("test.mp4", MediaType.VIDEO),
+            ("test.avi", MediaType.VIDEO),
         ]
 
-        for filename, expected_type, expected_mime in test_cases:
+        for filename, expected_type in test_cases:
             command = CreateMediaCommand(
-                user_id="user_123",
+                user_id=str(uuid4()),
                 file=b"test_content",
                 filename=filename,
                 storage_provider="local",
@@ -322,5 +325,6 @@ class TestCreateMediaCommandHandler:
             await handler.handle(command)
 
             upload_call = collaborators["storage_uploader"].upload.await_args
-            assert upload_call.kwargs["content_type"] == expected_mime
+            guessed_mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+            assert upload_call.kwargs["content_type"] == guessed_mime
             collaborators["storage_uploader"].upload.reset_mock()

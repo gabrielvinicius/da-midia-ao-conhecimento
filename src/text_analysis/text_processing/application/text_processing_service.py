@@ -7,9 +7,9 @@ from typing import Dict, Any, Optional
 from uuid import UUID
 import time
 
-from src.text_processing.infrastructure.text_processor import TextProcessor
-from src.text_processing.infrastructure.text_extractor import TextExtractor
-from src.text_processing.infrastructure.task_scheduler import CeleryTextProcessingTaskScheduler
+from src.text_analysis.text_processing.infrastructure.text_processor import TextProcessor
+from src.text_analysis.text_processing.infrastructure.text_extractor import TextExtractor
+from src.text_analysis.text_processing.infrastructure.task_scheduler import CeleryTextProcessingTaskScheduler
 # TODO: Adicionar logger e metrics específicos para text_processing
 
 logger = structlog.get_logger(__name__)

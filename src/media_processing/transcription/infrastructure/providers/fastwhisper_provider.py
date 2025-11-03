@@ -119,8 +119,8 @@ class FastWhisperProvider(TranscriptionProvider):
                 'without_timestamps': kwargs.get('without_timestamps', False),
                 'max_initial_timestamp': kwargs.get('max_initial_timestamp', 1.0),
                 'word_timestamps': kwargs.get('word_timestamps', False),
-                'prepend_punctuations': kwargs.get('prepend_punctuations', "\"'"¿([{-"),
-                'append_punctuations': kwargs.get('append_punctuations', "\"'.。,，!！?？:：")]}、"),
+                'prepend_punctuations': kwargs.get('prepend_punctuations', "\"'([{-"),
+                'append_punctuations': kwargs.get('append_punctuations', "\"'.!?:"),
             }
             
             # Remove None values

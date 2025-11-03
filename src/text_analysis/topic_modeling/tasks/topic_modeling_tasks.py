@@ -6,9 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional
 
 from src.shared.infrastructure.database import get_db
-from src.topic_modeling.application.commands.commands import AnalyzeTopicsCommand
-from src.topic_modeling.application.commands.handlers import AnalyzeTopicsCommandHandler
-from src.topic_modeling.bootstrap import TopicModelingContainer
+from src.text_analysis.application.services import TextAnalysisService
+from src.text_analysis.topic_modeling.application.commands.commands import AnalyzeTopicsCommand
+from src.text_analysis.topic_modeling.application.commands.handlers import AnalyzeTopicsCommandHandler
+from src.text_analysis.topic_modeling.bootstrap import TopicModelingContainer
 
 logger = structlog.get_logger(__name__)
 
@@ -30,8 +31,10 @@ async def _run_topic_modeling(media_id: str, text_content: str, provider: str, l
             raise TypeError("Expected db_session to be an AsyncSession")
 
         # --- Dependency Injection using Container ---
-        topic_modeling_container = TopicModelingContainer()
-        topic_modeling_container.db.override(db_session) # Sobrescrever a dependência do DB
+        topic_modeling_container = TopicModelingContainer(
+            db=db_session,
+            text_analysis_service=TextAnalysisService(),
+        )
 
         # 1. Create the command handler (resolved from container)
         handler: AnalyzeTopicsCommandHandler = topic_modeling_container.analyze_topics_command_handler()

@@ -6,15 +6,17 @@ from dataclasses import dataclass
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.summarization.application.summarization_service import SummarizationService
-from src.summarization.infrastructure.summarization_repository import SummarizationRepository
-from src.summarization.infrastructure.summarizer import TextRankSummarizer
+from src.text_analysis.summarization.application.summarization_service import SummarizationService
+from src.text_analysis.summarization.infrastructure.summarization_repository import SummarizationRepository
+from src.text_analysis.summarization.infrastructure.summarizer import TextRankSummarizer
+from src.text_analysis.application.services import TextAnalysisService
 
 
 class SummarizationContainer(containers.DeclarativeContainer):
     """Container exposing the minimal components required by the API."""
 
     db: providers.Provider[AsyncSession] = providers.Dependency()
+    text_analysis_service: providers.Dependency[TextAnalysisService] = providers.Dependency()
 
     summarization_repository = providers.Factory(SummarizationRepository, db=db)
     summarizer = providers.Singleton(TextRankSummarizer)
@@ -22,6 +24,7 @@ class SummarizationContainer(containers.DeclarativeContainer):
         SummarizationService,
         summarization_repo=summarization_repository,
         summarizer=summarizer,
+        text_analysis_service=text_analysis_service,
     )
 
 
@@ -39,7 +42,9 @@ def create_summarization_container(session: AsyncSession) -> SummarizationContai
     return SummarizationContainer(db=session)
 
 
-async def build_summarization_module(container: SummarizationContainer) -> SummarizationModule:
+async def build_summarization_module(
+    container: SummarizationContainer,
+) -> SummarizationModule:
     """Resolve concrete components from the dependency container."""
 
     return SummarizationModule(

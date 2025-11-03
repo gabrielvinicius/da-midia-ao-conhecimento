@@ -3,8 +3,8 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from src.topic_modeling.application.topic_modeling_service import TopicModelingService
-from src.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
+from src.text_analysis.topic_modeling.application.topic_modeling_service import TopicModelingService
+from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
 
 
 class TopicModelingDependenciesNotConfigured(RuntimeError):

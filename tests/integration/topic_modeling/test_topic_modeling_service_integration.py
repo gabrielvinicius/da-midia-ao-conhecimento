@@ -8,11 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.domain.media import Media, MediaType
 from src.media_management.infrastructure.media_repository import MediaRepository
-from src.topic_modeling.application.topic_modeling_service import TopicModelingService
-from src.topic_modeling.domain.topic_modeling import TopicModelingResult, TopicModelingStatus
-from src.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
-from src.topic_modeling.infrastructure.metrics import InMemoryTopicModelingMetrics
-from src.topic_modeling.infrastructure.logging import StructuredTopicModelingLogger
+from src.text_analysis.topic_modeling.application.topic_modeling_service import TopicModelingService
+from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult, TopicModelingStatus
+from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
+from src.text_analysis.topic_modeling.infrastructure.metrics import InMemoryTopicModelingMetrics
+from src.text_analysis.topic_modeling.infrastructure.logging import StructuredTopicModelingLogger
 
 
 class _StubTopicModeler:
@@ -50,7 +50,7 @@ async def test_analyze_topics_persists_result(db_session: AsyncSession):
     service = TopicModelingService(
         topic_modeler=_StubTopicModeler(),
         topic_modeling_repo=topic_repo,
-        task_scheduler=AsyncMock(),
+        text_analysis_service=AsyncMock(),
         topic_logger=StructuredTopicModelingLogger(),
         topic_metrics=InMemoryTopicModelingMetrics(),
     )
@@ -97,7 +97,7 @@ async def test_get_topic_modeling_result_returns_saved_result(db_session: AsyncS
     service = TopicModelingService(
         topic_modeler=_StubTopicModeler(),
         topic_modeling_repo=topic_repo,
-        task_scheduler=AsyncMock(),
+        text_analysis_service=AsyncMock(),
         topic_logger=StructuredTopicModelingLogger(),
         topic_metrics=InMemoryTopicModelingMetrics(),
     )

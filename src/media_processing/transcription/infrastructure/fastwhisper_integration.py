@@ -63,8 +63,8 @@ class FastWhisperIntegration:
             'no_speech_threshold': 0.6,
             'condition_on_previous_text': True,
             'word_timestamps': True,
-            'prepend_punctuations': "\"'"¿([{-",
-            'append_punctuations': "\"'.。,，!！?？:：")]}、"
+            'prepend_punctuations': "\"'([{-",
+            'append_punctuations': "\"'.!?:"
         }
     
     async def transcribe_audio(

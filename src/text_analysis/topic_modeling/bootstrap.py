@@ -1,37 +1,37 @@
-"""Dependency-injector container for the topic modeling module."""
+"""Dependency-injector configuration for the topic modeling module."""
+
 from dataclasses import dataclass
 
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.topic_modeling.application.commands.handlers import (
+from src.text_analysis.topic_modeling.application.commands.handlers import (
     AnalyzeTopicsCommandHandler,
 )
-from src.topic_modeling.application.topic_modeling_service import TopicModelingService
-from src.topic_modeling.infrastructure.logging import StructuredTopicModelingLogger
-from src.topic_modeling.infrastructure.metrics import PrometheusTopicModelingMetrics
-from src.topic_modeling.infrastructure.task_scheduler import (
-    CeleryTopicModelingTaskScheduler,
+from src.text_analysis.topic_modeling.application.topic_modeling_service import (
+    TopicModelingService,
 )
-from src.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
-from src.topic_modeling.infrastructure.topic_modeling_repository import (
+from src.text_analysis.topic_modeling.infrastructure.logging import (
+    StructuredTopicModelingLogger,
+)
+from src.text_analysis.topic_modeling.infrastructure.metrics import (
+    PrometheusTopicModelingMetrics,
+)
+from src.text_analysis.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
+from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import (
     TopicModelingRepository,
 )
 
 
 class TopicModelingContainer(containers.DeclarativeContainer):
-    """IoC container that wires topic modeling dependencies."""
+    """IoC container wiring topic modeling dependencies."""
 
     db: providers.Provider[AsyncSession] = providers.Dependency()
-    media_queries = providers.Dependency(default=None)
-    transcription_queries = providers.Dependency(default=None)
+    text_analysis_service = providers.Dependency()
 
     topic_modeling_repository = providers.Factory(
         TopicModelingRepository,
         db=db,
-    )
-    topic_modeling_task_scheduler = providers.Factory(
-        CeleryTopicModelingTaskScheduler,
     )
     topic_modeling_logger = providers.Singleton(StructuredTopicModelingLogger)
     topic_modeling_metrics = providers.Singleton(PrometheusTopicModelingMetrics)
@@ -41,7 +41,7 @@ class TopicModelingContainer(containers.DeclarativeContainer):
         TopicModelingService,
         topic_modeler=topic_modeler,
         topic_modeling_repo=topic_modeling_repository,
-        task_scheduler=topic_modeling_task_scheduler,
+        text_analysis_service=text_analysis_service,
         topic_logger=topic_modeling_logger,
         topic_metrics=topic_modeling_metrics,
     )
@@ -49,7 +49,6 @@ class TopicModelingContainer(containers.DeclarativeContainer):
     analyze_topics_command_handler = providers.Factory(
         AnalyzeTopicsCommandHandler,
         topic_modeling_service=topic_modeling_service,
-        task_scheduler=topic_modeling_task_scheduler,
     )
 
 
@@ -61,20 +60,18 @@ class TopicModelingModule:
 
 async def build_topic_modeling_module(
     session: AsyncSession,
-    media_queries,
-    transcription_queries,
+    *,
+    text_analysis_service,
 ) -> TopicModelingModule:
     container = TopicModelingContainer(
         db=session,
-        media_queries=providers.Object(media_queries),
-        transcription_queries=providers.Object(transcription_queries),
+        text_analysis_service=providers.Object(text_analysis_service),
     )
 
     module = TopicModelingModule(
         service=container.topic_modeling_service(),
         repository=container.topic_modeling_repository(),
     )
-    # EventBus handler registration disabled; use Celery-triggered workflows
     return module
 
 

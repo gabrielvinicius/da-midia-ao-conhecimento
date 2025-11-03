@@ -6,18 +6,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
 # Consolidated Service
-from src.text_processing.application.text_processing_service import (
+from src.text_analysis.text_processing.application.text_processing_service import (
     TextProcessingService,
 )
-from src.text_processing.infrastructure.pipelines.extraction_pipeline import (
+from src.text_analysis.text_processing.infrastructure.pipelines.extraction_pipeline import (
     TextExtractionPipelineFactory,
 )
-from src.text_processing.infrastructure.task_scheduler import (
+from src.text_analysis.text_processing.infrastructure.task_scheduler import (
     CeleryTextProcessingTaskScheduler,
 )
-from src.text_processing.infrastructure.text_extractor import TextExtractor
+from src.text_analysis.text_processing.infrastructure.text_extractor import TextExtractor
 # Concrete Implementations
-from src.text_processing.infrastructure.text_processor import TextProcessor
+from src.text_analysis.text_processing.infrastructure.text_processor import TextProcessor
 
 
 # TODO: Adicionar logger e metrics específicos para text_processing

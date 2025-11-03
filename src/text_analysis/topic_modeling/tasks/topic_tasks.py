@@ -5,10 +5,10 @@ from celery import shared_task
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.infrastructure.database import get_db
-from src.topic_modeling.application.commands.commands import ProcessTopicModelingCommand
-from src.topic_modeling.application.commands.handlers import ProcessTopicModelingCommandHandler
-from src.topic_modeling.infrastructure.dependencies import create_topic_modeling_service
-from src.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
+from src.text_analysis.topic_modeling.application.commands.commands import ProcessTopicModelingCommand
+from src.text_analysis.topic_modeling.application.commands.handlers import ProcessTopicModelingCommandHandler
+from src.text_analysis.topic_modeling.infrastructure.dependencies import create_topic_modeling_service
+from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
 # Import dependencies for manual construction
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository

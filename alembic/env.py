@@ -16,10 +16,10 @@ from src.shared.infrastructure.database import Base  # Importar a Base
 from src.user_management.domain.user import User
 from src.media_management.infrastructure.orm.media_entity import MediaEntity
 from src.notifications.domain.notification import Notification
-from src.summarization.infrastructure.orm.summary_entity import SummaryEntity
+from src.text_analysis.summarization.infrastructure.orm.summary_entity import SummaryEntity
 from src.transcription.domain.transcription import Transcription
-from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysisResult
-from src.topic_modeling.domain.topic_modeling import TopicModelingResult
+from src.text_analysis.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysisResult
+from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult
 
 # ---------------------------------------------------
 

@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from src.summarization.application.summarization_service import SummarizationService
+from src.text_analysis.summarization.application.summarization_service import SummarizationService
 
 
 class SummarizationDependenciesNotConfigured(RuntimeError):

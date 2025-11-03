@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.summarization.domain.model import SummaryAggregate
+from src.text_analysis.summarization.domain.model import SummaryAggregate
 
 from .summary_entity import SummaryEntity
 from .summary_mapper import SummaryMapper

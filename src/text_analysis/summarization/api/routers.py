@@ -7,9 +7,9 @@ from typing import Annotated, Optional
 from src.user_management.domain.user import User
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.shared.api.dependencies import get_current_user
-from src.shared.api.unified_schemas import BaseResponseSchema, create_error_response, create_success_response
-from src.summarization.application.summarization_service import SummarizationService
-from src.summarization.domain.summary import Summary
+from src.shared.api.unified_schemas import create_error_response, create_success_response
+from src.text_analysis.summarization.application.summarization_service import SummarizationService
+from src.text_analysis.summarization.domain.summary import Summary
 from src.media_processing.transcription.application.queries.transcription_queries import TranscriptionQueries
 
 from .dependencies import (
@@ -17,7 +17,7 @@ from .dependencies import (
     get_summarization_service,
     get_transcription_queries,
 )
-from .schemas import SummaryResponse
+from .schemas import SummaryResponse, SummaryReprocessAck, SummaryReprocessResponse
 
 
 router = APIRouter(prefix="/summaries", tags=["Summaries"])
@@ -40,7 +40,7 @@ async def get_summary_by_media_id(
     # if not media or (str(media.user_id) != str(current_user.id) and current_user.role.value != "admin"):
     #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this media's summary")
     
-    return summary
+    return SummaryResponse.from_domain(summary)
 
 @router.get("/{summary_id}", response_model=SummaryResponse, summary="Get a summary by its ID")
 async def get_summary_by_id(
@@ -59,10 +59,14 @@ async def get_summary_by_id(
     # if not media or (str(media.user_id) != str(current_user.id) and current_user.role.value != "admin"):
     #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this summary")
     
-    return summary
+    return SummaryResponse.from_domain(summary)
 
 
-@router.post("/reprocess", response_model=BaseResponseSchema, summary="Reprocess summarization")
+@router.post(
+    "/reprocess",
+    response_model=SummaryReprocessResponse,
+    summary="Reprocess summarization",
+)
 async def reprocess_summarization(
     media_id: UUID = Form(..., description="Media ID to reprocess summary"), # Mudar para UUID
     provider: Optional[str] = Form(None, description="Provider to use for summarization"),
@@ -95,25 +99,23 @@ async def reprocess_summarization(
             return create_error_response("No transcription found", "Transcription required for summarization")
         
         provider_name = provider or media.summarization_provider or "builtin"
-        summary = await summarization_service.generate_summary(
+        task_info = await summarization_service.generate_summary(
             media_id=media_id,
             text_content=transcription.text,
             provider=provider_name,
         )
 
-        response_data = {
-            "reprocessing": {
-                "media_id": str(media_id),
-                "summary_id": str(summary.id),
-                "provider": provider_name,
-                "status": summary.status.value,
-            },
-            "message": "Summarization completed successfully.",
-        }
+        task_id = task_info.get("task_id") if isinstance(task_info, dict) else None
 
-        return create_success_response(
-            data=response_data,
-            message="Summarization updated",
+        response_data = SummaryReprocessAck(
+            media_id=media_id,
+            provider=provider_name,
+            task_id=task_id,
+        )
+
+        return SummaryReprocessResponse(
+            message="Summarization task scheduled successfully.",
+            reprocessing=response_data,
         )
         
     except Exception as e:

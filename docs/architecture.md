@@ -43,14 +43,14 @@ papéis consistentes:
 1. **Container declarativo** – composto com `dependency_injector`, recebe
    as dependências externas (sessão do banco, *event bus*, *task
    schedulers*, *connection managers* etc.) e registra implementações
-   concretas.【F:src/media_management/bootstrap.py†L25-L105】【F:src/transcription/bootstrap.py†L21-L52】
+   concretas.【F:src/media_management/bootstrap.py†L25-L105】【F:src/media_processing/transcription/bootstrap.py†L21-L52】
 2. **`dataclass` de módulo** – define a superfície pública do contexto,
    expondo apenas os serviços, *queries* e *command handlers* necessários
-   para interação com routers ou outros módulos.【F:src/media_management/bootstrap.py†L107-L127】【F:src/summarization/bootstrap.py†L51-L67】
+   para interação com routers ou outros módulos.【F:src/media_management/bootstrap.py†L107-L127】【F:src/text_analysis/summarization/bootstrap.py†L51-L67】
 3. **Funções de composição** – `create_*_container`/`build_*_module`
    recebem as dependências externas, materializam o container e, quando
    necessário, registram *event handlers* adicionais ligados ao *event
-   bus*.【F:src/summarization/bootstrap.py†L69-L113】【F:src/transcription/bootstrap.py†L54-L88】【F:src/video_processing/bootstrap.py†L43-L76】
+   bus*.【F:src/text_analysis/summarization/bootstrap.py†L69-L113】【F:src/media_processing/transcription/bootstrap.py†L54-L88】【F:src/media_processing/video_processing/bootstrap.py†L43-L76】
 
 A tabela abaixo resume os módulos principais e suas integrações diretas:
 
@@ -58,13 +58,10 @@ A tabela abaixo resume os módulos principais e suas integrações diretas:
 | --- | --- | --- |
 | `auth` | `AuthModule` com serviços e *queries* de autenticação | Apenas depende da sessão; fornece *queries* para outros módulos como `notifications` e `admin`.【F:src/auth/bootstrap.py†L1-L28】【F:main.py†L88-L100】 |
 | `media_management` | `MediaModule` e `MediaAdminContext` | Usa storage abstraído, métricas e *event bus* para publicar `MediaUploaded` via `DefaultMediaEventPublisher`.【F:src/media_management/bootstrap.py†L25-L167】【F:src/media_management/application/commands/components/event_publisher.py†L1-L32】 |
-| `video_processing` | `VideoProcessingModule` com serviço e *task scheduler* | Registra *handlers* que agendam tarefas Celery quando um `MediaUploaded` é emitido. Depende do *event bus*.【F:src/video_processing/bootstrap.py†L1-L76】【F:src/video_processing/application/event_handlers.py†L1-L40】 |
-| `text_processing` | `TextProcessingModule` | Similar ao módulo de vídeo, agenda pipelines quando mídia de texto é enviada. Usa `schedule_process_text_task`.【F:src/text_processing/bootstrap.py†L1-L74】【F:src/text_processing/application/event_handlers.py†L1-L43】 |
-| `transcription` | `TranscriptionModule` | Exige consultas de mídia para enriquecer eventos e remove dados quando `MediaDeleted` é recebido. Depende do *event bus*.【F:src/transcription/bootstrap.py†L21-L88】【F:src/transcription/application/event_handlers.py†L1-L76】 |
-| `summarization` | `SummarizationModule` | Necessita de `transcription_queries`, `media_queries` e do *connection manager* de WebSockets; registra handlers para `TextContentReady` e `MediaDeleted`.【F:src/summarization/bootstrap.py†L21-L113】【F:src/summarization/application/event_handlers.py†L13-L46】 |
+| `media_processing` | `MediaProcessingService` + módulos `video_processing`/`transcription` | Concentra a orquestração de extração de áudio, thumbnails e geração de transcrições, agendando tarefas Celery ao consumir `MediaUploaded`.【F:src/media_processing/application/services.py†L1-L144】【F:src/media_processing/video_processing/bootstrap.py†L1-L76】【F:src/media_processing/transcription/bootstrap.py†L21-L88】 |
+| `text_analysis` | `TextAnalysisModule` e submódulos (`text_processing`, `summarization`, `sentiment_analysis`, `topic_modeling`) | Pipeline consolidado para processar texto, sumarizar, analisar sentimento e modelar tópicos, reaproveitando o mesmo container e tarefas Celery. 【F:src/text_analysis/bootstrap.py†L1-L120】【F:src/text_analysis/text_processing/bootstrap.py†L1-L74】【F:src/text_analysis/summarization/bootstrap.py†L21-L113】 |
 | `notifications` | `NotificationModule` | Conecta-se ao *event bus* e ao `ConnectionManager`, expondo serviço e repositório; assina `NotificationRequested`.【F:src/notifications/bootstrap.py†L1-L73】【F:src/notifications/application/event_handlers.py†L11-L37】 |
-| `sentiment_analysis` | `SentimentAnalysisModule` | Depende de consultas de transcrição, do *event bus*, do `ConnectionManager` e de métricas; agenda análises ao receber `TextContentReady`.【F:src/sentiment_analysis/bootstrap.py†L23-L85】【F:src/sentiment_analysis/application/event_handlers.py†L11-L39】 |
-| `topic_modeling` | `TopicModelingModule` | Consome `media_queries` e `transcription_queries`, registrando `TextContentReady` para agendar modelagem de tópicos no Celery.【F:src/topic_modeling/bootstrap.py†L1-L76】【F:src/topic_modeling/application/event_handlers.py†L11-L36】 |
+| `admin` | `AdminModule` | Reúne serviços de usuários, mídia e auditoria para os routers administrativos.【F:main.py†L107-L118】【F:src/admin/bootstrap.py†L1-L60】 |
 | `admin` | `AdminModule` | Reúne serviços de usuários, mídia e auditoria para os routers administrativos.【F:main.py†L107-L118】【F:src/admin/bootstrap.py†L1-L60】 |
 
 Essa padronização facilita a reutilização dos módulos dentro da aplicação
@@ -97,12 +94,8 @@ As integrações por contexto ficam assim:
 | Contexto | Publica via event bus | Assina via event bus |
 | --- | --- | --- |
 | `media_management` | `MediaUploaded` ao concluir `CreateMediaCommandHandler` (via `DefaultMediaEventPublisher`).【F:src/media_management/application/commands/create_media_command_handler.py†L84-L145】【F:src/media_management/application/commands/components/event_publisher.py†L1-L32】 | — |
-| `video_processing` | — | `MediaUploaded` para acionar extração de áudio e geração de thumbnails através do *task scheduler*.【F:src/video_processing/application/event_handlers.py†L17-L37】 |
-| `text_processing` | — | `MediaUploaded` para iniciar pipelines de extração de texto em tarefas assíncronas.【F:src/text_processing/application/event_handlers.py†L13-L43】 |
-| `transcription` | — | `MediaUploaded`, `AudioExtracted` e `MediaDeleted` para agendar transcrições e limpar dados associados.【F:src/transcription/application/event_handlers.py†L38-L125】 |
-| `summarization` | — | `TextContentReady` e `MediaDeleted` para agendar sumarizações e invalidar resultados obsoletos.【F:src/summarization/application/event_handlers.py†L13-L46】 |
-| `sentiment_analysis` | `SentimentAnalysisCompleted` ao final do comando principal, permitindo que outros contextos reajam ao resultado.【F:src/sentiment_analysis/application/commands/analyze_sentiment_command_handler.py†L158-L176】 | `TextContentReady` para agendar análises com o orquestrador de tarefas.【F:src/sentiment_analysis/application/event_handlers.py†L11-L39】 |
-| `topic_modeling` | — | `TextContentReady` para disparar o agendamento Celery de modelagem de tópicos.【F:src/topic_modeling/application/event_handlers.py†L11-L36】 |
+| `media_processing` | — | `MediaUploaded` para acionar extração de áudio, geração de thumbnails e transcrições via Celery.【F:src/media_processing/video_processing/application/event_handlers.py†L17-L37】【F:src/media_processing/transcription/application/event_handlers.py†L38-L125】 |
+| `text_analysis` | — | `MediaUploaded` e `TextContentReady` para pipelines de processamento textual, sumarização, sentimento e tópicos. Cada submódulo agenda tarefas Celery especializadas.【F:src/text_analysis/text_processing/application/event_handlers.py†L13-L43】【F:src/text_analysis/summarization/application/event_handlers.py†L13-L46】【F:src/text_analysis/sentiment_analysis/application/event_handlers.py†L11-L39】【F:src/text_analysis/topic_modeling/application/event_handlers.py†L11-L36】 |
 | `notifications` | — | `NotificationRequested`, convertendo o evento em tarefas Celery que enviam mensagens nos canais configurados.【F:src/notifications/application/event_handlers.py†L11-L37】 |
 
 Outros contextos (auth, providers, monitoring, admin) não usam o *event bus*
@@ -128,4 +121,26 @@ seja reutilizada em todas as requisições.【F:src/shared/infrastructure/cache.
 utilizado em *health checks*, o `CacheManager` está disponível para os
 módulos que precisarem de caching de consultas, invalidação de mídia ou
 aplicação de rate limiting.
+
+## Stage6 – Estado em 03/11/2025
+
+### Consolidação de módulos
+- `text_analysis`: o router consolidado (`text_analysis.api.routers`) já substitui o registro direto dos módulos legados em `main.py`. O bootstrap injeta o `TextAnalysisService` nos submódulos de sumarização, sentimento e tópicos, que agora agendam tarefas assíncronas e retornam apenas ACKs (`task_id`) nos fluxos `POST /summaries/reprocess`, `POST /sentiment-analysis/analyze`, `POST /sentiment-analysis/reprocess`, `POST /topic-modeling/analyze` e `POST /topic-modeling/reprocess`.
+- `media_processing`: permanece em transição; tasks continuam com lógica de domínio e precisam ser movidas para o `MediaProcessingService` durante a Fase 2.
+- `admin`: a fachada continua ativa, porém ainda coexistem caminhos alternativos em módulos herdados. A limpeza final depende da conclusão das etapas acima.
+
+### Event bus + Celery
+- O `InMemoryEventBus` segue registrado em `main.py` com handlers reais para `MediaUploaded`, `TextContentReady` e `NotificationRequested`. As tasks Celery ainda carregam lógica de domínio; o objetivo da próxima fase é restringi-las a trabalho pesado (I/O) conforme boas práticas oficiais (`/celery/celery`). citecontext7/celery
+
+### Organização FastAPI
+- `main.py` importa apenas routers consolidados (`auth`, `media`, `text_analysis`, `notifications`, `admin`, `monitoring`, `providers`), alinhado às recomendações do FastAPI para modularização. citecontext7/fastapi
+- `StorageServiceFactory` já é importado de `src.storage.infrastructure.dependencies`, eliminando o `NameError` registrado no baseline anterior.
+
+### Testes e observabilidade
+- `pytest`, `mypy` e `ruff` permanecem desabilitados neste branch. A reativação desses guardrails é requisito para encerrar a Fase 1.
+- Métricas Prometheus e spans OpenTelemetry ainda não refletem o novo fluxo híbrido; ajustes serão feitos após a consolidação dos handlers.
+
+### Governança de PRs
+- Cada etapa Stage6 deve abrir PR incremental derivado de `refactor/admin-facade`, com checklist mínimo: testes (quando disponíveis), lint, documentação atualizada e plano de rollback.
+- Esta seção deve ser revisada ao final de cada fase para manter o alinhamento entre documentação e código.
 

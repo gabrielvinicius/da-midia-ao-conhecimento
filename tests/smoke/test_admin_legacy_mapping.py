@@ -4,6 +4,7 @@ import pytest
 
 from main import create_app
 from src.admin.api.dependencies import AdminDependencies, get_admin_dependencies
+from src.admin.application.admin_service import AdminService
 from src.media_processing import MediaProcessingService
 from src.shared.application.service_registry import DomainServiceRegistry
 from src.text_analysis import TextAnalysisService
@@ -19,8 +20,7 @@ async def test_admin_dependencies_use_legacy_services(anyio_backend_name):
         dependencies_factory = app.dependency_overrides[get_admin_dependencies]
         admin_deps = dependencies_factory()
         assert isinstance(admin_deps, AdminDependencies)
-        assert admin_deps.facade is not None
-        assert isinstance(admin_deps.facade_enabled, bool)
+        assert isinstance(admin_deps.service, AdminService)
 
         # Legacy services should still power the admin module during Stage A.
         assert admin_deps.user_service.__class__.__module__.startswith("src.admin")

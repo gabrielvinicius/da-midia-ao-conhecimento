@@ -3,8 +3,8 @@ import pytest
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from src.summarization.application.queries.summary_queries import SummaryQueries
-from src.summarization.domain.summary import Summary
+from src.text_analysis.summarization.application.queries.summary_queries import SummaryQueries
+from src.text_analysis.summarization.domain.summary import Summary
 
 
 @pytest.fixture

@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from src.admin.application.facade import AdminFacade
+from src.admin.application.admin_service import AdminService
 from src.admin.application.queries.admin_queries import AdminQueries
 from src.admin.application.services.admin_audit_service import AdminAuditService
 from src.admin.application.services.admin_media_service import AdminMediaService
@@ -23,8 +23,7 @@ class AdminDependencies:
     audit_service: AdminAuditService
     user_service: AdminUserService
     media_service: AdminMediaService
-    facade: AdminFacade
-    facade_enabled: bool
+    service: AdminService
 
 
 def get_admin_dependencies() -> AdminDependencies:
@@ -48,12 +47,8 @@ def get_admin_media_service(deps: AdminDeps) -> AdminMediaService:
     return deps.media_service
 
 
-def get_admin_facade(deps: AdminDeps) -> AdminFacade:
-    return deps.facade
-
-
-def is_admin_facade_enabled(deps: AdminDeps) -> bool:
-    return deps.facade_enabled
+def get_admin_service(deps: AdminDeps) -> AdminService:
+    return deps.service
 
 
 def get_admin_audit_service(deps: AdminDeps) -> AdminAuditService:
@@ -69,8 +64,7 @@ __all__ = [
     "get_admin_media_service",
     "get_admin_queries",
     "get_admin_user_service",
-    "get_admin_facade",
-    "is_admin_facade_enabled",
+    "get_admin_service",
     "get_auth_queries",
     "get_media_queries",
 ]

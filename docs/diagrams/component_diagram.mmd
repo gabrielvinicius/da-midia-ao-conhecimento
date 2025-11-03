@@ -6,12 +6,8 @@ graph TD
     subgraph "Application Layer (Event-Driven Pipeline)"
         direction LR
         B(media_management)
-        C(video_processing)
-        D(text_processing)
-        E(transcription)
-        F(summarization)
-        G(sentiment_analysis)
-        H(topic_modeling)
+        C(media_processing)
+        D(text_analysis)
     end
 
     subgraph "Core Services"
@@ -31,28 +27,17 @@ graph TD
 
     B -- Publishes MediaUploaded --> K
     C -- Consumes MediaUploaded --> K
-    C -- Publishes AudioExtracted --> K
-    D -- Consumes MediaUploaded --> K
-    D -- Publishes TextContentReady --> K
-    E -- Consumes AudioExtracted --> K
-    E -- Publishes TextContentReady --> K
-    
-    F -- Consumes TextContentReady --> K
-    G -- Consumes TextContentReady --> K
-    H -- Consumes TextContentReady --> K
+    C -- Publishes TextContentReady --> K
+    D -- Consumes TextContentReady --> K
 
     B -- Writes to --> L
-    E -- Writes to --> L
-    F -- Writes to --> L
-    G -- Writes to --> L
-    H -- Writes to --> L
+    C -- Writes to --> L
+    D -- Writes to --> L
 
     B -- Uses --> M
     C -- Uses --> M
 
-    E -- Uses --> N
-    F -- Uses --> N
-    G -- Uses --> N
-    H -- Uses --> N
+    C -- Uses --> N
+    D -- Uses --> N
 
     classDef default fill:#2D2D2D,stroke:#FFF,stroke-width:2px,color:#FFF;

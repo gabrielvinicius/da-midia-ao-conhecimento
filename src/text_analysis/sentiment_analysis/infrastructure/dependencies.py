@@ -6,15 +6,15 @@ from typing import Callable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.sentiment_analysis.application.sentiment_analysis_service import (
+from src.text_analysis.sentiment_analysis.application.sentiment_analysis_service import (
     SentimentAnalysisService,
 )
-from src.sentiment_analysis.infrastructure.logging import StructuredSentimentLogger
-from src.sentiment_analysis.infrastructure.metrics import PrometheusSentimentMetrics
-from src.sentiment_analysis.infrastructure.sentiment_analyzer import (
+from src.text_analysis.sentiment_analysis.infrastructure.logging import StructuredSentimentLogger
+from src.text_analysis.sentiment_analysis.infrastructure.metrics import PrometheusSentimentMetrics
+from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analyzer import (
     SimpleSentimentAnalyzer,
 )
-from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
+from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
     SentimentAnalysisRepository,
 )
 

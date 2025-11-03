@@ -35,7 +35,7 @@ class AnalyzeSentimentCommandHandler:
         self._connection_manager = connection_manager
         self._metrics = metrics_service
 
-    async def handle(self, command: AnalyzeSentimentCommand) -> SentimentAnalysis:
+    async def handle(self, command: AnalyzeSentimentCommand) -> Any:
         """Execute sentiment analysis for the provided transcription."""
 
         transcription = await self._transcription_queries.get_by_id(command.transcription_id)
@@ -60,6 +60,20 @@ class AnalyzeSentimentCommandHandler:
                 value="<redacted>",
                 reason="Transcription text too short for sentiment analysis",
             )
+
+        if command.schedule_only:
+            payload = await self._sentiment_service.analyze_sentiment(
+                transcription_id=command.transcription_id,
+                text=transcription_text,
+                provider=command.provider,
+                model=command.model,
+                media_id=str(getattr(transcription, "media_id", "")) or None,
+                language=command.language,
+            )
+            return {
+                "scheduled": True,
+                "task": payload,
+            }
 
         existing = await self._repository.find_by_transcription_id(command.transcription_id)
         if existing:

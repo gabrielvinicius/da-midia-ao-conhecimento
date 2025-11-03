@@ -10,7 +10,7 @@ from transformers import pipeline, AutoTokenizer
 import torch
 
 
-from src.summarization.infrastructure.providers.base_provider import BaseSummaryProvider
+from src.text_analysis.summarization.infrastructure.providers.base_provider import BaseSummaryProvider
 
 
 class HuggingFaceConfiguration:
