@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import { TopicModelingResult } from '@/types';
+import { TopicModelingAcceptedResponse, TopicModelingResult } from '@/types';
 
 export const getTopicModelingResult = async (mediaId: string): Promise<TopicModelingResult> => {
   console.log('📊 Buscando resultado de modelagem de tópicos para mídia:', mediaId);
@@ -16,7 +16,7 @@ export const reprocessTopicModeling = async (
     numTopics?: number;
     force?: boolean;
   }
-): Promise<any> => {
+): Promise<TopicModelingAcceptedResponse> => {
   console.log('🔄 Reprocessando modelagem de tópicos para mídia:', mediaId);
   
   const formData = new FormData();
@@ -29,7 +29,7 @@ export const reprocessTopicModeling = async (
     formData.append('force', options.force.toString());
   }
 
-  const response = await api.post('/topic-modeling/reprocess', formData, {
+  const response = await api.post<TopicModelingAcceptedResponse>('/topic-modeling/reprocess', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },

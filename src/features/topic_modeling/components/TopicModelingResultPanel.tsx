@@ -2,6 +2,7 @@ import { useTopicModeling } from "../hooks/useTopicModeling";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
+import { TopicModelingStatus } from "@/types";
 
 interface TopicModelingResultPanelProps {
   mediaId: string;
@@ -29,13 +30,23 @@ export const TopicModelingResultPanel = ({ mediaId }: TopicModelingResultPanelPr
       return <p className="text-muted-foreground text-center text-xs">Awaiting text content to start analysis...</p>;
     }
 
+    if (analysis.status !== TopicModelingStatus.COMPLETED) {
+      return (
+        <p className="text-muted-foreground text-center text-xs">
+          {analysis.status === TopicModelingStatus.PROCESSING
+            ? "Topic modeling is processing..."
+            : "Topic modeling is not available yet."}
+        </p>
+      );
+    }
+
     const topics = analysis.topics;
 
     return (
       <div className="flex flex-wrap gap-2 justify-center">
         {topics.map((topic, index) => (
           <Badge key={index} variant="secondary" className="text-sm">
-            {topic.keywords.join(", ")} ({(topic.probability * 100).toFixed(1)}%)
+            {topic}
           </Badge>
         ))}
       </div>

@@ -1,5 +1,5 @@
 import api from "@/lib/api";
-import { SentimentAnalysisResult } from "@/types";
+import { SentimentAnalysisAcceptedResponse, SentimentAnalysisResult } from "@/types";
 
 export const getSentimentAnalysis = async (mediaId: string): Promise<SentimentAnalysisResult> => {
   console.log('🎭 Buscando análise de sentimento para mídia:', mediaId);
@@ -25,7 +25,7 @@ export const reprocessSentimentAnalysis = async (
     provider?: string;
     force?: boolean;
   }
-): Promise<any> => {
+): Promise<SentimentAnalysisAcceptedResponse> => {
   console.log('🔄 Reprocessando análise de sentimento para mídia:', mediaId);
   
   const formData = new FormData();
@@ -38,7 +38,7 @@ export const reprocessSentimentAnalysis = async (
     formData.append('force', options.force.toString());
   }
 
-  const response = await api.post('/sentiment-analysis/reprocess', formData, {
+  const response = await api.post<SentimentAnalysisAcceptedResponse>('/sentiment-analysis/reprocess', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },

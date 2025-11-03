@@ -1,5 +1,5 @@
 import api from "../../../lib/api";
-import { Summary } from "../../../types";
+import { Summary, SummarizationReprocessResponse } from "../../../types";
 
 export const getSummaryByMediaId = async (mediaId: string): Promise<Summary | null> => {
   try {
@@ -22,7 +22,7 @@ export const reprocessSummarization = async (
     maxLength?: number;
     force?: boolean;
   }
-): Promise<any> => {
+): Promise<SummarizationReprocessResponse> => {
   console.log('🔄 Reprocessando sumarização para mídia:', mediaId);
   
   const formData = new FormData();
@@ -38,7 +38,7 @@ export const reprocessSummarization = async (
     formData.append('force', options.force.toString());
   }
 
-  const response = await api.post('/summaries/reprocess', formData, {
+  const response = await api.post<SummarizationReprocessResponse>('/summaries/reprocess', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },

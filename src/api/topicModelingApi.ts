@@ -1,6 +1,6 @@
 // frontend/src/api/topicModelingApi.ts
 import axios from "axios";
-import { TopicModelingResult } from "../types";
+import { TopicModelingAcceptedResponse, TopicModelingResult } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -27,7 +27,7 @@ export const reprocessTopicModeling = async (
     numTopics?: number;
     force?: boolean;
   }
-): Promise<any> => {
+): Promise<TopicModelingAcceptedResponse> => {
   const formData = new FormData();
   formData.append("media_id", mediaId);
   
@@ -38,7 +38,7 @@ export const reprocessTopicModeling = async (
     formData.append("force", options.force.toString());
   }
 
-  const response = await topicModelingApi.post("/reprocess", formData, {
+  const response = await topicModelingApi.post<TopicModelingAcceptedResponse>("/reprocess", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },

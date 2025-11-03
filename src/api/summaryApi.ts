@@ -1,6 +1,6 @@
 
 import axios from "axios";
-import { Summary } from "../types";
+import { Summary, SummarizationReprocessResponse } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -28,7 +28,7 @@ export const reprocessSummarization = async (
     maxLength?: number;
     force?: boolean;
   }
-): Promise<any> => {
+): Promise<SummarizationReprocessResponse> => {
   const formData = new FormData();
   formData.append("media_id", mediaId);
   
@@ -42,7 +42,7 @@ export const reprocessSummarization = async (
     formData.append("force", options.force.toString());
   }
 
-  const response = await summaryApi.post("/reprocess", formData, {
+  const response = await summaryApi.post<SummarizationReprocessResponse>("/reprocess", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },

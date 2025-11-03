@@ -108,9 +108,24 @@ export interface Summary {
   status: SummaryStatus;
   provider: string | null;
   text: string | null;
+  strategy?: string | null;
+  bullet_points?: string[] | null;
+  key_topics?: string[] | null;
+  confidence_score?: number | null;
+  processing_time?: number | null;
   created_at: string;
   processed_at: string | null;
   error_message: string | null;
+}
+
+export interface SummarizationReprocessResponse {
+  message: string;
+  reprocessing: {
+    media_id: string;
+    provider: string;
+    status: 'PROCESSING';
+    task_id?: string;
+  };
 }
 
 export interface Notification {
@@ -153,17 +168,60 @@ export interface Analysis {
 export interface SentimentAnalysisResult {
   id: string;
   media_id: string;
+  transcription_id: string;
   label: string;
   score: number;
+  confidence?: number | null;
+  provider: string;
+  model?: string | null;
+  updated_at: string;
   full_result: Record<string, any>;
   created_at: string;
+}
+
+export interface SentimentAnalysisAck {
+  transcription_id: string;
+  provider: string;
+  model?: string;
+  status: 'PROCESSING';
+  task_id?: string;
+}
+
+export interface SentimentAnalysisAcceptedResponse {
+  message: string;
+  analysis: SentimentAnalysisAck;
+}
+
+export enum TopicModelingStatus {
+  PENDING = "PENDING",
+  PROCESSING = "PROCESSING",
+  COMPLETED = "COMPLETED",
+  FAILED = "FAILED",
 }
 
 export interface TopicModelingResult {
   id: string;
   media_id: string;
+  status: TopicModelingStatus;
+  provider?: string | null;
   topics: string[]; // Array de strings conforme backend: ["Topic #1: tech, software", "Topic #2: design"]
   created_at: string;
+  processed_at?: string | null;
+  error_message?: string | null;
+  raw_topics?: Record<string, any>[] | null;
+}
+
+export interface TopicModelingAck {
+  media_id?: string;
+  provider: string;
+  language: string;
+  status: 'PROCESSING';
+  task_id?: string;
+}
+
+export interface TopicModelingAcceptedResponse {
+  message: string;
+  analysis: TopicModelingAck;
 }
 
 // Admin types

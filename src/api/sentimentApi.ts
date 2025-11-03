@@ -1,6 +1,6 @@
 // frontend/src/api/sentimentApi.ts
 import axios from "axios";
-import { SentimentAnalysisResult } from "../types";
+import { SentimentAnalysisResult, SentimentAnalysisAcceptedResponse } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -27,7 +27,7 @@ export const reprocessSentimentAnalysis = async (
     provider?: string;
     force?: boolean;
   }
-): Promise<any> => {
+): Promise<SentimentAnalysisAcceptedResponse> => {
   const formData = new FormData();
   formData.append("media_id", mediaId);
   
@@ -38,7 +38,7 @@ export const reprocessSentimentAnalysis = async (
     formData.append("force", options.force.toString());
   }
 
-  const response = await sentimentApi.post("/reprocess", formData, {
+  const response = await sentimentApi.post<SentimentAnalysisAcceptedResponse>("/reprocess", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
