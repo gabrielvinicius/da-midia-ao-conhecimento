@@ -7,10 +7,10 @@ import main
 from main import create_app
 from src.user_management.api.dependencies import get_auth_dependencies
 from src.media_management.api.dependencies import get_media_dependencies
-from src.shared.events.domain_events import MediaUploaded, TextContentReady
+from src.shared.events.domain_events import MediaUploaded, NotificationRequested, TextContentReady
 from src.shared.middleware.performance_middleware import PerformanceMetricsMiddleware
 from src.shared.middleware.validation_middleware import ContentValidationMiddleware
-from src.summarization.api.dependencies import get_summarization_dependencies
+from src.text_analysis.summarization.api.dependencies import get_summarization_dependencies
 
 
 @pytest.fixture(autouse=True)
@@ -40,6 +40,13 @@ def enable_lightweight_mode(monkeypatch) -> None:
         lambda *args, **kwargs: dummy_monitoring,
     )
 
+    class DummyProcessingService:
+        async def handle_media_uploaded(self, *_args, **_kwargs):
+            return None
+
+        async def handle_text_content_ready(self, *_args, **_kwargs):
+            return None
+
     dummy_media_module = SimpleNamespace(
         queries=object(),
         upload_service=object(),
@@ -47,6 +54,7 @@ def enable_lightweight_mode(monkeypatch) -> None:
         query_service=object(),
         transcription_service=object(),
         transcription_queries=object(),
+        processing_service=DummyProcessingService(),
     )
     dummy_media_admin = SimpleNamespace(
         queries=object(),
@@ -139,8 +147,6 @@ class DummyCache:
 def dummy_event_bus(monkeypatch) -> DummyEventBus:
     bus = DummyEventBus()
     monkeypatch.setattr(main, "build_event_bus", lambda: bus)
-    # Ensure handlers are registered even when bootstrap stubs short-circuit.
-    main.register_event_handlers(bus)
     return bus
 
 
@@ -185,6 +191,7 @@ async def test_event_handlers_registered(dummy_event_bus: DummyEventBus, dummy_c
     async with app.router.lifespan_context(app):
         assert dummy_event_bus.has_subscribers(MediaUploaded)
         assert dummy_event_bus.has_subscribers(TextContentReady)
+        assert dummy_event_bus.has_subscribers(NotificationRequested)
 
 
 @pytest.mark.anyio

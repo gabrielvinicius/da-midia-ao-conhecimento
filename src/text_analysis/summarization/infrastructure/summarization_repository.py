@@ -1,6 +1,6 @@
 """Compatibility wrapper exposing the ORM summarization repository."""
 
-from src.summarization.infrastructure.orm.summarization_repository import (
+from src.text_analysis.summarization.infrastructure.orm.summarization_repository import (
     SummarizationRepository as _SummarizationRepository,
 )
 

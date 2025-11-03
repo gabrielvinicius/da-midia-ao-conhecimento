@@ -26,31 +26,31 @@ from src.notifications.bootstrap import NotificationModule
 from src.providers.api.dependencies import get_provider_registry
 from src.providers.bootstrap import ProvidersModule
 try:  # noqa: SIM105 - optional during refactor
-    from src.sentiment_analysis.api.dependencies import (
+    from src.text_analysis.sentiment_analysis.api.dependencies import (
         SentimentDependencies,
         get_sentiment_dependencies,
     )
-    from src.sentiment_analysis.bootstrap import SentimentAnalysisModule
+    from src.text_analysis.sentiment_analysis.bootstrap import SentimentAnalysisModule
 except Exception:  # pragma: no cover
     SentimentDependencies = None  # type: ignore[assignment]
     get_sentiment_dependencies = None  # type: ignore[assignment]
     SentimentAnalysisModule = None  # type: ignore[assignment]
 try:  # noqa: SIM105 - optional during refactor
-    from src.summarization.api.dependencies import (
+    from src.text_analysis.summarization.api.dependencies import (
         SummarizationDependencies,
         get_summarization_dependencies,
     )
-    from src.summarization.bootstrap import SummarizationModule
+    from src.text_analysis.summarization.bootstrap import SummarizationModule
 except Exception:  # pragma: no cover
     SummarizationDependencies = None  # type: ignore[assignment]
     get_summarization_dependencies = None  # type: ignore[assignment]
     SummarizationModule = None  # type: ignore[assignment]
 try:  # noqa: SIM105 - optional during refactor
-    from src.topic_modeling.api.dependencies import (
+    from src.text_analysis.topic_modeling.api.dependencies import (
         TopicModelingDependencies,
         get_topic_modeling_dependencies,
     )
-    from src.topic_modeling.bootstrap import TopicModelingModule
+    from src.text_analysis.topic_modeling.bootstrap import TopicModelingModule
 except Exception:  # pragma: no cover
     TopicModelingDependencies = None  # type: ignore[assignment]
     get_topic_modeling_dependencies = None  # type: ignore[assignment]
@@ -65,14 +65,12 @@ from src.user_management.bootstrap import UserManagementModule
 def register_module_dependencies(
     app: FastAPI,
     *,
-        auth: UserManagementModule,
+    auth: UserManagementModule,
     monitoring: MonitoringModule,
     media: MediaModule,
     notifications: NotificationModule,
-    summarization: object | None,
     providers: ProvidersModule,
-    sentiment_analysis: object | None,
-    topic_modeling: object | None,
+    text_analysis: object | None,
     admin: AdminModule,
 ) -> None:
     """Register application dependencies using FastAPI overrides."""
@@ -112,6 +110,7 @@ def register_module_dependencies(
         )
     )
 
+    summarization = getattr(text_analysis, "summarization", None) if text_analysis is not None else None
     if SummarizationDependencies is not None and get_summarization_dependencies is not None and summarization is not None:
         app.dependency_overrides[get_summarization_dependencies] = (
             lambda: SummarizationDependencies(
@@ -121,6 +120,7 @@ def register_module_dependencies(
 
     app.dependency_overrides[get_provider_registry] = lambda: providers.provider_registry
 
+    sentiment_analysis = getattr(text_analysis, "sentiment", None) if text_analysis is not None else None
     if SentimentDependencies is not None and get_sentiment_dependencies is not None and sentiment_analysis is not None:
         app.dependency_overrides[get_sentiment_dependencies] = (
             lambda: SentimentDependencies(
@@ -129,6 +129,7 @@ def register_module_dependencies(
             )
         )
 
+    topic_modeling = getattr(text_analysis, "topic_modeling", None) if text_analysis is not None else None
     if TopicModelingDependencies is not None and get_topic_modeling_dependencies is not None and topic_modeling is not None:
         app.dependency_overrides[get_topic_modeling_dependencies] = (
             lambda: TopicModelingDependencies(
@@ -142,6 +143,5 @@ def register_module_dependencies(
         audit_service=admin.audit_service,
         user_service=admin.user_service,
         media_service=admin.media_service,
-        facade=admin.facade,
-        facade_enabled=admin.facade_enabled,
+        service=admin.service,
     )

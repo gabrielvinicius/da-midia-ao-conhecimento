@@ -180,10 +180,6 @@ def build_media_components(
         storage_factory=storage_service_factory,
     )
 
-    if event_bus is not None:
-        event_bus.subscribe(MediaUploaded, processing_service.handle_media_uploaded)
-        event_bus.subscribe(TextContentReady, processing_service.handle_text_content_ready)
-
     module = MediaModule(
         queries=media_queries,
         upload_service=media_upload_service,

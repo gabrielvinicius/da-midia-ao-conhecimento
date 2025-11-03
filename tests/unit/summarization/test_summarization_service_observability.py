@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.summarization.application.services.summarization_service import SummarizationService
-from src.summarization.application.services.summary_metrics_service import SummaryMetricsService
-from src.summarization.application.services.summary_state_manager_impl import SummaryStateManagerImpl
+from src.text_analysis.summarization.application.services.summarization_service import SummarizationService
+from src.text_analysis.summarization.application.services.summary_metrics_service import SummaryMetricsService
+from src.text_analysis.summarization.application.services.summary_state_manager_impl import SummaryStateManagerImpl
 
 
 @pytest.fixture

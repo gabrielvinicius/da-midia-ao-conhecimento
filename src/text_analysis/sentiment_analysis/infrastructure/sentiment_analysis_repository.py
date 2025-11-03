@@ -7,7 +7,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.sentiment_analysis.domain.sentiment_analysis import (
+from src.text_analysis.sentiment_analysis.domain.sentiment_analysis import (
     SentimentAnalysis,
     SentimentAnalysisRecord,
 )

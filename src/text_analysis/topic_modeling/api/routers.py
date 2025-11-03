@@ -14,12 +14,11 @@ from .dependencies import (
     get_topic_modeling_service,
     get_transcription_queries,
 )
-from .schemas import TopicModelingResponse
-from src.topic_modeling.application.topic_modeling_service import TopicModelingService
-from src.topic_modeling.application.commands.commands import AnalyzeTopicsCommand
-from src.topic_modeling.application.commands.handlers import AnalyzeTopicsCommandHandler
-from src.topic_modeling.domain.topic_modeling import TopicModelingResult # Para o retorno
-from src.shared.api.unified_schemas import create_success_response, create_error_response, BaseResponseSchema
+from .schemas import TopicModelingAck, TopicModelingAcceptedResponse, TopicModelingResponse
+from src.text_analysis.topic_modeling.application.topic_modeling_service import TopicModelingService
+from src.text_analysis.topic_modeling.application.commands.commands import AnalyzeTopicsCommand
+from src.text_analysis.topic_modeling.application.commands.handlers import AnalyzeTopicsCommandHandler
+from src.shared.api.unified_schemas import create_error_response
 
 
 router = APIRouter(prefix="/topic-modeling", tags=["Topic Modeling"])
@@ -40,10 +39,10 @@ async def get_topic_modeling_result_by_media_id(
     if not analysis_result:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic modeling result not found for the given media ID.")
 
-    return analysis_result
+    return TopicModelingResponse.from_domain(analysis_result)
 
 
-@router.post("/analyze", response_model=BaseResponseSchema, summary="Analyze topics in text")
+@router.post("/analyze", response_model=TopicModelingAcceptedResponse, summary="Analyze topics in text")
 async def analyze_topics(
     text_content: str = Form(..., description="Text to analyze for topics"), # Renomear para text_content
     media_id: Optional[UUID] = Form(None, description="Associated media ID"), # Mudar para UUID
@@ -65,30 +64,33 @@ async def analyze_topics(
         
         # Criar e executar o comando AnalyzeTopicsCommand
         command = AnalyzeTopicsCommand(
-            media_id=str(media_id) if media_id else str(UUID(int=0)), # Placeholder para media_id se for None
+            media_id=str(media_id) if media_id else str(UUID(int=0)),
             text_content=text_content,
             provider=provider,
             language=language,
-            options=options
+            options=options,
+            schedule_only=True,
         )
-        
+
         result = await analyze_topics_handler.handle(command)
-        
-        response_data = {
-            "analysis_result": result,
-            "message": "Topic modeling initiated successfully"
-        }
-        
-        return create_success_response(
-            data=response_data,
-            message="Topic modeling initiated"
+        task_info = result.get("task") if isinstance(result, dict) else {}
+        ack = TopicModelingAck(
+            media_id=str(media_id) if media_id else None,
+            provider=task_info.get("provider", provider),
+            language=task_info.get("language", language),
+            task_id=task_info.get("task_id"),
+        )
+
+        return TopicModelingAcceptedResponse(
+            message="Topic modeling task scheduled successfully.",
+            analysis=ack,
         )
         
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.post("/reprocess", response_model=BaseResponseSchema, summary="Reprocess topic modeling")
+@router.post("/reprocess", response_model=TopicModelingAcceptedResponse, summary="Reprocess topic modeling")
 async def reprocess_topic_modeling(
     media_id: UUID = Form(..., description="Media ID to reprocess topic modeling"),
     provider: Optional[str] = Form(None, description="Provider to use for topic modeling"),
@@ -123,25 +125,22 @@ async def reprocess_topic_modeling(
             text_content=transcription.text,
             provider=provider or "bertopic_placeholder",
             language=language,
-            options={"force_reprocess": force}
+            options={"force_reprocess": force},
+            schedule_only=True,
         )
-        
+
         result = await analyze_topics_handler.handle(command)
-        
-        response_data = {
-            "reprocessing": {
-                "media_id": str(media_id),
-                "result_id": result.get("result_id"),
-                "provider": provider or "bertopic_placeholder",
-                "language": language,
-                "status": "COMPLETED" # O handler já processa e salva o resultado
-            },
-            "message": "Topic modeling reprocessing started."
-        }
-        
-        return create_success_response(
-            data=response_data,
-            message="Topic modeling reprocessing initiated"
+        task_info = result.get("task") if isinstance(result, dict) else {}
+        ack = TopicModelingAck(
+            media_id=str(media_id),
+            provider=task_info.get("provider", provider or "bertopic_placeholder"),
+            language=task_info.get("language", language),
+            task_id=task_info.get("task_id"),
+        )
+
+        return TopicModelingAcceptedResponse(
+            message="Topic modeling task scheduled successfully.",
+            analysis=ack,
         )
         
     except Exception as e:

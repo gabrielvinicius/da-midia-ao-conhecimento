@@ -12,4 +12,5 @@ class AnalyzeSentimentCommand:
     provider: str
     model: Optional[str] = None
     language: Optional[str] = None
+    schedule_only: bool = False
 

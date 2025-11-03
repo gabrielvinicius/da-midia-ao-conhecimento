@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dependency_injector import providers
 
 from src.admin.adapters import MediaManagementAdapter, UserManagementAdapter
-from src.admin.application.facade import AdminFacade, is_admin_facade_enabled
+from src.admin.application.admin_service import AdminService
 from src.admin.container import AdminContainer
 from src.admin.application.queries.admin_queries import AdminQueries
 from src.admin.application.services.admin_audit_service import AdminAuditService
@@ -23,8 +23,7 @@ class AdminModule:
     audit_service: AdminAuditService
     user_service: AdminUserService
     media_service: AdminMediaService
-    facade: AdminFacade
-    facade_enabled: bool
+    service: AdminService
 
 
 def build_admin_module(
@@ -51,8 +50,8 @@ def build_admin_module(
         media_facade=media_facade,
         admin_media_service=media_service,
     )
-    facade_enabled = is_admin_facade_enabled()
-    facade = AdminFacade(
+
+    service = AdminService(
         admin_queries=admin_queries,
         audit_service=audit_service,
         auth_queries=auth_queries,
@@ -61,7 +60,6 @@ def build_admin_module(
         admin_media_service=media_service,
         user_adapter=user_adapter,
         media_adapter=media_adapter,
-        enabled=facade_enabled,
     )
 
     return AdminModule(
@@ -69,6 +67,5 @@ def build_admin_module(
         audit_service=audit_service,
         user_service=user_service,
         media_service=media_service,
-        facade=facade,
-        facade_enabled=facade_enabled,
+        service=service,
     )

@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from src.user_management.domain.user import User
+from types import SimpleNamespace
 from src.notifications.application.commands.send_notification_command import SendNotificationCommand
 from src.notifications.application.commands.send_notification_command_handler import SendNotificationCommandHandler
 from src.notifications.domain.notification import NotificationType, NotificationStatus
@@ -24,7 +24,7 @@ async def test_send_email_notification_success(handler_mocks):
     """Tests successful sending of an email notification."""
     # Arrange
     user_id = str(uuid4())
-    user = User(id=user_id, email="test@example.com")
+    user = SimpleNamespace(id=user_id, email="test@example.com")
     handler_mocks["user_repository"].find_by_id.return_value = user
 
     handler = SendNotificationCommandHandler(**handler_mocks)
@@ -56,7 +56,7 @@ async def test_send_notification_adapter_fails(handler_mocks):
     """Tests that the notification status is marked as FAILED if the adapter fails."""
     # Arrange
     user_id = str(uuid4())
-    user = User(id=user_id, email="test@example.com")
+    user = SimpleNamespace(id=user_id, email="test@example.com")
     handler_mocks["user_repository"].find_by_id.return_value = user
     handler_mocks["email_adapter"].send.side_effect = Exception("SMTP server down")
 

@@ -7,7 +7,7 @@ from sqlalchemy import Column, DateTime, Enum as SqlEnum, ForeignKey, String, Te
 from sqlalchemy.dialects.postgresql import UUID
 
 from src.shared.infrastructure.database import Base
-from src.summarization.domain.model import SummaryStatus
+from src.text_analysis.summarization.domain.model import SummaryStatus
 
 
 class SummaryEntity(Base):

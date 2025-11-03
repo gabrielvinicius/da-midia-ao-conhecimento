@@ -6,10 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional
 
 from src.shared.infrastructure.database import get_db
-from src.text_processing.application.commands.commands import ProcessTextCommand
-from src.text_processing.application.commands.handlers import ProcessTextCommandHandler
+from src.text_analysis.text_processing.application.commands.commands import ProcessTextCommand
+from src.text_analysis.text_processing.application.commands.handlers import ProcessTextCommandHandler
 
-from src.text_processing.bootstrap import TextProcessingContainer
+from src.text_analysis.text_processing.bootstrap import TextProcessingContainer
 
 logger = structlog.get_logger(__name__)
 

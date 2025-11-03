@@ -7,7 +7,7 @@ from src.notifications.application.commands.request_notification_command import 
 from src.notifications.application.commands.request_notification_command_handler import RequestNotificationCommandHandler
 from src.notifications.domain.notification import NotificationType
 from src.shared.events.domain_events import NotificationRequested
-from src.user_management.domain.user import User, UserRole
+from types import SimpleNamespace
 
 @pytest.fixture
 def mock_auth_queries():
@@ -23,7 +23,7 @@ async def test_request_notification_handler_publishes_event(mock_auth_queries, m
     # Arrange
     user_id = str(uuid4())
     user_email = "test@example.com"
-    user = User(id=user_id, email=user_email, role=UserRole.USER, hashed_password="")
+    user = SimpleNamespace(id=user_id, email=user_email, phone_number=None)
     mock_auth_queries.get_by_id.return_value = user
 
     handler = RequestNotificationCommandHandler(

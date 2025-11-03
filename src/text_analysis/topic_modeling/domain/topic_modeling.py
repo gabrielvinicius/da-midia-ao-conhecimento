@@ -7,7 +7,7 @@ from sqlalchemy import Column, String, DateTime, Enum as SqlEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from src.shared.infrastructure.database import Base
-from src.topic_modeling.domain.analysis import TopicModelingStatus
+from src.text_analysis.topic_modeling.domain.analysis import TopicModelingStatus
 
 
 class TopicModelingResult(Base):

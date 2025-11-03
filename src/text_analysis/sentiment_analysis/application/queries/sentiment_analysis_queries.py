@@ -2,8 +2,8 @@
 
 from typing import Optional, Union
 
-from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysis
-from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
+from src.text_analysis.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysis
+from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
     SentimentAnalysisRepository,
 )
 

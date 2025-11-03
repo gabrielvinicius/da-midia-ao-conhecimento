@@ -7,16 +7,16 @@ from typing import Optional
 
 from celery import shared_task
 
-from src.sentiment_analysis.application.commands.analyze_sentiment_command import (
+from src.text_analysis.sentiment_analysis.application.commands.analyze_sentiment_command import (
     AnalyzeSentimentCommand,
 )
-from src.sentiment_analysis.application.commands.analyze_sentiment_command_handler import (
+from src.text_analysis.sentiment_analysis.application.commands.analyze_sentiment_command_handler import (
     AnalyzeSentimentCommandHandler,
 )
-from src.sentiment_analysis.infrastructure.dependencies import (
+from src.text_analysis.sentiment_analysis.infrastructure.dependencies import (
     create_sentiment_analysis_service,
 )
-from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
+from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
     SentimentAnalysisRepository,
 )
 from src.shared.infrastructure.database import get_db

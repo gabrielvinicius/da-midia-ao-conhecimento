@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from src.summarization.domain.model import SummaryAggregate
+from src.text_analysis.summarization.domain.model import SummaryAggregate
 
 from .summary_entity import SummaryEntity
 

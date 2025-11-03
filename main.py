@@ -14,13 +14,7 @@ from src.monitoring.bootstrap import build_monitoring_module
 from src.notifications.bootstrap import build_notification_module
 from src.notifications.infrastructure.connection_manager import manager
 from src.providers.bootstrap import build_providers_module
-# Optional modules (may fail during bootstrap while legacy code is refactored)
-try:  # noqa: SIM105 - tolerate partial availability
-    from src.sentiment_analysis.bootstrap import build_sentiment_analysis_module
-except Exception as _sentiment_import_error:  # pragma: no cover - fallback path
-    build_sentiment_analysis_module = None  # type: ignore[assignment]
-else:
-    _sentiment_import_error = None
+from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.shared.application.lifecycle import (
     ApplicationResources,
     start_application_resources,
@@ -32,15 +26,23 @@ from src.shared.application.service_registry import (
 )
 from src.shared.application.modules import register_module_dependencies
 from src.shared.event_bus import EventCallback, InMemoryEventBus
-from src.shared.events.domain_events import MediaUploaded, TextContentReady
+from src.shared.events.domain_events import MediaUploaded, NotificationRequested, TextContentReady
 from src.shared.exceptions.api_errors import register_exception_handlers
 # from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
 from src.shared.infrastructure.cache import cache
 from src.shared.infrastructure.database import Base, engine, AsyncSessionLocal
 from src.shared.infrastructure.logging_config import configure_logging, get_logger
 from src.shared.infrastructure.tracing import configure_tracer
+from src.shared.middleware.validation_middleware import register_validation_middleware
+from src.shared.middleware.performance_middleware import register_performance_middleware
+from src.text_analysis.application.event_handlers import build_text_content_ready_handler
 from src.text_analysis.bootstrap import build_text_analysis_module
+try:  # noqa: SIM105 - tolerate partial availability during consolidation
+    from src.text_analysis.api.routers import router as text_analysis_router
+except Exception:  # pragma: no cover - optional module
+    text_analysis_router = None  # type: ignore[assignment]
 from src.user_management.bootstrap import build_user_management_module
+from src.notifications.application.event_handlers import handle_notification_requested
 
 # Ensure Celery app is importable during API startup
 try:  # noqa: SIM105 - best-effort import
@@ -57,32 +59,29 @@ from src.providers.api.routers import router as providers_router
 from src.media_processing.transcription.api.routers import router as transcription_router
 from src.media_management.api.routers import router as media_router
 from src.admin.api.routers import router as admin_router
-# TODO: Add text_analysis_router once it's created and consolidated
-
-
-async def _noop_media_uploaded_handler(event: MediaUploaded) -> None:
-    """Stage A placeholder handler – will be replaced in later stages."""
-    _ = event  # explicit ignore until real orchestration is implemented
-
-
-async def _noop_text_ready_handler(event: TextContentReady) -> None:
-    """Stage A placeholder handler – will be replaced in later stages."""
-    _ = event
-
-
-def register_event_handlers(event_bus: InMemoryEventBus) -> None:
-    """Wire placeholder handlers so smoke tests can assert registration."""
-
-    event_bus.subscribe(MediaUploaded, _noop_media_uploaded_handler)
-    event_bus.subscribe(TextContentReady, _noop_text_ready_handler)
-
 
 def build_event_bus() -> InMemoryEventBus:
     """Factory for the default application event bus."""
 
-    bus = InMemoryEventBus()
-    register_event_handlers(bus)
-    return bus
+    return InMemoryEventBus()
+
+
+def register_domain_event_handlers(
+    event_bus: InMemoryEventBus,
+    *,
+    media_processing_service,
+    text_analysis_service=None,
+) -> None:
+    """Attach domain event handlers to the bus."""
+
+    event_bus.subscribe(MediaUploaded, media_processing_service.handle_media_uploaded)
+    event_bus.subscribe(TextContentReady, media_processing_service.handle_text_content_ready)
+    if text_analysis_service is not None:
+        event_bus.subscribe(
+            TextContentReady,
+            build_text_content_ready_handler(text_analysis_service),
+        )
+    event_bus.subscribe(NotificationRequested, handle_notification_requested)
 
 
 @asynccontextmanager
@@ -116,6 +115,11 @@ async def lifespan(app: FastAPI):
         storage_factory = StorageServiceFactory()
         auth_module = build_user_management_module(session)
         monitoring_module = build_monitoring_module(session)
+        providers_module = build_providers_module()
+        notification_module = await build_notification_module(
+            session=session,
+            auth_queries=auth_module.auth_queries,
+        )
 
         media_module, media_admin_context = build_media_components(
             session=session,
@@ -126,7 +130,12 @@ async def lifespan(app: FastAPI):
         )
 
         if not lightweight_mode:
-            text_analysis_module = await build_text_analysis_module(session)
+            text_analysis_module = await build_text_analysis_module(
+                session,
+                media_module=media_module,
+                notification_module=notification_module,
+                monitoring_module=monitoring_module,
+            )
         else:
             logger.warning("text_analysis.bootstrap_skipped", reason="lightweight_mode")
             text_analysis_module = SimpleNamespace(service=None)
@@ -154,6 +163,12 @@ async def lifespan(app: FastAPI):
         )
         attach_domain_services(app, domain_registry)
         resources = ApplicationResources(cache=cache, event_bus=event_bus)
+
+        register_domain_event_handlers(
+            event_bus,
+            media_processing_service=media_module.processing_service,
+            text_analysis_service=getattr(text_analysis_module, "service", None),
+        )
 
         logger.info("Inicializando recursos compartilhados", component="bootstrap")
         try:
@@ -226,12 +241,8 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(media_router)
     app.include_router(transcription_router)
-    if summary_router is not None:
-        app.include_router(summary_router)
-    if sentiment_router is not None:
-        app.include_router(sentiment_router)
-    if topic_modeling_router is not None:
-        app.include_router(topic_modeling_router)
+    if text_analysis_router is not None:
+        app.include_router(text_analysis_router)
     app.include_router(notification_router)
     app.include_router(admin_router)
     app.include_router(monitoring_router)

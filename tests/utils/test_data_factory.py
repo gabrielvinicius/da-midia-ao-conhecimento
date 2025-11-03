@@ -4,6 +4,7 @@ Factory for creating realistic test data objects.
 Provides consistent, valid test data for all domains.
 """
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from typing import Dict, Any, List, Optional
 from uuid import uuid4
 import random
@@ -11,9 +12,9 @@ import random
 from src.user_management.domain.user import User, UserRole
 from src.media_management.domain.media import Media, MediaType, MediaStatus
 from src.media_processing.transcription.domain.transcription import Transcription, TranscriptionStatus
-from src.summarization.domain.summary import Summary
-from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysisResult
-from src.topic_modeling.domain.topic_modeling import TopicModelingResult
+from src.text_analysis.summarization.domain.summary import Summary
+from src.text_analysis.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysisResult
+from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult
 
 
 class TestDataFactory:
@@ -25,7 +26,7 @@ class TestDataFactory:
     def _unique_id(self) -> str:
         """Generate a unique ID for test objects."""
         self._counter += 1
-        return f"test_{self._counter}_{uuid4().hex[:8]}"
+        return str(uuid4())
     
     def _random_email(self) -> str:
         """Generate a random email for testing."""
@@ -81,25 +82,27 @@ class TestDataFactory:
         """Create a test Media entity."""
         media_id = self._unique_id()
         filename = f"test_{media_type.value}_{media_id}"
-        
-        if media_type == MediaType.AUDIO:
-            filename += ".mp3"
-        elif media_type == MediaType.VIDEO:
-            filename += ".mp4"
-        else:
-            filename += ".txt"
-            
-        return Media(
-            id=media_id,
+
+        extension_map = {
+            MediaType.AUDIO: ".mp3",
+            MediaType.VIDEO: ".mp4",
+        }
+        filename += extension_map.get(media_type, ".txt")
+
+        filename_override = kwargs.pop("filename", filename)
+        storage_provider = kwargs.pop("storage_provider", "local")
+
+        return Media.create(
             user_id=user_id or self._unique_id(),
             original_file_path=f"/uploads/{filename}",
-            filename=filename,
             media_type=media_type,
-            status=status,
-            file_size=random.randint(1024, 1024*1024),  # 1KB to 1MB
+            storage_provider=storage_provider,
+            filename=filename_override,
+            file_size=random.randint(1024, 1024 * 1024),
             duration=random.randint(30, 3600) if media_type in [MediaType.AUDIO, MediaType.VIDEO] else None,
-            created_at=datetime.utcnow(),
-            **kwargs
+            status=status,
+            media_id=kwargs.pop("media_id", None),
+            **kwargs,
         )
     
     def create_audio_media(self, **kwargs) -> Media:
@@ -167,10 +170,13 @@ class TestDataFactory:
             }
         ]
         
-        return Transcription(
-            id=self._unique_id(),
-            media_id=media_id or self._unique_id(),
-            text=random.choice(sample_texts),
+        transcription_id = kwargs.pop("id", uuid4())
+        media_uuid = kwargs.pop("media_id", media_id or uuid4())
+
+        return SimpleNamespace(
+            id=transcription_id,
+            media_id=media_uuid,
+            text=kwargs.pop("text", random.choice(sample_texts)),
             language="en",
             provider="whisper",
             status=status,
@@ -178,8 +184,6 @@ class TestDataFactory:
             segments=sample_segments,
             speakers=["Speaker 1", "Speaker 2"],
             processing_time=round(random.uniform(1.0, 10.0), 2),
-            created_at=datetime.utcnow(),
-            **kwargs
         )
     
     def create_transcription_command_data(self, **kwargs) -> Dict[str, Any]:
@@ -244,32 +248,44 @@ class TestDataFactory:
         sentiments = ["positive", "negative", "neutral"]
         emotions = ["joy", "sadness", "anger", "fear", "surprise", "neutral"]
         
-        return SentimentAnalysisResult(
-            id=self._unique_id(),
-            media_id=media_id or self._unique_id(),
-            overall_sentiment=random.choice(sentiments),
-            sentiment_score=round(random.uniform(-1.0, 1.0), 2),
-            confidence=round(random.uniform(0.6, 0.95), 2),
-            emotions={
-                emotion: round(random.uniform(0.0, 1.0), 2) 
+        overall = kwargs.pop("overall_sentiment", random.choice(sentiments))
+        score = kwargs.pop("sentiment_score", round(random.uniform(-1.0, 1.0), 2))
+        confidence = kwargs.pop("confidence", round(random.uniform(0.6, 0.95), 2))
+        emotion_map = kwargs.pop(
+            "emotions",
+            {
+                emotion: round(random.uniform(0.0, 1.0), 2)
                 for emotion in random.sample(emotions, 3)
             },
-            sentence_sentiments=[
+        )
+        sentence_sentiments = kwargs.pop(
+            "sentence_sentiments",
+            [
                 {
                     "text": "This is a positive statement.",
                     "sentiment": "positive",
-                    "score": 0.8
+                    "score": 0.8,
                 },
                 {
-                    "text": "This is a neutral observation.", 
+                    "text": "This is a neutral observation.",
                     "sentiment": "neutral",
-                    "score": 0.1
-                }
+                    "score": 0.1,
+                },
             ],
+        )
+
+        return SentimentAnalysisResult(
+            id=self._unique_id(),
+            media_id=media_id or self._unique_id(),
+            overall_sentiment=overall,
+            sentiment_score=score,
+            confidence=confidence,
+            emotions=emotion_map,
+            sentence_sentiments=sentence_sentiments,
             provider="transformers",
             model="distilbert-base-uncased",
             created_at=datetime.utcnow(),
-            **kwargs
+            **kwargs,
         )
     
     # ============================================================================

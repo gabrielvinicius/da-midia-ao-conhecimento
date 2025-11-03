@@ -10,8 +10,8 @@ from src.monitoring.domain.interfaces import IAnalyticsRepository, ProcessingTyp
 from src.media_management.domain.media import MediaStatus
 from src.media_management.infrastructure.orm.media_entity import MediaEntity
 from src.media_processing.transcription.domain.transcription import Transcription, TranscriptionStatus
-from src.summarization.domain.summary import SummaryStatus
-from src.summarization.infrastructure.orm.summary_entity import SummaryEntity
+from src.text_analysis.summarization.domain.summary import SummaryStatus
+from src.text_analysis.summarization.infrastructure.orm.summary_entity import SummaryEntity
 
 logger = structlog.get_logger(__name__)
 

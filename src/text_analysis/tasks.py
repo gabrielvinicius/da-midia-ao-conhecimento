@@ -255,13 +255,13 @@ async def _run_sentiment_analysis(
 ) -> Optional[Dict[str, Any]]:
     start_time = time.perf_counter()
     # TODO: Resolve dependencies via DI container later
-    from src.sentiment_analysis.application.sentiment_analysis_service import (
+    from src.text_analysis.sentiment_analysis.application.sentiment_analysis_service import (
         SentimentAnalysisService,
     )  # local import to avoid circular dependency
-    from src.sentiment_analysis.infrastructure.sentiment_analyzer import (
+    from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analyzer import (
         HuggingFaceSentimentAnalyzer,
     )
-    from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
+    from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
         SentimentAnalysisRepository,
     )
 

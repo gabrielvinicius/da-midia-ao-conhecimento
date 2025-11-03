@@ -1,6 +1,6 @@
 """Backwards compatible exports for the summary aggregate."""
 
-from src.summarization.domain.model import SummaryAggregate, SummaryStatus
+from src.text_analysis.summarization.domain.model import SummaryAggregate, SummaryStatus
 
 Summary = SummaryAggregate
 

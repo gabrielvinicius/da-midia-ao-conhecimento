@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Protocol, Optional
 from uuid import UUID
 
-from src.summarization.domain.summary import Summary
+from src.text_analysis.summarization.domain.summary import Summary
 
 
 class SupportsSummaryRepository(Protocol):

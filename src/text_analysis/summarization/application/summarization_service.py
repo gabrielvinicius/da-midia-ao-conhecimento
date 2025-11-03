@@ -53,3 +53,11 @@ class SummarizationService:
             "task_id": task_result.get("task_id"),
             "message": "Summarization task scheduled successfully"
         }
+
+    async def get_summary_by_media_id(self, media_id: UUID | str) -> Optional[Summary]:
+        """Retrieve the latest summary linked to the provided media identifier."""
+        return await self._repo.get_by_media_id(_ensure_uuid(media_id))
+
+    async def get_summary_by_id(self, summary_id: UUID | str) -> Optional[Summary]:
+        """Retrieve a summary by its identifier."""
+        return await self._repo.get_by_id(_ensure_uuid(summary_id))

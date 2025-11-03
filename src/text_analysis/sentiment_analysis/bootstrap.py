@@ -4,23 +4,24 @@ from dataclasses import dataclass
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.sentiment_analysis.application.commands.analyze_sentiment_command_handler import (
+from src.text_analysis.sentiment_analysis.application.commands.analyze_sentiment_command_handler import (
     AnalyzeSentimentCommandHandler,
 )
-from src.sentiment_analysis.application.queries.sentiment_analysis_queries import (
+from src.text_analysis.sentiment_analysis.application.queries.sentiment_analysis_queries import (
     SentimentAnalysisQueries,
 )
-from src.sentiment_analysis.application.sentiment_analysis_service import (
+from src.text_analysis.sentiment_analysis.application.sentiment_analysis_service import (
     SentimentAnalysisService,
 )
-from src.sentiment_analysis.infrastructure.logging import StructuredSentimentLogger
-from src.sentiment_analysis.infrastructure.metrics import PrometheusSentimentMetrics
-from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
+from src.text_analysis.sentiment_analysis.infrastructure.logging import StructuredSentimentLogger
+from src.text_analysis.sentiment_analysis.infrastructure.metrics import PrometheusSentimentMetrics
+from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
     SentimentAnalysisRepository,
 )
-from src.sentiment_analysis.infrastructure.sentiment_analyzer import (
+from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analyzer import (
     SimpleSentimentAnalyzer,
 )
+from src.text_analysis.application.services import TextAnalysisService
 
 
 class SentimentAnalysisContainer(containers.DeclarativeContainer):
@@ -30,6 +31,7 @@ class SentimentAnalysisContainer(containers.DeclarativeContainer):
     transcription_queries = providers.Dependency(default=None)
     connection_manager = providers.Dependency(default=None)
     metrics_service = providers.Dependency(default=None)
+    text_analysis_service = providers.Dependency(default=None)
 
     repository = providers.Factory(SentimentAnalysisRepository, db=db)
     analyzer = providers.Singleton(SimpleSentimentAnalyzer)
@@ -40,6 +42,7 @@ class SentimentAnalysisContainer(containers.DeclarativeContainer):
         SentimentAnalysisService,
         analyzer=analyzer,
         repository=repository,
+        text_analysis_service=text_analysis_service,
         logger=sentiment_logger,
         metrics=sentiment_metrics,
     )
@@ -76,13 +79,15 @@ async def build_sentiment_analysis_module(
     transcription_queries,
     connection_manager,
     metrics_service,
+    text_analysis_service: TextAnalysisService,
 ) -> SentimentAnalysisModule:
     container = SentimentAnalysisContainer(
-        db=session,
         transcription_queries=providers.Object(transcription_queries),
         connection_manager=providers.Object(connection_manager),
         metrics_service=providers.Object(metrics_service),
+        text_analysis_service=providers.Object(text_analysis_service),
     )
+    container.db.override(providers.Object(session))
 
     module = SentimentAnalysisModule(
         service=container.sentiment_analysis_service(),

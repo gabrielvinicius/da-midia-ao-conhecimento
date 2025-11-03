@@ -10,10 +10,10 @@ from unittest.mock import AsyncMock, MagicMock
 from statistics import mean, median
 
 # SOLID services for performance testing
-from src.summarization.application.services.summarization_service import SummarizationService
-from src.summarization.application.services.summary_validator import SummaryValidator
-from src.summarization.application.services.summary_metrics_service import SummaryMetricsService
-from src.summarization.application.services.summary_state_manager_impl import SummaryStateManagerImpl
+from src.text_analysis.summarization.application.services.summarization_service import SummarizationService
+from src.text_analysis.summarization.application.services.summary_validator import SummaryValidator
+from src.text_analysis.summarization.application.services.summary_metrics_service import SummaryMetricsService
+from src.text_analysis.summarization.application.services.summary_state_manager_impl import SummaryStateManagerImpl
 
 from src.media_processing.transcription.application.services.speech_recognition_service import SpeechRecognitionService
 from src.media_processing.transcription.application.services.transcription_validator import TranscriptionValidator

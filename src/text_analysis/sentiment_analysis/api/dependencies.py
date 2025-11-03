@@ -4,10 +4,10 @@ from typing import Annotated
 from fastapi import Depends
 
 from src.media_management.api.dependencies import get_media_queries
-from src.sentiment_analysis.application.sentiment_analysis_service import (
+from src.text_analysis.sentiment_analysis.application.sentiment_analysis_service import (
     SentimentAnalysisService,
 )
-from src.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
+from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
     SentimentAnalysisRepository,
 )
 

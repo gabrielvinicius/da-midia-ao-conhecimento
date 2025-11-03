@@ -17,7 +17,13 @@ async def test_get_video_by_id(mock_video_repository):
     """Tests retrieving a video by its ID."""
     # Arrange
     video_id = uuid4()
-    expected_video = Video(id=video_id, user_id="user1", file_path="path/to/video.mp4", storage_provider="local")
+    expected_video = Video(
+        id=video_id,
+        user_id="user1",
+        file_path="path/to/video.mp4",
+        filename="video.mp4",
+        storage_provider="local",
+    )
     mock_video_repository.find_by_id.return_value = expected_video
 
     queries = VideoQueries(video_repository=mock_video_repository)
@@ -36,8 +42,20 @@ async def test_list_user_videos(mock_video_repository):
     # Arrange
     user_id = uuid4()
     expected_videos = [
-        Video(id=uuid4(), user_id=str(user_id), file_path="path/1.mp4", storage_provider="local"),
-        Video(id=uuid4(), user_id=str(user_id), file_path="path/2.mp4", storage_provider="s3"),
+        Video(
+            id=uuid4(),
+            user_id=str(user_id),
+            file_path="path/1.mp4",
+            filename="video1.mp4",
+            storage_provider="local",
+        ),
+        Video(
+            id=uuid4(),
+            user_id=str(user_id),
+            file_path="path/2.mp4",
+            filename="video2.mp4",
+            storage_provider="s3",
+        ),
     ]
     mock_video_repository.list_by_user.return_value = expected_videos
 
