@@ -17,10 +17,12 @@ export interface TokenResponse {
     csrf_token?: string;
 }
 
+import { UserRole } from "../types";
+
 export interface User {
     id: string;
     email: string;
-    role: string;
+    role: UserRole;
     csrf_token?: string;
 }
 

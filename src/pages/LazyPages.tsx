@@ -34,17 +34,17 @@ export const MediaDetailPage = createLazyComponent(
 
 // === Páginas Admin ===
 export const AdminDashboardPage = createLazyComponent(
-  () => import('../features/admin/pages/AdminDashboardPage'),
+  () => import('../features/admin/pages/AdminDashboardPage').then(module => ({ default: module.AdminDashboardPage as any })),
   'AdminDashboardPage'
 );
 
 export const AdminUsersPage = createLazyComponent(
-  () => import('../features/admin/pages/AdminUsersPage'),
+  () => import('../features/admin/pages/AdminUsersPage').then(module => ({ default: module.AdminUsersPage as any })),
   'AdminUsersPage'
 );
 
 export const AdminAllMediaPage = createLazyComponent(
-  () => import('../features/admin/pages/AdminAllMediaPage'),
+  () => import('../features/admin/pages/AdminAllMediaPage').then(module => ({ default: module.AdminAllMediaPage as any })),
   'AdminAllMediaPage'
 );
 

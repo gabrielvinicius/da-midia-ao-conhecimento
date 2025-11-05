@@ -1,3 +1,4 @@
+import { UserRole } from "@/types";
 import { useParams } from "react-router-dom";
 import { useMediaDetail, useReprocessMedia } from "../features/media/hooks/useMedia";
 import { InteractiveTranscriptionPanel } from "../features/transcription/components/InteractiveTranscriptionPanel";
@@ -24,7 +25,7 @@ const MediaDetailPage = () => {
 
   const handleReprocess = () => {
     if (media) {
-      reprocessMutation.mutate(media.id);
+      reprocessMutation.mutate({ mediaId: media.id });
     }
   };
 
@@ -67,7 +68,7 @@ const MediaDetailPage = () => {
               <Badge variant={media.status === MediaStatus.FAILED ? "destructive" : "secondary"}>{media.status}</Badge>
             </div>
           </div>
-          {user?.role === 'admin' && media.status === MediaStatus.FAILED && (
+          {user?.role === UserRole.ADMIN && media.status === MediaStatus.FAILED && (
             <Button 
               onClick={handleReprocess} 
               disabled={reprocessMutation.isPending}
@@ -89,7 +90,7 @@ const MediaDetailPage = () => {
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-8">
           {isPlayable ? (
-            <InteractiveTranscriptionPanel mediaId={id} />
+            <InteractiveTranscriptionPanel mediaId={id} mediaType={media.media_type as MediaType.AUDIO | MediaType.VIDEO} />
           ) : (
             <p className="text-center text-muted-foreground py-16">Interactive transcription is only available for audio and video files.</p>
           )}

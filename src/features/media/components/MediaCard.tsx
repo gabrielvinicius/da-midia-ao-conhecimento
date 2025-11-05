@@ -58,7 +58,7 @@ export const MediaCard = ({ media }: MediaCardProps) => {
   const handleReprocess = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    reprocess(media.id);
+    reprocess({ mediaId: media.id });
   };
 
   return (

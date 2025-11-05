@@ -56,11 +56,11 @@ const MediaActionsCell = ({ media }: { media: Media }) => {
             {isReprocessing ? "Starting..." : "Reprocess"}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <AlertDialogTrigger asChild>
-            <DropdownMenuItem className="text-red-600" disabled={isDeleting}>
+          <DropdownMenuItem className="text-red-600" disabled={isDeleting} asChild>
+            <AlertDialogTrigger asChild>
               Delete Media
-            </DropdownMenuItem>
-          </AlertDialogTrigger>
+            </AlertDialogTrigger>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <AlertDialogContent>

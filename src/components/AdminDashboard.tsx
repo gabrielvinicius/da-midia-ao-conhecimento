@@ -1,3 +1,4 @@
+import { MediaStatus, MediaType } from "@/types";
 // src/components/AdminDashboard.tsx
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -39,8 +40,10 @@ export default function AdminDashboard() {
                                     <VideoCard
                                         video={{
                                             id: i.toString(),
-                                            file_path: `video${i}.mp4`,
-                                            status: "COMPLETED",
+                                            user_id: "1",
+                                            media_type: MediaType.VIDEO,
+                                            original_file_path: `video${i}.mp4`,
+                                            status: MediaStatus.COMPLETED,
                                             created_at: new Date().toISOString(),
                                         }}
                                     />

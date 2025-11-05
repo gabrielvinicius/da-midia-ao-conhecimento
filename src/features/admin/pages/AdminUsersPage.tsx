@@ -59,9 +59,9 @@ const UserActionsCell = ({ user }: { user: User }) => {
                 <DropdownMenuItem>Edit Role</DropdownMenuItem>
               </DialogTrigger>
               <DropdownMenuSeparator />
-              <AlertDialogTrigger asChild>
-                <DropdownMenuItem className="text-red-600">Delete User</DropdownMenuItem>
-              </AlertDialogTrigger>
+              <DropdownMenuItem className="text-red-600" onSelect={() => setIsDeleteOpen(true)} disabled={isDeleting}>
+                Delete User
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 

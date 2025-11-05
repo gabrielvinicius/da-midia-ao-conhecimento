@@ -1,5 +1,5 @@
 import authService, { LoginData, RegisterData, ChangePasswordData } from '@/services/auth.service';
-import { User, UserCredentials, UserRegistration, ChangePasswordPayload } from "@/types";
+import { User, UserCredentials, UserRegistration, ChangePasswordPayload } from '@/types';
 
 export interface LoginResponse {
   access_token: string;

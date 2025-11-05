@@ -22,7 +22,7 @@ api.interceptors.request.use(
     if (token) {
       // Garantir que o header Authorization existe
       if (!config.headers) {
-        config.headers = {};
+        config.headers = new axios.AxiosHeaders();
       }
       config.headers.Authorization = `Bearer ${token}`;
       

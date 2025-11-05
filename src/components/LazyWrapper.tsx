@@ -33,7 +33,7 @@ export const LazyWrapper: React.FC<LazyWrapperProps> = ({
   const defaultFallback = (
     <div className="flex items-center justify-center min-h-[200px]">
       <div className="text-center">
-        <LoadingSpinner size="lg" />
+        <LoadingSpinner size={12} />
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
           Carregando componente...
         </p>
@@ -78,7 +78,7 @@ export function createLazyComponent<T = any>(
   });
 
   // Adicionar displayName para debugging
-  LazyComponent.displayName = `Lazy(${componentName || 'Component'})`;
+  (LazyComponent as any).displayName = `Lazy(${componentName || 'Component'})`;
 
   return LazyComponent;
 }

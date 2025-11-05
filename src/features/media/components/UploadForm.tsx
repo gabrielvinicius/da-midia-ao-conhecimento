@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useForm } from 'react-hook-form';
+import { SubmitHandler, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 
@@ -103,7 +103,7 @@ export const UploadForm = () => {
     }
   }, [watchedFile, form]);
 
-  const onSubmit = (data: UploadFormValues) => {
+  const onSubmit: SubmitHandler<UploadFormValues> = (data) => {
     const file = data.file[0];
     const detectedFileType = detectFileType(file);
     

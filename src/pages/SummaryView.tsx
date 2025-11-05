@@ -25,6 +25,8 @@ export default function SummaryView() {
 
     // Busca resumo e informações do vídeo
     useEffect(() => {
+        if (!videoId) return;
+
         const fetchData = async () => {
             try {
                 setIsLoading(true);

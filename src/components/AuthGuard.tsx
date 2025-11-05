@@ -1,3 +1,4 @@
+import { UserRole } from "@/types";
 import React, { useEffect } from "react";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -8,20 +9,20 @@ interface AuthGuardProps {
 }
 
 export default function AuthGuard({ children, adminOnly = false }: AuthGuardProps) {
-    const { user, loading } = useAuthContext();
+    const { user, isLoading } = useAuthContext();
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (!loading) {
+        if (!isLoading) {
             if (!user) {
                 navigate("/login", { replace: true });
-            } else if (adminOnly && user.role !== "admin") {
+            } else if (adminOnly && user.role !== UserRole.ADMIN) {
                 navigate("/user", { replace: true });
             }
         }
-    }, [user, loading, navigate, adminOnly]);
+    }, [user, isLoading, navigate, adminOnly]);
 
-    if (loading) {
+    if (isLoading) {
         return (
             <div className="flex justify-center items-center h-screen">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>

@@ -1,6 +1,7 @@
+/// <reference types="vitest/globals" />
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest';
+import { vi } from 'vitest';
 import { saveAs } from 'file-saver';
 
 import { SummaryPanel } from './SummaryPanel';
