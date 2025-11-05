@@ -123,7 +123,7 @@ def build_media_components(
         video_audio_extractor=FFmpegVideoAudioExtractor(),
         video_thumbnail_generator=FFmpegVideoThumbnailGenerator(),
         video_processing_task_scheduler=CeleryVideoProcessingTaskScheduler(),
-        storage_service=S3StorageService(),
+        storage_factory=storage_service_factory,
     )
 
     video_metrics = PrometheusVideoProcessingMetrics()

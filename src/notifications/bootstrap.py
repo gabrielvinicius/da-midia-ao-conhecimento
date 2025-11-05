@@ -12,16 +12,12 @@ from src.notifications.application.queries.notification_queries import (
 from src.notifications.application.services.notification_service import (
     NotificationService,
 )
-from src.notifications.infrastructure.connection_manager import ConnectionManager
-from src.notifications.infrastructure.logging import StructuredNotificationLogger
 from src.notifications.infrastructure.metrics import PrometheusNotificationMetrics
-
-# Concrete Implementations
+from src.notifications.infrastructure.logging import StructuredNotificationLogger
+from src.notifications.infrastructure.connection_manager import manager as connection_manager_instance
 from src.notifications.infrastructure.notification_repository import (
     NotificationRepository,
 )
-
-# External Dependencies
 from src.user_management.application.queries.auth_queries import AuthQueries
 
 
@@ -31,11 +27,7 @@ class NotificationContainer(containers.DeclarativeContainer):
 
     # Infrastructure Services
     notification_repository = providers.Factory(NotificationRepository, db=db)
-    connection_manager = providers.Singleton(
-        ConnectionManager,
-        registry=providers.Singleton(lambda: ConnectionManager.registry_instance),
-        logger=providers.Singleton(lambda: ConnectionManager.logger_instance),
-    )
+    connection_manager = providers.Object(connection_manager_instance)
     notification_logger = providers.Singleton(StructuredNotificationLogger)
     notification_metrics = providers.Singleton(PrometheusNotificationMetrics)
 

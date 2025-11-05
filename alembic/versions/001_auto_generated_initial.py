@@ -23,7 +23,7 @@ def upgrade() -> None:
     sa.Column('email', sa.String(), nullable=False),
     sa.Column('password_hash', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=True),
-    sa.Column('role', postgresql.ENUM('admin', 'user', name='userrole', create_type=False), nullable=False),
+    sa.Column('role', postgresql.ENUM('admin', 'user', name='userrole', create_type=True), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),

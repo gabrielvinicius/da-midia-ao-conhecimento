@@ -8,10 +8,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
-from src.shared.config.database_settings import DatabaseSettings
+from src.shared.config.settings import settings
 from src.shared.infrastructure.logging_config import get_logger
 
-settings = DatabaseSettings()
 
 engine_sync = create_engine(settings.sync_database_url, future=True)
 engine = create_async_engine(settings.database_url, future=True)
