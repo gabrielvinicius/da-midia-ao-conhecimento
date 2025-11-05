@@ -7,12 +7,7 @@ from typing import Any, Dict, Optional, Protocol
 
 from src.notifications.application.schemas import NotificationTaskPayload
 from src.notifications.tasks.notification_tasks import send_notification_task
-from src.text_analysis.sentiment_analysis.tasks.analysis_tasks import (
-    analyze_sentiment_task,
-)
-from src.text_analysis.topic_modeling.tasks.topic_modeling_tasks import (
-    analyze_topics_task,
-)
+from src.text_analysis.application.services import TextAnalysisService
 
 
 class VideoProcessingTaskScheduler(Protocol):
@@ -38,30 +33,44 @@ async def schedule_video_processing(
     )
 
 
-def schedule_sentiment_analysis(
+async def schedule_sentiment_analysis(
     *,
-    media_id: str,
-    text_content: str,
+    text_analysis_service: TextAnalysisService,
+    transcription_id: str,
+    text: str,
     provider: str,
-) -> Any:
-    """Trigger the sentiment analysis Celery task."""
-    return analyze_sentiment_task.delay(
-        media_id=media_id,
-        text_content=text_content,
+    model: Optional[str] = None,
+    media_id: Optional[str] = None,
+    language: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Trigger the sentiment analysis pipeline via the validated TextAnalysisService."""
+    if text_analysis_service is None:
+        raise ValueError("text_analysis_service is required to schedule sentiment analysis")
+
+    return await text_analysis_service.schedule_sentiment_analysis_task(
+        transcription_id=transcription_id,
+        text=text,
         provider=provider,
+        model=model,
+        media_id=media_id,
+        language=language,
     )
 
 
-def schedule_topic_modeling(
+async def schedule_topic_modeling(
     *,
+    text_analysis_service: TextAnalysisService,
     media_id: str,
     text_content: str,
     provider: str,
     language: str,
     options: Optional[Dict[str, Any]] = None,
-) -> Any:
-    """Trigger the topic modeling Celery task."""
-    return analyze_topics_task.delay(
+) -> Dict[str, Any]:
+    """Trigger topic modeling through the validated TextAnalysisService."""
+    if text_analysis_service is None:
+        raise ValueError("text_analysis_service is required to schedule topic modeling")
+
+    return await text_analysis_service.schedule_topic_modeling_task(
         media_id=media_id,
         text_content=text_content,
         provider=provider,
