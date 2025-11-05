@@ -1,14 +1,19 @@
 # src/topic_modeling/tasks/topic_modeling_tasks.py
 import asyncio
+from typing import Any, Dict, Optional
+
 import structlog
 from celery import shared_task
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Any, Optional
 
 from src.shared.infrastructure.database import get_db
 from src.text_analysis.application.services import TextAnalysisService
-from src.text_analysis.topic_modeling.application.commands.commands import AnalyzeTopicsCommand
-from src.text_analysis.topic_modeling.application.commands.handlers import AnalyzeTopicsCommandHandler
+from src.text_analysis.topic_modeling.application.commands.commands import (
+    AnalyzeTopicsCommand,
+)
+from src.text_analysis.topic_modeling.application.commands.handlers import (
+    AnalyzeTopicsCommandHandler,
+)
 from src.text_analysis.topic_modeling.bootstrap import TopicModelingContainer
 
 logger = structlog.get_logger(__name__)

@@ -11,7 +11,7 @@ from src.storage.domain.value_objects.file_size import FileSize
 @dataclass(frozen=True)
 class FileMetadata:
     """Domain entity representing file metadata."""
-    
+
     id: UUID
     file_path: FilePath
     size: FileSize
@@ -19,7 +19,7 @@ class FileMetadata:
     created_at: datetime
     updated_at: Optional[datetime] = None
     checksum: Optional[str] = None
-    
+
     def update_metadata(self, size: FileSize, checksum: Optional[str] = None) -> 'FileMetadata':
         """Create updated file metadata preserving immutability."""
         return FileMetadata(

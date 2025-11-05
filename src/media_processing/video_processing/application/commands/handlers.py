@@ -10,7 +10,9 @@ try:  # pragma: no cover - fallback for environments without PyAV
 except ImportError:  # pragma: no cover - exercised when dependency absent
     av = None  # type: ignore[assignment]
 
-from src.media_processing.video_processing.application.commands.commands import ProcessVideoCommand
+from src.media_processing.video_processing.application.commands.commands import (
+    ProcessVideoCommand,
+)
 from src.shared.events.domain_events import AudioExtracted
 
 

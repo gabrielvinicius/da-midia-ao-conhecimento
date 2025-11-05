@@ -1,5 +1,6 @@
-"""API module for sentiment analysis."""
+"""API module for sentiment analysis dependencies and schemas."""
 
-from .routers import router
-
-__all__ = ["router"]
+__all__ = [
+    "dependencies",
+    "schemas",
+]

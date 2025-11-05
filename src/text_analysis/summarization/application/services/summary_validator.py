@@ -1,8 +1,6 @@
 """Input validation helpers for summarization requests."""
 from __future__ import annotations
 
-from typing import Optional
-
 
 class SummaryValidator:
     """Validate text payloads before dispatching summarization providers."""

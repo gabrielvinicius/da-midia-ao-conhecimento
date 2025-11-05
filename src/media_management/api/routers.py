@@ -1,23 +1,28 @@
 # src/media_management/api/routers.py
-from typing import Optional, List
+from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, UploadFile, Depends, HTTPException, status, File, Query
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.encoders import jsonable_encoder
 
 # Import dependencies from their correct, decoupled locations
 from src.shared.api.dependencies import get_current_user
-from src.user_management.domain.user import User
-from .dependencies import (
-    get_media_lifecycle_service,
-    get_media_query_service,
-    get_media_upload_service,
+from src.shared.api.unified_schemas import (
+    BaseResponseSchema,
+    create_error_response,
+    create_success_response,
 )
-from src.shared.api.unified_schemas import BaseResponseSchema, create_success_response, create_error_response
+from src.user_management.domain.user import User
 
 from ..application.services import (
     MediaLifecycleService,
     MediaQueryService,
     MediaUploadService,
+)
+from .dependencies import (
+    get_media_lifecycle_service,
+    get_media_query_service,
+    get_media_upload_service,
 )
 from .schemas import MediaResponse
 
@@ -27,9 +32,9 @@ router = APIRouter(
 )
 
 @router.post(
-    "/", 
-    response_model=MediaResponse, 
-    status_code=status.HTTP_201_CREATED, 
+    "/",
+    response_model=MediaResponse,
+    status_code=status.HTTP_201_CREATED,
     summary="Upload a new media file"
 )
 async def create_media(

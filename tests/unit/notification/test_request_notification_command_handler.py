@@ -1,13 +1,19 @@
 # tests/unit/notification/test_request_notification_command_handler.py
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from src.notifications.application.commands.request_notification_command import RequestNotificationCommand
-from src.notifications.application.commands.request_notification_command_handler import RequestNotificationCommandHandler
+import pytest
+
+from src.notifications.application.commands.request_notification_command import (
+    RequestNotificationCommand,
+)
+from src.notifications.application.commands.request_notification_command_handler import (
+    RequestNotificationCommandHandler,
+)
 from src.notifications.domain.notification import NotificationType
 from src.shared.events.domain_events import NotificationRequested
-from types import SimpleNamespace
+
 
 @pytest.fixture
 def mock_auth_queries():

@@ -17,7 +17,9 @@ from src.text_analysis.topic_modeling.infrastructure.logging import (
 from src.text_analysis.topic_modeling.infrastructure.metrics import (
     PrometheusTopicModelingMetrics,
 )
-from src.text_analysis.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
+from src.text_analysis.topic_modeling.infrastructure.topic_modeler import (
+    BERTopicModeler,
+)
 from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import (
     TopicModelingRepository,
 )
@@ -58,7 +60,6 @@ class TopicModelingService:
         language: str,
     ) -> Dict[str, Any]:
         """Schedule a topic modeling task to run asynchronously."""
-
         logger.info(
             "topic_modeling.request.started",
             media_id=str(media_id),
@@ -101,7 +102,6 @@ class TopicModelingService:
         options: Optional[Dict[str, Any]] = None,
     ) -> TopicModelingResult:
         """Execute topic modeling synchronously and persist the result."""
-
         started_at = time.perf_counter()
         logger.info(
             "topic_modeling.analyze.started",
@@ -174,7 +174,6 @@ class TopicModelingService:
         self, media_id: UUID | str
     ) -> Optional[TopicModelingResult]:
         """Return the persisted topic modeling result for a media item."""
-
         media_uuid = _ensure_uuid(media_id)
         return await self.repo.get_by_media_id(media_uuid)
 

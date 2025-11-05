@@ -15,7 +15,6 @@ class MediaQueries:
 
     async def get_by_id(self, media_id: UUID) -> Optional[Media]:
         """Retrieves a media entity by its unique ID."""
-
         return await self.media_repository.get_by_id(media_id)
 
     async def list_all(
@@ -27,7 +26,6 @@ class MediaQueries:
         search: Optional[str] = None,
     ) -> List[Media]:
         """Lists media entries with pagination and optional filters."""
-
         return await self.media_repository.list_paginated(
             page=page,
             limit=limit,

@@ -14,6 +14,7 @@ import structlog
 from src.media_management.domain.enums import MediaStatus, MediaType
 from src.media_management.domain.media import Media
 from src.shared.exceptions.domain_exceptions import ValidationError
+
 from .components import (
     DefaultMediaEventPublisher,
     DefaultMediaMetricsPublisher,
@@ -82,7 +83,6 @@ class CreateMediaCommandHandler:
         emit_legacy_task: bool = True,
     ) -> "CreateMediaCommandHandler":
         """Build a handler with the default component implementations."""
-
         return cls(
             media_repository=media_repository,
             storage_uploader=DefaultStorageUploader(
@@ -104,7 +104,6 @@ class CreateMediaCommandHandler:
 
     async def handle(self, command: CreateMediaCommand) -> Media:
         """Execute the command returning the persisted media entity."""
-
         self.file_validator.validate(command.file, command.filename)
         media_type = self._detect_media_type(command.filename)
         content_type = self._guess_mime_type(command.filename)

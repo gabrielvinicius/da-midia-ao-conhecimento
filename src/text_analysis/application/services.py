@@ -1,16 +1,16 @@
-"""
-This module contains the TextAnalysisService, which orchestrates text-related operations.
+"""This module contains the TextAnalysisService, which orchestrates text-related operations.
 """
 
 from dataclasses import dataclass
-from typing import Callable, Dict, Any, Optional
+from typing import Any, Callable, Dict, Optional
+
 import structlog
 
 from src.text_analysis.tasks import (
-    process_text_task,
     extract_text_task,
-    process_summarization_task,
     process_sentiment_analysis_task,
+    process_summarization_task,
+    process_text_task,
     process_topic_modeling_task,
 )
 
@@ -35,7 +35,6 @@ class TextAnalysisTaskDispatcher:
 
 def _default_task_dispatcher() -> TextAnalysisTaskDispatcher:
     """Return a dispatcher wired to Celery `.delay` calls by default."""
-
     return TextAnalysisTaskDispatcher(
         process_text=lambda *a, **kw: process_text_task.delay(*a, **kw),
         extract_text=lambda *a, **kw: extract_text_task.delay(*a, **kw),
@@ -83,6 +82,7 @@ class TextAnalysisService:
         media_id: str,
         file_path: str,
         extraction_method: str,
+        storage_provider: Optional[str] = None,
     ) -> Dict[str, Any]:
         logger.info(
             "text_analysis.scheduling_extract_text_task",
@@ -95,6 +95,7 @@ class TextAnalysisService:
             media_id=media_id,
             file_path=file_path,
             extraction_method=extraction_method,
+            storage_provider=storage_provider,
         )
         logger.info(
             "text_analysis.extract_text_task_scheduled",

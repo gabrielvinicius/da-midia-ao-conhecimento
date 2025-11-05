@@ -1,8 +1,9 @@
 # src/transcription/infrastructure/transcription_repository.py
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from typing import Optional
 from uuid import UUID
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_processing.transcription.domain.transcription import Transcription
 

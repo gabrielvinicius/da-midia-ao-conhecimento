@@ -1,6 +1,7 @@
 # src/topic_modeling/infrastructure/topic_modeler.py
+from typing import Any, Dict, Optional
+
 import structlog
-from typing import Dict, Any, Optional
 
 logger = structlog.get_logger(__name__)
 

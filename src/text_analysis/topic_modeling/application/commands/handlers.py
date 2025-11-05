@@ -21,7 +21,6 @@ class AnalyzeTopicsCommandHandler:
 
     async def handle(self, command: AnalyzeTopicsCommand) -> Dict[str, object]:
         """Execute topic modeling analysis or schedule it for later execution."""
-
         media_id = UUID(command.media_id)
 
         if command.should_schedule_only():

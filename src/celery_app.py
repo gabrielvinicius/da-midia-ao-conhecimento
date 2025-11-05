@@ -1,5 +1,4 @@
-"""
-Central Celery application setup for the project.
+"""Central Celery application setup for the project.
 
 This app replaces ad-hoc or missing Celery configuration and provides a
 single entry point for workers and autodiscovery across modules.

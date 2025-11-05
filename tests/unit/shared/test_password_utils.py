@@ -1,11 +1,9 @@
-import pytest
 
 from src.shared.utils import password_utils
 
 
 def test_pbkdf2_fallback_enforces_iteration_floor(monkeypatch):
     """Ensure fallback hashing clamps to the minimum allowed iterations."""
-
     monkeypatch.setattr(password_utils, "bcrypt", None)
     monkeypatch.setenv("PASSWORD_FALLBACK_ITERATIONS", "1000")
 
@@ -27,7 +25,6 @@ def test_pbkdf2_fallback_enforces_iteration_floor(monkeypatch):
 
 def test_pbkdf2_fallback_handles_invalid_env_value(monkeypatch):
     """Non-numeric env configuration should fall back to the default iteration count."""
-
     monkeypatch.setattr(password_utils, "bcrypt", None)
     monkeypatch.setenv("PASSWORD_FALLBACK_ITERATIONS", "nao-e-numero")
 
@@ -42,7 +39,6 @@ def test_pbkdf2_fallback_handles_invalid_env_value(monkeypatch):
 
 def test_pbkdf2_fallback_detects_password_mismatch(monkeypatch):
     """Fallback verification must reject senhas diferentes."""
-
     monkeypatch.setattr(password_utils, "bcrypt", None)
 
     hasher = password_utils.PasswordHasher()

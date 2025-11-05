@@ -1,6 +1,5 @@
 # tests/mocks/in_memory_transcription_repository.py
-from typing import Dict, Optional, List
-from uuid import UUID
+from typing import Dict, Optional
 
 from src.media_processing.transcription.domain.transcription import Transcription
 

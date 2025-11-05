@@ -1,9 +1,12 @@
 # tests/unit/notification/test_notification_queries.py
-import pytest
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from src.notifications.application.queries.notification_queries import NotificationQueries
+import pytest
+
+from src.notifications.application.queries.notification_queries import (
+    NotificationQueries,
+)
 from src.notifications.domain.notification import Notification
 
 

@@ -1,8 +1,9 @@
 """Unit tests for MediaUploadService."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
+
+import pytest
 
 from src.media_management.application.services import MediaUploadService
 

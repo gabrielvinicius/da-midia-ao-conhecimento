@@ -1,11 +1,12 @@
-import pytest
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
+import pytest
+
+from src.shared.utils.password_utils import hash_password, verify_password
 from src.user_management.application.user_service import UserService
 from src.user_management.config.settings import AuthSettings
 from src.user_management.domain.user import User, UserRole
-from src.shared.utils.password_utils import hash_password, verify_password
 
 
 @pytest.fixture

@@ -12,7 +12,7 @@ from typing import Dict, List
 from uuid import UUID, uuid4
 
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from main import app
 from src.media_management.api.dependencies import (

@@ -1,7 +1,8 @@
 # tests/unit/video_management/test_video_queries.py
-import pytest
 from unittest.mock import AsyncMock
 from uuid import uuid4
+
+import pytest
 
 from src.video_management.application.queries.video_queries import VideoQueries
 from src.video_management.domain.video import Video

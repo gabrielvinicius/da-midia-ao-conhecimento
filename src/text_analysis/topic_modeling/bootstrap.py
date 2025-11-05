@@ -17,7 +17,9 @@ from src.text_analysis.topic_modeling.infrastructure.logging import (
 from src.text_analysis.topic_modeling.infrastructure.metrics import (
     PrometheusTopicModelingMetrics,
 )
-from src.text_analysis.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
+from src.text_analysis.topic_modeling.infrastructure.topic_modeler import (
+    BERTopicModeler,
+)
 from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import (
     TopicModelingRepository,
 )

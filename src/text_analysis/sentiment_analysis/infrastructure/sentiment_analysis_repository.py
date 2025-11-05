@@ -21,7 +21,6 @@ class SentimentAnalysisRepository:
 
     async def save(self, analysis: SentimentAnalysis) -> SentimentAnalysis:
         """Insert or update a sentiment analysis result."""
-
         record = await self._get_record_by_id(analysis.id)
         if record:
             record.update_from_entity(analysis)

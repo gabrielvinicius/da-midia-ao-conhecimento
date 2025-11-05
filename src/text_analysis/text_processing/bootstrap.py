@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
+from src.storage.infrastructure.dependencies import StorageServiceFactory
+
 # Consolidated Service
 from src.text_analysis.text_processing.application.text_processing_service import (
     TextProcessingService,
@@ -15,17 +16,22 @@ from src.text_analysis.text_processing.infrastructure.pipelines.extraction_pipel
 from src.text_analysis.text_processing.infrastructure.task_scheduler import (
     CeleryTextProcessingTaskScheduler,
 )
-from src.text_analysis.text_processing.infrastructure.text_extractor import TextExtractor
-# Concrete Implementations
-from src.text_analysis.text_processing.infrastructure.text_processor import TextProcessor
+from src.text_analysis.text_processing.infrastructure.text_extractor import (
+    TextExtractor,
+)
 
+# Concrete Implementations
+from src.text_analysis.text_processing.infrastructure.text_processor import (
+    TextProcessor,
+)
 
 # TODO: Adicionar logger e metrics específicos para text_processing
 
 
 class TextProcessingContainer(containers.DeclarativeContainer):
     db: providers.Provider[AsyncSession] = providers.Dependency()
-    s3_storage_service: providers.Provider[S3StorageService] = providers.Singleton(S3StorageService)
+    storage_factory: providers.Provider[StorageServiceFactory] = providers.Dependency()
+    storage_provider = providers.Dependency(default="local")
 
     # Pipelines de extração
     basic_extraction_pipeline = providers.Singleton(
@@ -41,7 +47,8 @@ class TextProcessingContainer(containers.DeclarativeContainer):
         TextExtractor,
         basic_extraction_pipeline=basic_extraction_pipeline,
         advanced_extraction_pipeline=advanced_extraction_pipeline,
-        s3_storage_service=s3_storage_service
+        storage_factory=storage_factory,
+        default_storage_provider=storage_provider,
     )
     text_processing_task_scheduler = providers.Factory(CeleryTextProcessingTaskScheduler)
     # TODO: Adicionar text_processing_logger, text_processing_metrics
@@ -64,8 +71,16 @@ class TextProcessingModule:
 
 async def build_text_processing_module(
     session: AsyncSession,
+    *,
+    storage_factory: StorageServiceFactory | None = None,
+    storage_provider: str = "local",
 ) -> TextProcessingModule:
-    container = TextProcessingContainer(db=session)
+    storage_factory = storage_factory or StorageServiceFactory()
+    container = TextProcessingContainer(
+        db=session,
+        storage_factory=storage_factory,
+        storage_provider=storage_provider,
+    )
     module = TextProcessingModule(
         service=container.text_processing_service(),
         task_scheduler=container.text_processing_task_scheduler(),

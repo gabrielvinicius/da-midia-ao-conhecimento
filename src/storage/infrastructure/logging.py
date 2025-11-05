@@ -1,28 +1,27 @@
 # src/storage/infrastructure/logging.py
+"""Storage operation logging implementation - SRP compliance.
 """
-Storage operation logging implementation - SRP compliance.
-"""
-import structlog
 from typing import Optional
-from datetime import datetime
 
+import structlog
+
+from src.shared.utils.time_utils import utcnow
 from src.storage.domain.interfaces import StorageOperationLogger
 from src.storage.domain.value_objects.file_path import FilePath
 
 
 class StructuredStorageLogger(StorageOperationLogger):
-    """
-    Structured logging implementation for storage operations.
+    """Structured logging implementation for storage operations.
     Follows SRP - only responsible for logging.
     """
-    
+
     def __init__(self, logger_name: str = "storage"):
         self._logger = structlog.get_logger(logger_name)
-    
+
     async def log_operation(
-        self, 
-        operation: str, 
-        file_path: FilePath, 
+        self,
+        operation: str,
+        file_path: FilePath,
         success: bool,
         duration: float,
         error: Optional[Exception] = None
@@ -33,15 +32,15 @@ class StructuredStorageLogger(StorageOperationLogger):
             "file_path": str(file_path),
             "success": success,
             "duration_seconds": duration,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": utcnow().isoformat()
         }
-        
+
         if error:
             log_data.update({
                 "error_type": type(error).__name__,
                 "error_message": str(error)
             })
-        
+
         if success:
             self._logger.info(
                 f"Storage operation {operation} completed successfully",
@@ -55,15 +54,14 @@ class StructuredStorageLogger(StorageOperationLogger):
 
 
 class NoOpStorageLogger(StorageOperationLogger):
-    """
-    No-operation logger for testing or when logging is disabled.
+    """No-operation logger for testing or when logging is disabled.
     Follows Null Object pattern.
     """
-    
+
     async def log_operation(
-        self, 
-        operation: str, 
-        file_path: FilePath, 
+        self,
+        operation: str,
+        file_path: FilePath,
         success: bool,
         duration: float,
         error: Optional[Exception] = None

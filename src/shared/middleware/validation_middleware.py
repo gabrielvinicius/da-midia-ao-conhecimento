@@ -14,7 +14,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from src.shared.infrastructure.logging_config import get_logger
 from src.shared.validation.schemas import create_validation_error_response
 
-
 logger = get_logger("validation_middleware")
 
 
@@ -133,7 +132,6 @@ async def _handle_pydantic_validation_error(
 
 def register_validation_middleware(app: FastAPI) -> None:
     """Register validation middlewares and error hooks once per app."""
-
     if getattr(app.state, "validation_middleware_registered", False):
         return
 

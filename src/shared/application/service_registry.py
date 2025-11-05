@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Generic, Optional, TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, Dict, Generic, Optional, TypeVar
+from uuid import UUID
 
 from fastapi import FastAPI
-
-from uuid import UUID
 
 from src.media_processing import MediaProcessingService
 from src.text_analysis import TextAnalysisService
@@ -101,7 +100,6 @@ def build_domain_service_registry(
     media_management: MediaModule,
 ) -> DomainServiceRegistry:
     """Instantiate the registry with legacy modules and placeholder facades."""
-
     return DomainServiceRegistry(
         user_management=ModuleBinding(
             legacy=user_management,
@@ -124,7 +122,6 @@ def build_domain_service_registry(
 
 def attach_domain_services(app: FastAPI, registry: DomainServiceRegistry) -> None:
     """Expose the registry through the FastAPI application state for diagnostics."""
-
     app.state.domain_services = registry
 
 

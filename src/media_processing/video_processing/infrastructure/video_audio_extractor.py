@@ -2,11 +2,10 @@
 import asyncio
 import io
 import os
-import subprocess
 import tempfile
 import wave
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import structlog
 
@@ -29,13 +28,13 @@ class FFmpegVideoAudioExtractor:
             file_ext = Path(filename).suffix.lower()
             if file_ext not in self.supported_formats:
                 raise ValueError(f"Unsupported video format: {file_ext}")
-            
+
             # Extract audio using FFmpeg
             audio_data = await self._extract_with_ffmpeg(video_data, filename, output_format)
-            
+
             # Get audio metadata
             metadata = await self._get_audio_metadata(audio_data, output_format)
-            
+
             return {
                 'audio_data': audio_data,
                 'audio_format': output_format,
@@ -44,7 +43,7 @@ class FFmpegVideoAudioExtractor:
                 'metadata': metadata,
                 'success': True
             }
-            
+
         except Exception as e:
             logger.error("Audio extraction failed", error=str(e), filename=filename)
             raise
@@ -55,10 +54,10 @@ class FFmpegVideoAudioExtractor:
         with tempfile.NamedTemporaryFile(suffix=Path(filename).suffix, delete=False) as video_temp:
             video_temp.write(video_data)
             video_temp_path = video_temp.name
-        
+
         with tempfile.NamedTemporaryFile(suffix=f'.{output_format}', delete=False) as audio_temp:
             audio_temp_path = audio_temp.name
-        
+
         try:
             cmd = [
                 'ffmpeg', '-y',
@@ -69,34 +68,34 @@ class FFmpegVideoAudioExtractor:
                 '-ac', '1',
                 audio_temp_path
             ]
-            
+
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            
+
             stdout, stderr = await process.communicate()
-            
+
             if process.returncode != 0:
                 logger.error(f"FFmpeg failed: {stderr.decode()}", stdout=stdout.decode(), stderr=stderr.decode())
                 raise RuntimeError(f"FFmpeg failed: {stderr.decode()}")
-            
+
             with open(audio_temp_path, 'rb') as f:
                 audio_data = f.read()
-            
+
             return audio_data
-            
+
         finally:
             if os.path.exists(video_temp_path):
                 os.unlink(video_temp_path)
             if os.path.exists(audio_temp_path):
                 os.unlink(audio_temp_path)
-    
+
     async def _get_audio_metadata(self, audio_data: bytes, audio_format: str) -> Dict[str, Any]:
         """Get metadata from extracted audio."""
         metadata = {'size_bytes': len(audio_data), 'format': audio_format}
-        
+
         if audio_format == 'wav':
             try:
                 with wave.open(io.BytesIO(audio_data), 'rb') as wav_file:
@@ -109,5 +108,5 @@ class FFmpegVideoAudioExtractor:
             except Exception as e:
                 logger.warning("Failed to extract detailed WAV metadata", error=str(e))
         # TODO: Adicionar lógica para outros formatos como MP3
-        
+
         return metadata

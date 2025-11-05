@@ -1,18 +1,22 @@
 # src/providers/api/routers.py
-from typing import List, Optional, Annotated
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Form
-from uuid import UUID # Manter se necessário para IDs de provedor
+from typing import Annotated, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from src.providers.domain.interfaces import (
+    IProviderRegistry,
+    ProviderCapability,
+    ProviderType,
+)
 from src.shared.api.dependencies import get_current_user
 from src.user_management.domain.user import User
-from src.providers.domain.interfaces import ProviderType, ProviderCapability, IProviderRegistry
-from src.providers.domain.provider import Provider # Para o retorno de get_provider_details
+
 from .dependencies import get_provider_registry
 from .schemas import (
-    ProviderSummaryResponse, ProviderDetailResponse, ProvidersListResponse,
+    ProviderDetailResponse,
+    ProvidersListResponse,
+    ProviderSummaryResponse,
 )
-from src.shared.api.unified_schemas import create_success_response, create_error_response, BaseResponseSchema
-
 
 router = APIRouter(
     prefix="/providers",
@@ -60,7 +64,7 @@ async def list_providers(
             providers = provider_registry.get_active_providers(provider_type)
         else:
             providers = provider_registry.list_providers(provider_type)
-        
+
         # Convert to response format
         provider_list = [
             {
@@ -72,7 +76,7 @@ async def list_providers(
             }
             for p in providers
         ]
-        
+
         return ProvidersListResponse(
             providers=provider_list,
             total_count=len(provider_list),
@@ -101,7 +105,7 @@ async def get_provider_details(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Provider '{provider_name}' of type '{provider_type.value}' not found"
             )
-        
+
         # O método to_dict() da entidade Provider já retorna os dados formatados
         return ProviderDetailResponse(**provider.to_dict())
     except HTTPException:
@@ -123,7 +127,7 @@ async def register_provider(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
-    
+
     try:
         # Esta lógica de criação e registro de provedor deve ser movida para um serviço de aplicação
         # ou um Command Handler. Por enquanto, é um placeholder.
@@ -145,10 +149,10 @@ async def unregister_provider(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
-    
+
     try:
         success = provider_registry.unregister_provider(provider_name, provider_type)
-        
+
         if success:
             return {"message": f"Provider '{provider_name}' unregistered successfully"}
         else:

@@ -2,10 +2,9 @@
 import asyncio
 import io
 import os
-import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import structlog
 
@@ -41,15 +40,15 @@ class FFmpegVideoThumbnailGenerator:
             file_ext = Path(filename).suffix.lower()
             if file_ext not in self.supported_formats:
                 raise ValueError(f"Unsupported video format: {file_ext}")
-            
+
             # Generate thumbnail
             thumbnail_data = await self._generate_with_ffmpeg(
                 video_data, filename, size, timestamp
             )
-            
+
             # Get thumbnail metadata
             metadata = await self._get_thumbnail_metadata(thumbnail_data, size)
-            
+
             return {
                 'thumbnail_data': thumbnail_data,
                 'thumbnail_format': 'jpeg',
@@ -61,25 +60,25 @@ class FFmpegVideoThumbnailGenerator:
                 'metadata': metadata,
                 'success': True
             }
-            
+
         except Exception as e:
             logger.error("Thumbnail generation failed", error=str(e), filename=filename)
             raise
-    
-    async def _generate_with_ffmpeg(self, video_data: bytes, filename: str, 
+
+    async def _generate_with_ffmpeg(self, video_data: bytes, filename: str,
                                    size: str, timestamp: float) -> bytes:
         """Generate thumbnail using FFmpeg."""
         # Get dimensions for size
         width, height = self.thumbnail_sizes.get(size, self.thumbnail_sizes['medium'])
-        
+
         # Create temporary files
         with tempfile.NamedTemporaryFile(suffix=Path(filename).suffix, delete=False) as video_temp:
             video_temp.write(video_data)
             video_temp_path = video_temp.name
-        
+
         with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as thumb_temp:
             thumb_temp_path = thumb_temp.name
-        
+
         try:
             cmd = [
                 'ffmpeg', '-y',
@@ -90,34 +89,34 @@ class FFmpegVideoThumbnailGenerator:
                 '-q:v', '2',
                 thumb_temp_path
             ]
-            
+
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            
+
             stdout, stderr = await process.communicate()
-            
+
             if process.returncode != 0:
                 logger.error(f"FFmpeg failed: {stderr.decode()}", stdout=stdout.decode(), stderr=stderr.decode())
                 raise RuntimeError(f"FFmpeg failed: {stderr.decode()}")
-            
+
             with open(thumb_temp_path, 'rb') as f:
                 thumbnail_data = f.read()
-            
+
             return thumbnail_data
-            
+
         finally:
             if os.path.exists(video_temp_path):
                 os.unlink(video_temp_path)
             if os.path.exists(thumb_temp_path):
                 os.unlink(thumb_temp_path)
-                
+
     async def _get_thumbnail_metadata(self, thumbnail_data: bytes, size: str) -> Dict[str, Any]:
         """Get metadata from generated thumbnail."""
         width, height = self.thumbnail_sizes.get(size, self.thumbnail_sizes['medium'])
-        
+
         metadata = {
             'size_bytes': len(thumbnail_data),
             'format': 'jpeg',
@@ -125,7 +124,7 @@ class FFmpegVideoThumbnailGenerator:
             'height': height,
             'aspect_ratio': width / height
         }
-        
+
         if Image is not None:
             try:
                 img = Image.open(io.BytesIO(thumbnail_data))

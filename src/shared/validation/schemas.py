@@ -1,24 +1,22 @@
 # src/shared/validation/schemas.py
-"""
-Sistema centralizado de validação com Pydantic v2.
+"""Sistema centralizado de validação com Pydantic v2.
 Esquemas reutilizáveis e validadores customizados.
 """
 
-from typing import Optional, List, Dict, Any, Union
-from datetime import datetime
-from uuid import UUID
-from enum import Enum
 import re
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
 from pydantic import (
     BaseModel,
-    Field,
-    HttpUrl,
-    SecretStr,
-    field_validator,
-    ValidationInfo,
     ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
 )
-from pydantic.types import conint, confloat
+from pydantic.types import conint
 
 from src.shared.infrastructure.logging_config import get_logger
 
@@ -27,6 +25,7 @@ logger = get_logger("validation")
 
 # === Tipos Base Customizados ===
 from typing import Annotated
+
 from pydantic import StringConstraints
 
 StrictStr = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
@@ -44,7 +43,7 @@ class MediaTypeEnum(str, Enum):
 
 class MediaStatusEnum(str, Enum):
     UPLOADED = "UPLOADED"
-    PROCESSING = "PROCESSING" 
+    PROCESSING = "PROCESSING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
@@ -75,12 +74,14 @@ class BaseSchema(BaseModel):
 
 class TimestampMixin(BaseModel):
     """Mixin para campos de timestamp."""
+
     created_at: Optional[datetime] = Field(default=None, description="Data de criação")
     updated_at: Optional[datetime] = Field(default=None, description="Data de atualização")
 
 
 class PaginationParams(BaseSchema):
     """Parâmetros de paginação padronizados."""
+
     page: conint(ge=1) = Field(default=1, description="Número da página")
     limit: conint(ge=1, le=100) = Field(default=10, description="Itens por página")
     order_by: Optional[str] = Field(default="created_at", description="Campo para ordenação")
@@ -89,6 +90,7 @@ class PaginationParams(BaseSchema):
 
 class SearchParams(BaseSchema):
     """Parâmetros de busca padronizados."""
+
     search: Optional[StrictStr] = Field(default=None, description="Termo de busca")
 
     @field_validator('search')
@@ -102,6 +104,7 @@ class SearchParams(BaseSchema):
 
 class UserBase(BaseSchema):
     """Esquema base para usuário."""
+
     email: str = Field(..., description="Email do usuário")
 
     @field_validator('email')
@@ -118,6 +121,7 @@ class UserBase(BaseSchema):
 
 class UserCreate(UserBase):
     """Esquema para criação de usuário."""
+
     password: SecurePassword = Field(..., description="Senha do usuário")
     confirm_password: str = Field(..., description="Confirmação da senha")
 
@@ -132,33 +136,35 @@ class UserCreate(UserBase):
     def validate_password_strength(cls, v: str) -> str:
         """Validação robusta de força da senha."""
         errors = []
-        
+
         if not re.search(r'[A-Z]', v):
             errors.append("deve conter pelo menos uma letra maiúscula")
-        
+
         if not re.search(r'[a-z]', v):
             errors.append("deve conter pelo menos uma letra minúscula")
-        
+
         if not re.search(r'\d', v):
             errors.append("deve conter pelo menos um número")
-        
+
         if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
             errors.append("deve conter pelo menos um caractere especial")
-        
+
         if errors:
             raise ValueError(f"Senha {', '.join(errors)}")
-        
+
         return v
 
 
 class UserUpdate(BaseSchema):
     """Esquema para atualização de usuário."""
+
     email: Optional[str] = None
     role: Optional[UserRoleEnum] = None
 
 
 class UserResponse(UserBase, TimestampMixin):
     """Esquema de resposta para usuário."""
+
     id: UUID = Field(..., description="ID único do usuário")
     role: UserRoleEnum = Field(..., description="Papel do usuário")
     is_active: bool = Field(default=True, description="Usuário ativo")
@@ -170,6 +176,7 @@ class UserResponse(UserBase, TimestampMixin):
 
 class MediaBase(BaseSchema):
     """Esquema base para mídia."""
+
     media_type: MediaTypeEnum = Field(..., description="Tipo da mídia")
     language: Optional[str] = Field(default=None, description="Idioma da mídia")
 
@@ -182,6 +189,7 @@ class MediaBase(BaseSchema):
 
 class MediaCreate(MediaBase):
     """Esquema para criação de mídia."""
+
     storage_provider: StrictStr = Field(default="local", description="Provedor de storage")
     transcription_provider: Optional[StrictStr] = Field(default=None, description="Provedor de transcrição")
     summarization_provider: Optional[StrictStr] = Field(default=None, description="Provedor de resumo")
@@ -196,12 +204,14 @@ class MediaCreate(MediaBase):
 
 class MediaUpdate(BaseSchema):
     """Esquema para atualização de mídia."""
+
     status: Optional[MediaStatusEnum] = None
     error_message: Optional[str] = Field(default=None, max_length=1000)
 
 
 class MediaResponse(MediaBase, TimestampMixin):
     """Esquema de resposta para mídia."""
+
     id: UUID = Field(..., description="ID único da mídia")
     user_id: UUID = Field(..., description="ID do usuário proprietário")
     original_file_path: str = Field(..., description="Caminho do arquivo original")
@@ -214,6 +224,7 @@ class MediaResponse(MediaBase, TimestampMixin):
 
 class MediaListResponse(BaseSchema):
     """Resposta paginada para lista de mídias."""
+
     items: List[MediaResponse] = Field(..., description="Lista de mídias")
     total: int = Field(..., description="Total de itens")
     page: int = Field(..., description="Página atual")
@@ -233,12 +244,14 @@ class MediaListResponse(BaseSchema):
 
 class LoginRequest(BaseSchema):
     """Esquema para requisição de login."""
+
     username: str = Field(..., description="Email do usuário")
     password: str = Field(..., min_length=1, description="Senha do usuário")
 
 
 class TokenResponse(BaseSchema):
     """Esquema de resposta para token."""
+
     access_token: str = Field(..., description="Token de acesso")
     token_type: str = Field(default="bearer", description="Tipo do token")
     csrf_token: Optional[str] = Field(default=None, description="Token CSRF")
@@ -247,6 +260,7 @@ class TokenResponse(BaseSchema):
 
 class ChangePasswordRequest(BaseSchema):
     """Esquema para mudança de senha."""
+
     old_password: str = Field(..., min_length=1, description="Senha atual")
     new_password: SecurePassword = Field(..., description="Nova senha")
     confirm_new_password: str = Field(..., description="Confirmação da nova senha")
@@ -263,6 +277,7 @@ class ChangePasswordRequest(BaseSchema):
 
 class NotificationBase(BaseSchema):
     """Esquema base para notificação."""
+
     title: StrictStr = Field(..., max_length=200, description="Título da notificação")
     message: StrictStr = Field(..., max_length=1000, description="Mensagem da notificação")
     notification_type: NotificationTypeEnum = Field(..., description="Tipo de notificação")
@@ -270,12 +285,14 @@ class NotificationBase(BaseSchema):
 
 class NotificationCreate(NotificationBase):
     """Esquema para criação de notificação."""
+
     user_id: UUID = Field(..., description="ID do usuário destinatário")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Metadados adicionais")
 
 
 class NotificationResponse(NotificationBase, TimestampMixin):
     """Esquema de resposta para notificação."""
+
     id: UUID = Field(..., description="ID único da notificação")
     user_id: UUID = Field(..., description="ID do usuário destinatário")
     is_read: bool = Field(default=False, description="Notificação foi lida")
@@ -288,19 +305,18 @@ class NotificationResponse(NotificationBase, TimestampMixin):
 
 def validate_file_upload(file_data: bytes, allowed_extensions: List[str], max_size_mb: int = 100) -> bool:
     """Valida upload de arquivo."""
-    
     # Verificar tamanho
     if len(file_data) > max_size_mb * 1024 * 1024:
         raise ValueError(f"Arquivo muito grande. Tamanho máximo: {max_size_mb}MB")
-    
+
     # Verificar se não está vazio
     if len(file_data) == 0:
         raise ValueError("Arquivo está vazio")
-    
-    logger.debug("File validation passed", 
-                size_bytes=len(file_data), 
+
+    logger.debug("File validation passed",
+                size_bytes=len(file_data),
                 max_size_mb=max_size_mb)
-    
+
     return True
 
 
@@ -316,6 +332,7 @@ def validate_uuid_string(uuid_str: str) -> UUID:
 
 class ErrorDetail(BaseSchema):
     """Detalhe de erro padronizado."""
+
     field: Optional[str] = Field(default=None, description="Campo que causou o erro")
     message: str = Field(..., description="Mensagem de erro")
     code: Optional[str] = Field(default=None, description="Código do erro")
@@ -323,6 +340,7 @@ class ErrorDetail(BaseSchema):
 
 class ErrorResponse(BaseSchema):
     """Resposta de erro padronizada."""
+
     error: str = Field(..., description="Código do erro")
     message: str = Field(..., description="Mensagem principal")
     details: List[ErrorDetail] = Field(default=[], description="Detalhes dos erros")
@@ -333,7 +351,6 @@ class ErrorResponse(BaseSchema):
 
 def create_validation_error_response(validation_errors: List[Dict[str, Any]]) -> ErrorResponse:
     """Cria resposta de erro a partir de erros de validação do Pydantic."""
-    
     details = []
     for error in validation_errors:
         details.append(ErrorDetail(
@@ -341,7 +358,7 @@ def create_validation_error_response(validation_errors: List[Dict[str, Any]]) ->
             message=error.get('msg', 'Erro de validação'),
             code=error.get('type', 'validation_error')
         ))
-    
+
     return ErrorResponse(
         error="VALIDATION_ERROR",
         message="Dados de entrada inválidos",

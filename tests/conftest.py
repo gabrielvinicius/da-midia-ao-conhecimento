@@ -1,17 +1,17 @@
 # tests/conftest.py
-"""
-Central pytest configuration for the entire test suite.
+"""Central pytest configuration for the entire test suite.
 Provides shared fixtures, test utilities, and common setup for all test levels.
 """
 import asyncio
 import os
 import sys
 from pathlib import Path
-import pytest
-import pytest_asyncio
-from typing import AsyncGenerator, Generator
+from typing import Generator
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
+
+import pytest
+import pytest_asyncio
 
 # Ensure project modules are importable during tests
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -322,7 +322,7 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.integration)
         elif "e2e" in str(item.fspath):
             item.add_marker(pytest.mark.e2e)
-        
+
         # Mark slow tests
         if item.get_closest_marker("slow") or "slow" in item.name:
             item.add_marker(pytest.mark.slow)

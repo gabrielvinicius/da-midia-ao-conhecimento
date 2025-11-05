@@ -1,23 +1,23 @@
 # src/text_processing/infrastructure/logging.py
+"""Text processing operation logging implementation - SRP compliance.
 """
-Text processing operation logging implementation - SRP compliance.
-"""
-import structlog
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+import structlog
+
 
 class StructuredTextProcessingLogger:
-    """
-    Structured logging implementation for text processing operations.
+    """Structured logging implementation for text processing operations.
     Follows SRP - only responsible for logging.
     """
-    
+
     def __init__(self, logger_name: str = "text_processing"):
         self._logger = structlog.get_logger(logger_name)
-    
+
     async def log_operation(
-        self, 
-        operation: str, 
+        self,
+        operation: str,
         media_id: str,
         format_type: str,
         success: bool,
@@ -34,16 +34,16 @@ class StructuredTextProcessingLogger:
             "duration_seconds": duration,
             "timestamp": datetime.utcnow().isoformat()
         }
-        
+
         if text_length is not None:
             log_data["text_length"] = text_length
-        
+
         if error:
             log_data.update({
                 "error_type": type(error).__name__,
                 "error_message": str(error)
             })
-        
+
         if success:
             self._logger.info(
                 f"Text processing operation {operation} completed successfully",
@@ -57,14 +57,13 @@ class StructuredTextProcessingLogger:
 
 
 class NoOpTextProcessingLogger:
-    """
-    No-operation logger for testing or when logging is disabled.
+    """No-operation logger for testing or when logging is disabled.
     Follows Null Object pattern.
     """
-    
+
     async def log_operation(
-        self, 
-        operation: str, 
+        self,
+        operation: str,
         media_id: str,
         format_type: str,
         success: bool,

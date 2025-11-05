@@ -3,14 +3,19 @@ from types import SimpleNamespace
 import pytest
 
 import main
-
 from main import create_app
-from src.user_management.api.dependencies import get_auth_dependencies
 from src.media_management.api.dependencies import get_media_dependencies
-from src.shared.events.domain_events import MediaUploaded, NotificationRequested, TextContentReady
+from src.shared.events.domain_events import (
+    MediaUploaded,
+    NotificationRequested,
+    TextContentReady,
+)
 from src.shared.middleware.performance_middleware import PerformanceMetricsMiddleware
 from src.shared.middleware.validation_middleware import ContentValidationMiddleware
-from src.text_analysis.summarization.api.dependencies import get_summarization_dependencies
+from src.text_analysis.summarization.api.dependencies import (
+    get_summarization_dependencies,
+)
+from src.user_management.api.dependencies import get_auth_dependencies
 
 
 @pytest.fixture(autouse=True)

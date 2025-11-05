@@ -4,9 +4,9 @@ from datetime import datetime
 from typing import Any, Dict
 from uuid import UUID
 
-from src.user_management.application.queries.auth_queries import AuthQueries
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.domain.enums import MediaStatus
+from src.user_management.application.queries.auth_queries import AuthQueries
 
 
 class AdminQueries:
@@ -18,7 +18,6 @@ class AdminQueries:
 
     async def get_global_stats(self) -> Dict[str, Any]:
         """Aggregate high level statistics from multiple bounded contexts."""
-
         total_users = await self._auth_queries.count_all()
         active_users = await self._auth_queries.count_active()
         total_media = await self._media_queries.count_all()
@@ -40,7 +39,6 @@ class AdminQueries:
 
     async def get_user_activity_stats(self, user_id: UUID) -> Dict[str, Any]:
         """Return activity statistics for a specific user."""
-
         user = await self._auth_queries.get_by_id(user_id)
         if not user:
             raise ValueError(f"User with id {user_id} not found")
@@ -62,7 +60,6 @@ class AdminQueries:
 
     async def get_media_processing_stats(self) -> Dict[str, Any]:
         """Return detailed information about media processing throughput."""
-
         total = await self._media_queries.count_all()
         uploaded = await self._media_queries.count_by_status(MediaStatus.UPLOADED)
         processing = await self._media_queries.count_by_status(MediaStatus.PROCESSING)
@@ -85,7 +82,6 @@ class AdminQueries:
 
     async def get_system_health_status(self) -> Dict[str, Any]:
         """Return coarse health indicators for the platform."""
-
         total_failed = await self._media_queries.count_by_status(MediaStatus.FAILED)
         total_processing = await self._media_queries.count_by_status(MediaStatus.PROCESSING)
         total_users = await self._auth_queries.count_all()

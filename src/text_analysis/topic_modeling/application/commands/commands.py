@@ -19,7 +19,6 @@ class AnalyzeTopicsCommand:
 
     def should_schedule_only(self) -> bool:
         """Indicate if the command should only schedule analysis."""
-
         if self.schedule_only:
             return True
 

@@ -1,10 +1,16 @@
 # src/providers/infrastructure/provider_registry.py
-import structlog
-from typing import Dict, List, Any, Optional
 from collections import defaultdict
+from typing import Dict, List, Optional
 
-from src.providers.domain.interfaces import IProviderRegistry, IProvider, ProviderType, ProviderCapability
-from src.providers.domain.provider import Provider # Para a entidade Provider
+import structlog
+
+from src.providers.domain.interfaces import (
+    IProvider,
+    IProviderRegistry,
+    ProviderCapability,
+    ProviderType,
+)
+from src.providers.domain.provider import Provider  # Para a entidade Provider
 
 logger = structlog.get_logger(__name__)
 
@@ -18,10 +24,10 @@ class InMemoryProviderRegistry(IProviderRegistry):
     def register_provider(self, provider: IProvider) -> None:
         if not isinstance(provider, Provider):
             raise TypeError("Only instances of Provider can be registered.")
-        
+
         provider_type = provider.get_type()
         provider_name = provider.get_name()
-        
+
         if provider_name in self._providers[provider_type]:
             logger.warning(
                 "provider_registry.provider_already_registered",
@@ -30,7 +36,7 @@ class InMemoryProviderRegistry(IProviderRegistry):
             )
             # Poderia levantar uma exceção ou atualizar o provedor existente
             return
-        
+
         self._providers[provider_type][provider_name] = provider
         logger.info(
             "provider_registry.provider_registered",
@@ -60,7 +66,7 @@ class InMemoryProviderRegistry(IProviderRegistry):
     def list_providers(self, provider_type: Optional[ProviderType] = None) -> List[IProvider]:
         if provider_type:
             return list(self._providers[provider_type].values())
-        
+
         all_providers = []
         for type_providers in self._providers.values():
             all_providers.extend(type_providers.values())

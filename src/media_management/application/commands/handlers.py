@@ -3,7 +3,10 @@ import time  # Adicionar para calcular duração
 
 import structlog
 
-from src.media_management.application.commands.commands import DeleteMediaCommand, ReprocessMediaCommand
+from src.media_management.application.commands.commands import (
+    DeleteMediaCommand,
+    ReprocessMediaCommand,
+)
 from src.media_management.infrastructure.logging import StructuredMediaLogger
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
@@ -41,7 +44,7 @@ class DeleteMediaCommandHandler:
             media = await self.media_repo.get_by_id(command.media_id)
             if not media:
                 raise ValueError(f"Media with ID {command.media_id} not found.")
-            
+
             user_id_str = str(media.user_id)
             media_type_str = media.media_type.value
             # TODO: Obter o tamanho real do arquivo para file_size_bytes
@@ -111,7 +114,7 @@ class ReprocessMediaCommandHandler:
             media = await self.media_repo.get_by_id(command.media_id)
             if not media:
                 raise ValueError(f"Media with ID {command.media_id} not found.")
-            
+
             user_id_str = str(media.user_id)
             media_type_str = media.media_type.value
             # TODO: Obter o tamanho real do arquivo para file_size_bytes

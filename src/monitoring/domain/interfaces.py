@@ -1,16 +1,15 @@
-"""
-Domain interfaces for monitoring module.
+"""Domain interfaces for monitoring module.
 Follows Dependency Inversion Principle (DIP).
 """
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional, Union
-from uuid import UUID
 from enum import Enum
-from datetime import datetime
+from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 
 class MetricType(Enum):
     """Types of metrics that can be collected."""
+
     COUNTER = "counter"
     HISTOGRAM = "histogram"
     GAUGE = "gauge"
@@ -19,6 +18,7 @@ class MetricType(Enum):
 
 class TimeRange(Enum):
     """Time ranges for analytics queries."""
+
     LAST_HOUR = "last_hour"
     LAST_DAY = "last_day"
     LAST_WEEK = "last_week"
@@ -29,6 +29,7 @@ class TimeRange(Enum):
 
 class ProcessingType(Enum):
     """Types of processing operations."""
+
     TRANSCRIPTION = "transcription"
     SUMMARIZATION = "summarization"
     MEDIA = "media"

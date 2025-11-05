@@ -1,25 +1,27 @@
-from typing import Optional, Annotated
+from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, HTTPException, status
 
+from src.media_management.application.queries.media_queries import MediaQueries
+from src.media_processing.transcription.application.queries import TranscriptionQueries
+from src.media_processing.transcription.application.transcription_service import (
+    TranscriptionService,
+)
 from src.shared.api.dependencies import get_current_user
+from src.shared.api.unified_schemas import (
+    BaseResponseSchema,
+    create_error_response,
+    create_success_response,
+)
 from src.user_management.domain.user import User
 
 from .dependencies import (
-    get_transcription_service,
-    get_transcription_queries,
     get_media_queries,
+    get_transcription_queries,
+    get_transcription_service,
 )
-from .schemas import TranscriptionResponse, SpeakerAliasesUpdateRequest
-from src.media_processing.transcription.application.transcription_service import TranscriptionService
-from src.media_processing.transcription.application.queries import TranscriptionQueries
-from src.media_management.application.queries.media_queries import MediaQueries
-from src.shared.api.unified_schemas import (
-    create_success_response,
-    create_error_response,
-    BaseResponseSchema,
-)
+from .schemas import SpeakerAliasesUpdateRequest, TranscriptionResponse
 
 router = APIRouter(prefix="/transcriptions", tags=["Transcriptions"])
 
@@ -75,8 +77,7 @@ async def reprocess_transcription(
     force: bool = Form(False, description="Force reprocessing even if already completed"),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Reprocess transcription for existing media
+    """Reprocess transcription for existing media
     Useful for: changing providers, languages, or fixing failed transcriptions
     """
     try:

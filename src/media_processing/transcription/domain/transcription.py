@@ -1,12 +1,15 @@
 # src/transcription/domain/transcription.py
-from sqlalchemy import Column, String, DateTime, Enum as SqlEnum, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.ext.hybrid import hybrid_property
-from src.shared.infrastructure.database import Base
-from datetime import datetime
 import enum
 import uuid
-from typing import Dict, Any, List
+from datetime import datetime, timezone
+from typing import Any, Dict, List
+
+from sqlalchemy import Column, DateTime, ForeignKey, String
+from sqlalchemy import Enum as SqlEnum
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.ext.hybrid import hybrid_property
+
+from src.shared.infrastructure.database import Base
 
 
 class TranscriptionStatus(str, enum.Enum):
@@ -23,10 +26,10 @@ class Transcription(Base):
     media_id = Column(UUID(as_uuid=True), ForeignKey("media.id"), nullable=False, unique=True)
     status = Column(SqlEnum(TranscriptionStatus), default=TranscriptionStatus.PENDING, nullable=False)
     provider = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     processed_at = Column(DateTime, nullable=True)
     error_message = Column(String, nullable=True)
-    
+
     # Store the full, structured result from the AI provider
     result = Column(JSONB, nullable=True)
     # Store the user-defined speaker names
@@ -52,12 +55,12 @@ class Transcription(Base):
     def mark_as_completed(self, result: Dict[str, Any]):
         self.result = result
         self.status = TranscriptionStatus.COMPLETED
-        self.processed_at = datetime.utcnow()
+        self.processed_at = datetime.now(timezone.utc)
 
     def mark_as_failed(self, error: str):
         self.status = TranscriptionStatus.FAILED
         self.error_message = error
-        self.processed_at = datetime.utcnow()
+        self.processed_at = datetime.now(timezone.utc)
 
     def set_speaker_aliases(self, aliases: Dict[str, str]):
         """Sets or updates the speaker alias map."""

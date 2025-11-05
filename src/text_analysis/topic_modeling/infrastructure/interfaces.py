@@ -2,6 +2,7 @@
 from abc import ABC, abstractmethod
 from typing import List
 
+
 class ITopicModelingService(ABC):
     """Interface for a topic modeling or keyword extraction service."""
 

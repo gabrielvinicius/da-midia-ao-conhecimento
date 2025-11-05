@@ -1,17 +1,21 @@
 # src/video_processing/bootstrap.py
 from dataclasses import dataclass
+from typing import Optional
 
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
 # Consolidated Service
 from src.media_processing.video_processing.application.video_processing_service import (
     VideoProcessingService,
 )
+from src.media_processing.video_processing.infrastructure.metrics import (
+    PrometheusVideoProcessingMetrics,
+)
 from src.media_processing.video_processing.infrastructure.task_scheduler import (
     CeleryVideoProcessingTaskScheduler,
 )
+
 # Concrete Implementations
 from src.media_processing.video_processing.infrastructure.video_audio_extractor import (
     FFmpegVideoAudioExtractor,
@@ -19,20 +23,21 @@ from src.media_processing.video_processing.infrastructure.video_audio_extractor 
 from src.media_processing.video_processing.infrastructure.video_thumbnail_generator import (
     FFmpegVideoThumbnailGenerator,
 )
-
+from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 # TODO: Adicionar logger e metrics específicos para video_processing
 
 
 class VideoProcessingContainer(containers.DeclarativeContainer):
     db: providers.Provider[AsyncSession] = providers.Dependency()
-    storage_service: providers.Provider[S3StorageService] = providers.Singleton(S3StorageService)
+    storage_factory: providers.Provider[StorageServiceFactory] = providers.Dependency()
+    storage_provider = providers.Dependency(default="local")
 
     # Infrastructure Services
     video_audio_extractor = providers.Factory(FFmpegVideoAudioExtractor)
     video_thumbnail_generator = providers.Factory(FFmpegVideoThumbnailGenerator)
     video_processing_task_scheduler = providers.Factory(CeleryVideoProcessingTaskScheduler)
-    # TODO: Adicionar video_processing_logger, video_processing_metrics
+    video_processing_metrics = providers.Singleton(PrometheusVideoProcessingMetrics)
 
     # Consolidated Application Service
     video_processing_service = providers.Factory(
@@ -40,8 +45,9 @@ class VideoProcessingContainer(containers.DeclarativeContainer):
         video_audio_extractor=video_audio_extractor,
         video_thumbnail_generator=video_thumbnail_generator,
         video_processing_task_scheduler=video_processing_task_scheduler,
-        storage_service=storage_service,
-        # TODO: Adicionar video_processing_logger, video_processing_metrics
+        storage_factory=storage_factory,
+        default_storage_provider=storage_provider,
+        video_processing_metrics=video_processing_metrics,
     )
 
 
@@ -53,8 +59,16 @@ class VideoProcessingModule:
 
 async def build_video_processing_module(
     session: AsyncSession,
+    *,
+    storage_factory: Optional[StorageServiceFactory] = None,
+    storage_provider: str = "local",
 ) -> VideoProcessingModule:
-    container = VideoProcessingContainer(db=session)
+    storage_factory = storage_factory or StorageServiceFactory()
+    container = VideoProcessingContainer(
+        db=session,
+        storage_factory=storage_factory,
+        storage_provider=storage_provider,
+    )
     module = VideoProcessingModule(
         service=container.video_processing_service(),
         task_scheduler=container.video_processing_task_scheduler(),

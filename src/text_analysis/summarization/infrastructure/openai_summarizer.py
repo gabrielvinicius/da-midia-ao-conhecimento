@@ -1,12 +1,14 @@
 # src/summarization/infrastructure/openai_summarizer.py
+from typing import Any, Dict, Optional
+
 import openai
-from typing import Dict, Any, Optional
+
 
 class OpenAISummarizer:
     async def summarize(self, text_content: str, options: Optional[Dict[str, Any]] = None) -> str: # Atualizar assinatura
         # Usar opções se fornecidas, caso contrário, usar defaults
         model = options.get("model", "gpt-4") if options else "gpt-4"
-        
+
         response = await openai.ChatCompletion.acreate(
             model=model,
             messages=[

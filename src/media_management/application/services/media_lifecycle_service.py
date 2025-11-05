@@ -3,7 +3,6 @@
 from typing import Optional
 from uuid import UUID
 
-from src.user_management.domain.user import UserRole
 from src.media_management.application.commands.commands import (
     DeleteMediaCommand,
     ReprocessMediaCommand,
@@ -16,6 +15,7 @@ from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.domain.enums import MediaStatus
 from src.media_management.domain.media import Media
 from src.media_management.infrastructure.media_repository import MediaRepository
+from src.user_management.domain.user import UserRole
 
 
 class MediaLifecycleService:
@@ -37,7 +37,6 @@ class MediaLifecycleService:
         self, media_id: UUID, user_id: UUID, user_role: Optional[UserRole] = None
     ) -> None:
         """Ensure permissions then dispatch the delete command."""
-
         media = await self._media_repository.get_by_id(media_id)
         if not media:
             raise ValueError(f"Media {media_id} not found")
@@ -49,7 +48,6 @@ class MediaLifecycleService:
         self, media_id: UUID, user_id: UUID, user_role: Optional[UserRole] = None
     ) -> None:
         """Ensure permissions then dispatch the reprocess command."""
-
         media = await self._media_repository.get_by_id(media_id)
         if not media:
             raise ValueError(f"Media {media_id} not found")
@@ -59,7 +57,6 @@ class MediaLifecycleService:
 
     async def reset_for_reprocessing(self, media_id: UUID) -> Media:
         """Reset the media status to uploaded prior to a new processing run."""
-
         media = await self._media_repository.get_by_id(media_id)
         if not media:
             raise ValueError(f"Media {media_id} not found")
@@ -84,7 +81,6 @@ class MediaLifecycleService:
         error_message: Optional[str] = None,
     ) -> Media:
         """Update a media record status and optional error information."""
-
         media = await self._media_repository.get_by_id(media_id)
         if not media:
             raise ValueError(f"Media {media_id} not found")

@@ -3,7 +3,12 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from src.text_analysis.summarization.application.summarization_service import SummarizationService
+from src.text_analysis.summarization.application.summarization_service import (
+    SummarizationService,
+)
+from src.text_analysis.summarization.infrastructure.summarization_repository import (
+    SummarizationRepository,
+)
 
 
 class SummarizationDependenciesNotConfigured(RuntimeError):
@@ -13,6 +18,7 @@ class SummarizationDependenciesNotConfigured(RuntimeError):
 @dataclass(frozen=True)
 class SummarizationDependencies:
     service: SummarizationService
+    repository: SummarizationRepository
 
 
 def get_summarization_dependencies() -> SummarizationDependencies:
@@ -32,9 +38,16 @@ def get_summarization_service(
     return deps.service
 
 
+def get_summarization_repository(
+    deps: SummarizationDeps,
+) -> SummarizationRepository:
+    return deps.repository
+
+
 __all__ = [
     "SummarizationDependencies",
     "SummarizationDependenciesNotConfigured",
     "get_summarization_dependencies",
+    "get_summarization_repository",
     "get_summarization_service",
 ]

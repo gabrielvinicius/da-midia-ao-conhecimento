@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.text_analysis.application.services import TextAnalysisService
 from src.text_analysis.sentiment_analysis.application.commands.analyze_sentiment_command_handler import (
     AnalyzeSentimentCommandHandler,
 )
@@ -13,15 +14,18 @@ from src.text_analysis.sentiment_analysis.application.queries.sentiment_analysis
 from src.text_analysis.sentiment_analysis.application.sentiment_analysis_service import (
     SentimentAnalysisService,
 )
-from src.text_analysis.sentiment_analysis.infrastructure.logging import StructuredSentimentLogger
-from src.text_analysis.sentiment_analysis.infrastructure.metrics import PrometheusSentimentMetrics
+from src.text_analysis.sentiment_analysis.infrastructure.logging import (
+    StructuredSentimentLogger,
+)
+from src.text_analysis.sentiment_analysis.infrastructure.metrics import (
+    PrometheusSentimentMetrics,
+)
 from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
     SentimentAnalysisRepository,
 )
 from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analyzer import (
     SimpleSentimentAnalyzer,
 )
-from src.text_analysis.application.services import TextAnalysisService
 
 
 class SentimentAnalysisContainer(containers.DeclarativeContainer):

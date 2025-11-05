@@ -7,7 +7,6 @@ from src.admin.api.dependencies import (
     get_admin_dependencies,
 )
 from src.admin.bootstrap import AdminModule
-from src.user_management.api.dependencies import AuthDependencies, get_auth_dependencies
 from src.media_management.api.dependencies import (
     MediaDependencies,
     get_media_dependencies,
@@ -25,6 +24,8 @@ from src.notifications.api.dependencies import (
 from src.notifications.bootstrap import NotificationModule
 from src.providers.api.dependencies import get_provider_registry
 from src.providers.bootstrap import ProvidersModule
+from src.user_management.api.dependencies import AuthDependencies, get_auth_dependencies
+
 try:  # noqa: SIM105 - optional during refactor
     from src.text_analysis.sentiment_analysis.api.dependencies import (
         SentimentDependencies,
@@ -74,7 +75,6 @@ def register_module_dependencies(
     admin: AdminModule,
 ) -> None:
     """Register application dependencies using FastAPI overrides."""
-
     app.dependency_overrides[get_auth_dependencies] = lambda: AuthDependencies(
         user_service=auth.user_service,
         auth_service=auth.auth_service,
@@ -115,6 +115,7 @@ def register_module_dependencies(
         app.dependency_overrides[get_summarization_dependencies] = (
             lambda: SummarizationDependencies(
                 service=summarization.service,
+                repository=summarization.repository,
             )
         )
 

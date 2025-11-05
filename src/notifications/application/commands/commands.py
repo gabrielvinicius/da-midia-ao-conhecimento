@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from src.notifications.domain.notification import NotificationType, NotificationPriority
+from src.notifications.domain.notification import NotificationPriority, NotificationType
 
 
 @dataclass(slots=True)

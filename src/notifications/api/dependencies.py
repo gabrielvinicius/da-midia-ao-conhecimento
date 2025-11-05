@@ -3,9 +3,16 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from src.notifications.application.services.notification_service import NotificationService
-from src.notifications.application.queries.notification_queries import NotificationQueries
-from src.notifications.infrastructure.connection_manager import ConnectionManager, manager
+from src.notifications.application.queries.notification_queries import (
+    NotificationQueries,
+)
+from src.notifications.application.services.notification_service import (
+    NotificationService,
+)
+from src.notifications.infrastructure.connection_manager import (
+    ConnectionManager,
+    manager,
+)
 
 
 class NotificationDependenciesNotConfigured(RuntimeError):

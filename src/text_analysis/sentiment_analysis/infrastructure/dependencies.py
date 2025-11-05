@@ -9,13 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.text_analysis.sentiment_analysis.application.sentiment_analysis_service import (
     SentimentAnalysisService,
 )
-from src.text_analysis.sentiment_analysis.infrastructure.logging import StructuredSentimentLogger
-from src.text_analysis.sentiment_analysis.infrastructure.metrics import PrometheusSentimentMetrics
-from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analyzer import (
-    SimpleSentimentAnalyzer,
+from src.text_analysis.sentiment_analysis.infrastructure.logging import (
+    StructuredSentimentLogger,
+)
+from src.text_analysis.sentiment_analysis.infrastructure.metrics import (
+    PrometheusSentimentMetrics,
 )
 from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
     SentimentAnalysisRepository,
+)
+from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analyzer import (
+    SimpleSentimentAnalyzer,
 )
 
 
@@ -39,7 +43,6 @@ class SentimentServiceFactory:
 
 def get_sentiment_service_factory() -> SentimentServiceFactory:
     """Expose a factory compatible with the FastAPI composition root."""
-
     return SentimentServiceFactory()
 
 
@@ -47,7 +50,6 @@ async def create_sentiment_analysis_service(
     db: AsyncSession,
 ) -> SentimentAnalysisService:
     """Create a fully-wired ``SentimentAnalysisService`` instance."""
-
     factory = get_sentiment_service_factory()
     return factory(db)
 

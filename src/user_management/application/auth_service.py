@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import structlog
 from typing import Any, Dict, List, Optional
 from uuid import UUID
+
+import structlog
 
 from src.user_management.application.user_service import UserService
 from src.user_management.domain.user import User, UserRole
@@ -11,8 +12,7 @@ logger = structlog.get_logger(__name__)
 
 
 class AuthService:
-    """
-    Thin facade over UserService kept for compatibility with API wiring.
+    """Thin facade over UserService kept for compatibility with API wiring.
     """
 
     def __init__(

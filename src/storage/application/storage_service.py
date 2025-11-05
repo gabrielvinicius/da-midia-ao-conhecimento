@@ -1,12 +1,11 @@
 # src/storage/application/storage_service.py
 from abc import ABC, abstractmethod
-from typing import Optional, Union, Tuple
 from pathlib import Path
+from typing import Optional, Tuple, Union
 
 
 class StorageService(ABC):
-    """
-    Abstract base class defining the interface for storage services.
+    """Abstract base class defining the interface for storage services.
     """
 
     @property

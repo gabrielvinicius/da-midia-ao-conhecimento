@@ -104,7 +104,9 @@ class PerformanceMetricsMiddleware(BaseHTTPMiddleware):
 
 
 def _resolve_metrics_service(app: FastAPI) -> Optional[Any]:
-    from src.monitoring.api.dependencies import get_monitoring_dependencies  # Local import to avoid cycles
+    from src.monitoring.api.dependencies import (
+        get_monitoring_dependencies,  # Local import to avoid cycles
+    )
 
     provider = app.dependency_overrides.get(get_monitoring_dependencies)
     if provider is None or not callable(provider):
@@ -119,7 +121,6 @@ def _resolve_metrics_service(app: FastAPI) -> Optional[Any]:
 
 def register_performance_middleware(app: FastAPI) -> None:
     """Attach the performance middleware once per FastAPI application."""
-
     if getattr(app.state, "performance_middleware_registered", False):
         return
 

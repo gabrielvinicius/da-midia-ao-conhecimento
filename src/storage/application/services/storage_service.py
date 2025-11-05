@@ -1,22 +1,20 @@
-"""
-Consolidated Storage Service
+"""Consolidated Storage Service
 Consolidates: StorageService, EnhancedStorageService, StorageMetricsService
 """
+from typing import Any, Dict, Optional
+
 import structlog
-from typing import Dict, Any, Optional
-from uuid import UUID
 
 from src.storage.application.commands.commands import (
-    StoreFileCommand,
     DeleteFileCommand,
     MoveFileCommand,
-    ValidateFileCommand
+    StoreFileCommand,
 )
 from src.storage.application.commands.handlers import (
-    StoreFileCommandHandler,
     DeleteFileCommandHandler,
     MoveFileCommandHandler,
-    ValidateFileCommandHandler
+    StoreFileCommandHandler,
+    ValidateFileCommandHandler,
 )
 
 logger = structlog.get_logger(__name__)
@@ -24,7 +22,7 @@ logger = structlog.get_logger(__name__)
 
 class StorageService:
     """Consolidated service for all storage operations."""
-    
+
     def __init__(
         self,
         store_file_handler: StoreFileCommandHandler,
@@ -46,12 +44,12 @@ class StorageService:
             metadata=metadata
         )
         return await self.store_file_handler.handle(command)
-    
+
     async def delete_file(self, file_path: str, force: bool = False) -> Dict[str, Any]:
         """Delete file."""
         command = DeleteFileCommand(file_path=file_path, force=force)
         return await self.delete_file_handler.handle(command)
-    
+
     async def move_file(self, source_path: str, destination_path: str, overwrite: bool = False) -> Dict[str, Any]:
         """Move file."""
         command = MoveFileCommand(

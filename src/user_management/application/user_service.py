@@ -3,12 +3,12 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from src.user_management.domain.user import User, UserRole
-from src.user_management.infrastructure.user_repository import UserRepository
-from src.user_management.config.settings import AuthSettings
-from src.user_management.utils.token import create_access_token
 from src.shared.utils.id_generator import generate_id
 from src.shared.utils.password_utils import hash_password, verify_password
+from src.user_management.config.settings import AuthSettings
+from src.user_management.domain.user import User, UserRole
+from src.user_management.infrastructure.user_repository import UserRepository
+from src.user_management.utils.token import create_access_token
 
 
 class UserService:

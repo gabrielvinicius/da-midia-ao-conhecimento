@@ -1,12 +1,13 @@
-from enum import Enum
-# from typing import List
-
-from sqlalchemy import Column, String, Boolean, Enum as SQLAEnum
-from sqlalchemy.dialects.postgresql import UUID
-# from sqlalchemy.orm import Mapped, relationship
-
-from src.shared.infrastructure.database import Base
 import uuid
+from enum import Enum
+
+# from typing import List
+from sqlalchemy import Boolean, Column, String
+from sqlalchemy import Enum as SQLAEnum
+from sqlalchemy.dialects.postgresql import UUID
+
+# from sqlalchemy.orm import Mapped, relationship
+from src.shared.infrastructure.database import Base
 
 # from src.video_management.domain.video import Video
 

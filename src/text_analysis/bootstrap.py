@@ -1,20 +1,19 @@
 # src/text_analysis/bootstrap.py
-"""
-Bootstrap module for the consolidated text analysis service.
+"""Bootstrap module for the consolidated text analysis service.
 """
 from types import SimpleNamespace
 
+import structlog
 from dependency_injector import providers
 from sqlalchemy.ext.asyncio import AsyncSession
-import structlog
 
 from src.text_analysis.application.services import TextAnalysisService
+from src.text_analysis.sentiment_analysis.bootstrap import (
+    build_sentiment_analysis_module,
+)
 from src.text_analysis.summarization.bootstrap import (
     SummarizationContainer,
     build_summarization_module,
-)
-from src.text_analysis.sentiment_analysis.bootstrap import (
-    build_sentiment_analysis_module,
 )
 from src.text_analysis.topic_modeling.bootstrap import (
     build_topic_modeling_module,
@@ -30,8 +29,7 @@ async def build_text_analysis_module(
     notification_module,
     monitoring_module,
 ) -> SimpleNamespace:
-    """
-    Builds and configures the text analysis module and its dependencies.
+    """Builds and configures the text analysis module and its dependencies.
     """
     logger.info("text_analysis.bootstrap.started")
 

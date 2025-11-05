@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-
 from src.summarization.application.summarization_service import SummarizationService
+
 
 @pytest.fixture
 def repo_mock() -> AsyncMock:

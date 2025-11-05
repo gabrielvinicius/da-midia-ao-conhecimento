@@ -31,7 +31,6 @@ class AuthSettings:
 @lru_cache(maxsize=1)
 def get_auth_settings() -> AuthSettings:
     """Cached accessor for AuthSettings."""
-
     return AuthSettings()
 
 

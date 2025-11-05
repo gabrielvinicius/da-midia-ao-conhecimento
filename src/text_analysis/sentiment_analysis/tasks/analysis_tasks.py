@@ -7,6 +7,13 @@ from typing import Optional
 
 from celery import shared_task
 
+from src.media_processing.transcription.application.queries.transcription_queries import (
+    TranscriptionQueries,
+)
+from src.media_processing.transcription.infrastructure.transcription_repository import (
+    TranscriptionRepository,
+)
+from src.shared.infrastructure.database import get_db
 from src.text_analysis.sentiment_analysis.application.commands.analyze_sentiment_command import (
     AnalyzeSentimentCommand,
 )
@@ -19,13 +26,6 @@ from src.text_analysis.sentiment_analysis.infrastructure.dependencies import (
 from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
     SentimentAnalysisRepository,
 )
-from src.shared.infrastructure.database import get_db
-from src.media_processing.transcription.application.queries.transcription_queries import (
-    TranscriptionQueries,
-)
-from src.media_processing.transcription.infrastructure.transcription_repository import (
-    TranscriptionRepository,
-)
 
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
@@ -37,7 +37,6 @@ def analyze_sentiment_task(
     model: Optional[str] = None,
 ) -> Optional[str]:
     """Entry point for asynchronous sentiment analysis execution."""
-
     return asyncio.run(
         _execute_sentiment_analysis(
             transcription_id=transcription_id,

@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 
-from src.text_analysis.summarization.application.services.summarization_service import SummarizationService
-from src.text_analysis.summarization.application.services.summary_metrics_service import SummaryMetricsService
-from src.text_analysis.summarization.application.services.summary_state_manager_impl import SummaryStateManagerImpl
+from src.text_analysis.summarization.application.services.summarization_service import (
+    SummarizationService,
+)
+from src.text_analysis.summarization.application.services.summary_metrics_service import (
+    SummaryMetricsService,
+)
+from src.text_analysis.summarization.application.services.summary_state_manager_impl import (
+    SummaryStateManagerImpl,
+)
 
 
 @pytest.fixture

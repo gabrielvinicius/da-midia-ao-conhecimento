@@ -1,25 +1,31 @@
 # tests/integration/transcription/test_process_transcription_integration.py
-import pytest
-from unittest.mock import AsyncMock, MagicMock
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from src.media_management.domain.media import Media, MediaType, MediaStatus
-from src.media_management.infrastructure.orm.media_entity import MediaEntity
-from src.media_management.infrastructure.media_repository import MediaRepository
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.media_management.application.queries.media_queries import MediaQueries
+from src.media_management.domain.media import Media, MediaStatus, MediaType
+from src.media_management.infrastructure.media_repository import MediaRepository
+from src.media_management.infrastructure.orm.media_entity import MediaEntity
+from src.media_processing.transcription.application.commands.process_transcription_command import (
+    ProcessTranscriptionCommand,
+)
+from src.media_processing.transcription.application.commands.process_transcription_command_handler import (
+    ProcessTranscriptionCommandHandler,
+)
 from src.media_processing.transcription.domain.transcription import Transcription
-from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
-from src.media_processing.transcription.application.commands.process_transcription_command import ProcessTranscriptionCommand
-from src.media_processing.transcription.application.commands.process_transcription_command_handler import ProcessTranscriptionCommandHandler
+from src.media_processing.transcription.infrastructure.transcription_repository import (
+    TranscriptionRepository,
+)
 
 pytestmark = pytest.mark.integration
 
 @pytest.mark.asyncio
 async def test_process_transcription_handler_persists_results(db_session: AsyncSession):
-    """
-    Integration test to verify that the ProcessTranscriptionCommandHandler correctly
+    """Integration test to verify that the ProcessTranscriptionCommandHandler correctly
     creates a Transcription record and updates the Media status in the database.
     """
     # Arrange: Create a media item in the DB to be processed
@@ -39,11 +45,11 @@ async def test_process_transcription_handler_persists_results(db_session: AsyncS
     # Arrange: Create real repositories and mock external services
     transcription_repo = TranscriptionRepository(db=db_session)
     media_queries = MediaQueries(media_repository=media_repo)
-    
+
     mock_speech_recognition = AsyncMock()
     mock_speech_recognition.transcribe.return_value = "This is the transcribed text."
     mock_speech_recognition.provider_name = "mock_whisper"
-    
+
     mock_storage_service = AsyncMock()
     mock_storage_service.download.return_value = (b"fake_audio_bytes", "test.mp3")
 

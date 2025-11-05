@@ -1,15 +1,16 @@
+"""Unified API schemas - eliminating schema duplication
 """
-Unified API schemas - eliminating schema duplication
-"""
-from typing import Any, Dict, Optional, List, Generic, TypeVar
-from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, Generic, List, Optional, TypeVar
+
+from pydantic import BaseModel, Field
 
 T = TypeVar('T')
 
 class StatusEnum(str, Enum):
     """Common status values"""
+
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -18,6 +19,7 @@ class StatusEnum(str, Enum):
 
 class EntityTypeEnum(str, Enum):
     """Entity types"""
+
     MEDIA = "media"
     TRANSCRIPTION = "transcription"
     SUMMARY = "summary"
@@ -28,6 +30,7 @@ class EntityTypeEnum(str, Enum):
 # Base schemas
 class BaseResponseSchema(BaseModel, Generic[T]):
     """Base response schema for all APIs"""
+
     success: bool
     data: Optional[T] = None
     message: Optional[str] = None
@@ -36,6 +39,7 @@ class BaseResponseSchema(BaseModel, Generic[T]):
 
 class BaseEntitySchema(BaseModel):
     """Base schema for all entities"""
+
     id: str
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -43,6 +47,7 @@ class BaseEntitySchema(BaseModel):
 
 class BasePaginationSchema(BaseModel):
     """Base pagination schema"""
+
     page: int = Field(default=1, ge=1)
     limit: int = Field(default=10, ge=1, le=100)
     total: Optional[int] = None
@@ -50,6 +55,7 @@ class BasePaginationSchema(BaseModel):
 
 class BaseProcessingRequestSchema(BaseModel):
     """Base schema for processing requests"""
+
     entity_id: str
     user_id: str
     provider: Optional[str] = None
@@ -57,6 +63,7 @@ class BaseProcessingRequestSchema(BaseModel):
 
 class BaseProcessingResultSchema(BaseModel):
     """Base schema for processing results"""
+
     entity_id: str
     status: StatusEnum
     result: Optional[Dict[str, Any]] = None
@@ -68,6 +75,7 @@ class BaseProcessingResultSchema(BaseModel):
 # Specific entity schemas
 class MediaSchema(BaseEntitySchema):
     """Media entity schema"""
+
     filename: str
     file_size: int
     mime_type: str
@@ -76,6 +84,7 @@ class MediaSchema(BaseEntitySchema):
 
 class TranscriptionSchema(BaseEntitySchema):
     """Transcription entity schema"""
+
     media_id: str
     text: Optional[str] = None
     language: Optional[str] = None
@@ -85,6 +94,7 @@ class TranscriptionSchema(BaseEntitySchema):
 
 class SummarySchema(BaseEntitySchema):
     """Summary entity schema"""
+
     media_id: str
     text: Optional[str] = None
     provider: Optional[str] = None
@@ -93,6 +103,7 @@ class SummarySchema(BaseEntitySchema):
 
 class TopicModelingSchema(BaseEntitySchema):
     """Topic modeling entity schema"""
+
     media_id: str
     topics: Optional[List[Dict[str, Any]]] = None
     provider: Optional[str] = None
@@ -101,6 +112,7 @@ class TopicModelingSchema(BaseEntitySchema):
 
 class UserSchema(BaseEntitySchema):
     """User entity schema"""
+
     email: str
     username: str
     is_active: bool = True
@@ -109,10 +121,12 @@ class UserSchema(BaseEntitySchema):
 # Request schemas
 class ProcessingRequestSchema(BaseProcessingRequestSchema):
     """Generic processing request"""
+
     entity_type: EntityTypeEnum
 
 class FileUploadRequestSchema(BaseModel):
     """File upload request"""
+
     filename: str
     user_id: str
     storage_provider: Optional[str] = "local"
@@ -120,20 +134,24 @@ class FileUploadRequestSchema(BaseModel):
 # Response schemas
 class SuccessResponseSchema(BaseResponseSchema[T]):
     """Success response schema"""
+
     success: bool = True
 
 class ErrorResponseSchema(BaseResponseSchema[None]):
     """Error response schema"""
+
     success: bool = False
     data: None = None
 
 class PaginatedResponseSchema(BaseResponseSchema[List[T]]):
     """Paginated response schema"""
+
     pagination: BasePaginationSchema
 
 # Status schemas
 class HealthCheckSchema(BaseModel):
     """Health check schema"""
+
     status: str = "healthy"
     version: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
@@ -141,6 +159,7 @@ class HealthCheckSchema(BaseModel):
 
 class MetricsSchema(BaseModel):
     """Metrics schema"""
+
     name: str
     value: float
     labels: Dict[str, str] = Field(default_factory=dict)
@@ -156,9 +175,9 @@ def create_error_response(error: str, message: str = "Error") -> ErrorResponseSc
     return ErrorResponseSchema(error=error, message=message)
 
 def create_paginated_response(
-    data: List[Any], 
-    page: int, 
-    limit: int, 
+    data: List[Any],
+    page: int,
+    limit: int,
     total: int
 ) -> PaginatedResponseSchema:
     """Create paginated response"""

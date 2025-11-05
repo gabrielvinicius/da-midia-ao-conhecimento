@@ -7,12 +7,14 @@ from typing import Any, Optional
 
 import structlog
 
-from src.sentiment_analysis.application.commands.analyze_sentiment_command import (
+from src.media_processing.transcription.domain.transcription import TranscriptionStatus
+from src.text_analysis.sentiment_analysis.application.commands.analyze_sentiment_command import (
     AnalyzeSentimentCommand,
 )
-from src.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysis
+from src.text_analysis.sentiment_analysis.domain.sentiment_analysis import (
+    SentimentAnalysis,
+)
 from src.shared.exceptions.domain_exceptions import ProcessingError, ValidationError
-from src.media_processing.transcription.domain.transcription import TranscriptionStatus
 
 logger = structlog.get_logger(__name__)
 
@@ -37,7 +39,6 @@ class AnalyzeSentimentCommandHandler:
 
     async def handle(self, command: AnalyzeSentimentCommand) -> Any:
         """Execute sentiment analysis for the provided transcription."""
-
         transcription = await self._transcription_queries.get_by_id(command.transcription_id)
         if not transcription:
             raise ValidationError(

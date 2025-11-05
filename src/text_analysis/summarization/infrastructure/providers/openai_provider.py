@@ -1,14 +1,15 @@
 # src/summarization/infrastructure/providers/openai_provider.py
-"""
-OpenAI summarization provider - OCP and SRP compliance.
+"""OpenAI summarization provider - OCP and SRP compliance.
 """
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Any, Dict
+
 import openai
+
 
 class OpenAIConfiguration:
     """Configuration for OpenAI summarization - SRP compliance."""
-    
+
     def __init__(
         self,
         api_key: str,
@@ -22,7 +23,7 @@ class OpenAIConfiguration:
         self.max_input_length = max_input_length
         self.max_output_length = max_output_length
         self.temperature = temperature
-    
+
     def get_config(self) -> Dict[str, Any]:
         """Get configuration dictionary."""
         return {
@@ -32,7 +33,7 @@ class OpenAIConfiguration:
             "temperature": self.temperature,
             # Don't include API key in config output
         }
-    
+
     def validate_config(self) -> bool:
         """Validate configuration."""
         return (
@@ -42,31 +43,30 @@ class OpenAIConfiguration:
             self.max_output_length > 0 and
             0.0 <= self.temperature <= 2.0
         )
-    
+
     def get_max_input_length(self) -> int:
         """Get maximum input text length."""
         return self.max_input_length
-    
+
     def get_max_output_length(self) -> int:
         """Get maximum output summary length."""
         return self.max_output_length
 
 
 class OpenAISummaryProvider(BaseSummaryProvider):
-    """
-    OpenAI summarization provider.
+    """OpenAI summarization provider.
     Follows OCP - can be extended without modification.
     """
-    
+
     def __init__(self, config: OpenAIConfiguration):
         super().__init__(config)
         self._config = config
-    
+
     @property
     def provider_name(self) -> str:
         """Provider identifier."""
         return "openai"
-    
+
     def _initialize_provider(self) -> None:
         """Initialize OpenAI client."""
         try:
@@ -75,18 +75,18 @@ class OpenAISummaryProvider(BaseSummaryProvider):
             # Note: In production, you might want to make this optional
         except Exception as e:
             raise SummaryProviderError(f"Failed to initialize OpenAI provider: {e}") from e
-    
+
     async def _do_summarize(self, text: str) -> str:
         """Actual summarization implementation using OpenAI."""
         try:
             prompt = self._build_summarization_prompt(text)
-            
+
             response = await asyncio.to_thread(
                 openai.ChatCompletion.create,
                 model=self._config.model,
                 messages=[
                     {
-                        "role": "system", 
+                        "role": "system",
                         "content": "You are a helpful assistant that creates concise, accurate summaries."
                     },
                     {"role": "user", "content": prompt}
@@ -97,10 +97,10 @@ class OpenAISummaryProvider(BaseSummaryProvider):
                 frequency_penalty=0.0,
                 presence_penalty=0.0
             )
-            
+
             summary = response.choices[0].message.content.strip()
             return summary
-            
+
         except openai.error.RateLimitError as e:
             raise SummaryProviderError("OpenAI rate limit exceeded") from e
         except openai.error.InvalidRequestError as e:
@@ -109,7 +109,7 @@ class OpenAISummaryProvider(BaseSummaryProvider):
             raise SummaryProviderError("OpenAI authentication failed") from e
         except Exception as e:
             raise SummaryProviderError(f"OpenAI summarization failed: {e}") from e
-    
+
     def _build_summarization_prompt(self, text: str) -> str:
         """Build prompt for summarization."""
         return f"""Please provide a concise summary of the following text. 
@@ -119,26 +119,26 @@ and should capture the main points and key information:
 {text}
 
 Summary:"""
-    
+
     def _supports_chunking(self) -> bool:
         """Whether provider supports text chunking."""
         return True
-    
+
     def _supports_custom_length(self) -> bool:
         """Whether provider supports custom summary length."""
         return True
-    
+
     async def _preprocess_text(self, text: str) -> str:
         """Preprocess text for OpenAI."""
         # Clean and normalize text
         text = await super()._preprocess_text(text)
-        
+
         # Remove excessive whitespace and normalize
         text = " ".join(text.split())
-        
+
         # Escape any special characters if needed
         return text
-    
+
     async def _get_provider_specific_capabilities(self) -> Dict[str, Any]:
         """Get OpenAI-specific capabilities."""
         return {
@@ -148,7 +148,7 @@ Summary:"""
             "supports_system_prompts": True,
             "max_context_length": self._get_model_context_length()
         }
-    
+
     def _get_model_context_length(self) -> int:
         """Get context length for the model."""
         model_limits = {
@@ -160,7 +160,7 @@ Summary:"""
             "text-davinci-002": 4097
         }
         return model_limits.get(self._config.model, 4096)
-    
+
     async def _handle_summarization_error(self, text: str, error: Exception) -> None:
         """Handle OpenAI-specific errors."""
         if isinstance(error, openai.error.RateLimitError):

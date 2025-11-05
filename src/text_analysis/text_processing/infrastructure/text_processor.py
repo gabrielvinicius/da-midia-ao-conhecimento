@@ -1,8 +1,7 @@
+"""Concrete implementation of ITextProcessor for text processing operations.
 """
-Concrete implementation of ITextProcessor for text processing operations.
-"""
-from typing import Dict, Any, Optional
-import structlog
+from typing import Any, Dict, Optional
+
 
 class TextProcessor:
     """Concrete implementation for text processing."""

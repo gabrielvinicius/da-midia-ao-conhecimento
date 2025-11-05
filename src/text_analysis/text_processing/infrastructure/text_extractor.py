@@ -4,11 +4,11 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Any, Optional, Protocol
+from typing import Any, Dict, Optional, Protocol
 
 import structlog
 
-from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
+from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 logger = structlog.get_logger(__name__)
 
@@ -20,20 +20,29 @@ class TextExtractor:
         self,
         basic_extraction_pipeline: ProcessingPipeline,
         advanced_extraction_pipeline: ProcessingPipeline,
-        s3_storage_service: S3StorageService,
+        storage_factory: StorageServiceFactory,
+        default_storage_provider: str = "local",
     ) -> None:
         self.basic_extraction_pipeline = basic_extraction_pipeline
         self.advanced_extraction_pipeline = advanced_extraction_pipeline
-        self.s3_storage_service = s3_storage_service
+        self._storage_factory = storage_factory
+        self._default_storage_provider = default_storage_provider
 
-    async def extract_text(self, file_path: str, extraction_method: str) -> str:
+    async def extract_text(
+        self,
+        file_path: str,
+        extraction_method: str,
+        *,
+        storage_provider: Optional[str] = None,
+    ) -> str:
         logger.info(
             "text_extractor.extracting_text",
             file_path=file_path,
             extraction_method=extraction_method,
         )
 
-        file_data = await self._download_file(file_path)
+        provider = storage_provider or self._default_storage_provider
+        file_data = await self._download_file(file_path, provider)
         file_type = self._infer_file_type(file_path)
         pipeline_to_use = self._select_pipeline(extraction_method, file_type)
 
@@ -60,9 +69,10 @@ class TextExtractor:
         )
         raise RuntimeError(f"Text extraction failed: {context.errors}")
 
-    async def _download_file(self, file_path: str) -> bytes:
+    async def _download_file(self, file_path: str, provider: str) -> bytes:
         try:
-            return await self.s3_storage_service.download_file(file_path)
+            storage_client = self._storage_factory.get_download_service(provider)
+            return await storage_client.download_file(file_path)
         except Exception as exc:
             logger.error(
                 "text_extractor.download_failed",

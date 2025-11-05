@@ -1,19 +1,18 @@
 # src/shared/exceptions/domain_exceptions.py
-"""
-Sistema centralizado de exceções de domínio para a aplicação.
+"""Sistema centralizado de exceções de domínio para a aplicação.
 Fornece hierarquia clara de erros e tratamento padronizado.
 """
 
-from typing import Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, Optional
 
 
 class DomainException(Exception):
     """Exceção base para todos os erros de domínio da aplicação."""
-    
+
     def __init__(
-        self, 
-        message: str, 
+        self,
+        message: str,
         error_code: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None
     ):
@@ -22,7 +21,7 @@ class DomainException(Exception):
         self.details = details or {}
         self.timestamp = datetime.utcnow().isoformat()
         super().__init__(message)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Converte a exceção para um dicionário para serialização."""
         return {
@@ -37,7 +36,7 @@ class DomainException(Exception):
 
 class ValidationError(DomainException):
     """Erro de validação de dados de entrada."""
-    
+
     def __init__(self, field: str, value: Any, reason: str):
         super().__init__(
             f"Validation failed for field '{field}': {reason}",
@@ -48,7 +47,7 @@ class ValidationError(DomainException):
 
 class BusinessRuleViolationError(DomainException):
     """Violação de regra de negócio."""
-    
+
     def __init__(self, rule: str, context: Optional[Dict[str, Any]] = None):
         super().__init__(
             f"Business rule violation: {rule}",
@@ -61,7 +60,7 @@ class BusinessRuleViolationError(DomainException):
 
 class ResourceNotFoundError(DomainException):
     """Recurso não encontrado."""
-    
+
     def __init__(self, resource_type: str, resource_id: str):
         super().__init__(
             f"{resource_type} with ID '{resource_id}' not found",
@@ -72,7 +71,7 @@ class ResourceNotFoundError(DomainException):
 
 class ResourceAlreadyExistsError(DomainException):
     """Recurso já existe."""
-    
+
     def __init__(self, resource_type: str, identifier: str):
         super().__init__(
             f"{resource_type} with identifier '{identifier}' already exists",
@@ -85,7 +84,7 @@ class ResourceAlreadyExistsError(DomainException):
 
 class AuthenticationError(DomainException):
     """Erro de autenticação."""
-    
+
     def __init__(self, reason: str = "Invalid credentials"):
         super().__init__(
             f"Authentication failed: {reason}",
@@ -96,12 +95,12 @@ class AuthenticationError(DomainException):
 
 class AuthorizationError(DomainException):
     """Erro de autorização."""
-    
+
     def __init__(self, action: str, resource: Optional[str] = None):
         message = f"Not authorized to perform action: {action}"
         if resource:
             message += f" on resource: {resource}"
-            
+
         super().__init__(
             message,
             error_code="AUTHORIZATION_ERROR",
@@ -113,7 +112,7 @@ class AuthorizationError(DomainException):
 
 class MediaNotFoundError(ResourceNotFoundError):
     """Mídia não encontrada."""
-    
+
     def __init__(self, media_id: str):
         super().__init__("Media", media_id)
 
@@ -147,7 +146,7 @@ class ProcessingError(DomainException):
 
 class UnsupportedMediaTypeError(DomainException):
     """Tipo de mídia não suportado."""
-    
+
     def __init__(self, media_type: str, supported_types: list):
         super().__init__(
             f"Media type '{media_type}' is not supported. Supported types: {', '.join(supported_types)}",
@@ -163,7 +162,7 @@ class UnsupportedMediaTypeError(DomainException):
 
 class ExternalServiceError(DomainException):
     """Erro em serviço externo."""
-    
+
     def __init__(self, service_name: str, operation: str, reason: str):
         super().__init__(
             f"External service '{service_name}' failed during '{operation}': {reason}",
@@ -178,7 +177,7 @@ class ExternalServiceError(DomainException):
 
 class ConfigurationError(DomainException):
     """Erro de configuração."""
-    
+
     def __init__(self, setting: str, reason: str):
         super().__init__(
             f"Configuration error for setting '{setting}': {reason}",
@@ -191,7 +190,7 @@ class ConfigurationError(DomainException):
 
 class RateLimitExceededError(DomainException):
     """Rate limit excedido."""
-    
+
     def __init__(self, resource: str, limit: int, window: str):
         super().__init__(
             f"Rate limit exceeded for '{resource}': {limit} requests per {window}",
@@ -208,7 +207,7 @@ class RateLimitExceededError(DomainException):
 
 class StorageError(DomainException):
     """Erro de storage."""
-    
+
     def __init__(self, operation: str, reason: str, file_path: Optional[str] = None):
         super().__init__(
             f"Storage operation '{operation}' failed: {reason}",

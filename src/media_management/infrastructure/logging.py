@@ -1,22 +1,22 @@
 # src/media_management/infrastructure/logging.py
-import structlog
 from typing import Optional
-from datetime import datetime
-from uuid import UUID
+
+import structlog
+
+from src.shared.utils.time_utils import utcnow
 
 
 class StructuredMediaLogger:
-    """
-    Structured logging implementation for media management operations.
+    """Structured logging implementation for media management operations.
     Follows SRP - only responsible for logging.
     """
-    
+
     def __init__(self, logger_name: str = "media_management"):
         self._logger = structlog.get_logger(logger_name)
-    
+
     async def log_operation(
-        self, 
-        operation: str, 
+        self,
+        operation: str,
         media_id: str,
         user_id: str,
         success: bool,
@@ -30,15 +30,15 @@ class StructuredMediaLogger:
             "user_id": user_id,
             "success": success,
             "duration_seconds": duration,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": utcnow().isoformat()
         }
-        
+
         if error:
             log_data.update({
                 "error_type": type(error).__name__,
                 "error_message": str(error)
             })
-        
+
         if success:
             self._logger.info(
                 f"Media management operation {operation} completed successfully",
@@ -52,14 +52,13 @@ class StructuredMediaLogger:
 
 
 class NoOpMediaLogger:
-    """
-    No-operation logger for testing or when logging is disabled.
+    """No-operation logger for testing or when logging is disabled.
     Follows Null Object pattern.
     """
-    
+
     async def log_operation(
-        self, 
-        operation: str, 
+        self,
+        operation: str,
         media_id: str,
         user_id: str,
         success: bool,

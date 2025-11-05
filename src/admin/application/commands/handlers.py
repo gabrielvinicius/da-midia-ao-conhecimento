@@ -1,19 +1,20 @@
+"""Admin Command Handlers - Pure execution logic following Command Pattern
 """
-Admin Command Handlers - Pure execution logic following Command Pattern
-"""
-import structlog
-from typing import Dict, Any
+from typing import Any, Dict
 
-from src.media_management.infrastructure.media_repository import MediaRepository
+import structlog
+from src.user_management.application.queries.user_queries import UserQueries
+
 from src.media_management.application.queries.media_queries import MediaQueries
+from src.media_management.infrastructure.media_repository import MediaRepository
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.user_management.infrastructure.user_repository import UserRepository
-from src.user_management.application.queries.user_queries import UserQueries
+
 from .commands import (
     DeleteMediaCommand,
     DeleteUserCommand,
     ReprocessMediaCommand,
-    UpdateUserRoleCommand
+    UpdateUserRoleCommand,
 )
 
 logger = structlog.get_logger(__name__)
@@ -21,7 +22,7 @@ logger = structlog.get_logger(__name__)
 
 class DeleteMediaCommandHandler:
     """Handler for delete media command"""
-    
+
     def __init__(
         self,
         media_repository: MediaRepository,
@@ -50,7 +51,7 @@ class DeleteMediaCommandHandler:
         success = await self.media_repository.delete(command.media_id)
         if not success:
             raise ValueError("Media record could not be deleted.")
-            
+
         return {
             "success": True,
             "media_id": str(command.media_id),
@@ -61,7 +62,7 @@ class DeleteMediaCommandHandler:
 
 class DeleteUserCommandHandler:
     """Handler for delete user command"""
-    
+
     def __init__(
         self,
         user_repository: UserRepository,
@@ -79,12 +80,12 @@ class DeleteUserCommandHandler:
         success = await self.user_repository.delete(command.user_id)
         if not success:
             raise ValueError("User could not be deleted.")
-            
-        logger.info("admin.user.deleted", 
+
+        logger.info("admin.user.deleted",
                    user_id=str(command.user_id),
                    admin_user_id=str(command.admin_user_id),
                    reason=command.reason)
-            
+
         return {
             "success": True,
             "user_id": str(command.user_id),
@@ -95,7 +96,7 @@ class DeleteUserCommandHandler:
 
 class ReprocessMediaCommandHandler:
     """Handler for reprocess media command"""
-    
+
     def __init__(
         self,
         media_repository: MediaRepository,
@@ -111,15 +112,15 @@ class ReprocessMediaCommandHandler:
             raise ValueError("Media not found.")
 
         updated_media = await self.media_repository.update_status(
-            command.media_id, 
+            command.media_id,
             "processing"
         )
-        
-        logger.info("admin.media.reprocess_triggered", 
+
+        logger.info("admin.media.reprocess_triggered",
                    media_id=str(command.media_id),
                    admin_user_id=str(command.admin_user_id),
                    force=command.force)
-            
+
         return {
             "success": True,
             "media_id": str(command.media_id),
@@ -131,7 +132,7 @@ class ReprocessMediaCommandHandler:
 
 class UpdateUserRoleCommandHandler:
     """Handler for update user role command"""
-    
+
     def __init__(
         self,
         user_repository: UserRepository,
@@ -147,17 +148,17 @@ class UpdateUserRoleCommandHandler:
             raise ValueError("User not found.")
 
         updated_user = await self.user_repository.update_role(
-            command.user_id, 
+            command.user_id,
             command.new_role
         )
-        
-        logger.info("admin.user.role_updated", 
+
+        logger.info("admin.user.role_updated",
                    user_id=str(command.user_id),
                    old_role=user.role,
                    new_role=command.new_role,
                    admin_user_id=str(command.admin_user_id),
                    reason=command.reason)
-            
+
         return {
             "success": True,
             "user_id": str(command.user_id),

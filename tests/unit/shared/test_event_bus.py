@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.shared.events.domain_events import MediaUploaded
 from src.shared.events.async_queue_publisher import AsyncQueueBrokerPublisher
+from src.shared.events.domain_events import MediaUploaded
 from src.shared.events.event_bus import EventBus, create_inmemory_event_bus
 from src.shared.events.event_publisher import EventPublisher
 from src.shared.events.subscription_manager import SubscriptionManager

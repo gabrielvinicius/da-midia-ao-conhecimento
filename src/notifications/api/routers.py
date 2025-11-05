@@ -1,14 +1,14 @@
 # src/notifications/api/routers.py
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.user_management.domain.user import User, UserRole
+from src.notifications.domain.notification import NotificationPriority, NotificationType
 from src.shared.api.dependencies import get_current_user
+from src.user_management.domain.user import User, UserRole
 
-from .dependencies import get_notification_service, get_notification_queries
 from ..application.queries.notification_queries import NotificationQueries
 from ..application.services.notification_service import NotificationService
-from .schemas import NotificationResponse, NotificationRequest
-from src.notifications.domain.notification import NotificationType, NotificationPriority
+from .dependencies import get_notification_queries, get_notification_service
+from .schemas import NotificationRequest, NotificationResponse
 
 # --- Router Definition ---
 

@@ -1,7 +1,11 @@
-from typing import Dict, Any
+from typing import Any, Dict
+
 import structlog
 
-from src.monitoring.domain.interfaces import IMetricsProvider, IAnalyticsRepository, TimeRange, ProcessingType
+from src.monitoring.domain.interfaces import (
+    IAnalyticsRepository,
+    IMetricsProvider,
+)
 
 logger = structlog.get_logger(__name__)
 

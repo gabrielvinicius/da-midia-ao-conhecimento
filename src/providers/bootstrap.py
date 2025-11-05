@@ -1,5 +1,6 @@
 # src/providers/bootstrap.py
 from dataclasses import dataclass
+
 from dependency_injector import containers, providers
 
 from src.providers.domain.interfaces import IProviderRegistry

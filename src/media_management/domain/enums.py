@@ -1,6 +1,7 @@
 # src/media_management/domain/enums.py
 from enum import Enum
 
+
 class MediaType(str, Enum):
     VIDEO = "VIDEO"
     AUDIO = "AUDIO"

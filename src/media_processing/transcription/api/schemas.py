@@ -1,13 +1,15 @@
 # src/transcription/api/schemas.py
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.media_processing.transcription.domain.transcription import TranscriptionStatus
 
 
 class TranscriptionResponse(BaseModel):
     """Response schema for a transcription."""
+
     id: UUID
     media_id: UUID
     status: TranscriptionStatus
@@ -24,4 +26,5 @@ class TranscriptionResponse(BaseModel):
 
 class SpeakerAliasesUpdateRequest(BaseModel):
     """Request schema for updating speaker aliases."""
+
     aliases: Dict[str, str] = Field(..., description="Dictionary of speaker aliases (e.g., {'speaker_0': 'John Doe'})")

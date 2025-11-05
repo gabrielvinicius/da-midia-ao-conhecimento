@@ -80,7 +80,6 @@ class MediaAggregate:
         media_id: Optional[UUIDLike] = None,
     ) -> "MediaAggregate":
         """Factory helper that normalises defaults for new media."""
-
         return cls(
             id=_coerce_uuid(media_id) if media_id else uuid4(),
             user_id=_coerce_uuid(user_id),
@@ -137,7 +136,6 @@ class MediaAggregate:
         summarization_provider: Optional[str] = None,
     ) -> "MediaAggregate":
         """Return a copy with the provided fields replaced."""
-
         updates: dict[str, object] = {}
         if original_file_path is not None:
             updates["original_file_path"] = original_file_path

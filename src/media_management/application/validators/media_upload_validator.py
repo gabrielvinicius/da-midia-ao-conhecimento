@@ -11,7 +11,6 @@ class MediaUploadValidator:
 
     def validate(self, file_content: bytes, filename: str) -> None:
         """Validate that the file content and name respect the constraints."""
-
         if not file_content:
             raise ValueError("File content is empty")
 

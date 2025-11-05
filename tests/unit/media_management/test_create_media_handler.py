@@ -13,8 +13,12 @@ from src.media_management.application.commands.components.storage_uploader impor
 from src.media_management.application.commands.components.upload_metadata_mapper import (
     UploadMetadata,
 )
-from src.media_management.application.commands.create_media_command import CreateMediaCommand
-from src.media_management.application.commands.create_media_command_handler import CreateMediaCommandHandler
+from src.media_management.application.commands.create_media_command import (
+    CreateMediaCommand,
+)
+from src.media_management.application.commands.create_media_command_handler import (
+    CreateMediaCommandHandler,
+)
 from src.media_management.domain.media import Media, MediaStatus, MediaType
 from src.shared.exceptions.domain_exceptions import StorageError, ValidationError
 
@@ -89,7 +93,6 @@ class TestCreateMediaCommandHandler:
         test_data_factory,
     ):
         """Successful flow validates input and triggers all collaborators."""
-
         expected_media = test_data_factory.create_video_media(
             user_id=valid_video_command.user_id,
             filename=valid_video_command.filename,
@@ -120,7 +123,6 @@ class TestCreateMediaCommandHandler:
         test_data_factory,
     ):
         """Metrics publisher receives the saved media and file size."""
-
         expected_media = test_data_factory.create_audio_media(
             user_id=valid_audio_command.user_id,
             filename=valid_audio_command.filename,

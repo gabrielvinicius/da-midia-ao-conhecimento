@@ -7,7 +7,6 @@ import re
 from dataclasses import dataclass
 from typing import Dict, Iterable, Optional
 
-
 Sentence = str
 
 

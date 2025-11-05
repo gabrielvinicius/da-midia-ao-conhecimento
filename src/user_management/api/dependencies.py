@@ -3,11 +3,11 @@ from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends
-from src.user_management.config.settings import AuthSettings
 
-from src.user_management.application.queries.auth_queries import AuthQueries
 from src.user_management.application.auth_service import AuthService
+from src.user_management.application.queries.auth_queries import AuthQueries
 from src.user_management.application.user_service import UserService
+from src.user_management.config.settings import AuthSettings
 
 
 class AuthDependenciesNotConfigured(RuntimeError):
@@ -26,7 +26,6 @@ class AuthDependencies:
 
 def get_auth_dependencies() -> AuthDependencies:
     """Base provider to be overridden during application startup."""
-
     raise AuthDependenciesNotConfigured(
         "Auth dependencies are not configured. Register providers in the lifespan handler."
     )

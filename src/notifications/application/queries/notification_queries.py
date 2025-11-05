@@ -1,8 +1,10 @@
 # src/notifications/application/queries/notification_queries.py
-from typing import Optional, List
+from typing import List, Optional
 
 from src.notifications.domain.notification import Notification
-from src.notifications.infrastructure.notification_repository import NotificationRepository
+from src.notifications.infrastructure.notification_repository import (
+    NotificationRepository,
+)
 
 
 class NotificationQueries:

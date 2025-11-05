@@ -79,7 +79,6 @@ class EventBus:
 
 def create_inmemory_event_bus() -> EventBus:
     """Factory that returns a fully wired in-memory event bus instance."""
-
     return EventBus(
         publisher=AsyncQueueBrokerPublisher(),
         subscription_manager=SubscriptionManager(),

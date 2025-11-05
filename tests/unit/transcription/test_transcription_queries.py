@@ -1,9 +1,12 @@
 # tests/unit/transcription/test_transcription_queries.py
-import pytest
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from src.media_processing.transcription.application.queries.transcription_queries import TranscriptionQueries
+import pytest
+
+from src.media_processing.transcription.application.queries.transcription_queries import (
+    TranscriptionQueries,
+)
 from src.media_processing.transcription.domain.transcription import Transcription
 
 

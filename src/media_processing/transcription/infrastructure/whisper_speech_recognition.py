@@ -1,17 +1,18 @@
 # src/transcription/infrastructure/whisper_speech_recognition.py
+import io
+import logging
 import os
 import tempfile
-
-import whisper
-import numpy as np
 from typing import Optional
+
 import av
-import io
+import numpy as np
 import resampy
-import logging
+import whisper
 
-
-from src.media_processing.transcription.infrastructure.dependencies import register_speech_recognition
+from src.media_processing.transcription.infrastructure.dependencies import (
+    register_speech_recognition,
+)
 
 logger = logging.getLogger(__name__)
 

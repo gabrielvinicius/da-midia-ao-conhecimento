@@ -1,5 +1,5 @@
 # tests/mocks/in_memory_video_repository.py
-from typing import Dict, Optional, List
+from typing import Dict, Optional
 from uuid import UUID
 
 from src.video_management.domain.video import Video

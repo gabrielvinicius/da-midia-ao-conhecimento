@@ -1,25 +1,18 @@
-import os
-from logging.config import fileConfig
-from dotenv import load_dotenv
-
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
 import asyncio
+from logging.config import fileConfig
+
+from dotenv import load_dotenv
+from sqlalchemy import engine_from_config, pool
 from sqlalchemy.ext.asyncio import AsyncEngine
-from src.shared.infrastructure.database import settings
 
 from alembic import context
-from src.shared.infrastructure.database import Base  # Importar a Base
 
 # ---------- Importe todos os modelos aqui ----------
 # Import all models to ensure they are registered with SQLAlchemy
-from src.user_management.domain.user import User
-from src.media_management.infrastructure.orm.media_entity import MediaEntity
-from src.notifications.domain.notification import Notification
-from src.text_analysis.summarization.infrastructure.orm.summary_entity import SummaryEntity
-from src.transcription.domain.transcription import Transcription
-from src.text_analysis.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysisResult
-from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult
+from src.shared.infrastructure.database import (
+    Base,  # Importar a Base
+    settings,
+)
 
 # ---------------------------------------------------
 

@@ -2,9 +2,10 @@ import os
 from logging.config import fileConfig
 from urllib.parse import quote_plus  # Import para tratamento de senhas especiais
 
-from alembic import context
 from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
+
+from alembic import context
 
 # Carrega variáveis do .env
 load_dotenv(dotenv_path='.env')  # Ajuste o caminho se necessário

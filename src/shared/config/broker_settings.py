@@ -20,7 +20,6 @@ class BrokerSettings:
 @lru_cache(maxsize=1)
 def get_broker_settings() -> BrokerSettings:
     """Cached accessor for BrokerSettings."""
-
     return BrokerSettings()
 
 

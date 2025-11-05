@@ -2,20 +2,23 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
+import pytest
+
+from src.media_processing.transcription.domain.transcription import TranscriptionStatus
+from src.shared.events.domain_events import SentimentAnalysisCompleted
+from src.shared.exceptions.domain_exceptions import ValidationError
 from src.text_analysis.sentiment_analysis.application.commands.analyze_sentiment_command import (
     AnalyzeSentimentCommand,
 )
 from src.text_analysis.sentiment_analysis.application.commands.analyze_sentiment_command_handler import (
     AnalyzeSentimentCommandHandler,
 )
-from src.text_analysis.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysis
-from src.media_processing.transcription.domain.transcription import TranscriptionStatus
-from src.shared.exceptions.domain_exceptions import ValidationError
-from src.shared.events.domain_events import SentimentAnalysisCompleted
+from src.text_analysis.sentiment_analysis.domain.sentiment_analysis import (
+    SentimentAnalysis,
+)
 
 
 def _build_handler(

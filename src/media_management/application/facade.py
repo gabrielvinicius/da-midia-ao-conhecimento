@@ -9,7 +9,14 @@ from uuid import UUID
 
 import structlog
 
-from src.user_management.domain.user import User
+from src.media_management.application.commands.commands import (
+    DeleteMediaCommand,
+    ReprocessMediaCommand,
+)
+from src.media_management.application.commands.handlers import (
+    DeleteMediaCommandHandler,
+    ReprocessMediaCommandHandler,
+)
 from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.application.services import (
@@ -19,16 +26,9 @@ from src.media_management.application.services import (
 )
 from src.media_management.domain.enums import MediaStatus
 from src.media_management.domain.media import Media
-from src.media_management.application.commands.commands import (
-    DeleteMediaCommand,
-    ReprocessMediaCommand,
-)
-from src.media_management.application.commands.handlers import (
-    DeleteMediaCommandHandler,
-    ReprocessMediaCommandHandler,
-)
 from src.shared.events.bus import SupportsEventBus
 from src.shared.events.domain_events import MediaDeleted, MediaReprocessRequested
+from src.user_management.domain.user import User
 
 logger = structlog.get_logger(__name__)
 
@@ -49,7 +49,6 @@ class MediaManagementFacade:
 
     async def _publish_event(self, event) -> None:
         """Safely publish domain events without breaking the request flow."""
-
         if self.event_bus is None:
             return
         try:
@@ -63,7 +62,6 @@ class MediaManagementFacade:
 
     def _resolve_storage_root(self, provider: str) -> Optional[Path]:
         """Resolve the filesystem root for the given storage provider."""
-
         if self.storage_factory is None:
             return None
 
@@ -86,7 +84,6 @@ class MediaManagementFacade:
     @staticmethod
     def _normalise_media_path(raw_path: str, base_dir: Path) -> Optional[Path]:
         """Convert a stored media path to an absolute filesystem Path under base_dir."""
-
         if not raw_path:
             return None
 
@@ -126,7 +123,6 @@ class MediaManagementFacade:
     @staticmethod
     def _gather_media_files(base_dir: Path) -> List[Path]:
         """Return all files located under the given media base directory."""
-
         if not base_dir.exists():
             return []
 
@@ -139,7 +135,6 @@ class MediaManagementFacade:
     @staticmethod
     def _prune_empty_directories(directories: Set[Path], stop_at: Path) -> None:
         """Remove empty directories left after deleting orphan files."""
-
         for directory in sorted(directories, key=lambda p: len(p.parts), reverse=True):
             if directory == stop_at:
                 continue
@@ -165,7 +160,6 @@ class MediaManagementFacade:
         known_files: Set[Path],
     ) -> int:
         """Delete orphaned files from the provider media directory."""
-
         media_files = await asyncio.to_thread(self._gather_media_files, base_dir)
         if not media_files:
             return 0

@@ -1,8 +1,9 @@
 # tests/e2e/conftest.py
-import pytest
-import requests
 import time
 from uuid import uuid4
+
+import pytest
+import requests
 
 # The base URL for the API service as defined in docker-compose.test.yml
 BASE_URL = "http://api:8000"

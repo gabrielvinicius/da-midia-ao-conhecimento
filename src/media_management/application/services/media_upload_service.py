@@ -1,9 +1,11 @@
 """Service responsible for orchestrating media upload flows."""
 
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
-from src.media_management.application.commands.create_media_command import CreateMediaCommand
+from src.media_management.application.commands.create_media_command import (
+    CreateMediaCommand,
+)
 from src.media_management.application.commands.create_media_command_handler import (
     CreateMediaCommandHandler,
 )
@@ -32,7 +34,6 @@ class MediaUploadService:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Validate input and dispatch the create media command."""
-
         self._upload_validator.validate(file_content, filename)
 
         command = CreateMediaCommand(

@@ -1,6 +1,7 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
+
+import pytest
 
 from src.media_processing.application.services import MediaProcessingService
 from src.shared.events.domain_events import MediaUploaded, TextContentReady
@@ -67,18 +68,21 @@ async def test_handle_media_uploaded_enqueues_tasks(processing_service, monkeypa
         },
     )
 
-    transcription_delay.assert_called_once_with(
-        media_id=event.media_id,
-        file_path="/path/to/media.mp4",
-        storage_provider="local",
-        transcription_provider="whisper",
-        language="pt",
-    )
-    video_delay.assert_called_once_with(
-        media_id=event.media_id,
-        file_path="/path/to/media.mp4",
-        storage_provider="local",
-    )
+    transcription_delay.assert_called_once()
+    transcription_kwargs = transcription_delay.call_args.kwargs
+    assert transcription_kwargs["media_id"] == event.media_id
+    assert transcription_kwargs["file_path"] == "/path/to/media.mp4"
+    assert transcription_kwargs["storage_provider"] == "local"
+    assert transcription_kwargs["transcription_provider"] == "whisper"
+    assert transcription_kwargs["language"] == "pt"
+    assert transcription_kwargs["file_size_bytes"] == 12345
+
+    video_delay.assert_called_once()
+    video_kwargs = video_delay.call_args.kwargs
+    assert video_kwargs["media_id"] == event.media_id
+    assert video_kwargs["file_path"] == "/path/to/media.mp4"
+    assert video_kwargs["storage_provider"] == "local"
+    assert video_kwargs["file_size_bytes"] == 12345
     transcription_service.request_transcription_generation.assert_not_called()
     video_service.request_video_processing.assert_not_called()
 

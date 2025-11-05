@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class AnalyticsSettings(BaseSettings):
     default_transcription_factor: float = 0.1
     default_summarization_seconds: float = 60.0

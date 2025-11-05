@@ -1,7 +1,9 @@
 # src/notifications/api/schemas.py
 from typing import Optional
 from uuid import UUID
+
 from pydantic import BaseModel
+
 from src.notifications.domain.notification import NotificationType
 
 

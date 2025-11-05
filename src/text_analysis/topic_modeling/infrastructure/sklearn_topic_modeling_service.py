@@ -1,11 +1,12 @@
 # src/topic_modeling/infrastructure/sklearn_topic_modeling_service.py
-import structlog
 from typing import List
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.decomposition import LatentDirichletAllocation
 
-from .interfaces import ITopicModelingService
+import structlog
+from sklearn.decomposition import LatentDirichletAllocation
+from sklearn.feature_extraction.text import TfidfVectorizer
+
 from .dependencies import register_topic_modeling
+from .interfaces import ITopicModelingService
 
 logger = structlog.get_logger(__name__)
 
@@ -36,15 +37,15 @@ class SklearnTopicModelingService(ITopicModelingService):
 
             docs = [text]
             X = vectorizer.fit_transform(docs)
-            
+
             lda.fit(X)
-            
+
             feature_names = vectorizer.get_feature_names_out()
             topics = []
             for topic_idx, topic in enumerate(lda.components_):
                 top_words = [feature_names[i] for i in topic.argsort()[:-num_words - 1:-1]]
                 topics.append(f"Topic #{topic_idx+1}: {', '.join(top_words)}")
-            
+
             return topics
         except Exception as e:
             logger.error("topic_modeling.process.failed", error=str(e))

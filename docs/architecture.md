@@ -130,15 +130,21 @@ aplicação de rate limiting.
 - `admin`: a fachada continua ativa, porém ainda coexistem caminhos alternativos em módulos herdados. A limpeza final depende da conclusão das etapas acima.
 
 ### Event bus + Celery
-- O `InMemoryEventBus` segue registrado em `main.py` com handlers reais para `MediaUploaded`, `TextContentReady` e `NotificationRequested`. As tasks Celery ainda carregam lógica de domínio; o objetivo da próxima fase é restringi-las a trabalho pesado (I/O) conforme boas práticas oficiais (`/celery/celery`). citecontext7/celery
+- O `InMemoryEventBus` segue registrado em `main.py` com handlers reais para `MediaUploaded`, `TextContentReady` e `NotificationRequested`. As tasks Celery agora atuam como *wrappers* finos que apenas resolvem os serviços e delegam a execução para `TranscriptionService.process_transcription_job` e `VideoProcessingService.process_video_job`, concentrando a lógica de domínio nos serviços. A responsabilidade da próxima fase é seguir movendo qualquer regra residual dos workers legados até que restem somente operações pesadas (I/O) nas tasks, alinhado às boas práticas oficiais (`/celery/celery`). citecontext7/celery
 
 ### Organização FastAPI
 - `main.py` importa apenas routers consolidados (`auth`, `media`, `text_analysis`, `notifications`, `admin`, `monitoring`, `providers`), alinhado às recomendações do FastAPI para modularização. citecontext7/fastapi
+- `text_analysis.api.routers` agora expõe diretamente os fluxos de sumarização, sentimento e tópicos, consumindo os repositórios assíncronos e substituindo os módulos de router legados removidos nesta etapa. 【F:src/text_analysis/api/routers.py†L1-L513】
 - `StorageServiceFactory` já é importado de `src.storage.infrastructure.dependencies`, eliminando o `NameError` registrado no baseline anterior.
 
 ### Testes e observabilidade
 - `pytest`, `mypy` e `ruff` permanecem desabilitados neste branch. A reativação desses guardrails é requisito para encerrar a Fase 1.
 - Métricas Prometheus e spans OpenTelemetry ainda não refletem o novo fluxo híbrido; ajustes serão feitos após a consolidação dos handlers.
+- A padronização de timestamps iniciou pelos fluxos de transcrição (`datetime.now(datetime.UTC)`), eliminando `datetime.utcnow()` nas entidades e loggers críticos. Notificações, mídia e storage ainda utilizam a versão antiga e devem ser migrados na próxima rodada para manter consistência e evitar avisos de depreciação.
+- As filas Celery agora recebem payloads validados via modelos Pydantic, garantindo serialização consistente (UUIDs, providers, tamanhos) antes de enfileirar transcrição ou vídeo.
+- O pipeline de vídeo passou a resolver providers de storage dinamicamente através do `StorageServiceFactory` e a publicar métricas Prometheus dedicadas (`PrometheusVideoProcessingMetrics`), mantendo logs e métricas alinhados ao comportamento real do processamento.
+- O módulo de text processing reutiliza o mesmo factory de storage (local ou S3 stub) e valida payloads Celery com Pydantic antes de acionar extrações ou pipelines de texto.
+- Notificações também utilizam schemas Pydantic (`NotificationTaskPayload`) antes de enfileirar envios, reduzindo riscos de payloads inválidos e alinhando o orquestrador compartilhado ao novo padrão.
 
 ### Governança de PRs
 - Cada etapa Stage6 deve abrir PR incremental derivado de `refactor/admin-facade`, com checklist mínimo: testes (quando disponíveis), lint, documentação atualizada e plano de rollback.

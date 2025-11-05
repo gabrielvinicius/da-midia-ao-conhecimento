@@ -3,17 +3,26 @@ from dataclasses import dataclass
 
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.notifications.application.queries.notification_queries import (
+    NotificationQueries,
+)
+
+# Consolidated Service
+from src.notifications.application.services.notification_service import (
+    NotificationService,
+)
+from src.notifications.infrastructure.connection_manager import ConnectionManager
 from src.notifications.infrastructure.logging import StructuredNotificationLogger
 from src.notifications.infrastructure.metrics import PrometheusNotificationMetrics
 
+# Concrete Implementations
+from src.notifications.infrastructure.notification_repository import (
+    NotificationRepository,
+)
+
 # External Dependencies
 from src.user_management.application.queries.auth_queries import AuthQueries
-from src.notifications.application.queries.notification_queries import NotificationQueries
-# Consolidated Service
-from src.notifications.application.services.notification_service import NotificationService
-from src.notifications.infrastructure.connection_manager import ConnectionManager
-# Concrete Implementations
-from src.notifications.infrastructure.notification_repository import NotificationRepository
 
 
 class NotificationContainer(containers.DeclarativeContainer):

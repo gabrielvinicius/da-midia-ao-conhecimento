@@ -1,30 +1,27 @@
-"""
-Monitoring API Router - Exposes monitoring endpoints
+"""Monitoring API Router - Exposes monitoring endpoints
 Follows SOLID principles with dependency injection.
 """
-from fastapi import APIRouter, Depends, Query, HTTPException, status, Response
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
-from typing import Optional
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+from src.monitoring.domain.interfaces import TimeRange
 from src.shared.api.dependencies import get_current_user
 from src.user_management.domain.user import User
-from src.monitoring.domain.interfaces import TimeRange, ProcessingType
-from .dependencies import (
-    get_analytics_queries, 
-    get_metrics_service
-)
+
+from .dependencies import get_analytics_queries, get_metrics_service
 from .schemas import (
+    BusinessKPIsResponse,
+    CreateCustomMetricRequest,
+    HealthCheckResponse,
+    MetricsSummaryResponse,
+    PerformanceSummaryResponse,
     ProcessingTimeEstimateRequest,
     ProcessingTimeEstimateResponse,
-    SystemPerformanceResponse,
     ProcessingTrendsResponse,
+    SystemPerformanceResponse,
     UserAnalyticsResponse,
-    MetricsSummaryResponse,
-    BusinessKPIsResponse,
-    PerformanceSummaryResponse,
-    HealthCheckResponse,
-    CreateCustomMetricRequest
 )
 
 router = APIRouter(
@@ -87,7 +84,7 @@ async def get_user_analytics(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only view your own analytics"
         )
-    
+
     try:
         result = await analytics_queries.get_user_analytics(user_id)
         return UserAnalyticsResponse(**result)
@@ -127,13 +124,13 @@ async def get_comprehensive_analytics_report(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
-    
+
     try:
         # Gather comprehensive analytics data
         system_performance = await analytics_queries.get_system_performance_metrics(time_range)
         metrics_summary = metrics_service.get_metrics_summary()
         health_check = metrics_service.health_check()
-        
+
         return {
             "report_type": "comprehensive_analytics",
             "time_range": time_range.value,
@@ -148,8 +145,7 @@ async def get_comprehensive_analytics_report(
 # Core metrics endpoints
 @router.get("/prometheus", summary="Get Prometheus metrics")
 async def get_prometheus_metrics():
-    """
-    Endpoint to expose metrics in Prometheus format.
+    """Endpoint to expose metrics in Prometheus format.
     """
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
@@ -192,7 +188,7 @@ async def get_business_kpis(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required to view business metrics"
         )
-    
+
     try:
         # Assuming MetricsService has a method to get business KPIs
         kpis = metrics_service.get_business_kpis() # This method needs to be implemented in MetricsService
@@ -293,7 +289,7 @@ async def track_system_resource(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required to track system resources"
         )
-    
+
     try:
         metrics_service.track_system_resource(resource, usage, unit)
         return {"message": "System resource usage tracked successfully"}
@@ -314,7 +310,7 @@ async def create_custom_metric(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required to create custom metrics"
         )
-    
+
     try:
         metrics_service.create_custom_metric(
             request.name,

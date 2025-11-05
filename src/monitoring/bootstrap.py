@@ -1,14 +1,18 @@
 from dataclasses import dataclass
+
 from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.monitoring.domain.interfaces import IAnalyticsRepository, IMetricsProvider, IAnalyticsQueries
-from src.monitoring.infrastructure.analytics_repository import AnalyticsRepository
-from src.monitoring.infrastructure.prometheus_provider import PrometheusMetricsProvider
 from src.monitoring.application.analytics_queries import AnalyticsQueries
 from src.monitoring.application.metrics_service import MetricsService
-
 from src.monitoring.config.settings import AnalyticsSettings
+from src.monitoring.domain.interfaces import (
+    IAnalyticsQueries,
+    IAnalyticsRepository,
+    IMetricsProvider,
+)
+from src.monitoring.infrastructure.analytics_repository import AnalyticsRepository
+from src.monitoring.infrastructure.prometheus_provider import PrometheusMetricsProvider
 
 
 class MonitoringContainer(containers.DeclarativeContainer):

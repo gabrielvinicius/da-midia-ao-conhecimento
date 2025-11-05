@@ -1,12 +1,18 @@
 """Application service that orchestrates media processing workflows."""
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, Optional
 from uuid import UUID
-import time
 
 import structlog
+from pydantic import ValidationError
 
+from src.media_processing.application.schemas import (
+    TranscriptionTaskPayload,
+    VideoTaskPayload,
+)
+from src.media_processing.tasks import process_transcription_task, process_video_task
 from src.media_processing.transcription.application.queries.transcription_queries import (
     TranscriptionQueries,
 )
@@ -16,7 +22,6 @@ from src.media_processing.transcription.application.transcription_service import
 from src.media_processing.video_processing.application.video_processing_service import (
     VideoProcessingService,
 )
-from src.media_processing.tasks import process_transcription_task, process_video_task
 from src.shared.events.domain_events import MediaUploaded, TextContentReady
 
 
@@ -53,7 +58,6 @@ class MediaProcessingService:
         metrics_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Schedule transcription generation using the consolidated service."""
-
         start_time = time.monotonic()
         success = False
         try:
@@ -86,12 +90,10 @@ class MediaProcessingService:
 
     async def get_transcription_by_media(self, media_id: UUID):
         """Return the latest transcription entity for the provided media ID."""
-
         return await self._transcription_service.get_transcription_by_media_id(media_id)
 
     async def get_transcription_details(self, transcription_id: UUID):
         """Return a transcription by its identifier."""
-
         return await self._transcription_queries.get_by_id(transcription_id)
 
     # ------------------------------------------------------------------ #
@@ -106,7 +108,6 @@ class MediaProcessingService:
         metrics_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Schedule asynchronous video processing for the uploaded media."""
-
         start_time = time.monotonic()
         success = False
         try:
@@ -143,7 +144,6 @@ class MediaProcessingService:
         context: Optional[dict[str, Any]] = None,
     ) -> None:
         """Trigger downstream processing whenever a media upload completes."""
-
         context = context or {}
 
         try:
@@ -174,12 +174,16 @@ class MediaProcessingService:
         file_size_bytes = context.get("file_size_bytes", 0)
 
         try:
-            process_transcription_task.delay(
-                media_id=str(media_id),
+            transcription_payload = TranscriptionTaskPayload(
+                media_id=media_id,
                 file_path=file_path,
                 storage_provider=storage_provider,
                 transcription_provider=transcription_provider,
                 language=language,
+                file_size_bytes=file_size_bytes,
+            )
+            process_transcription_task.delay(
+                **transcription_payload.model_dump(mode="json")
             )
             self._logger.debug(
                 "media_uploaded.transcription_task_enqueued",
@@ -187,6 +191,12 @@ class MediaProcessingService:
                 storage_provider=storage_provider,
                 transcription_provider=transcription_provider,
                 language=language,
+            )
+        except ValidationError as exc:
+            self._logger.error(
+                "media_uploaded.transcription_payload_invalid",
+                media_id=str(media_id),
+                errors=exc.errors(),
             )
         except Exception as exc:  # pragma: no cover - defensive logging
             self._logger.error(
@@ -196,16 +206,24 @@ class MediaProcessingService:
             )
 
         try:
-            process_video_task.delay(
-                media_id=str(media_id),
+            video_payload = VideoTaskPayload(
+                media_id=media_id,
                 file_path=file_path,
                 storage_provider=storage_provider,
+                file_size_bytes=file_size_bytes,
             )
+            process_video_task.delay(**video_payload.model_dump(mode="json"))
             self._logger.debug(
                 "media_uploaded.video_task_enqueued",
                 media_id=str(media_id),
                 storage_provider=storage_provider,
                 file_size_bytes=file_size_bytes,
+            )
+        except ValidationError as exc:
+            self._logger.error(
+                "media_uploaded.video_payload_invalid",
+                media_id=str(media_id),
+                errors=exc.errors(),
             )
         except Exception as exc:  # pragma: no cover - defensive logging
             self._logger.error(
@@ -221,7 +239,6 @@ class MediaProcessingService:
         context: Optional[dict[str, Any]] = None,
     ) -> None:
         """Placeholder hook for when derived textual content becomes available."""
-
         context = context or {}
         self._logger.info(
             "text_content_ready.received",

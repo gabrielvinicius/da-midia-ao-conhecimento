@@ -1,13 +1,24 @@
 import uuid
-from datetime import datetime, timedelta, time
+from datetime import timedelta
 from enum import Enum as PyEnum
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-from sqlalchemy import Column, String, DateTime, Enum, Integer, Text, ForeignKey, JSON, Boolean, Time
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Time,
+)
 from sqlalchemy.dialects.postgresql import UUID
-# FIXED: Domain should not import Infrastructure - Critical DDD violation
-from src.shared.domain.base_entity import BaseEntity
+
 from src.shared.infrastructure.database import Base
+from src.shared.utils.time_utils import utcnow
 
 
 class NotificationType(PyEnum):
@@ -36,11 +47,11 @@ class NotificationPriority(PyEnum):
 
 
 class Notification(Base):
-    """
-    Notification entity following domain-driven design principles.
+    """Notification entity following domain-driven design principles.
     
     Represents a notification that can be sent through various channels.
     """
+
     __tablename__ = "notifications"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -50,63 +61,63 @@ class Notification(Base):
     subject = Column(String(255), nullable=True)  # For email notifications
     status = Column(Enum(NotificationStatus), default=NotificationStatus.PENDING)
     priority = Column(Enum(NotificationPriority), default=NotificationPriority.NORMAL)
-    
+
     # Metadata and tracking
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     scheduled_at = Column(DateTime, nullable=True)  # For scheduled notifications
     sent_at = Column(DateTime, nullable=True)
     delivered_at = Column(DateTime, nullable=True)
     opened_at = Column(DateTime, nullable=True)  # For tracking opens/reads
-    
+
     # Retry and error handling
     retries = Column(Integer, default=0)
     max_retries = Column(Integer, default=3)
     error_message = Column(Text, nullable=True)
-    
+
     # Additional data
     extra_data = Column(JSON, nullable=True)  # For storing additional context
     template_name = Column(String(100), nullable=True)  # Template used
     variables = Column(JSON, nullable=True)  # Template variables
-    
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not self.extra_data:
             self.extra_data = {}
         if not self.variables:
             self.variables = {}
-    
+
     def mark_as_sent(self) -> None:
         """Mark notification as sent."""
         self.status = NotificationStatus.SENT
-        self.sent_at = datetime.utcnow()
-    
+        self.sent_at = utcnow()
+
     def mark_as_delivered(self) -> None:
         """Mark notification as delivered."""
         self.status = NotificationStatus.DELIVERED
-        self.delivered_at = datetime.utcnow()
-    
+        self.delivered_at = utcnow()
+
     def mark_as_failed(self, error_message: str) -> None:
         """Mark notification as failed with error message."""
         self.status = NotificationStatus.FAILED
         self.error_message = error_message
         self.retries += 1
-    
+
     def mark_as_opened(self) -> None:
         """Mark notification as opened/read."""
-        self.opened_at = datetime.utcnow()
-    
+        self.opened_at = utcnow()
+
     def can_retry(self) -> bool:
         """Check if notification can be retried."""
         return self.retries < self.max_retries and self.status == NotificationStatus.FAILED
-    
+
     def is_expired(self, expiry_hours: int = 24) -> bool:
         """Check if notification has expired."""
         if not self.created_at:
             return False
-        
-        expiry_time = self.created_at + datetime.timedelta(hours=expiry_hours)
-        return datetime.utcnow() > expiry_time
-    
+
+        expiry_time = self.created_at + timedelta(hours=expiry_hours)
+        return utcnow() > expiry_time
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert notification to dictionary."""
         return {
@@ -132,35 +143,35 @@ class Notification(Base):
 
 
 class NotificationPreference(Base):
+    """User notification preferences entity.
     """
-    User notification preferences entity.
-    """
+
     __tablename__ = "notification_preferences"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
-    
+
     # Channel preferences
     email_enabled = Column(Boolean, default=True)
     sms_enabled = Column(Boolean, default=False)
     push_enabled = Column(Boolean, default=True)
     websocket_enabled = Column(Boolean, default=True)
-    
+
     # Contact information
     phone_number = Column(String(20), nullable=True)
     push_token = Column(String(255), nullable=True)
-    
+
     # Timing preferences
     timezone = Column(String(50), default="UTC")
     quiet_hours_start = Column(Time, nullable=True)  # e.g., 22:00
     quiet_hours_end = Column(Time, nullable=True)    # e.g., 08:00
-    
+
     # Content preferences
     preferences = Column(JSON, nullable=True)  # Flexible preferences storage
-    
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not self.preferences:
@@ -170,7 +181,7 @@ class NotificationPreference(Base):
                 "processing_updates": True,
                 "security_alerts": True
             }
-    
+
     def is_channel_enabled(self, channel: str) -> bool:
         """Check if specific channel is enabled."""
         channel_map = {
@@ -180,7 +191,7 @@ class NotificationPreference(Base):
             "websocket": self.websocket_enabled
         }
         return channel_map.get(channel, False)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert preferences to dictionary."""
         return {
@@ -199,15 +210,15 @@ class NotificationPreference(Base):
 
 
 class NotificationTemplate(Base):
+    """Notification template entity for reusable notification content.
     """
-    Notification template entity for reusable notification content.
-    """
+
     __tablename__ = "notification_templates"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(100), nullable=False, unique=True)
     description = Column(Text, nullable=True)
-    
+
     # Template content for different channels
     email_subject = Column(String(255), nullable=True)
     email_body = Column(Text, nullable=True)
@@ -216,20 +227,20 @@ class NotificationTemplate(Base):
     push_title = Column(String(100), nullable=True)
     push_body = Column(Text, nullable=True)
     websocket_content = Column(Text, nullable=True)
-    
+
     # Template metadata
     variables = Column(JSON, nullable=True)  # Required variables
     category = Column(String(50), nullable=True)  # Template category
     is_active = Column(Boolean, default=True)
-    
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not self.variables:
             self.variables = []
-    
+
     def get_content_for_channel(self, channel: str) -> Optional[str]:
         """Get template content for specific channel."""
         channel_map = {
@@ -239,7 +250,7 @@ class NotificationTemplate(Base):
             "websocket": self.websocket_content
         }
         return channel_map.get(channel)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert template to dictionary."""
         return {

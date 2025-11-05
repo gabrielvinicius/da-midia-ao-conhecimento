@@ -1,30 +1,34 @@
 # src/notifications/application/services/notification_service.py
-"""
-Consolidated Notification Service. This single service now handles all logic
+"""Consolidated Notification Service. This single service now handles all logic
 related to notifications, including sending, delivery, and management.
 """
 import time
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 import structlog
+
+from src.notifications.domain.notification import (
+    Notification,
+    NotificationPriority,
+    NotificationStatus,
+    NotificationType,
+)
+from src.notifications.infrastructure.connection_manager import ConnectionManager
 from src.notifications.infrastructure.logging import StructuredNotificationLogger
 from src.notifications.infrastructure.metrics import PrometheusNotificationMetrics
-
+from src.notifications.infrastructure.notification_repository import (
+    NotificationRepository,
+)
 from src.user_management.application.queries.auth_queries import AuthQueries
-from src.notifications.domain.notification import Notification, NotificationStatus, NotificationType, \
-    NotificationPriority
-from src.notifications.infrastructure.connection_manager import ConnectionManager
-from src.notifications.infrastructure.notification_repository import NotificationRepository
 
 logger = structlog.get_logger(__name__)
 
 
 class NotificationService:
+    """Consolidated service for all notification operations.
     """
-    Consolidated service for all notification operations.
-    """
-    
+
     def __init__(
         self,
         notification_repo: NotificationRepository,
@@ -82,7 +86,7 @@ class NotificationService:
                 saved_notification.status = NotificationStatus.SENT
                 await self.repo.save(saved_notification)
                 logger.info("notification.delivered.websocket", notification_id=str(notification_id))
-            
+
             # Placeholder for other delivery channels
             # if self.email_sender: await self.email_sender.send(user_id, message, template, variables)
             # if self.sms_sender: await self.sms_sender.send(user_id, message)
@@ -116,8 +120,8 @@ class NotificationService:
             # Metrics recording can be added here
 
     async def get_user_notifications(
-        self, 
-        user_id: UUID, 
+        self,
+        user_id: UUID,
         include_read: bool = True,
         limit: int = 50
     ) -> List[Notification]:

@@ -1,10 +1,13 @@
-import numpy as np
-from typing import Optional, Tuple
 import asyncio
 import logging
+from typing import Optional, Tuple
+
+import numpy as np
 from faster_whisper import WhisperModel
 
-from src.media_processing.transcription.infrastructure.dependencies import register_speech_recognition
+from src.media_processing.transcription.infrastructure.dependencies import (
+    register_speech_recognition,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -29,7 +29,6 @@ class SentimentAnalysisResponse(BaseModel):
     @classmethod
     def from_domain(cls, analysis: SentimentAnalysis) -> "SentimentAnalysisResponse":
         """Create a DTO aligned with the frontend contract."""
-
         full_result: Dict[str, Any] = {
             "emotions": analysis.emotions or {},
             "sentence_sentiments": analysis.sentence_sentiments or [],

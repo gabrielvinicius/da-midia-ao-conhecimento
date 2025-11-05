@@ -67,8 +67,9 @@ class StorageProviderFactory(Protocol):
 
 
 # Re-export repository abstraction used across the code base.
-from src.storage.domain.repositories.storage_repository import StorageRepository  # noqa: E402
-
+from src.storage.domain.repositories.storage_repository import (
+    StorageRepository,  # noqa: E402
+)
 
 __all__ = [
     "StorageConfiguration",

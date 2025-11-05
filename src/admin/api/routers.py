@@ -1,18 +1,19 @@
 # src/admin/api/routers.py
-from fastapi import APIRouter, Depends, Query, HTTPException, status
-from typing import Optional, List
+from typing import List, Optional
 from uuid import UUID
 
-from src.shared.api.dependencies import get_current_admin_user
-from src.user_management.domain.user import User
-from src.user_management.api.schemas import UserResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from src.admin.application.admin_service import AdminService
 from src.media_management.api.schemas import MediaResponse
-from .schemas import UserUpdateRequest, SystemStatsResponse
+from src.shared.api.dependencies import get_current_admin_user
+from src.user_management.api.schemas import UserResponse
+from src.user_management.domain.user import User
 
 from .dependencies import (
     get_admin_service,
 )
-from src.admin.application.admin_service import AdminService
+from .schemas import SystemStatsResponse, UserUpdateRequest
 
 router = APIRouter(
     prefix="/admin",
@@ -30,8 +31,8 @@ async def get_system_stats(service: AdminService = Depends(get_admin_service)):
 @router.get("/users", response_model=List[UserResponse], summary="List all users in the system")
 async def list_all_users(
     service: AdminService = Depends(get_admin_service),
-    page: int = Query(1, ge=1, description="Page number"), 
-    limit: int = Query(10, ge=1, le=100, description="Items per page"), 
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(10, ge=1, le=100, description="Items per page"),
     search: Optional[str] = Query(None, description="Search term for user email")
 ):
     """Lists all users with pagination and search capabilities."""
@@ -48,7 +49,7 @@ async def update_user(
     """Updates a user's role. Requires admin privileges."""
     try:
         return await service.update_user_role(
-            user_id=user_id, 
+            user_id=user_id,
             new_role=update_data.role,
             admin_user=current_admin
         )
@@ -74,8 +75,8 @@ async def delete_user(
 @router.get("/media", response_model=List[MediaResponse], summary="List all media in the system")
 async def list_all_media(
     service: AdminService = Depends(get_admin_service),
-    page: int = Query(1, ge=1), 
-    limit: int = Query(10, ge=1, le=100), 
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None, description="Search term for media filename")
 ):
     """Lists all media items with pagination and search capabilities."""

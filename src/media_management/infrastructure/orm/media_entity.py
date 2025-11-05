@@ -3,7 +3,8 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Enum as SqlEnum, ForeignKey, String
+from sqlalchemy import Column, DateTime, ForeignKey, String
+from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.dialects.postgresql import UUID
 
 from src.media_management.domain.enums import MediaStatus, MediaType

@@ -1,6 +1,7 @@
 # src/auth/api/schemas.py
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserCreate(BaseModel):
@@ -19,6 +20,7 @@ class UserCreate(BaseModel):
 
 class TokenRequest(BaseModel):
     """Schema for requesting a token with username and password."""
+
     username: str = Field(
         ...,
         description="The user's email address.",
@@ -33,12 +35,14 @@ class TokenRequest(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     """Schema for changing a user's password."""
+
     old_password: str = Field(..., description="The user's current password.")
     new_password: str = Field(..., min_length=8, description="The user's new password (min 8 characters).")
 
 
 class Token(BaseModel):
     """Schema for the response containing the access token."""
+
     access_token: str = Field(
         ...,
         description="The JWT access token.",
@@ -53,6 +57,7 @@ class Token(BaseModel):
 
 class UserResponse(BaseModel):
     """Schema for returning user information safely."""
+
     id: UUID = Field(
         ...,
         description="The unique identifier for the user.",

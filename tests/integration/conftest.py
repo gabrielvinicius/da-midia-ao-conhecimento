@@ -1,13 +1,14 @@
 # tests/integration/conftest.py
-import pytest
 import asyncio
+
+import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.dialects.sqlite.base import SQLiteTypeCompiler
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.shared.infrastructure.database import Base
 from src.shared.config.database_settings import DatabaseSettings
-from sqlalchemy.dialects.sqlite.base import SQLiteTypeCompiler
+from src.shared.infrastructure.database import Base
 
 # Load test database settings
 # Make sure your .env.test points to a separate test database
@@ -18,10 +19,10 @@ engine = create_async_engine(settings.database_url, echo=False)
 
 # Create a new sessionmaker for the test database
 TestingSessionLocal = sessionmaker(
-    autocommit=False, 
-    autoflush=False, 
-    bind=engine, 
-    class_=AsyncSession, 
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    class_=AsyncSession,
     expire_on_commit=False
 )
 
@@ -43,9 +44,9 @@ async def setup_database():
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     yield
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 

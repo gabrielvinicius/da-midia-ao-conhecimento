@@ -1,14 +1,14 @@
 # tests/mocks/in_memory_storage.py
+"""Enhanced in-memory storage service for comprehensive testing.
 """
-Enhanced in-memory storage service for comprehensive testing.
-"""
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, Optional, Tuple
+
 from src.storage.application.storage_service import StorageService
 
 
 class InMemoryStorage(StorageService):
     """Enhanced in-memory storage with testing utilities."""
-    
+
     def __init__(self):
         self.files: Dict[str, bytes] = {}
         self.metadata: Dict[str, dict] = {}
@@ -44,14 +44,14 @@ class InMemoryStorage(StorageService):
     async def exists(self, file_path: str) -> bool:
         """Check if file exists in memory storage."""
         return file_path in self.files
-    
+
     def clear(self):
         """Clear all stored files (useful for test cleanup)."""
         self.files.clear()
         self.metadata.clear()
         self.upload_count = 0
         self.download_count = 0
-    
+
     def get_stats(self) -> dict:
         """Get storage statistics for testing."""
         return {

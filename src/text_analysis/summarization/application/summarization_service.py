@@ -3,13 +3,16 @@
 
 from __future__ import annotations
 
-from typing import Optional, Any, Dict
+from typing import Any, Dict, Optional
 from uuid import UUID
 
+from src.text_analysis.application.services import TextAnalysisService  # New import
 from src.text_analysis.summarization.domain.summary import Summary
-from src.text_analysis.summarization.infrastructure.summarization_repository import SummarizationRepository
+from src.text_analysis.summarization.infrastructure.summarization_repository import (
+    SummarizationRepository,
+)
 from src.text_analysis.summarization.infrastructure.summarizer import TextRankSummarizer
-from src.text_analysis.application.services import TextAnalysisService # New import
+
 
 def _ensure_uuid(value: UUID | str) -> UUID:
     if isinstance(value, UUID):

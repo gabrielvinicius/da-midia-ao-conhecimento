@@ -35,14 +35,12 @@ class ApplicationResources:
 
 async def start_application_resources(resources: ApplicationResources) -> None:
     """Initialize long-lived infrastructure resources."""
-
     await resources.cache.connect()
     await resources.event_bus.start_listener()
 
 
 async def stop_application_resources(resources: ApplicationResources) -> None:
     """Gracefully release infrastructure resources."""
-
     await resources.event_bus.stop_listener()
     await resources.cache.disconnect()
 

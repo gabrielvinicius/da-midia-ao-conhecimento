@@ -20,7 +20,6 @@ class DomainEvent:
     @property
     def event_name(self) -> str:
         """Convenience snake_case identifier derived from the class name."""
-
         name = self.__class__.__name__
         parts = []
         for index, char in enumerate(name):
@@ -115,7 +114,6 @@ class MediaDeleted(DomainEvent):
     @classmethod
     def for_user(cls, media: "Media", actor_id: UUID | str) -> "MediaDeleted":
         """Factory helper for user initiated deletions."""
-
         return cls(
             media_id=str(media.id),
             user_id=str(media.user_id),
@@ -135,7 +133,6 @@ class MediaReprocessRequested(DomainEvent):
     @classmethod
     def for_user(cls, media_id: UUID | str, actor_id: UUID | str) -> "MediaReprocessRequested":
         """Factory helper for user initiated reprocess requests."""
-
         return cls(
             media_id=str(media_id),
             triggered_by="user",

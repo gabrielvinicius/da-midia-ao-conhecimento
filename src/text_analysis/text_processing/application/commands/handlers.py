@@ -8,6 +8,7 @@ import fitz  # type: ignore[import-untyped]
 
 from src.media_management.domain.media import MediaStatus
 from src.shared.events.domain_events import TextContentReady
+
 from .commands import ProcessTextCommand
 
 

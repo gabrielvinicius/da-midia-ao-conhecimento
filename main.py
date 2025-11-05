@@ -1,48 +1,56 @@
+import os
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
-import os
 
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+
 # OpenTelemetry Imports
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from src.admin.bootstrap import build_admin_module
 from src.media_management.bootstrap import build_media_components
 from src.monitoring.bootstrap import build_monitoring_module
 from src.notifications.bootstrap import build_notification_module
-from src.notifications.infrastructure.connection_manager import manager
 from src.providers.bootstrap import build_providers_module
-from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.shared.application.lifecycle import (
     ApplicationResources,
     start_application_resources,
     stop_application_resources,
 )
+from src.shared.application.modules import register_module_dependencies
 from src.shared.application.service_registry import (
     attach_domain_services,
     build_domain_service_registry,
 )
-from src.shared.application.modules import register_module_dependencies
-from src.shared.event_bus import EventCallback, InMemoryEventBus
-from src.shared.events.domain_events import MediaUploaded, NotificationRequested, TextContentReady
+from src.shared.event_bus import InMemoryEventBus
+from src.shared.events.domain_events import (
+    MediaUploaded,
+    NotificationRequested,
+    TextContentReady,
+)
 from src.shared.exceptions.api_errors import register_exception_handlers
+
 # from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
 from src.shared.infrastructure.cache import cache
-from src.shared.infrastructure.database import Base, engine, AsyncSessionLocal
+from src.shared.infrastructure.database import AsyncSessionLocal, Base, engine
 from src.shared.infrastructure.logging_config import configure_logging, get_logger
 from src.shared.infrastructure.tracing import configure_tracer
-from src.shared.middleware.validation_middleware import register_validation_middleware
 from src.shared.middleware.performance_middleware import register_performance_middleware
-from src.text_analysis.application.event_handlers import build_text_content_ready_handler
+from src.shared.middleware.validation_middleware import register_validation_middleware
+from src.storage.infrastructure.dependencies import StorageServiceFactory
+from src.text_analysis.application.event_handlers import (
+    build_text_content_ready_handler,
+)
 from src.text_analysis.bootstrap import build_text_analysis_module
+
 try:  # noqa: SIM105 - tolerate partial availability during consolidation
     from src.text_analysis.api.routers import router as text_analysis_router
 except Exception:  # pragma: no cover - optional module
     text_analysis_router = None  # type: ignore[assignment]
-from src.user_management.bootstrap import build_user_management_module
 from src.notifications.application.event_handlers import handle_notification_requested
+from src.user_management.bootstrap import build_user_management_module
 
 # Ensure Celery app is importable during API startup
 try:  # noqa: SIM105 - best-effort import
@@ -51,18 +59,19 @@ except Exception:
     _celery_app = None  # Celery not required for API process to start
 
 # API Routers
-from src.user_management.api.routers import router as auth_router
-
+from src.admin.api.routers import router as admin_router
+from src.media_management.api.routers import router as media_router
+from src.media_processing.transcription.api.routers import (
+    router as transcription_router,
+)
 from src.monitoring.api.routers import router as monitoring_router
 from src.notifications.api.routers import router as notification_router
 from src.providers.api.routers import router as providers_router
-from src.media_processing.transcription.api.routers import router as transcription_router
-from src.media_management.api.routers import router as media_router
-from src.admin.api.routers import router as admin_router
+from src.user_management.api.routers import router as auth_router
+
 
 def build_event_bus() -> InMemoryEventBus:
     """Factory for the default application event bus."""
-
     return InMemoryEventBus()
 
 
@@ -73,7 +82,6 @@ def register_domain_event_handlers(
     text_analysis_service=None,
 ) -> None:
     """Attach domain event handlers to the bus."""
-
     event_bus.subscribe(MediaUploaded, media_processing_service.handle_media_uploaded)
     event_bus.subscribe(TextContentReady, media_processing_service.handle_text_content_ready)
     if text_analysis_service is not None:

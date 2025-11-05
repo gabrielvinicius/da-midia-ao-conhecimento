@@ -1,17 +1,18 @@
 # src/providers/api/schemas.py
-"""
-Providers API Schemas - Pydantic models for provider endpoints
+"""Providers API Schemas - Pydantic models for provider endpoints
 Follows clear data contracts and validation.
 """
-from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
-from src.providers.domain.interfaces import ProviderType, ProviderCapability
+from pydantic import BaseModel, Field
+
+from src.providers.domain.interfaces import ProviderType
 
 
 # Request Schemas
 class ProviderRegistrationRequest(BaseModel):
     """Request schema for provider registration."""
+
     name: str = Field(..., description="Provider name")
     provider_type: ProviderType = Field(..., description="Provider type")
     version: str = Field("1.0.0", description="Provider version")
@@ -23,6 +24,7 @@ class ProviderRegistrationRequest(BaseModel):
 # Response Schemas
 class ProviderInfo(BaseModel):
     """Basic provider information."""
+
     name: str
     type: str
     version: str
@@ -32,6 +34,7 @@ class ProviderInfo(BaseModel):
 
 class ProviderSummaryResponse(BaseModel):
     """Response schema for provider summary."""
+
     total_providers: int
     providers_by_type: Dict[str, int]
     active_providers: int
@@ -42,6 +45,7 @@ class ProviderSummaryResponse(BaseModel):
 
 class ProvidersListResponse(BaseModel):
     """Response schema for provider listing."""
+
     providers: List[ProviderInfo]
     total_count: int
     filter_applied: Dict[str, Any]
@@ -49,6 +53,7 @@ class ProvidersListResponse(BaseModel):
 
 class ProviderDetailResponse(BaseModel):
     """Response schema for detailed provider information."""
+
     name: str
     type: str
     version: str

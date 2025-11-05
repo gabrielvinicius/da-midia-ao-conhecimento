@@ -1,9 +1,9 @@
 # src/auth/utils/token.py
 from datetime import datetime, timedelta
-from jose import jwt, JWTError
 from uuid import UUID
-from typing import Optional
-from src.user_management.domain.user import User, UserRole
+
+from jose import JWTError, jwt
+
 from src.user_management.config.settings import AuthSettings  # Importação corrigida
 
 settings = AuthSettings()

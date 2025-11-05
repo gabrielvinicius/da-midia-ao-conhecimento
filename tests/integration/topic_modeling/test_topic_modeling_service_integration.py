@@ -1,18 +1,29 @@
 # tests/integration/topic_modeling/test_topic_modeling_service_integration.py
-import pytest
-from uuid import uuid4
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.domain.media import Media, MediaType
 from src.media_management.infrastructure.media_repository import MediaRepository
-from src.text_analysis.topic_modeling.application.topic_modeling_service import TopicModelingService
-from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult, TopicModelingStatus
-from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
-from src.text_analysis.topic_modeling.infrastructure.metrics import InMemoryTopicModelingMetrics
-from src.text_analysis.topic_modeling.infrastructure.logging import StructuredTopicModelingLogger
+from src.text_analysis.topic_modeling.application.topic_modeling_service import (
+    TopicModelingService,
+)
+from src.text_analysis.topic_modeling.domain.topic_modeling import (
+    TopicModelingResult,
+    TopicModelingStatus,
+)
+from src.text_analysis.topic_modeling.infrastructure.logging import (
+    StructuredTopicModelingLogger,
+)
+from src.text_analysis.topic_modeling.infrastructure.metrics import (
+    InMemoryTopicModelingMetrics,
+)
+from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import (
+    TopicModelingRepository,
+)
 
 
 class _StubTopicModeler:

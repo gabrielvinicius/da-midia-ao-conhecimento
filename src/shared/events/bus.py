@@ -2,7 +2,16 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Awaitable, Callable, DefaultDict, Dict, Iterable, List, Protocol, Type, TypeVar
+from typing import (
+    Awaitable,
+    Callable,
+    DefaultDict,
+    Iterable,
+    List,
+    Protocol,
+    Type,
+    TypeVar,
+)
 
 from src.shared.events.domain_events import DomainEvent
 

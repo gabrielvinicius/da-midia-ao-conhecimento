@@ -51,10 +51,3 @@ __all__ = [
     "get_sentiment_analysis_service",
     "get_sentiment_dependencies",
 ]
-
-
-__all__ = [
-    "get_media_queries",
-    "get_sentiment_analysis_service",
-    "get_sentiment_analysis_repository",
-]

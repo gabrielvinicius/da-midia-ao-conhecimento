@@ -1,16 +1,16 @@
+"""Unified text extractors - eliminating extractor duplication
 """
-Unified text extractors - eliminating extractor duplication
-"""
-from typing import Dict, Any, Optional, List
-from abc import ABC, abstractmethod
-import structlog
-from pathlib import Path
 import io
+from pathlib import Path
+from typing import Any, Dict, List
+
+import structlog
 
 logger = structlog.get_logger(__name__)
 
 class ExtractionResult:
     """Unified extraction result"""
+
     def __init__(self, text: str, metadata: Dict[str, Any] = None):
         self.text = text
         self.metadata = metadata or {}
@@ -18,7 +18,7 @@ class ExtractionResult:
 
 class UnifiedTextExtractor:
     """Single text extractor for all file types - eliminating extractor duplication"""
-    
+
     def __init__(self):
         self.logger = logger.bind(component="text_extractor")
         self._supported_types = {
@@ -31,29 +31,29 @@ class UnifiedTextExtractor:
             '.md': self._extract_markdown,
             '.rtf': self._extract_rtf
         }
-    
+
     async def extract(self, file_data: bytes, filename: str) -> ExtractionResult:
         """Extract text from file based on extension"""
         try:
             file_ext = Path(filename).suffix.lower()
-            
+
             if file_ext not in self._supported_types:
-                self.logger.warning("Unsupported file type", 
+                self.logger.warning("Unsupported file type",
                                   filename=filename, extension=file_ext)
                 return ExtractionResult("", {"error": f"Unsupported file type: {file_ext}"})
-            
-            self.logger.debug("Starting text extraction", 
+
+            self.logger.debug("Starting text extraction",
                             filename=filename, extension=file_ext, size=len(file_data))
-            
+
             # Get appropriate extractor method
             extractor_method = self._supported_types[file_ext]
-            
+
             # Extract text
             text = await extractor_method(file_data, filename)
-            
+
             # Validate and clean text
             cleaned_text = self._clean_text(text)
-            
+
             result = ExtractionResult(
                 text=cleaned_text,
                 metadata={
@@ -64,38 +64,38 @@ class UnifiedTextExtractor:
                     "extraction_method": extractor_method.__name__
                 }
             )
-            
-            self.logger.info("Text extraction completed", 
-                           filename=filename, 
+
+            self.logger.info("Text extraction completed",
+                           filename=filename,
                            text_length=len(cleaned_text),
                            success=result.success)
-            
+
             return result
-            
+
         except Exception as e:
-            self.logger.error("Text extraction failed", 
+            self.logger.error("Text extraction failed",
                             filename=filename, error=str(e))
             return ExtractionResult("", {"error": str(e)})
-    
+
     async def _extract_plain_text(self, file_data: bytes, filename: str) -> str:
         """Extract text from plain text files"""
         try:
             # Try different encodings
             encodings = ['utf-8', 'utf-16', 'latin-1', 'cp1252']
-            
+
             for encoding in encodings:
                 try:
                     return file_data.decode(encoding)
                 except UnicodeDecodeError:
                     continue
-            
+
             # If all encodings fail, decode with errors='ignore'
             return file_data.decode('utf-8', errors='ignore')
-            
+
         except Exception as e:
             self.logger.error("Failed to extract plain text", error=str(e))
             return ""
-    
+
     async def _extract_pdf(self, file_data: bytes, filename: str) -> str:
         """Extract text from PDF files"""
         try:
@@ -123,7 +123,7 @@ class UnifiedTextExtractor:
         except Exception as e:
             self.logger.error("Failed to extract PDF text", error=str(e))
             return ""
-    
+
     async def _extract_docx(self, file_data: bytes, filename: str) -> str:
         """Extract text from DOCX files"""
         try:
@@ -139,7 +139,7 @@ class UnifiedTextExtractor:
         except Exception as e:
             self.logger.error("Failed to extract DOCX text", error=str(e))
             return ""
-    
+
     async def _extract_doc(self, file_data: bytes, filename: str) -> str:
         """Extract text from DOC files"""
         try:
@@ -149,18 +149,18 @@ class UnifiedTextExtractor:
         except Exception as e:
             self.logger.error("Failed to extract DOC text", error=str(e))
             return ""
-    
+
     async def _extract_html(self, file_data: bytes, filename: str) -> str:
         """Extract text from HTML files"""
         try:
             from bs4 import BeautifulSoup
             html_content = file_data.decode('utf-8', errors='ignore')
             soup = BeautifulSoup(html_content, 'html.parser')
-            
+
             # Remove script and style elements
             for script in soup(["script", "style"]):
                 script.decompose()
-            
+
             return soup.get_text()
         except ImportError:
             self.logger.warning("BeautifulSoup not available for HTML extraction")
@@ -172,13 +172,13 @@ class UnifiedTextExtractor:
         except Exception as e:
             self.logger.error("Failed to extract HTML text", error=str(e))
             return ""
-    
+
     async def _extract_markdown(self, file_data: bytes, filename: str) -> str:
         """Extract text from Markdown files"""
         try:
             # For markdown, we can just remove the markdown syntax
             text = file_data.decode('utf-8', errors='ignore')
-            
+
             # Simple markdown cleanup
             import re
             # Remove headers
@@ -191,12 +191,12 @@ class UnifiedTextExtractor:
             # Remove code blocks
             text = re.sub(r'```[^`]*```', '', text, flags=re.DOTALL)
             text = re.sub(r'`([^`]+)`', r'\1', text)
-            
+
             return text
         except Exception as e:
             self.logger.error("Failed to extract Markdown text", error=str(e))
             return ""
-    
+
     async def _extract_rtf(self, file_data: bytes, filename: str) -> str:
         """Extract text from RTF files"""
         try:
@@ -206,26 +206,26 @@ class UnifiedTextExtractor:
         except Exception as e:
             self.logger.error("Failed to extract RTF text", error=str(e))
             return ""
-    
+
     def _clean_text(self, text: str) -> str:
         """Clean and normalize extracted text"""
         if not text:
             return ""
-        
+
         # Remove excessive whitespace
         import re
         text = re.sub(r'\s+', ' ', text)
         text = re.sub(r'\n\s*\n', '\n\n', text)
-        
+
         # Strip leading/trailing whitespace
         text = text.strip()
-        
+
         return text
-    
+
     def get_supported_types(self) -> List[str]:
         """Get list of supported file types"""
         return list(self._supported_types.keys())
-    
+
     def is_supported(self, filename: str) -> bool:
         """Check if file type is supported"""
         file_ext = Path(filename).suffix.lower()

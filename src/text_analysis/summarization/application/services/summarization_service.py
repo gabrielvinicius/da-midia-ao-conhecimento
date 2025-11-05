@@ -24,7 +24,6 @@ class SummarizationService:
 
     async def summarize(self, text: str, *, summary_id: Optional[UUID] = None) -> str:
         """Summarize the provided text, optionally using cache when id available."""
-
         self._validator.validate(text)
         cache_key = str(summary_id) if summary_id is not None else None
         if cache_key:
@@ -52,7 +51,6 @@ class SummarizationService:
 
     async def batch_summarize(self, entries: Mapping[UUID, str]) -> Dict[UUID, str]:
         """Summarize a batch of texts sequentially."""
-
         summaries: Dict[UUID, str] = {}
         for key, text in entries.items():
             summaries[key] = await self.summarize(text, summary_id=key)

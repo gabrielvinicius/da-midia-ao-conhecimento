@@ -1,10 +1,15 @@
 # tests/unit/video_management/test_upload_video_handler.py
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from src.video_management.application.commands.upload_video_command import UploadVideoCommand
-from src.video_management.application.commands.upload_video_command_handler import UploadVideoCommandHandler
+import pytest
+
 from src.shared.events.domain_events import VideoUploaded
+from src.video_management.application.commands.upload_video_command import (
+    UploadVideoCommand,
+)
+from src.video_management.application.commands.upload_video_command_handler import (
+    UploadVideoCommandHandler,
+)
 from src.video_management.domain.video import Video
 
 

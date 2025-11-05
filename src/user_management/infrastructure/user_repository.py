@@ -39,13 +39,11 @@ class UserRepository:
 
     async def count_all(self) -> int:
         """Return the total number of users."""
-
         result = await self.db.execute(select(func.count()).select_from(User))
         return result.scalar_one()
 
     async def count_active(self) -> int:
         """Return the total number of active users."""
-
         stmt = select(func.count()).select_from(User).where(User.is_active.is_(True))
         result = await self.db.execute(stmt)
         return result.scalar_one()

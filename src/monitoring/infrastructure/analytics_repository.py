@@ -1,17 +1,27 @@
 # src/analytics/infrastructure/analytics_repository.py
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, text
-from typing import Dict, Any, Optional
-from uuid import UUID
 from datetime import datetime, timedelta
-import structlog
+from typing import Any, Dict, Optional
+from uuid import UUID
 
-from src.monitoring.domain.interfaces import IAnalyticsRepository, ProcessingType, TimeRange
+import structlog
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.media_management.domain.media import MediaStatus
 from src.media_management.infrastructure.orm.media_entity import MediaEntity
-from src.media_processing.transcription.domain.transcription import Transcription, TranscriptionStatus
+from src.media_processing.transcription.domain.transcription import (
+    Transcription,
+    TranscriptionStatus,
+)
+from src.monitoring.domain.interfaces import (
+    IAnalyticsRepository,
+    ProcessingType,
+    TimeRange,
+)
 from src.text_analysis.summarization.domain.summary import SummaryStatus
-from src.text_analysis.summarization.infrastructure.orm.summary_entity import SummaryEntity
+from src.text_analysis.summarization.infrastructure.orm.summary_entity import (
+    SummaryEntity,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -21,8 +31,7 @@ class AnalyticsRepository(IAnalyticsRepository):
         self.db = db
 
     async def get_average_processing_times(self) -> dict:
-        """
-        Calculates the average processing time for transcription and summarization
+        """Calculates the average processing time for transcription and summarization
         by performing the aggregation directly in the database against the new Media entity.
         """
         stmt = (
@@ -59,16 +68,16 @@ class AnalyticsRepository(IAnalyticsRepository):
             "summarization_avg_seconds": float(row.summarization_avg_seconds or 0.0),
             "total_media_analyzed": int(row.total_media_analyzed or 0)
         }
-    
+
     async def get_processing_times_by_type(self, processing_type: ProcessingType) -> Dict[str, Any]:
-        """
-        Get processing times for specific operation type.
+        """Get processing times for specific operation type.
         
         Args:
             processing_type: Type of processing to analyze
             
         Returns:
             Dictionary with processing time statistics
+
         """
         if processing_type == ProcessingType.TRANSCRIPTION:
             stmt = (
@@ -111,10 +120,10 @@ class AnalyticsRepository(IAnalyticsRepository):
                 "total_processed": 0,
                 "processing_type": processing_type.value
             }
-        
+
         result = await self.db.execute(stmt)
         row = result.first()
-        
+
         if not row or row.total_processed == 0:
             return {
                 "avg_seconds": 0.0,
@@ -123,7 +132,7 @@ class AnalyticsRepository(IAnalyticsRepository):
                 "total_processed": 0,
                 "processing_type": processing_type.value
             }
-        
+
         return {
             "avg_seconds": float(row.avg_seconds or 0.0),
             "min_seconds": float(row.min_seconds or 0.0),
@@ -131,19 +140,19 @@ class AnalyticsRepository(IAnalyticsRepository):
             "total_processed": int(row.total_processed or 0),
             "processing_type": processing_type.value
         }
-    
+
     async def get_success_failure_rates(self, time_range: TimeRange) -> Dict[str, Any]:
-        """
-        Get success and failure rates for a given time range.
+        """Get success and failure rates for a given time range.
         
         Args:
             time_range: Time range to analyze
             
         Returns:
             Dictionary with success/failure statistics
+
         """
         cutoff_date = self._get_cutoff_date(time_range)
-        
+
         # Get media statistics
         media_stmt = (
             select(
@@ -153,7 +162,7 @@ class AnalyticsRepository(IAnalyticsRepository):
             )
             .where(MediaEntity.created_at >= cutoff_date)
         )
-        
+
         # Get transcription statistics
         transcription_stmt = (
             select(
@@ -163,7 +172,7 @@ class AnalyticsRepository(IAnalyticsRepository):
             )
             .where(Transcription.created_at >= cutoff_date)
         )
-        
+
         # Get summarization statistics
         summary_stmt = (
             select(
@@ -173,18 +182,18 @@ class AnalyticsRepository(IAnalyticsRepository):
             )
             .where(SummaryEntity.created_at >= cutoff_date)
         )
-        
+
         media_result = await self.db.execute(media_stmt)
         transcription_result = await self.db.execute(transcription_stmt)
         summary_result = await self.db.execute(summary_stmt)
-        
+
         media_row = media_result.first()
         transcription_row = transcription_result.first()
         summary_row = summary_result.first()
-        
+
         def calculate_rate(completed: int, total: int) -> float:
             return (completed / total * 100) if total > 0 else 0.0
-        
+
         return {
             "time_range": time_range.value,
             "cutoff_date": cutoff_date.isoformat(),
@@ -207,16 +216,16 @@ class AnalyticsRepository(IAnalyticsRepository):
                 "success_rate": calculate_rate(summary_row.completed or 0, summary_row.total or 0)
             }
         }
-    
+
     async def get_user_activity_metrics(self, user_id: Optional[UUID] = None) -> Dict[str, Any]:
-        """
-        Get user activity metrics.
+        """Get user activity metrics.
         
         Args:
             user_id: Optional specific user ID, if None returns all users
             
         Returns:
             Dictionary with user activity statistics
+
         """
         base_query = select(
             Media.user_id,
@@ -225,13 +234,13 @@ class AnalyticsRepository(IAnalyticsRepository):
             func.count().filter(Media.status == MediaStatus.FAILED).label("failed_media"),
             func.count().filter(Media.status == MediaStatus.PROCESSING).label("processing_media")
         ).group_by(Media.user_id)
-        
+
         if user_id:
             base_query = base_query.where(Media.user_id == user_id)
-        
+
         result = await self.db.execute(base_query)
         rows = result.fetchall()
-        
+
         if user_id:
             # Return single user metrics
             if rows:
@@ -259,7 +268,7 @@ class AnalyticsRepository(IAnalyticsRepository):
             total_media = sum(row.total_media for row in rows)
             total_completed = sum(row.completed_media for row in rows)
             total_failed = sum(row.failed_media for row in rows)
-            
+
             return {
                 "total_users": total_users,
                 "total_media": total_media,
@@ -268,13 +277,13 @@ class AnalyticsRepository(IAnalyticsRepository):
                 "overall_success_rate": (total_completed / total_media * 100) if total_media > 0 else 0.0,
                 "avg_media_per_user": (total_media / total_users) if total_users > 0 else 0.0
             }
-    
+
     async def get_media_type_distribution(self) -> Dict[str, Any]:
-        """
-        Get distribution of media types processed.
+        """Get distribution of media types processed.
         
         Returns:
             Dictionary with media type distribution
+
         """
         stmt = (
             select(
@@ -285,13 +294,13 @@ class AnalyticsRepository(IAnalyticsRepository):
             )
             .group_by(Media.media_type)
         )
-        
+
         result = await self.db.execute(stmt)
         rows = result.fetchall()
-        
+
         distribution = {}
         total_media = sum(row.count for row in rows)
-        
+
         for row in rows:
             media_type = row.media_type.value if hasattr(row.media_type, 'value') else str(row.media_type)
             distribution[media_type] = {
@@ -301,18 +310,17 @@ class AnalyticsRepository(IAnalyticsRepository):
                 "percentage": (row.count / total_media * 100) if total_media > 0 else 0.0,
                 "success_rate": (row.completed / row.count * 100) if row.count > 0 else 0.0
             }
-        
+
         return {
             "total_media": total_media,
             "distribution": distribution
         }
-    
+
     def _get_cutoff_date(self, time_range: TimeRange) -> datetime:
-        """
-        Get cutoff date based on time range.
+        """Get cutoff date based on time range.
         """
         now = datetime.utcnow()
-        
+
         if time_range == TimeRange.LAST_HOUR:
             return now - timedelta(hours=1)
         elif time_range == TimeRange.LAST_DAY:

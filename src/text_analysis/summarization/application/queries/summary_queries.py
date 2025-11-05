@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol, Optional
+from typing import Optional, Protocol
 from uuid import UUID
 
 from src.text_analysis.summarization.domain.summary import Summary

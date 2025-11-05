@@ -1,21 +1,19 @@
 # src/providers/domain/provider.py
+"""Provider domain entities following domain-driven design principles.
 """
-Provider domain entities following domain-driven design principles.
-"""
-from typing import Dict, List, Any, Optional
-from datetime import datetime
 from dataclasses import dataclass, field
-import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from .interfaces import ProviderType, ProviderStatus, ProviderCapability, IProvider
+from .interfaces import ProviderCapability, ProviderStatus, ProviderType
 
 
 @dataclass
 class Provider: # Renomear BaseProvider para Provider
-    """
-    Represents a generic provider in the system.
+    """Represents a generic provider in the system.
     Implements IProvider interface.
     """
+
     name: str
     provider_type: ProviderType
     version: str = "1.0.0"

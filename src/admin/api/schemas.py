@@ -1,8 +1,10 @@
 # src/admin/api/schemas.py
-from pydantic import BaseModel
 from typing import Optional
 
+from pydantic import BaseModel
+
 from src.user_management.domain.user import UserRole
+
 
 class UserUpdateRequest(BaseModel):
     """Schema for updating a user's details."""

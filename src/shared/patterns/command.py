@@ -1,7 +1,7 @@
 """Minimal command pattern scaffolding used by legacy modules."""
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Type
+from typing import Any, Dict, Type
 
 
 class Command:

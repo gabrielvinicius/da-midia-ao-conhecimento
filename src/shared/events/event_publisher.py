@@ -17,26 +17,22 @@ class EventPublisher:
 
     async def publish(self, event: DomainEvent) -> None:
         """Forward the event to the registered listener."""
-
         if not self._running or self._listener is None:
             raise RuntimeError("EventPublisher is not running")
         await self._listener(event)
 
     async def start(self, listener: EventListener) -> None:
         """Activate the publisher with the given listener callback."""
-
         self._listener = listener
         self._running = True
 
     async def stop(self) -> None:
         """Deactivate the publisher and drop the listener reference."""
-
         self._listener = None
         self._running = False
 
     async def emit(self, event: DomainEvent) -> None:
         """Helper used in tests to simulate inbound events."""
-
         await self.publish(event)
 
     @property

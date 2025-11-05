@@ -5,20 +5,30 @@ from dependency_injector import containers, providers
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.application.queries.media_queries import MediaQueries
-from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
 from src.media_processing.transcription.application.queries import TranscriptionQueries
+
 # Consolidated Service
-from src.media_processing.transcription.application.transcription_service import TranscriptionService
-from src.media_processing.transcription.infrastructure.logging import StructuredTranscriptionLogger
-from src.media_processing.transcription.infrastructure.metrics import PrometheusTranscriptionMetrics
+from src.media_processing.transcription.application.transcription_service import (
+    TranscriptionService,
+)
+from src.media_processing.transcription.infrastructure.logging import (
+    StructuredTranscriptionLogger,
+)
+from src.media_processing.transcription.infrastructure.metrics import (
+    PrometheusTranscriptionMetrics,
+)
+
 # Concrete Implementations
 from src.media_processing.transcription.infrastructure.speech_recognizer import (
     WhisperSpeechRecognizer,
 )
-from src.media_processing.transcription.infrastructure.task_scheduler import CeleryTranscriptionTaskScheduler
+from src.media_processing.transcription.infrastructure.task_scheduler import (
+    CeleryTranscriptionTaskScheduler,
+)
 from src.media_processing.transcription.infrastructure.transcription_repository import (
     TranscriptionRepository,
 )
+from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
 
 
 class TranscriptionContainer(containers.DeclarativeContainer):
@@ -43,6 +53,9 @@ class TranscriptionContainer(containers.DeclarativeContainer):
         task_scheduler=task_scheduler,
         transcription_logger=transcription_logger,
         transcription_metrics=transcription_metrics,
+        storage_service=storage_service,
+        speech_recognizer=speech_recognizer,
+        db_session=db,
     )
 
 
@@ -56,7 +69,6 @@ class TranscriptionModule:
 
 def create_transcription_container(session: AsyncSession) -> TranscriptionContainer:
     """Configure the transcription container for the given session."""
-
     return TranscriptionContainer(db=session)
 
 

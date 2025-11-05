@@ -1,10 +1,12 @@
 # src/topic_modeling/infrastructure/topic_modeling_repository.py
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from typing import Optional, Any
+from typing import Optional
 from uuid import UUID
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult
+
 
 class TopicModelingRepository:
     """SQLAlchemy implementation of the topic modeling repository."""

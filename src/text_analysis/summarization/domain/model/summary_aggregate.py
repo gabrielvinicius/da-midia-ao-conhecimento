@@ -8,7 +8,6 @@ from enum import Enum
 from typing import Iterable, Optional, Union
 from uuid import UUID, uuid4
 
-
 UUIDLike = Union[UUID, str]
 
 

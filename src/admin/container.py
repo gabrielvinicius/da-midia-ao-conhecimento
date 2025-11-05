@@ -5,12 +5,12 @@ from src.admin.application.queries.admin_queries import AdminQueries
 from src.admin.application.services.admin_audit_service import AdminAuditService
 from src.admin.application.services.admin_media_service import AdminMediaService
 from src.admin.application.services.admin_user_service import AdminUserService
-from src.user_management.application.queries.auth_queries import AuthQueries
-from src.user_management.application.permission_service import UserPermissionService
-from src.user_management.infrastructure.user_repository import UserRepository
 from src.media_management.application.facade import MediaManagementFacade
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
+from src.user_management.application.permission_service import UserPermissionService
+from src.user_management.application.queries.auth_queries import AuthQueries
+from src.user_management.infrastructure.user_repository import UserRepository
 
 
 class AdminContainer(containers.DeclarativeContainer):

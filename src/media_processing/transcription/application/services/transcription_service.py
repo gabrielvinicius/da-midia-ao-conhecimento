@@ -1,30 +1,39 @@
 # src/transcription/application/transcription_service.py
-"""
-Consolidated Transcription Service. This single service now handles all logic
+"""Consolidated Transcription Service. This single service now handles all logic
 related to transcription, including processing, audio manipulation, speaker aliases,
 and state management, removing the need for fragmented services and handlers.
 """
-import structlog
-import time
 import asyncio
-from typing import Dict, Any, List, Optional
+import time
+from typing import Dict, Optional
 from uuid import UUID
 
-from src.media_processing.transcription.domain.transcription import Transcription, TranscriptionStatus
-from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
-from src.media_processing.transcription.infrastructure.speech_recognizer import WhisperSpeechRecognizer
+import structlog
+
+from src.media_processing.transcription.domain.transcription import (
+    Transcription,
+)
+from src.media_processing.transcription.infrastructure.logging import (
+    StructuredTranscriptionLogger,
+)
+from src.media_processing.transcription.infrastructure.metrics import (
+    PrometheusTranscriptionMetrics,
+)
+from src.media_processing.transcription.infrastructure.speech_recognizer import (
+    WhisperSpeechRecognizer,
+)
+from src.media_processing.transcription.infrastructure.transcription_repository import (
+    TranscriptionRepository,
+)
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
-from src.media_processing.transcription.infrastructure.logging import StructuredTranscriptionLogger
-from src.media_processing.transcription.infrastructure.metrics import PrometheusTranscriptionMetrics
 
 logger = structlog.get_logger(__name__)
 
 
 class TranscriptionService:
+    """Consolidated service for all transcription operations.
     """
-    Consolidated service for all transcription operations.
-    """
-    
+
     def __init__(
         self,
         transcription_repo: TranscriptionRepository,
@@ -105,7 +114,7 @@ class TranscriptionService:
         """Sets speaker aliases for a given transcription."""
         logger.info("transcription.set_aliases.started", transcription_id=str(transcription_id))
         self._validate_speaker_aliases(aliases)
-        
+
         transcription = await self.repo.get_by_id(transcription_id)
         if not transcription:
             raise ValueError(f"Transcription with ID {transcription_id} not found.")

@@ -1,13 +1,14 @@
-from transformers import pipeline, AutoTokenizer
-import torch
 import asyncio
 from threading import Lock
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
+import torch
+from transformers import AutoTokenizer, pipeline
+
 
 class HuggingFaceSummarizer:
     def __init__(self, model_name="google-t5/t5-base"):
-        """
-        Initializes the summarizer with automatic device detection.
+        """Initializes the summarizer with automatic device detection.
         """
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)

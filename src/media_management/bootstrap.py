@@ -30,20 +30,26 @@ from src.media_processing.transcription.application.queries import (
 from src.media_processing.transcription.application.transcription_service import (
     TranscriptionService,
 )
-from src.media_processing.video_processing.application.video_processing_service import (
-    VideoProcessingService,
-)
 from src.media_processing.transcription.infrastructure.logging import (
     StructuredTranscriptionLogger,
 )
 from src.media_processing.transcription.infrastructure.metrics import (
     PrometheusTranscriptionMetrics,
 )
+from src.media_processing.transcription.infrastructure.speech_recognizer import (
+    WhisperSpeechRecognizer,
+)
 from src.media_processing.transcription.infrastructure.task_scheduler import (
     CeleryTranscriptionTaskScheduler,
 )
 from src.media_processing.transcription.infrastructure.transcription_repository import (
     TranscriptionRepository,
+)
+from src.media_processing.video_processing.application.video_processing_service import (
+    VideoProcessingService,
+)
+from src.media_processing.video_processing.infrastructure.metrics import (
+    PrometheusVideoProcessingMetrics,
 )
 from src.media_processing.video_processing.infrastructure.task_scheduler import (
     CeleryVideoProcessingTaskScheduler,
@@ -54,12 +60,8 @@ from src.media_processing.video_processing.infrastructure.video_audio_extractor 
 from src.media_processing.video_processing.infrastructure.video_thumbnail_generator import (
     FFmpegVideoThumbnailGenerator,
 )
-from src.media_processing.video_processing.infrastructure.metrics import (
-    PrometheusVideoProcessingMetrics,
-)
-from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
 from src.shared.events.bus import SupportsEventBus
-from src.shared.events.domain_events import MediaUploaded, TextContentReady
+from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
 
 
 @dataclass
@@ -95,7 +97,6 @@ def build_media_components(
     emit_legacy_media_task: bool = True,
 ) -> Tuple[MediaModule, MediaAdminContext]:
     """Compose the media module without relying on dependency-injector."""
-
     media_repository = MediaRepository(db=session)
     media_queries = MediaQueries(media_repository=media_repository)
     media_logger = StructuredMediaLogger()
@@ -105,11 +106,16 @@ def build_media_components(
     # Consolidated processing dependencies
     transcription_repository = TranscriptionRepository(db=session)
     transcription_metrics = PrometheusTranscriptionMetrics()
+    transcription_storage_service = S3StorageService()
+    speech_recognizer = WhisperSpeechRecognizer()
     transcription_service = TranscriptionService(
         transcription_repo=transcription_repository,
         task_scheduler=CeleryTranscriptionTaskScheduler(),
         transcription_logger=StructuredTranscriptionLogger(),
         transcription_metrics=transcription_metrics,
+        storage_service=transcription_storage_service,
+        speech_recognizer=speech_recognizer,
+        db_session=session,
     )
     transcription_queries = TranscriptionQueries(transcription_repository=transcription_repository)
 

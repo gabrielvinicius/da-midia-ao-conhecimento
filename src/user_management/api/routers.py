@@ -1,14 +1,15 @@
-from typing import List, Annotated
+from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from src.user_management.application.user_service import UserService
+from src.shared.api.dependencies import get_current_admin_user, get_current_user
 from src.user_management.application.auth_service import AuthService
+from src.user_management.application.user_service import UserService
 from src.user_management.domain.user import User
-from src.shared.api.dependencies import get_current_user, get_current_admin_user
-from .dependencies import get_user_service, get_auth_service
-from .schemas import Token, UserResponse, UserCreate
+
+from .dependencies import get_auth_service, get_user_service
+from .schemas import Token, UserCreate, UserResponse
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 

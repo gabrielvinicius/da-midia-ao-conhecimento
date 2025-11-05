@@ -7,7 +7,7 @@ import av
 import numpy as np
 import resampy
 from transformers import pipeline
-import logging
+
 
 class HuggingfaceTranscriber:
     def __init__(self, model_name: str = "openai/whisper-base"):

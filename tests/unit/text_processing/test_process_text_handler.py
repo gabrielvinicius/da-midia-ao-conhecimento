@@ -1,18 +1,23 @@
 # tests/unit/text_processing/test_process_text_handler.py
 import sys
 from types import SimpleNamespace
-from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 
 if "fitz" not in sys.modules:  # pragma: no cover - test shim for environments without PyMuPDF
     sys.modules["fitz"] = SimpleNamespace()
 
-from src.text_analysis.text_processing.application.commands.process_text_command import ProcessTextCommand
-from src.text_analysis.text_processing.application.commands.process_text_command_handler import ProcessTextCommandHandler
 from src.media_management.domain.media import Media, MediaStatus, MediaType
 from src.shared.events.domain_events import TextContentReady
+from src.text_analysis.text_processing.application.commands.process_text_command import (
+    ProcessTextCommand,
+)
+from src.text_analysis.text_processing.application.commands.process_text_command_handler import (
+    ProcessTextCommandHandler,
+)
+
 
 @pytest.fixture
 def handler_mocks():

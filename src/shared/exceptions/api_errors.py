@@ -1,31 +1,31 @@
 # src/shared/exceptions/api_errors.py
-"""
-Handlers globais para tratamento de exceções na API.
+"""Handlers globais para tratamento de exceções na API.
 Converte exceções de domínio em respostas HTTP apropriadas.
 """
+
+import traceback
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from typing import Union
-import traceback
+
+from src.shared.infrastructure.logging_config import get_logger
 
 from .domain_exceptions import (
-    DomainException,
-    ValidationError,
-    BusinessRuleViolationError,
-    ResourceNotFoundError,
-    ResourceAlreadyExistsError,
     AuthenticationError,
     AuthorizationError,
-    MediaProcessingError,
-    UnsupportedMediaTypeError,
-    ExternalServiceError,
+    BusinessRuleViolationError,
     ConfigurationError,
+    DomainException,
+    ExternalServiceError,
+    MediaProcessingError,
     RateLimitExceededError,
-    StorageError
+    ResourceAlreadyExistsError,
+    ResourceNotFoundError,
+    StorageError,
+    UnsupportedMediaTypeError,
+    ValidationError,
 )
-from src.shared.infrastructure.logging_config import get_logger
 
 logger = get_logger("api_errors")
 
@@ -49,10 +49,9 @@ EXCEPTION_STATUS_MAPPING = {
 
 async def domain_exception_handler(request: Request, exc: DomainException) -> JSONResponse:
     """Handler para exceções de domínio."""
-    
     # Determinar status code baseado no tipo da exceção
     status_code = EXCEPTION_STATUS_MAPPING.get(type(exc), 500)
-    
+
     # Log da exceção
     logger.warning(
         "Domain exception occurred",
@@ -63,7 +62,7 @@ async def domain_exception_handler(request: Request, exc: DomainException) -> JS
         status_code=status_code,
         path=str(request.url)
     )
-    
+
     return JSONResponse(
         status_code=status_code,
         content=exc.to_dict()
@@ -72,14 +71,13 @@ async def domain_exception_handler(request: Request, exc: DomainException) -> JS
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """Handler para HTTPException do FastAPI."""
-    
     logger.warning(
         "HTTP exception occurred",
         status_code=exc.status_code,
         detail=exc.detail,
         path=str(request.url)
     )
-    
+
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -93,7 +91,6 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
 
 async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handler para exceções não tratadas."""
-    
     # Log completo da exceção
     logger.error(
         "Unhandled exception occurred",
@@ -102,7 +99,7 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
         traceback=traceback.format_exc(),
         path=str(request.url)
     )
-    
+
     # Em produção, não expor detalhes internos
     return JSONResponse(
         status_code=500,
@@ -117,7 +114,7 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
 
 class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
     """Middleware para capturar e logar todas as exceções."""
-    
+
     async def dispatch(self, request: Request, call_next):
         try:
             response = await call_next(request)
@@ -136,15 +133,14 @@ class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
 
 def register_exception_handlers(app):
     """Registra todos os handlers de exceção na aplicação FastAPI."""
-    
     # Handlers específicos (ordem importa - mais específicos primeiro)
     app.add_exception_handler(DomainException, domain_exception_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(Exception, general_exception_handler)
-    
+
     # Middleware para logging
     app.add_middleware(ExceptionLoggingMiddleware)
-    
+
     logger.info("Exception handlers registered successfully")
 
 

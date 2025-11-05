@@ -1,9 +1,12 @@
 # tests/unit/summarization/test_summary_queries.py
-import pytest
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from src.text_analysis.summarization.application.queries.summary_queries import SummaryQueries
+import pytest
+
+from src.text_analysis.summarization.application.queries.summary_queries import (
+    SummaryQueries,
+)
 from src.text_analysis.summarization.domain.summary import Summary
 
 

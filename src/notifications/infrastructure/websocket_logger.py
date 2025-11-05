@@ -6,8 +6,7 @@ logger = logging.getLogger("websocket")
 
 
 class WebSocketLogger:
-    """
-    Handles logging for WebSocket connection events.
+    """Handles logging for WebSocket connection events.
     This decouples logging from the connection management logic.
     """
 

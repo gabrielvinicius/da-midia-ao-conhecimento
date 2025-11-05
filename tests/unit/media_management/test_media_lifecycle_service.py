@@ -1,8 +1,9 @@
 """Unit tests for MediaLifecycleService."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
+
+import pytest
 
 from src.media_management.application.services import MediaLifecycleService
 from src.media_management.domain.enums import MediaStatus, MediaType

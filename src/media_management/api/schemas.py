@@ -1,13 +1,15 @@
 # src/media_management/api/schemas.py
-from pydantic import BaseModel, Field, ConfigDict
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
 
-from src.media_management.domain.media import MediaType, MediaStatus
+from pydantic import BaseModel, ConfigDict, Field
+
+from src.media_management.domain.media import MediaStatus, MediaType
 
 
 class MediaCreate(BaseModel):
     """Schema for creating a new media item."""
+
     original_file_path: str = Field(
         ...,
         description="The path to the original file in storage.",

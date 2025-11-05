@@ -30,7 +30,6 @@ class SummaryResponse(BaseModel):
     @classmethod
     def from_domain(cls, summary: SummaryAggregate) -> "SummaryResponse":
         """Convert the domain aggregate into a serialisable DTO."""
-
         bullet_points = list(summary.bullet_points) if summary.bullet_points else None
         key_topics = list(summary.key_topics) if summary.key_topics else None
 

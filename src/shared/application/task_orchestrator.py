@@ -5,9 +5,14 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, Protocol
 
+from src.notifications.application.schemas import NotificationTaskPayload
 from src.notifications.tasks.notification_tasks import send_notification_task
-from src.text_analysis.sentiment_analysis.tasks.analysis_tasks import analyze_sentiment_task
-from src.text_analysis.topic_modeling.tasks.topic_modeling_tasks import analyze_topics_task
+from src.text_analysis.sentiment_analysis.tasks.analysis_tasks import (
+    analyze_sentiment_task,
+)
+from src.text_analysis.topic_modeling.tasks.topic_modeling_tasks import (
+    analyze_topics_task,
+)
 
 
 class VideoProcessingTaskScheduler(Protocol):
@@ -24,7 +29,6 @@ async def schedule_video_processing(
     file_path: str,
 ) -> Any:
     """Delegate video processing to the provided scheduler implementation."""
-
     if task_scheduler is None:
         raise ValueError("task_scheduler must be provided to schedule video processing tasks.")
 
@@ -41,7 +45,6 @@ def schedule_sentiment_analysis(
     provider: str,
 ) -> Any:
     """Trigger the sentiment analysis Celery task."""
-
     return analyze_sentiment_task.delay(
         media_id=media_id,
         text_content=text_content,
@@ -58,7 +61,6 @@ def schedule_topic_modeling(
     options: Optional[Dict[str, Any]] = None,
 ) -> Any:
     """Trigger the topic modeling Celery task."""
-
     return analyze_topics_task.delay(
         media_id=media_id,
         text_content=text_content,
@@ -76,11 +78,11 @@ def schedule_notification(
     contact_info: Dict[str, Any],
 ) -> Any:
     """Trigger the notification Celery task."""
-
-    return send_notification_task.delay(
+    payload = NotificationTaskPayload(
         user_id=user_id,
         message=message,
         notification_type=notification_type,
         contact_info=contact_info,
     )
+    return send_notification_task.delay(**payload.model_dump())
 

@@ -1,10 +1,10 @@
 # src/notifications/infrastructure/connection_manager.py
-from fastapi import WebSocket
-from typing import Dict, Any, Optional
-from uuid import UUID
 import json
-import structlog
+from typing import Any, Dict, Optional
+from uuid import UUID
 
+import structlog
+from fastapi import WebSocket
 
 from .connection_registry import WebSocketConnectionRegistry
 from .websocket_logger import WebSocketLogger
@@ -13,27 +13,27 @@ logger = structlog.get_logger(__name__)
 
 
 class ConnectionManager:
-    """
-    Orchestrates WebSocket connections and logging.
+    """Orchestrates WebSocket connections and logging.
     Acts as a facade, delegating connection storage to a registry and logging to a logger.
     """
+
     def __init__(self, registry: WebSocketConnectionRegistry, logger: WebSocketLogger):
         self.registry = registry
         self.logger = logger
 
     async def connect(self, user_id: UUID, websocket: WebSocket) -> None:
-        """
-        Accept and register WebSocket connection.
+        """Accept and register WebSocket connection.
         
         Args:
             user_id: User ID
             websocket: WebSocket connection
+
         """
         await websocket.accept()
         self.registry.add(str(user_id), websocket)
         total = len(self.registry.get_connections(str(user_id)))
         self.logger.log_connect(str(user_id), total)
-        
+
         logger.info(
             "websocket.connection_established",
             user_id=str(user_id),
@@ -41,17 +41,17 @@ class ConnectionManager:
         )
 
     def disconnect(self, user_id: UUID, websocket: WebSocket) -> None:
-        """
-        Remove WebSocket connection.
+        """Remove WebSocket connection.
         
         Args:
             user_id: User ID
             websocket: WebSocket connection
+
         """
         self.registry.remove(str(user_id), websocket)
         remaining = len(self.registry.get_connections(str(user_id)))
         self.logger.log_disconnect(str(user_id), remaining)
-        
+
         logger.info(
             "websocket.connection_closed",
             user_id=str(user_id),
@@ -59,8 +59,7 @@ class ConnectionManager:
         )
 
     async def send_to_user(self, user_id: UUID, message: Dict[str, Any]) -> bool:
-        """
-        Send message to specific user.
+        """Send message to specific user.
         
         Args:
             user_id: Target user ID
@@ -68,6 +67,7 @@ class ConnectionManager:
             
         Returns:
             bool: True if message was sent successfully
+
         """
         connections = self.registry.get_connections(str(user_id))
         if not connections:
@@ -76,10 +76,10 @@ class ConnectionManager:
                 user_id=str(user_id)
             )
             return False
-        
+
         success_count = 0
         message_text = json.dumps(message)
-        
+
         for connection in connections[:]:  # Create copy to avoid modification during iteration
             try:
                 await connection.send_text(message_text)
@@ -88,9 +88,9 @@ class ConnectionManager:
                 self.logger.log_error(str(user_id), e, "Failed to send message to user")
                 # Remove dead connection
                 self.disconnect(user_id, connection)
-        
+
         success = success_count > 0
-        
+
         logger.debug(
             "websocket.message_sent_to_user",
             user_id=str(user_id),
@@ -98,12 +98,11 @@ class ConnectionManager:
             connections_tried=len(connections),
             successful_sends=success_count
         )
-        
+
         return success
 
     async def broadcast(self, message: Dict[str, Any], filter_criteria: Optional[Dict] = None) -> int:
-        """
-        Broadcast message to all or filtered connections.
+        """Broadcast message to all or filtered connections.
         
         Args:
             message: Message data
@@ -111,15 +110,16 @@ class ConnectionManager:
             
         Returns:
             int: Number of successful sends
+
         """
         all_connections = self.registry.get_all_connections()
         if not all_connections:
             logger.debug("websocket.no_active_connections_for_broadcast")
             return 0
-        
+
         message_text = json.dumps(message)
         success_count = 0
-        
+
         for connection in all_connections:
             try:
                 # TODO: Apply filter_criteria if needed
@@ -128,25 +128,25 @@ class ConnectionManager:
             except Exception as e:
                 self.logger.log_error("broadcast", e, "Failed to broadcast message")
                 # Note: Can't easily remove connection here without user_id mapping
-        
+
         logger.info(
             "websocket.broadcast_completed",
             total_connections=len(all_connections),
             successful_sends=success_count,
             message_type=message.get("type", "unknown")
         )
-        
+
         return success_count
 
     def get_active_connections(self, user_id: Optional[UUID] = None) -> int:
-        """
-        Get count of active connections.
+        """Get count of active connections.
         
         Args:
             user_id: Optional user ID for user-specific count
             
         Returns:
             int: Number of active connections
+
         """
         if user_id:
             return len(self.registry.get_connections(str(user_id)))

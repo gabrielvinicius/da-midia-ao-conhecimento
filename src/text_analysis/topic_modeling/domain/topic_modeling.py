@@ -3,8 +3,9 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict
 
-from sqlalchemy import Column, String, DateTime, Enum as SqlEnum, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Column, DateTime, ForeignKey, String
+from sqlalchemy import Enum as SqlEnum
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from src.shared.infrastructure.database import Base
 from src.text_analysis.topic_modeling.domain.analysis import TopicModelingStatus
@@ -15,15 +16,15 @@ class TopicModelingResult(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     media_id = Column(UUID(as_uuid=True), ForeignKey("media.id"), nullable=False, unique=True)
-    
+
     # Store the list of topics/keywords
     topics = Column(JSONB, nullable=False)
-    
+
     # Adicionar campos de status e provedor
     status = Column(SqlEnum(TopicModelingStatus), default=TopicModelingStatus.PENDING, nullable=False)
     provider = Column(String, nullable=True)
     error_message = Column(String, nullable=True)
-    
+
     created_at = Column(DateTime, default=datetime.utcnow)
     processed_at = Column(DateTime, nullable=True) # Adicionar processed_at
 

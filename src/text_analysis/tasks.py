@@ -1,30 +1,55 @@
 from __future__ import annotations
 
 import asyncio
-import os
-from typing import Any, Dict, List, Optional
-from uuid import UUID
 import time
+from typing import Any, Dict, Optional
 
 import structlog
 from celery import shared_task
-
-# Imports for text processing tasks
-from src.text_analysis.text_processing.infrastructure.text_processor import TextProcessor
-from src.text_analysis.text_processing.infrastructure.text_extractor import TextExtractor
+from pydantic import ValidationError
 
 # Imports for summarization tasks
 from src.shared.infrastructure.database import get_db
-from src.text_analysis.summarization.domain.summary import Summary
-from src.text_analysis.summarization.infrastructure.summarization_repository import SummarizationRepository
+from src.text_analysis.application.domain_services import (
+    SentimentAnalysisDomainService,
+    SummarizationDomainService,
+    TopicModelingDomainService,
+)
+from src.text_analysis.summarization.infrastructure.summarization_repository import (
+    SummarizationRepository,
+)
+from src.text_analysis.application.schemas import (
+    SentimentTaskPayload,
+    SummarizationTaskPayload,
+    TextExtractionPayload,
+    TextProcessPayload,
+    TopicModelingTaskPayload,
+)
 from src.text_analysis.summarization.infrastructure.summarizer import TextRankSummarizer
+from src.text_analysis.text_processing.bootstrap import TextProcessingContainer
+from src.text_analysis.text_processing.infrastructure.text_extractor import (
+    TextExtractor,
+)
+
+# Imports for text processing tasks
+from src.text_analysis.text_processing.infrastructure.text_processor import (
+    TextProcessor,
+)
+from src.text_analysis.topic_modeling.infrastructure.logging import (
+    StructuredTopicModelingLogger,
+)
+from src.text_analysis.topic_modeling.infrastructure.metrics import (
+    PrometheusTopicModelingMetrics,
+)
+from src.text_analysis.topic_modeling.infrastructure.topic_modeler import (
+    BERTopicModeler,
+)
 
 # Imports for topic modeling tasks
-from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult
-from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
-from src.text_analysis.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
-from src.text_analysis.topic_modeling.infrastructure.logging import StructuredTopicModelingLogger
-from src.text_analysis.topic_modeling.infrastructure.metrics import PrometheusTopicModelingMetrics
+from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import (
+    TopicModelingRepository,
+)
+from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 logger = structlog.get_logger(__name__)
 
@@ -42,8 +67,25 @@ def process_text_task(
         options: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     try:
+        payload = TextProcessPayload.model_validate(
+            {
+                "media_id": media_id,
+                "text_content": text_content,
+                "processing_type": processing_type,
+                "options": options,
+            }
+        )
+    except ValidationError as exc:
+        logger.error(
+            "text_processing.task_invalid_payload",
+            media_id=media_id,
+            errors=exc.errors(),
+        )
+        return None
+
+    try:
         return asyncio.run(
-            _run_text_processing(media_id, text_content, processing_type, options)
+            _run_text_processing(payload)
         )
     except Exception as e:
         logger.error(
@@ -55,10 +97,7 @@ def process_text_task(
         return None
 
 async def _run_text_processing(
-    media_id: str,
-    text_content: str,
-    processing_type: str,
-    options: Optional[Dict[str, Any]] = None,
+    payload: TextProcessPayload,
 ) -> Optional[Dict[str, Any]]:
     start_time = time.monotonic()
     success = False
@@ -67,25 +106,33 @@ async def _run_text_processing(
     # TODO: Resolve dependencies via DI container later
     processor = TextProcessor()
 
-    logger.info("text_processing.process.started", media_id=media_id, processing_type=processing_type)
+    logger.info(
+        "text_processing.process.started",
+        media_id=str(payload.media_id),
+        processing_type=payload.processing_type,
+    )
     try:
         result = await processor.process_text(
-            text_content=text_content,
-            processing_type=processing_type,
-            options=options
+            text_content=payload.text_content,
+            processing_type=payload.processing_type,
+            options=payload.options,
         )
         success = True
-        logger.info("text_processing.process.completed", media_id=media_id)
+        logger.info("text_processing.process.completed", media_id=str(payload.media_id))
         return {
             "success": True,
-            "media_id": media_id,
-            "processing_type": processing_type,
+            "media_id": str(payload.media_id),
+            "processing_type": payload.processing_type,
             "message": "Text processing completed successfully",
             "result": result
         }
     except Exception as e:
         error = e
-        logger.error("text_processing.process.failed", media_id=media_id, error=str(e))
+        logger.error(
+            "text_processing.process.failed",
+            media_id=str(payload.media_id),
+            error=str(e),
+        )
         raise
     finally:
         duration = time.monotonic() - start_time
@@ -97,10 +144,28 @@ def extract_text_task(
         media_id: str,
         file_path: str,
         extraction_method: str,
+        storage_provider: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     try:
+        payload = TextExtractionPayload.model_validate(
+            {
+                "media_id": media_id,
+                "file_path": file_path,
+                "storage_provider": storage_provider or "local",
+                "extraction_method": extraction_method,
+            }
+        )
+    except ValidationError as exc:
+        logger.error(
+            "text_extraction.task_invalid_payload",
+            media_id=media_id,
+            errors=exc.errors(),
+        )
+        return None
+
+    try:
         return asyncio.run(
-            _run_text_extraction(media_id, file_path, extraction_method)
+            _run_text_extraction(payload)
         )
     except Exception as e:
         logger.error(
@@ -112,45 +177,58 @@ def extract_text_task(
         return None
 
 async def _run_text_extraction(
-    media_id: str,
-    file_path: str,
-    extraction_method: str,
+    payload: TextExtractionPayload,
 ) -> Optional[Dict[str, Any]]:
     start_time = time.monotonic()
     success = False
     error = None
 
-    # TODO: Resolve dependencies via DI container later
-    extractor = TextExtractor()
+    storage_factory = StorageServiceFactory()
 
-    logger.info("text_processing.extract.started", media_id=media_id, file_path=file_path, extraction_method=extraction_method)
+    async for db in get_db():
+        container = TextProcessingContainer(
+            db=db,
+            storage_factory=storage_factory,
+            storage_provider=payload.storage_provider,
+        )
+        extractor: TextExtractor = container.text_extractor()
+        break
+    else:  # pragma: no cover - generator should always yield
+        raise RuntimeError("Database session not available for text extraction")
+
+    logger.info(
+        "text_processing.extract.started",
+        media_id=str(payload.media_id),
+        file_path=payload.file_path,
+        extraction_method=payload.extraction_method,
+        storage_provider=payload.storage_provider,
+    )
     try:
         extracted_text = await extractor.extract_text(
-            file_path=file_path,
-            extraction_method=extraction_method
+            file_path=payload.file_path,
+            extraction_method=payload.extraction_method,
+            storage_provider=payload.storage_provider,
         )
         success = True
-        logger.info("text_processing.extract.completed", media_id=media_id)
+        logger.info("text_processing.extract.completed", media_id=str(payload.media_id))
         return {
             "success": True,
-            "media_id": media_id,
-            "extraction_method": extraction_method,
+            "media_id": str(payload.media_id),
+            "extraction_method": payload.extraction_method,
             "message": "Text extraction completed successfully",
             "extracted_text": extracted_text
         }
     except Exception as e:
         error = e
-        logger.error("text_processing.extract.failed", media_id=media_id, error=str(e))
+        logger.error(
+            "text_processing.extract.failed",
+            media_id=str(payload.media_id),
+            error=str(e),
+        )
         raise
     finally:
         duration = time.monotonic() - start_time
         # TODO: Adicionar logging e métricas aqui
-
-
-def _ensure_uuid(value: UUID | str) -> UUID:
-    if isinstance(value, UUID):
-        return value
-    return UUID(str(value))
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
 def process_summarization_task(
@@ -161,9 +239,24 @@ def process_summarization_task(
         options: Optional[Dict[str, Any]] = None,
 ) -> Optional[str]:
     try:
-        return asyncio.run(
-            _run_summarization(media_id, text_content, provider, options)
+        payload = SummarizationTaskPayload.model_validate(
+            {
+                "media_id": media_id,
+                "text_content": text_content,
+                "provider": provider,
+                "options": options,
+            }
         )
+    except ValidationError as exc:
+        logger.error(
+            "summarization.task_invalid_payload",
+            media_id=media_id,
+            errors=exc.errors(),
+        )
+        return None
+
+    try:
+        return asyncio.run(_run_summarization(payload=payload))
     except Exception as e:
         logger.error(
             "summarization.task_failed",
@@ -174,53 +267,34 @@ def process_summarization_task(
         return None
 
 async def _run_summarization(
-    media_id: str,
-    text_content: str,
-    provider: str,
-    options: Optional[Dict[str, Any]] = None,
+    *,
+    payload: SummarizationTaskPayload,
 ) -> Optional[str]:
-    media_uuid = _ensure_uuid(media_id)
     async for db in get_db():
-        # TODO: Resolve dependencies via DI container later
-        repo = SummarizationRepository(db)
-        summarizer = TextRankSummarizer()
-
-        logger.info("summarization.task.start", media_id=media_id, provider=provider)
-
-        existing = await repo.get_by_media_id(media_uuid)
-
-        summary = (
-            existing.with_provider(provider).mark_processing()
-            if existing
-            else Summary.create(media_id=media_uuid, provider=provider)
+        logger.info(
+            "summarization.task.start",
+            media_id=str(payload.media_id),
+            provider=payload.provider,
+        )
+        service = SummarizationDomainService(
+            session=db,
+            repository=SummarizationRepository(db),
+            summarizer=TextRankSummarizer(),
         )
 
-        if existing is None:
-            summary = await repo.add(summary)
+        summary = await service.generate_summary(
+            media_id=payload.media_id,
+            text_content=payload.text_content,
+            provider=payload.provider,
+            options=payload.options,
+        )
 
-        try:
-            summary_text = await summarizer.summarize(text_content, options)
-            completed = summary.mark_as_completed(summary_text)
-            await repo.update(completed)
-            await db.commit()
-
-            logger.info(
-                "summarization.task.completed",
-                media_id=media_id,
-                summary_id=str(summary.id),
-            )
-            return str(summary.id)
-        except Exception as exc:
-            logger.error(
-                "summarization.task.error",
-                media_id=media_id,
-                error=str(exc),
-                exc_info=True,
-            )
-            summary.mark_as_failed(str(exc))
-            await repo.update(summary)
-            await db.commit()
-            raise
+        logger.info(
+            "summarization.task.completed",
+            media_id=str(payload.media_id),
+            summary_id=str(summary.id),
+        )
+        return str(summary.id)
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
 def process_sentiment_analysis_task(
@@ -233,9 +307,26 @@ def process_sentiment_analysis_task(
         language: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     try:
-        return asyncio.run(
-            _run_sentiment_analysis(transcription_id, text, provider, model, media_id, language)
+        payload = SentimentTaskPayload.model_validate(
+            {
+                "transcription_id": transcription_id,
+                "text": text,
+                "provider": provider,
+                "model": model,
+                "media_id": media_id,
+                "language": language,
+            }
         )
+    except ValidationError as exc:
+        logger.error(
+            "sentiment_analysis.task_invalid_payload",
+            transcription_id=transcription_id,
+            errors=exc.errors(),
+        )
+        return None
+
+    try:
+        return asyncio.run(_run_sentiment_analysis(payload))
     except Exception as e:
         logger.error(
             "sentiment_analysis.task_failed",
@@ -246,65 +337,61 @@ def process_sentiment_analysis_task(
         return None
 
 async def _run_sentiment_analysis(
-    transcription_id: str,
-    text: str,
-    provider: str,
-    model: Optional[str] = None,
-    media_id: Optional[str] = None,
-    language: Optional[str] = None,
+    payload: SentimentTaskPayload,
 ) -> Optional[Dict[str, Any]]:
     start_time = time.perf_counter()
     # TODO: Resolve dependencies via DI container later
-    from src.text_analysis.sentiment_analysis.application.sentiment_analysis_service import (
-        SentimentAnalysisService,
-    )  # local import to avoid circular dependency
-    from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analyzer import (
-        HuggingFaceSentimentAnalyzer,
-    )
     from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
         SentimentAnalysisRepository,
     )
-
-    analyzer = HuggingFaceSentimentAnalyzer()  # Placeholder, will be dynamic
-    repository = SentimentAnalysisRepository()  # Placeholder, will be dynamic
-    service = SentimentAnalysisService(analyzer=analyzer, repository=repository)
-
-    logger.info("sentiment_analysis.started", transcription_id=transcription_id, provider=provider)
-
-    try:
-        payload = await service.analyze_sentiment(
-            transcription_id=transcription_id,
-            text=text,
-            provider=provider,
-            model=model,
-            media_id=media_id,
-            language=language,
-        )
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.error(
-            "sentiment_analysis.failed",
-            level="error",
-            transcription_id=transcription_id,
-            provider=provider,
-            error=str(exc),
-        )
-        raise
-
-    duration = time.perf_counter() - start_time
-    payload.setdefault("provider", provider)
-    payload.setdefault("model", model)
-    payload.setdefault("media_id", media_id)
-    payload.setdefault("processing_time", duration)
-
-    # TODO: Record metrics and log operation via injected dependencies
-    logger.info(
-        "sentiment_analysis.completed",
-        transcription_id=transcription_id,
-        provider=provider,
-        duration=duration,
+    from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analyzer import (
+        SimpleSentimentAnalyzer,
     )
 
-    return payload
+    logger.info(
+        "sentiment_analysis.started",
+        transcription_id=str(payload.transcription_id),
+        provider=payload.provider,
+    )
+
+    async for db in get_db():
+        service = SentimentAnalysisDomainService(
+            session=db,
+            repository=SentimentAnalysisRepository(db),
+            analyzer=SimpleSentimentAnalyzer(),
+        )
+
+        try:
+            result = await service.analyze_sentiment(
+                transcription_id=str(payload.transcription_id),
+                text=payload.text,
+                provider=payload.provider,
+                model=payload.model,
+                media_id=str(payload.media_id) if payload.media_id is not None else None,
+                language=payload.language,
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error(
+                "sentiment_analysis.failed",
+                transcription_id=str(payload.transcription_id),
+                provider=payload.provider,
+                error=str(exc),
+            )
+            raise
+
+        if payload.media_id is not None:
+            result.setdefault("media_id", str(payload.media_id))
+        if "processing_time" not in result:
+            result["processing_time"] = time.perf_counter() - start_time
+
+        logger.info(
+            "sentiment_analysis.completed",
+            transcription_id=str(payload.transcription_id),
+            provider=payload.provider,
+            duration=result.get("processing_time"),
+        )
+
+        return result
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
 def process_topic_modeling_task(
@@ -316,9 +403,25 @@ def process_topic_modeling_task(
         options: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     try:
-        return asyncio.run(
-            _run_topic_modeling(media_id, text_content, provider, language, options)
+        payload = TopicModelingTaskPayload.model_validate(
+            {
+                "media_id": media_id,
+                "text_content": text_content,
+                "provider": provider,
+                "language": language,
+                "options": options,
+            }
         )
+    except ValidationError as exc:
+        logger.error(
+            "topic_modeling.task_invalid_payload",
+            media_id=media_id,
+            errors=exc.errors(),
+        )
+        return None
+
+    try:
+        return asyncio.run(_run_topic_modeling(payload=payload))
     except Exception as e:
         logger.error(
             "topic_modeling.task_failed",
@@ -329,76 +432,39 @@ def process_topic_modeling_task(
         return None
 
 async def _run_topic_modeling(
-    media_id: str,
-    text_content: str,
-    provider: str,
-    language: str,
-    options: Optional[Dict[str, Any]] = None,
+    *,
+    payload: TopicModelingTaskPayload,
 ) -> Optional[Dict[str, Any]]:
-    start_time = time.monotonic()
-    success = False
-    error = None
-    result_id = None
-    num_topics = 0
-
-    media_uuid = UUID(media_id)
     async for db in get_db():
-        # TODO: Resolve dependencies via DI container later
-        modeler = BERTopicModeler() # Placeholder, will be dynamic
-        repo = TopicModelingRepository(db) # Placeholder, will be dynamic
-        topic_logger = StructuredTopicModelingLogger() # Placeholder, will be dynamic
-        topic_metrics = PrometheusTopicModelingMetrics() # Placeholder, will be dynamic
+        logger.info(
+            "topic_modeling.analyze.started",
+            media_id=str(payload.media_id),
+            provider=payload.provider,
+        )
 
-        logger.info("topic_modeling.analyze.started", media_id=media_id, provider=provider)
-        try:
-            # 1. Perform topic modeling
-            modeling_data = await modeler.model_topics(
-                text_content=text_content,
-                language=language,
-                options=options
-            )
-            num_topics = modeling_data.get("num_topics", 0)
+        service = TopicModelingDomainService(
+            session=db,
+            repository=TopicModelingRepository(db),
+            modeler=BERTopicModeler(),
+            operation_logger=StructuredTopicModelingLogger(),
+            metrics=PrometheusTopicModelingMetrics(),
+        )
 
-            # 2. Create or update TopicModelingResult entity
-            existing_result = await repo.get_by_media_id(media_uuid)
+        result = await service.analyze_topics(
+            media_id=payload.media_id,
+            text_content=payload.text_content,
+            provider=payload.provider,
+            language=payload.language,
+            options=payload.options,
+        )
 
-            if existing_result:
-                existing_result.mark_as_completed(modeling_data.get("topics", {}))
-                await repo.update(existing_result)
-                topic_result = existing_result
-            else:
-                topic_result = TopicModelingResult.create(
-                    media_id=media_uuid,
-                    provider=provider
-                )
-                topic_result.mark_as_completed(modeling_data.get("topics", {}))
-                await repo.add(topic_result)
-            
-            result_id = topic_result.id
-            success = True
-
-            logger.info("topic_modeling.analyze.completed", media_id=media_id, result_id=str(result_id))
-            return {"success": True, "result_id": str(result_id), "topics": modeling_data.get("topics", {})}
-
-        except Exception as e:
-            error = e
-            logger.error("topic_modeling.analyze.failed", media_id=media_id, error=str(e))
-            raise
-        finally:
-            duration = time.monotonic() - start_time
-            await topic_logger.log_operation(
-                operation="analyze_topics",
-                media_id=media_id,
-                provider=provider,
-                success=success,
-                duration=duration,
-                error=error
-            )
-            await topic_metrics.record_operation(
-                operation="analyze_topics",
-                provider=provider,
-                duration=duration,
-                success=success,
-                input_text_length_chars=len(text_content),
-                num_topics=num_topics
-            )
+        logger.info(
+            "topic_modeling.analyze.completed",
+            media_id=str(payload.media_id),
+            result_id=str(result.id),
+        )
+        return {
+            "success": True,
+            "result_id": str(result.id),
+            "topics": getattr(result, "topics", {}),
+        }

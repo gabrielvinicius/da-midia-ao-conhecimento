@@ -3,8 +3,8 @@
 from typing import Optional
 from uuid import UUID
 
-from src.user_management.domain.user import UserRole
 from src.media_management.domain.media import Media
+from src.user_management.domain.user import UserRole
 
 
 class MediaAccessPolicy:
@@ -18,7 +18,6 @@ class MediaAccessPolicy:
 
     def can_access(self, media: Media, user_id: UUID, user_role: Optional[UserRole] = None) -> bool:
         """Return True if the user can access the provided media."""
-
         role_value = self._normalize_role(user_role)
         if role_value == UserRole.ADMIN.value:
             return True
@@ -26,7 +25,6 @@ class MediaAccessPolicy:
 
     def ensure_can_access(self, media: Media, user_id: UUID, user_role: Optional[UserRole] = None) -> None:
         """Raise PermissionError when the user lacks access to the media."""
-
         if not self.can_access(media, user_id, user_role):
             raise PermissionError("User is not authorized to access this media")
 

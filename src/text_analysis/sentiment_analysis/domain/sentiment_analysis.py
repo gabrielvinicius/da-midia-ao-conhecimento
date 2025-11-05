@@ -15,7 +15,6 @@ from src.shared.infrastructure.database import Base
 
 def _generate_id() -> str:
     """Generate a predictable identifier for domain entities."""
-
     return str(uuid4())
 
 
@@ -39,7 +38,6 @@ class SentimentAnalysis:
 
     def update_from_payload(self, payload: Dict[str, Any]) -> None:
         """Update analysis information from a provider payload."""
-
         self.overall_sentiment = payload.get("overall_sentiment", self.overall_sentiment)
         self.sentiment_score = payload.get("sentiment_score", self.sentiment_score)
         self.confidence = payload.get("confidence", self.confidence)
@@ -79,7 +77,6 @@ class SentimentAnalysisRecord(Base):
 
     def to_entity(self) -> SentimentAnalysis:
         """Transform the ORM record into a domain entity."""
-
         return SentimentAnalysis(
             id=self.id,
             media_id=self.media_id,
@@ -99,7 +96,6 @@ class SentimentAnalysisRecord(Base):
     @staticmethod
     def from_entity(entity: SentimentAnalysis) -> "SentimentAnalysisRecord":
         """Create a persistence record from a domain entity."""
-
         record = SentimentAnalysisRecord(
             id=entity.id,
             media_id=entity.media_id,
@@ -119,7 +115,6 @@ class SentimentAnalysisRecord(Base):
 
     def update_from_entity(self, entity: SentimentAnalysis) -> None:
         """Synchronise persistence state with the provided entity."""
-
         self.media_id = entity.media_id
         self.transcription_id = entity.transcription_id
         self.overall_sentiment = entity.overall_sentiment

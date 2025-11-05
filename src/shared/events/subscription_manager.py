@@ -18,14 +18,12 @@ class SubscriptionManager:
 
     def subscribe(self, event_type: Type[TEvent], handler: EventHandler) -> None:
         """Register an asynchronous handler for a given event type."""
-
         handlers = self._subscriptions[event_type]
         if handler not in handlers:
             handlers.append(handler)
 
     def unsubscribe(self, event_type: Type[TEvent], handler: EventHandler) -> None:
         """Remove a previously registered handler."""
-
         handlers = self._subscriptions.get(event_type)
         if not handlers:
             return
@@ -40,12 +38,10 @@ class SubscriptionManager:
 
     def handlers_for(self, event_type: Type[TEvent]) -> Iterable[EventHandler]:
         """Return handlers for the provided event type."""
-
         return tuple(self._subscriptions.get(event_type, ()))
 
     def clear(self) -> None:
         """Remove all registered handlers (used when stopping the bus)."""
-
         self._subscriptions.clear()
 
 

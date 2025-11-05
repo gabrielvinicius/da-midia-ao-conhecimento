@@ -1,23 +1,27 @@
 # tests/integration/media_management/test_create_media_integration.py
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from uuid import UUID
 
-from src.media_management.application.commands.create_media_command import CreateMediaCommand
-from src.media_management.application.commands.create_media_command_handler import CreateMediaCommandHandler
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.media_management.application.commands.create_media_command import (
+    CreateMediaCommand,
+)
+from src.media_management.application.commands.create_media_command_handler import (
+    CreateMediaCommandHandler,
+)
+from src.media_management.domain.media import MediaType
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.infrastructure.orm.media_entity import MediaEntity
-from src.media_management.domain.media import Media, MediaType
 
 # This test requires a running database, managed by the fixtures in tests/integration/conftest.py
 pytestmark = pytest.mark.integration
 
 @pytest.mark.asyncio
 async def test_create_media_handler_persists_to_db(db_session: AsyncSession):
-    """
-    Integration test to verify that the CreateMediaCommandHandler correctly
+    """Integration test to verify that the CreateMediaCommandHandler correctly
     persists a new Media entity to the database.
     """
     # Arrange: Create a real repository with the test DB session, and mock external services

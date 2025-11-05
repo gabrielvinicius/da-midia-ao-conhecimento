@@ -1,19 +1,20 @@
-"""
-Monitoring API Schemas - Pydantic models for monitoring endpoints
+"""Monitoring API Schemas - Pydantic models for monitoring endpoints
 Follows clear data contracts and validation.
 """
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
-from uuid import UUID
 
 
 # Request Schemas
 class ProcessingTimeEstimateRequest(BaseModel):
     """Request schema for processing time estimation."""
+
     content_metric: float = Field(..., gt=0, description="Content metric (duration, length, etc.)")
 
 class CreateCustomMetricRequest(BaseModel):
     """Request schema for creating custom metrics."""
+
     name: str = Field(..., description="Metric name")
     metric_type: str = Field(..., description="Type of metric (counter, histogram, gauge)")
     description: str = Field(..., description="Metric description")
@@ -22,6 +23,7 @@ class CreateCustomMetricRequest(BaseModel):
 # Response Schemas
 class ProcessingTimeEstimateResponse(BaseModel):
     """Response schema for processing time estimation."""
+
     estimated_total_seconds: float
     transcription_estimated_seconds: float
     summarization_estimated_seconds: float
@@ -31,6 +33,7 @@ class ProcessingTimeEstimateResponse(BaseModel):
 
 class SuccessRateMetrics(BaseModel):
     """Success rate metrics for a specific operation."""
+
     completed: int
     failed: int
     total: int
@@ -39,6 +42,7 @@ class SuccessRateMetrics(BaseModel):
 
 class SystemPerformanceResponse(BaseModel):
     """Response schema for system performance metrics."""
+
     time_range: str
     overall_health_score: float
     success_rates: Dict[str, SuccessRateMetrics]
@@ -49,12 +53,14 @@ class SystemPerformanceResponse(BaseModel):
 
 class TrendMetrics(BaseModel):
     """Trend metrics for a specific period."""
+
     direction: str
     change_percentage: float
 
 
 class ProcessingTrendsResponse(BaseModel):
     """Response schema for processing trends."""
+
     analysis_period_days: int
     current_week: Dict[str, Any]
     monthly_average: Dict[str, Any]
@@ -65,12 +71,14 @@ class ProcessingTrendsResponse(BaseModel):
 
 class UserRanking(BaseModel):
     """User ranking information."""
+
     tier: str
     percentile: float
 
 
 class UserAnalyticsResponse(BaseModel):
     """Response schema for user analytics."""
+
     user_id: str
     metrics: Dict[str, Any]
     ranking: UserRanking
@@ -80,6 +88,7 @@ class UserAnalyticsResponse(BaseModel):
 
 class ThroughputMetrics(BaseModel):
     """Throughput metrics."""
+
     media_per_hour: float
     transcriptions_per_hour: float
     summaries_per_hour: float
@@ -88,6 +97,7 @@ class ThroughputMetrics(BaseModel):
 
 class EfficiencyMetrics(BaseModel):
     """Efficiency metrics."""
+
     media_success_rate: float
     transcription_success_rate: float
     summarization_success_rate: float
@@ -95,6 +105,7 @@ class EfficiencyMetrics(BaseModel):
 
 class CapacityUtilization(BaseModel):
     """Capacity utilization metrics."""
+
     current_utilization_percent: float
     remaining_capacity_percent: float
     operations_to_capacity: int
@@ -102,6 +113,7 @@ class CapacityUtilization(BaseModel):
 
 class ThroughputMetricsResponse(BaseModel):
     """Response schema for throughput metrics."""
+
     time_range: str
     analysis_period_hours: int
     throughput_metrics: ThroughputMetrics
@@ -111,6 +123,7 @@ class ThroughputMetricsResponse(BaseModel):
 
 class Bottleneck(BaseModel):
     """Individual bottleneck information."""
+
     type: str
     severity: str
     metric: str
@@ -118,6 +131,7 @@ class Bottleneck(BaseModel):
 
 class PerformanceSummary(BaseModel):
     """Performance summary metrics."""
+
     transcription_avg_time: float
     summarization_avg_time: float
     overall_success_rate: float
@@ -125,6 +139,7 @@ class PerformanceSummary(BaseModel):
 
 class BottleneckAnalysisResponse(BaseModel):
     """Response schema for bottleneck analysis."""
+
     bottleneck_score: int
     severity_level: str
     identified_bottlenecks: List[Bottleneck]
@@ -134,6 +149,7 @@ class BottleneckAnalysisResponse(BaseModel):
 
 class QualityScore(BaseModel):
     """Quality score metrics."""
+
     transcription_quality_score: float
     summarization_quality_score: float
     overall_quality_score: float
@@ -141,6 +157,7 @@ class QualityScore(BaseModel):
 
 class ProcessingReliability(BaseModel):
     """Processing reliability metrics."""
+
     success_rate: float
     average_time: float
     consistency_score: float
@@ -148,12 +165,14 @@ class ProcessingReliability(BaseModel):
 
 class QualityTrend(BaseModel):
     """Quality trend information."""
+
     direction: str
     change_percentage: float
 
 
 class QualityMetricsResponse(BaseModel):
     """Response schema for quality metrics."""
+
     assessment_period: str
     quality_scores: QualityScore
     processing_reliability: Dict[str, ProcessingReliability]
@@ -163,6 +182,7 @@ class QualityMetricsResponse(BaseModel):
 
 class ErrorPattern(BaseModel):
     """Error pattern information."""
+
     pattern_type: str
     severity: str
     description: str
@@ -170,6 +190,7 @@ class ErrorPattern(BaseModel):
 
 class ErrorFrequency(BaseModel):
     """Error frequency metrics."""
+
     total_operations: int
     total_errors: int
     overall_error_rate: float
@@ -179,18 +200,21 @@ class ErrorFrequency(BaseModel):
 
 class ErrorImpact(BaseModel):
     """Error impact metrics."""
+
     processing_pipeline_impact: Dict[str, int]
     user_experience_impact: Dict[str, int]
 
 
 class ErrorTrends(BaseModel):
     """Error trend information."""
+
     transcription_error_trend: str
     summarization_error_trend: str
 
 
 class ErrorAnalysisResponse(BaseModel):
     """Response schema for error analysis."""
+
     analysis_period: str
     error_frequency: ErrorFrequency
     error_impact: ErrorImpact
@@ -202,6 +226,7 @@ class ErrorAnalysisResponse(BaseModel):
 # Additional specialized schemas
 class AccuracyMetrics(BaseModel):
     """Accuracy metrics for processing type."""
+
     success_rate: float
     total_processed: int
     accuracy_score: float
@@ -210,6 +235,7 @@ class AccuracyMetrics(BaseModel):
 
 class PerformanceMetrics(BaseModel):
     """Performance metrics for processing type."""
+
     average_processing_time: float
     min_processing_time: float
     max_processing_time: float
@@ -218,12 +244,14 @@ class PerformanceMetrics(BaseModel):
 
 class QualityIndicators(BaseModel):
     """Quality indicators for processing type."""
+
     speed_quality_ratio: float
     processing_efficiency: float
 
 
 class QualityBenchmarks(BaseModel):
     """Quality benchmarks for comparison."""
+
     target_success_rate: float
     target_avg_time: float
     target_consistency: float
@@ -231,6 +259,7 @@ class QualityBenchmarks(BaseModel):
 
 class AccuracyMetricsResponse(BaseModel):
     """Response schema for accuracy metrics."""
+
     processing_type: str
     accuracy_metrics: AccuracyMetrics
     performance_metrics: PerformanceMetrics
@@ -240,6 +269,7 @@ class AccuracyMetricsResponse(BaseModel):
 
 class LoadPrediction(BaseModel):
     """Individual load prediction."""
+
     hour: int
     timestamp: str
     predicted_media_uploads: float
@@ -249,6 +279,7 @@ class LoadPrediction(BaseModel):
 
 class LoadSummary(BaseModel):
     """Load prediction summary."""
+
     peak_load: float
     low_load: float
     average_load: float
@@ -257,6 +288,7 @@ class LoadSummary(BaseModel):
 
 class LoadPredictionResponse(BaseModel):
     """Response schema for load prediction."""
+
     prediction_horizon_hours: int
     baseline_metrics: Dict[str, float]
     predictions: List[LoadPrediction]
@@ -266,6 +298,7 @@ class LoadPredictionResponse(BaseModel):
 
 class ResourceUtilizationResponse(BaseModel):
     """Response schema for resource utilization."""
+
     analysis_period: str
     operational_metrics: Dict[str, Any]
     estimated_resource_usage: Dict[str, float]
@@ -274,6 +307,7 @@ class ResourceUtilizationResponse(BaseModel):
 
 class RetryStatistics(BaseModel):
     """Retry statistics for a service."""
+
     initial_failures: int
     retry_attempts: int
     retry_successes: int
@@ -282,6 +316,7 @@ class RetryStatistics(BaseModel):
 
 class RetryEffectiveness(BaseModel):
     """Retry effectiveness metrics."""
+
     transcription_retry_success_rate: float
     summarization_retry_success_rate: float
     overall_retry_effectiveness: float
@@ -289,6 +324,7 @@ class RetryEffectiveness(BaseModel):
 
 class RetryAnalysisResponse(BaseModel):
     """Response schema for retry analysis."""
+
     analysis_period: str
     retry_statistics: Dict[str, RetryStatistics]
     retry_effectiveness: RetryEffectiveness
@@ -296,12 +332,14 @@ class RetryAnalysisResponse(BaseModel):
 
 class ProviderMetrics(BaseModel):
     """Provider metrics information."""
+
     available_metrics: List[str]
     provider_type: str
 
 
 class BusinessKPIsResponse(BaseModel):
     """Response schema for business KPIs."""
+
     total_uploads: float
     successful_uploads: float
     upload_success_rate_percent: float
@@ -313,6 +351,7 @@ class BusinessKPIsResponse(BaseModel):
 
 class RequestMetrics(BaseModel):
     """Request metrics summary."""
+
     total_requests: float
     slow_requests: float
     error_requests: float
@@ -322,6 +361,7 @@ class RequestMetrics(BaseModel):
 
 class ProcessingMetrics(BaseModel):
     """Processing metrics summary."""
+
     total_processing: float
     long_processing: float
     long_processing_rate_percent: float
@@ -329,12 +369,14 @@ class ProcessingMetrics(BaseModel):
 
 class ResourceMetrics(BaseModel):
     """Resource metrics summary."""
+
     cpu_usage_percent: float
     memory_usage_percent: float
 
 
 class PerformanceSummaryResponse(BaseModel):
     """Response schema for performance summary."""
+
     request_metrics: RequestMetrics
     processing_metrics: ProcessingMetrics
     resource_metrics: ResourceMetrics
@@ -344,6 +386,7 @@ class PerformanceSummaryResponse(BaseModel):
 
 class MetricsSummaryResponse(BaseModel):
     """Response schema for comprehensive metrics summary."""
+
     provider_metrics: ProviderMetrics
     business_kpis: Optional[Dict[str, Any]] = None
     performance_summary: Optional[Dict[str, Any]] = None
@@ -352,6 +395,7 @@ class MetricsSummaryResponse(BaseModel):
 
 class HealthCheckResponse(BaseModel):
     """Response schema for health check."""
+
     metrics_provider: str
     business_metrics: str
     performance_metrics: str
@@ -362,11 +406,13 @@ class HealthCheckResponse(BaseModel):
 
 class TrackingResponse(BaseModel):
     """Response schema for tracking operations."""
+
     message: str
 
 
 class ErrorResponse(BaseModel):
     """Response schema for errors."""
+
     error: str
     detail: Optional[str] = None
     timestamp: str
@@ -375,6 +421,7 @@ class ErrorResponse(BaseModel):
 # Additional specialized schemas
 class MetricValue(BaseModel):
     """Individual metric value."""
+
     name: str
     value: float
     labels: Optional[Dict[str, str]] = None
@@ -383,6 +430,7 @@ class MetricValue(BaseModel):
 
 class MetricHistory(BaseModel):
     """Metric history over time."""
+
     metric_name: str
     values: List[MetricValue]
     time_range: str
@@ -390,6 +438,7 @@ class MetricHistory(BaseModel):
 
 class AlertRule(BaseModel):
     """Alert rule configuration."""
+
     name: str
     condition: str
     threshold: float
@@ -399,6 +448,7 @@ class AlertRule(BaseModel):
 
 class AlertStatus(BaseModel):
     """Current alert status."""
+
     rule_name: str
     current_value: float
     threshold: float
@@ -408,6 +458,7 @@ class AlertStatus(BaseModel):
 
 class SystemHealth(BaseModel):
     """System health indicators."""
+
     overall_score: float
     status: str
     components: Dict[str, str]
@@ -417,6 +468,7 @@ class SystemHealth(BaseModel):
 
 class UsageStatistics(BaseModel):
     """Usage statistics."""
+
     total_api_calls: int
     unique_users: int
     most_used_endpoints: List[Dict[str, Any]]
@@ -426,6 +478,7 @@ class UsageStatistics(BaseModel):
 
 class PerformanceBreakdown(BaseModel):
     """Detailed performance breakdown."""
+
     endpoint_performance: Dict[str, Dict[str, float]]
     operation_performance: Dict[str, Dict[str, float]]
     resource_utilization: Dict[str, float]
@@ -434,6 +487,7 @@ class PerformanceBreakdown(BaseModel):
 
 class BusinessAnalytics(BaseModel):
     """Business analytics summary."""
+
     revenue_trends: Dict[str, float]
     user_engagement: Dict[str, Any]
     feature_adoption: Dict[str, float]
@@ -442,6 +496,7 @@ class BusinessAnalytics(BaseModel):
 
 class MetricsExportResponse(BaseModel):
     """Response for metrics export."""
+
     format_type: str
     data: str
     generated_at: str
@@ -450,6 +505,7 @@ class MetricsExportResponse(BaseModel):
 
 class CustomMetricResponse(BaseModel):
     """Response for custom metric operations."""
+
     name: str
     metric_type: str
     description: str
@@ -460,6 +516,7 @@ class CustomMetricResponse(BaseModel):
 
 class MetricsComparisonResponse(BaseModel):
     """Response for metrics comparison."""
+
     metric_name: str
     current_period: Dict[str, Any]
     previous_period: Dict[str, Any]

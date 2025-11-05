@@ -45,7 +45,6 @@ class SimpleSentimentAnalyzer:
         language: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Return a deterministic sentiment score based on simple heuristics."""
-
         # simulate asynchronous work so the call path stays consistent with async providers
         await asyncio.sleep(0)
 

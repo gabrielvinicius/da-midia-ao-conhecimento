@@ -1,25 +1,30 @@
 # src/text_processing/application/text_processing_service.py
+"""Consolidated Text Processing Service.
 """
-Consolidated Text Processing Service.
-"""
-import structlog
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
-import time
 
-from src.text_analysis.text_processing.infrastructure.text_processor import TextProcessor
-from src.text_analysis.text_processing.infrastructure.text_extractor import TextExtractor
-from src.text_analysis.text_processing.infrastructure.task_scheduler import CeleryTextProcessingTaskScheduler
+import structlog
+
+from src.text_analysis.text_processing.infrastructure.task_scheduler import (
+    CeleryTextProcessingTaskScheduler,
+)
+from src.text_analysis.text_processing.infrastructure.text_extractor import (
+    TextExtractor,
+)
+from src.text_analysis.text_processing.infrastructure.text_processor import (
+    TextProcessor,
+)
+
 # TODO: Adicionar logger e metrics específicos para text_processing
 
 logger = structlog.get_logger(__name__)
 
 
 class TextProcessingService:
+    """Consolidated service for all text processing operations.
     """
-    Consolidated service for all text processing operations.
-    """
-    
+
     def __init__(
         self,
         text_processor: TextProcessor,
@@ -43,7 +48,7 @@ class TextProcessingService:
                 processing_type=processing_type,
                 options=options
             )
-            
+
             logger.info("text_processing.request_process.completed", media_id=str(media_id), task_id=task_result.get("task_id"))
             return {
                 "success": True,
@@ -55,16 +60,24 @@ class TextProcessingService:
             logger.error("text_processing.request_process.failed", media_id=str(media_id), error=str(e))
             raise
 
-    async def request_text_extraction(self, media_id: UUID, file_path: str, extraction_method: str) -> Dict[str, Any]:
+    async def request_text_extraction(
+        self,
+        media_id: UUID,
+        file_path: str,
+        extraction_method: str,
+        *,
+        storage_provider: str = "local",
+    ) -> Dict[str, Any]:
         """Requests text extraction by scheduling a task."""
         logger.info("text_processing.request_extract.started", media_id=str(media_id), file_path=file_path, extraction_method=extraction_method)
         try:
             task_result = await self.task_scheduler.schedule_extract_text_task(
                 media_id=str(media_id),
                 file_path=file_path,
-                extraction_method=extraction_method
+                extraction_method=extraction_method,
+                storage_provider=storage_provider,
             )
-            
+
             logger.info("text_processing.request_extract.completed", media_id=str(media_id), task_id=task_result.get("task_id"))
             return {
                 "success": True,

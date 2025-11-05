@@ -1,12 +1,13 @@
+"""Unified templates - eliminating template duplication
 """
-Unified templates - eliminating template duplication
-"""
-from typing import Dict, Any, Optional, List
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
 
 class TemplateType(str, Enum):
     """Template types"""
+
     EMAIL = "email"
     NOTIFICATION = "notification"
     PROMPT = "prompt"
@@ -15,12 +16,13 @@ class TemplateType(str, Enum):
 @dataclass
 class Template:
     """Unified template structure"""
+
     name: str
     type: TemplateType
     content: str
     variables: List[str] = None
     metadata: Dict[str, Any] = None
-    
+
     def __post_init__(self):
         if self.variables is None:
             self.variables = []
@@ -29,14 +31,13 @@ class Template:
 
 class UnifiedTemplateEngine:
     """Single template engine for all modules"""
-    
+
     def __init__(self):
         self._templates: Dict[str, Template] = {}
         self._setup_default_templates()
-    
+
     def _setup_default_templates(self):
         """Setup default templates for all modules"""
-        
         # Notification templates
         self.register_template(Template(
             name="processing_started",
@@ -44,21 +45,21 @@ class UnifiedTemplateEngine:
             content="{entity_type} processing started for {entity_id}",
             variables=["entity_type", "entity_id"]
         ))
-        
+
         self.register_template(Template(
             name="processing_completed",
             type=TemplateType.NOTIFICATION,
             content="{entity_type} processing completed successfully for {entity_id}",
             variables=["entity_type", "entity_id"]
         ))
-        
+
         self.register_template(Template(
             name="processing_failed",
             type=TemplateType.NOTIFICATION,
             content="{entity_type} processing failed for {entity_id}: {error}",
             variables=["entity_type", "entity_id", "error"]
         ))
-        
+
         # Email templates
         self.register_template(Template(
             name="transcription_completed_email",
@@ -71,7 +72,7 @@ class UnifiedTemplateEngine:
             """,
             variables=["media_id", "text_length", "language"]
         ))
-        
+
         self.register_template(Template(
             name="summary_completed_email",
             type=TemplateType.EMAIL,
@@ -83,7 +84,7 @@ class UnifiedTemplateEngine:
             """,
             variables=["media_id", "summary_length", "provider"]
         ))
-        
+
         # Response templates
         self.register_template(Template(
             name="api_success_response",
@@ -91,34 +92,34 @@ class UnifiedTemplateEngine:
             content='{"success": true, "data": {data}, "message": "{message}"}',
             variables=["data", "message"]
         ))
-        
+
         self.register_template(Template(
             name="api_error_response",
             type=TemplateType.RESPONSE,
             content='{"success": false, "error": "{error}", "code": "{code}"}',
             variables=["error", "code"]
         ))
-    
+
     def register_template(self, template: Template):
         """Register a template"""
         self._templates[template.name] = template
-    
+
     def get_template(self, name: str) -> Optional[Template]:
         """Get template by name"""
         return self._templates.get(name)
-    
+
     def render_template(self, name: str, **variables) -> str:
         """Render template with variables"""
         template = self.get_template(name)
         if not template:
             raise ValueError(f"Template '{name}' not found")
-        
+
         try:
             return template.content.format(**variables)
         except KeyError as e:
             missing_var = str(e).strip("'")
             raise ValueError(f"Missing variable '{missing_var}' for template '{name}'")
-    
+
     def list_templates(self, template_type: Optional[TemplateType] = None) -> List[str]:
         """List available templates"""
         if template_type:
@@ -127,7 +128,7 @@ class UnifiedTemplateEngine:
                 if template.type == template_type
             ]
         return list(self._templates.keys())
-    
+
     def get_template_variables(self, name: str) -> List[str]:
         """Get required variables for a template"""
         template = self.get_template(name)

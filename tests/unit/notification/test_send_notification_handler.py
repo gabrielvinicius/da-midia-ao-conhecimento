@@ -1,12 +1,18 @@
 # tests/unit/notification/test_send_notification_handler.py
-import pytest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from types import SimpleNamespace
-from src.notifications.application.commands.send_notification_command import SendNotificationCommand
-from src.notifications.application.commands.send_notification_command_handler import SendNotificationCommandHandler
-from src.notifications.domain.notification import NotificationType, NotificationStatus
+import pytest
+
+from src.notifications.application.commands.send_notification_command import (
+    SendNotificationCommand,
+)
+from src.notifications.application.commands.send_notification_command_handler import (
+    SendNotificationCommandHandler,
+)
+from src.notifications.domain.notification import NotificationStatus, NotificationType
+
 
 @pytest.fixture
 def handler_mocks():

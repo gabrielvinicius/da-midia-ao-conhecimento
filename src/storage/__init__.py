@@ -7,8 +7,8 @@ from src.storage.domain.interfaces import (
     StorageConfiguration,
     StorageProvider,
     StorageProviderError,
-    StorageRepository,
     StorageProviderFactory,
+    StorageRepository,
 )
 from src.storage.domain.value_objects.file_path import FilePath
 from src.storage.domain.value_objects.file_size import FileSize
