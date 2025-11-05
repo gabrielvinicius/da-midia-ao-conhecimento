@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from src.summarization.application.summarization_service import SummarizationService
+from src.text_analysis.summarization.application.summarization_service import SummarizationService
 
 
 @pytest.fixture
@@ -26,23 +26,21 @@ def summarizer_mock() -> AsyncMock:
     return summarizer
 
 
-@pytest.fixture
-def scheduler_mock() -> AsyncMock:
-    scheduler = AsyncMock()
-    scheduler.schedule_summarization_task = AsyncMock(return_value={"task_id": "task-123"})
-    return scheduler
+
 
 
 @pytest.mark.asyncio
 async def test_generate_summary_schedules_background_task(
     repo_mock: AsyncMock,
     summarizer_mock: AsyncMock,
-    scheduler_mock: AsyncMock,
 ) -> None:
+    text_analysis_service_mock = AsyncMock()
+    text_analysis_service_mock.schedule_summarization_task = AsyncMock(return_value={"task_id": "task-123"})
+
     service = SummarizationService(
         summarization_repo=repo_mock,
         summarizer=summarizer_mock,
-        summarization_task_scheduler=scheduler_mock,
+        text_analysis_service=text_analysis_service_mock,
     )
 
     media_id = uuid4()
@@ -52,7 +50,7 @@ async def test_generate_summary_schedules_background_task(
         provider="test",
     )
 
-    scheduler_mock.schedule_summarization_task.assert_awaited_once_with(
+    text_analysis_service_mock.schedule_summarization_task.assert_awaited_once_with(
         media_id=str(media_id),
         text_content="This is a long form transcript that should be summarised.",
         provider="test",
@@ -68,12 +66,14 @@ async def test_generate_summary_schedules_background_task(
 async def test_generate_summary_forwards_options(
     repo_mock: AsyncMock,
     summarizer_mock: AsyncMock,
-    scheduler_mock: AsyncMock,
 ) -> None:
+    text_analysis_service_mock = AsyncMock()
+    text_analysis_service_mock.schedule_summarization_task = AsyncMock(return_value={"task_id": "task-123"})
+
     service = SummarizationService(
         summarization_repo=repo_mock,
         summarizer=summarizer_mock,
-        summarization_task_scheduler=scheduler_mock,
+        text_analysis_service=text_analysis_service_mock,
     )
 
     media_id = uuid4()
@@ -86,7 +86,7 @@ async def test_generate_summary_forwards_options(
         options=options,
     )
 
-    scheduler_mock.schedule_summarization_task.assert_awaited_once_with(
+    text_analysis_service_mock.schedule_summarization_task.assert_awaited_once_with(
         media_id=str(media_id),
         text_content="New content that replaces the previous version.",
         provider="new",

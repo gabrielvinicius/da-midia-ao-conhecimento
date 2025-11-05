@@ -26,7 +26,6 @@ def _build_handler(
     sentiment_service: AsyncMock | None = None,
     analysis_repository: AsyncMock | None = None,
     transcription_queries: AsyncMock | None = None,
-    event_bus=None,
     connection_manager: AsyncMock | None = None,
     metrics_service: MagicMock | None = None,
 ) -> AnalyzeSentimentCommandHandler:
@@ -40,11 +39,9 @@ def _build_handler(
         sentiment_service=sentiment_service,
         analysis_repository=analysis_repository,
         transcription_queries=transcription_queries,
-        event_bus=event_bus,
         connection_manager=connection_manager,
         metrics_service=metrics_service,
     )
-
 
 def _make_transcription(text: str, *, status: TranscriptionStatus = TranscriptionStatus.COMPLETED):
     return type(
@@ -60,7 +57,7 @@ def _make_transcription(text: str, *, status: TranscriptionStatus = Transcriptio
 
 
 @pytest.mark.asyncio
-async def test_handle_saves_analysis_and_emits_event(mock_event_bus, mock_metrics_service):
+async def test_handle_saves_analysis(mock_metrics_service):
     sentiment_service = AsyncMock()
     payload = {
         "overall_sentiment": "positive",
@@ -91,7 +88,6 @@ async def test_handle_saves_analysis_and_emits_event(mock_event_bus, mock_metric
         sentiment_service=sentiment_service,
         analysis_repository=analysis_repository,
         transcription_queries=transcription_queries,
-        event_bus=mock_event_bus,
         connection_manager=AsyncMock(),
         metrics_service=mock_metrics_service,
     )
@@ -107,9 +103,6 @@ async def test_handle_saves_analysis_and_emits_event(mock_event_bus, mock_metric
     assert result.overall_sentiment == "positive"
     assert result.sentiment_score == pytest.approx(0.42)
     assert saved_entities and saved_entities[0] is result
-    events = mock_event_bus.get_events(SentimentAnalysisCompleted)
-    assert len(events) == 1
-    assert events[0].overall_sentiment == "positive"
 
 
 @pytest.mark.asyncio
