@@ -147,6 +147,15 @@ services:
     profiles:
       - frontend
 
+  frontend-builder:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: builder
+    container_name: video_summarizer_frontend_builder
+    volumes:
+      - ./frontend:/app
+
 volumes:
   postgres_data:
     driver: local
