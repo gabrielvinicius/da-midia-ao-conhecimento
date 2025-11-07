@@ -98,6 +98,7 @@ def build_domain_service_registry(
     *,
     user_management: UserManagementModule,
     media_management: MediaModule,
+    text_analysis: object | None = None,
 ) -> DomainServiceRegistry:
     """Instantiate the registry with legacy modules and placeholder facades."""
     return DomainServiceRegistry(
@@ -114,7 +115,7 @@ def build_domain_service_registry(
             facade=_build_media_processing_placeholder(),
         ),
         text_analysis=ModuleBinding(
-            legacy=None,
+            legacy=text_analysis,
             facade=TextAnalysisService(),
         ),
     )

@@ -37,11 +37,11 @@ except Exception:  # pragma: no cover
     get_sentiment_dependencies = None  # type: ignore[assignment]
     SentimentAnalysisModule = None  # type: ignore[assignment]
 try:  # noqa: SIM105 - optional during refactor
-    from src.text_analysis.summarization.api.dependencies import (
-        SummarizationDependencies,
-        get_summarization_dependencies,
+    from src.text_analysis.api.dependencies import (
+        get_text_analysis_dependencies,
+        TextAnalysisDependencies,
     )
-    from src.text_analysis.summarization.bootstrap import SummarizationModule
+
 except Exception:  # pragma: no cover
     SummarizationDependencies = None  # type: ignore[assignment]
     get_summarization_dependencies = None  # type: ignore[assignment]
@@ -108,6 +108,10 @@ def register_module_dependencies(
             service=notifications.service,
             queries=notifications.queries,
         )
+    )
+
+    app.dependency_overrides[get_text_analysis_dependencies] = (
+        lambda: text_analysis
     )
 
     summarization = getattr(text_analysis, "summarization", None) if text_analysis is not None else None

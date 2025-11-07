@@ -13,8 +13,8 @@ from src.shared.infrastructure.database import Base
 
 
 class UserRole(str, Enum):
-    USER = "user"
-    ADMIN = "admin"
+    USER = "USER"
+    ADMIN = "ADMIN"
 
 
 class User(Base):
@@ -24,5 +24,5 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    role = Column(SQLAEnum(UserRole, name="user_role_enum"), default=UserRole.USER, nullable=False)
+    role = Column(SQLAEnum(UserRole, name="userrole"), default=UserRole.USER, nullable=False)
     # videos: Mapped[List["Video"]] = relationship(back_populates="user")

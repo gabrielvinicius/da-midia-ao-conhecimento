@@ -19395,3 +19395,6 @@ cython_debug/
 /frontend/.idea/
 /frontend/dist/
 /frontend/node_modules/
+
+.gemini/
+gha-creds-*.json

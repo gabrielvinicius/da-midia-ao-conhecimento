@@ -22,13 +22,22 @@ from src.text_analysis.topic_modeling.bootstrap import (
 logger = structlog.get_logger(__name__)
 
 
+class TextAnalysisModule(SimpleNamespace):
+    """Container for the text analysis module's components."""
+
+    service: TextAnalysisService
+    summarization: SimpleNamespace
+    sentiment: SimpleNamespace
+    topic_modeling: SimpleNamespace
+
+
 async def build_text_analysis_module(
     session: AsyncSession,
     *,
     media_module,
     notification_module,
     monitoring_module,
-) -> SimpleNamespace:
+) -> TextAnalysisModule:
     """Builds and configures the text analysis module and its dependencies.
     """
     logger.info("text_analysis.bootstrap.started")
@@ -57,7 +66,7 @@ async def build_text_analysis_module(
 
     logger.info("text_analysis.bootstrap.completed")
 
-    return SimpleNamespace(
+    return TextAnalysisModule(
         service=text_analysis_service,
         summarization=summarization_module,
         sentiment=sentiment_module,

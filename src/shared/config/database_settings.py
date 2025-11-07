@@ -27,8 +27,9 @@ class DatabaseSettings(BaseSettings):
     class Config:
         """Pydantic-settings configuration."""
 
-        env_file = ".env"
+        env_file = ".env.test"
         env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 __all__ = ["DatabaseSettings"]

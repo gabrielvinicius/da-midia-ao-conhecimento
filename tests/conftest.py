@@ -12,6 +12,8 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
 
 # Ensure project modules are importable during tests
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -22,6 +24,12 @@ for path in (ROOT_DIR, SRC_DIR):
         sys.path.insert(0, path_str)
 
 # Import test utilities
+from main import create_app, lifespan
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.user_management.bootstrap import UserManagementModule, build_user_management_module
+from src.user_management.api.dependencies import get_auth_dependencies
+from src.shared.infrastructure.database import engine, Base, AsyncSessionLocal
 from tests.mocks.in_memory_event_bus import InMemoryEventBus
 from tests.mocks.in_memory_storage import InMemoryStorageService
 from tests.utils.test_data_factory import TestDataFactory
@@ -48,6 +56,39 @@ def configure_test_environment():
     # Cleanup environment after tests
     for key in ["TESTING", "DATABASE_URL", "REDIS_URL", "LOG_LEVEL"]:
         os.environ.pop(key, None)
+
+@pytest_asyncio.fixture(scope="function")
+async def clean_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+@pytest_asyncio.fixture(scope="function")
+async def db_session(clean_db) -> AsyncSessionLocal:
+    async with AsyncSessionLocal() as session:
+        yield session
+
+@pytest_asyncio.fixture(scope="function")
+async def auth_module(db_session: AsyncSession) -> UserManagementModule:
+    """Create a UserManagementModule for testing."""
+    return build_user_management_module(db_session)
+
+@pytest_asyncio.fixture(scope="function")
+async def test_app(auth_module: UserManagementModule) -> FastAPI:
+    """Create a FastAPI app instance for testing."""
+    app = create_app()
+    app.dependency_overrides[get_auth_dependencies] = lambda: auth_module
+    async with lifespan(app):
+        yield app
+
+@pytest_asyncio.fixture(scope="function")
+async def client(test_app: FastAPI) -> AsyncClient:
+    """Create an AsyncClient for testing."""
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as client:
+        yield client
 
 # ============================================================================
 # COMMON MOCKS AND FIXTURES
@@ -237,6 +278,14 @@ def test_media_data(unique_test_id: str) -> dict:
         "content_type": "audio/mp3",
         "size": 1024
     }
+
+@pytest_asyncio.fixture
+async def auth_token(client: AsyncClient, test_user_data: dict) -> str:
+    """Create a user and return an auth token."""
+    response = await client.post("/auth/register", json=test_user_data)
+    assert response.status_code == 201
+    response = await client.post("/auth/token", data={"username": test_user_data["email"], "password": test_user_data["password"]})
+    return response.json()["access_token"]
 
 # ============================================================================
 # PERFORMANCE AND LOAD TESTING

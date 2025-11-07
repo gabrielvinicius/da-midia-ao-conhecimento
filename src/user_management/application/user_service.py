@@ -147,7 +147,7 @@ class UserService:
 
     def _normalise_role(self, role: str) -> UserRole:
         try:
-            return UserRole(role.lower())
+            return UserRole(role.upper())
         except ValueError:
             valid = ", ".join(r.value for r in UserRole)
             raise ValueError(f"Invalid role. Valid roles: {valid}") from None

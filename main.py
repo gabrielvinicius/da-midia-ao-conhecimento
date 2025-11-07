@@ -124,7 +124,7 @@ async def lifespan(app: FastAPI):
         auth_module = build_user_management_module(session)
         monitoring_module = build_monitoring_module(session)
         providers_module = build_providers_module()
-        notification_module = await build_notification_module(
+        notification_module = build_notification_module(
             session=session,
             auth_queries=auth_module.auth_queries,
         )
@@ -138,7 +138,7 @@ async def lifespan(app: FastAPI):
         )
 
         if not lightweight_mode:
-            text_analysis_module = await build_text_analysis_module(
+            text_analysis_module = build_text_analysis_module(
                 session,
                 media_module=media_module,
                 notification_module=notification_module,
@@ -168,6 +168,7 @@ async def lifespan(app: FastAPI):
         domain_registry = build_domain_service_registry(
             user_management=auth_module,
             media_management=media_module,
+            text_analysis=text_analysis_module,
         )
         attach_domain_services(app, domain_registry)
         resources = ApplicationResources(cache=cache, event_bus=event_bus)

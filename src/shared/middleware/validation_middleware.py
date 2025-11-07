@@ -98,9 +98,11 @@ class ContentValidationMiddleware(BaseHTTPMiddleware):
         return JSONResponse(status_code=status_code, content=error_response.model_dump())
 
 
-def _build_validation_response(errors: List[dict], status_code: int) -> JSONResponse:
-    response = create_validation_error_response(errors)
-    return JSONResponse(status_code=status_code, content=response.model_dump())
+from fastapi.encoders import jsonable_encoder
+
+def _build_validation_response(errors: list[dict], status_code: int) -> JSONResponse:
+    response_data = {"detail": errors}
+    return JSONResponse(status_code=status_code, content=jsonable_encoder(response_data))
 
 
 async def _handle_request_validation_error(
