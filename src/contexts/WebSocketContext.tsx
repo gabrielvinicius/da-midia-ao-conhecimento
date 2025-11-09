@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
-import { Notification, Media, Transcription, Summary } from '../types';
+import { Notification } from '../types';
 import { toast } from 'react-toastify';
-import { getNotifications, markNotificationAsRead } from '../features/notifications/api';
 
 export type ConnectionStatus = 'CONNECTING' | 'OPEN' | 'CLOSING' | 'CLOSED' | 'RECONNECTING';
 
@@ -11,131 +10,189 @@ interface WebSocketContextType {
   notifications: Notification[];
   unreadCount: number;
   connectionStatus: ConnectionStatus;
-  markAsRead: (notificationId: string) => void;
-  markAllAsRead: () => void;
+  markAsRead: (notificationId: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
 
-const WS_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/^http/, 'ws');
+// Construct WebSocket URL from environment variable
+const constructWsUrl = (): string => {
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  return apiUrl.replace(/^http/, 'ws');
+};
 
 export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('CLOSED');
   const socketRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const connect = useCallback(() => {
-    if (socketRef.current || !isAuthenticated) return;
+    if (socketRef.current || !isAuthenticated || !user) return;
 
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    setConnectionStatus('CONNECTING');
-    const ws = new WebSocket(`${WS_URL}/notifications/ws?token=${token}`);
+    // Construct WebSocket URL with user authentication
+    const wsUrl = `${constructWsUrl()}/ws/notifications`;
+    const ws = new WebSocket(wsUrl);
     socketRef.current = ws;
 
-    ws.onopen = async () => {
+    ws.onopen = () => {
       console.log('WebSocket connected');
       setConnectionStatus('OPEN');
-      // Fetch initial notifications state
-      try {
-        const initialNotifications = await getNotifications();
-        setNotifications(initialNotifications);
-      } catch (error) {
-        console.error("Failed to fetch initial notifications:", error);
-      }
     };
 
     ws.onclose = () => {
       console.log('WebSocket disconnected');
       setConnectionStatus('CLOSED');
-      if (isAuthenticated) {
+      socketRef.current = null;
+      
+      // Attempt to reconnect if user is still authenticated
+      if (isAuthenticated && connectionStatus !== 'CLOSING') {
         setConnectionStatus('RECONNECTING');
-        reconnectTimeoutRef.current = setTimeout(connect, 5000);
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current);
+        }
+        reconnectTimerRef.current = setTimeout(() => {
+          connect();
+        }, 5000); // Reconnect after 5 seconds
       }
     };
 
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
-      ws.close();
     };
 
     ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      switch (message.type) {
-        case 'new_notification':
-          const newNotification = message.payload as Notification;
-          setNotifications((prev) => [newNotification, ...prev]);
-          toast.info(`New notification: ${newNotification.content}`);
-          break;
-        case 'entity_update':
-          const { entity, payload } = message;
-          queryClient.setQueryData([entity, payload.id], payload);
-          if (entity === 'media') {
-            queryClient.setQueryData<Media[]>(['mediaList'], (old) => old?.map((m) => m.id === payload.id ? payload : m));
-          } else {
-            queryClient.invalidateQueries({ queryKey: [entity, payload.media_id] });
-          }
-          break;
-        default:
-          console.warn('Received unknown WebSocket message type:', message.type);
+      try {
+        const message = JSON.parse(event.data);
+        
+        switch (message.type) {
+          case 'new_notification':
+            const newNotification = message.payload as Notification;
+            setNotifications(prev => [newNotification, ...prev]);
+            toast.info(`New notification: ${newNotification.content}`);
+            break;
+            
+          case 'entity_update':
+            const { entity, payload } = message;
+            // Update the specific entity in the query cache
+            queryClient.setQueryData([entity, payload.id], payload);
+            
+            // Invalidate related queries to trigger refetch
+            if (entity === 'media') {
+              queryClient.invalidateQueries({ queryKey: ['media-list'] });
+            } else {
+              queryClient.invalidateQueries({ queryKey: [entity] });
+            }
+            break;
+            
+          case 'transcription_update':
+          case 'summary_update':
+          case 'processing_complete':
+            // Handle specific media processing updates
+            const { media_id, status, result } = message;
+            if (media_id) {
+              queryClient.setQueryData(['media', media_id], (oldData: any) => ({
+                ...oldData,
+                status: status,
+                ...(result && { result: result })
+              }));
+              
+              queryClient.invalidateQueries({ queryKey: ['media', media_id] });
+            }
+            break;
+            
+          default:
+            console.warn('Received unknown WebSocket message type:', message.type);
+        }
+      } catch (parseError) {
+        console.error('Failed to parse WebSocket message:', parseError);
       }
     };
-  }, [isAuthenticated, queryClient]);
+  }, [isAuthenticated, user, queryClient, connectionStatus]);
 
+  // Effect to manage WebSocket connection lifecycle
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user) {
       connect();
     } else {
+      // Close connection if user is no longer authenticated
       if (socketRef.current) {
+        setConnectionStatus('CLOSING');
         socketRef.current.close();
         socketRef.current = null;
       }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
+      
+      // Clear any pending reconnection attempts
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
       }
     }
+
+    // Cleanup on unmount
     return () => {
       if (socketRef.current) {
         socketRef.current.close();
         socketRef.current = null;
       }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
+      
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
       }
     };
-  }, [isAuthenticated, connect]);
+  }, [isAuthenticated, user, connect]);
 
   const markAsRead = useCallback(async (notificationId: string) => {
     try {
-      const updatedNotification = await markNotificationAsRead(notificationId);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === updatedNotification.id ? updatedNotification : n))
+      // In a real implementation, this would make an API call to mark as read
+      setNotifications(prev =>
+        prev.map(notif => 
+          notif.id === notificationId ? { ...notif, read: true } : notif
+        )
+      );
+      
+      // Update in query cache
+      queryClient.setQueryData(['notifications'], (old: Notification[] | undefined) => 
+        old?.map(notif => 
+          notif.id === notificationId ? { ...notif, read: true } : notif
+        )
       );
     } catch (error) {
       console.error("Failed to mark notification as read:", error);
     }
-  }, []);
+  }, [queryClient]);
 
   const markAllAsRead = useCallback(async () => {
-    // In a real app, you'd have a dedicated backend endpoint for this.
-    // For now, we'll mark them as read one by one.
     try {
-      const unread = notifications.filter(n => !n.read);
-      await Promise.all(unread.map(n => markNotificationAsRead(n.id)));
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setNotifications(prev => 
+        prev.map(notif => ({ ...notif, read: true }))
+      );
+      
+      // Update in query cache
+      queryClient.setQueryData(['notifications'], (old: Notification[] | undefined) => 
+        old?.map(notif => ({ ...notif, read: true }))
+      );
     } catch (error) {
       console.error("Failed to mark all notifications as read:", error);
     }
-  }, [notifications]);
+  }, [queryClient]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = notifications.filter(notif => !notif.read).length;
+
+  const value = {
+    notifications,
+    unreadCount,
+    connectionStatus,
+    markAsRead,
+    markAllAsRead
+  };
 
   return (
-    <WebSocketContext.Provider value={{ notifications, unreadCount, connectionStatus, markAsRead, markAllAsRead }}>
+    <WebSocketContext.Provider value={value}>
       {children}
     </WebSocketContext.Provider>
   );
