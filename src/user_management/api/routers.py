@@ -1,6 +1,6 @@
 from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from src.shared.api.dependencies import get_current_admin_user, get_current_user
@@ -26,8 +26,9 @@ async def register(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.post("/token", response_model=Token)
+@router.post("/token")
 async def login_for_access_token(
+    response: Response,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     auth_service: AuthService = Depends(get_auth_service),
 ):
@@ -36,7 +37,14 @@ async def login_for_access_token(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
-    return {"access_token": result["token"], "token_type": "bearer"}
+    response.set_cookie(
+        key="access_token_cookie",
+        value=result["token"],
+        httponly=True,
+        samesite="lax",
+        secure=True,
+    )
+    return {"message": "Authentication successful"}
 
 
 @router.get("/me", response_model=UserResponse)

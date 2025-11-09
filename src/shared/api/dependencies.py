@@ -1,28 +1,36 @@
 # src/shared/api/dependencies.py
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from jose import JWTError, jwt
 
 from src.user_management.api.dependencies import get_auth_queries, get_auth_settings
 from src.user_management.application.queries.auth_queries import AuthQueries
 from src.user_management.config.settings import AuthSettings
-
-# This file only imports from the domain layer of auth, which is acceptable
-# as it defines the core User object contract.
 from src.user_management.domain.user import User, UserRole
-
-# This is acceptable as it's auth infrastructure used by shared API
 from src.user_management.infrastructure.oauth2_scheme import oauth2_scheme
+
 
 # --- Core Security Dependencies ---
 
+async def get_token_from_cookie(request: Request) -> str:
+    """Dependency to extract the token from the access_token_cookie."""
+    token = request.cookies.get("access_token_cookie")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return token
+
+
 async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
+    token: Annotated[str, Depends(get_token_from_cookie)],
     settings: Annotated[AuthSettings, Depends(get_auth_settings)],
     queries: Annotated[AuthQueries, Depends(get_auth_queries)],
 ) -> User:
-    """Dependency to get the current user from an OAuth2 token."""
+    """Dependency to get the current user from a token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -40,6 +48,7 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
     return user
+
 
 async def get_current_admin_user(current_user: Annotated[User, Depends(get_current_user)]) -> User:
     """Dependency to ensure the current user is an admin."""

@@ -101,3 +101,28 @@ docker-compose exec backend alembic upgrade head
 - **`DELETE /admin/users/{user_id}`**: (Admin) Deletes a user.
 - **`POST /admin/media/{media_id}/reprocess`**: (Admin) Re-triggers the processing for a failed media item.
 - **`GET /notifications/ws`**: Establishes a WebSocket connection for real-time notifications and status updates.
+
+## End-to-End Testing
+
+This project includes a comprehensive suite of end-to-end (E2E) tests using Playwright to ensure the frontend functionality works as expected.
+
+### Running E2E Tests
+
+To run the E2E tests:
+
+```bash
+# Execute all E2E tests
+cd frontend
+npx playwright test
+
+# Run tests in headed mode (visible browsers)
+npx playwright test --headed
+
+# Run tests in debug mode with inspector
+npx playwright test --debug
+
+# Run a specific test file
+npx playwright test tests/e2e/auth/login.spec.ts
+```
+
+For more information about the E2E tests, check the [E2E_TESTS.md](frontend/E2E_TESTS.md) file in the frontend directory.
