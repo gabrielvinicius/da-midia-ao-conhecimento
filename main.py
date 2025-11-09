@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 # OpenTelemetry Imports
@@ -256,7 +256,40 @@ def create_app() -> FastAPI:
     app.include_router(admin_router)
     app.include_router(monitoring_router)
 
-    return app
+    # Add WebSocket endpoints for real-time notifications
+    @app.websocket("/ws/notifications")
+    async def websocket_notifications(websocket: WebSocket):
+        from src.notifications.infrastructure.connection_manager import manager
+        
+        # Accept the connection
+        await websocket.accept()
+        
+        # For this implementation, we'll create a simple connection
+        # In a production app, you'd need proper token authentication
+        # This is just a basic implementation for demonstration
+        user_id = "demo_user"  # This should be extracted from token in real implementation
+        
+        # Connect the user to the notification manager
+        try:
+            await manager.connect(user_id, websocket)
+            
+            try:
+                # Listen for messages from the client
+                while True:
+                    data = await websocket.receive_text()
+                    # Process client messages if needed
+                    # For now, just print them
+                    print(f"Received message from user {user_id}: {data}")
+                    # Echo back to client
+                    await websocket.send_text(f"Server received: {data}")
+            except WebSocketDisconnect:
+                manager.disconnect(user_id, websocket)
+                print(f"WebSocket connection for user {user_id} closed")
+        except Exception as e:
+            print(f"WebSocket error: {e}")
+            await websocket.close(code=1000)  # Normal closure
+
+    return app  # This was missing!
 
 
 app = create_app()

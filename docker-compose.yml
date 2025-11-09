@@ -1,6 +1,8 @@
+version: '3.8'
+
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     container_name: video_summarizer_postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -20,11 +22,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.2-alpine
     container_name: video_summarizer_redis
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-defaultpassword}
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
@@ -37,9 +40,11 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+      start_period: 10s
 
   minio:
     image: minio/minio:latest
+    container_name: video_summarizer_minio
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -51,15 +56,21 @@ services:
       - minio_data:/data
     networks:
       - app-network
+    restart: unless-stopped
 
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    image: jaegertracing/all-in-one:1.58
+    container_name: video_summarizer_jaeger
     ports:
       - "6831:6831/udp" # Jaeger agent
       - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
     networks:
       - app-network
-  
+    restart: unless-stopped
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
 
   backend:
     build:
@@ -67,16 +78,17 @@ services:
       dockerfile: Dockerfile
       target: runtime
     container_name: video_summarizer_backend
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --log-level info
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --log-level info
     ports:
       - "8000:8000"
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DB_HOST=postgres
       - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-defaultpassword}
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/1
     env_file:
       - .env
     depends_on:
@@ -94,6 +106,12 @@ services:
     networks:
       - app-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   worker:
     build:
@@ -101,14 +119,15 @@ services:
       dockerfile: Dockerfile
       target: runtime
     container_name: video_summarizer_worker
-    command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=2
+    command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=2 --without-gossip --without-mingle
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DB_HOST=postgres
       - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-defaultpassword}
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/1
     env_file:
       - .env
     depends_on:
@@ -126,49 +145,45 @@ services:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "celery", "-A", "src.celery_app:celery", "inspect", "ping" ]
+      test: ["CMD", "timeout", "10", "sh", "-c", "echo 'ping' | nc backend 8000"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: production
     container_name: video_summarizer_frontend
     ports:
       - "3000:80"
     depends_on:
       - backend
+    environment:
+      - REACT_APP_API_URL=http://backend:8000
     networks:
       - app-network
     restart: unless-stopped
     profiles:
       - frontend
 
-  frontend-builder:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: builder
-    container_name: video_summarizer_frontend_builder
-    volumes:
-      - ./frontend:/app
-
 volumes:
   postgres_data:
     driver: local
+    name: video_summarizer_postgres_data
   redis_data:
     driver: local
+    name: video_summarizer_redis_data
   minio_data:
     driver: local
+    name: video_summarizer_minio_data
   media_data:
     driver: local
+    name: video_summarizer_media_data
 
 networks:
   app-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
+    name: video_summarizer_network

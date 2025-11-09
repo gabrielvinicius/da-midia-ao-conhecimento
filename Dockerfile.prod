@@ -1,56 +1,66 @@
-# Dockerfile.prod
+# Production Dockerfile for Video Summarizer
+# Multi-stage build optimized for production deployment
 
-# === Stage 1: Build Stage ===
-# Use a full Python image to ensure build tools are available for dependencies.
-FROM python:3.11 as builder
+# === Stage 1: Builder ===
+FROM python:3.12-slim AS builder
 
-# Set the working directory
 WORKDIR /app
 
-# Install system dependencies required for libraries like PyAV and PyMuPDF
+# Install system dependencies required for building packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    build-essential \
+    pkg-config \
+    libffi-dev \
+    libssl-dev \
     ffmpeg \
     libsm6 \
     libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Install Python dependencies using wheels for faster production deploy
 COPY requirements.txt .
-RUN pip wheel --no-cache-dir --wheel-dir /app/wheels -r requirements.txt
+RUN pip install --upgrade pip setuptools wheel && \
+    pip wheel --no-cache-dir --wheel-dir /app/wheels -r requirements.txt
 
+# === Stage 2: Runtime ===
+FROM python:3.12-slim AS runtime
 
-# === Stage 2: Final Stage ===
-# Use a slim image for a smaller final image size.
-FROM python:3.11-slim
+WORKDIR /app
 
-# Create a non-root user for security
+# Install only runtime system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Set the working directory
-WORKDIR /app
-
-# Install system dependencies needed at runtime
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    libsm6 \
-    libxext6 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy the pre-built wheels from the builder stage and install them
+# Copy and install pre-built wheels from builder stage
 COPY --from=builder /app/wheels /wheels
-RUN pip install --no-cache /wheels/*
+RUN pip install --no-index --find-links /wheels --no-cache-dir --no-deps --force-reinstall \
+    $(ls /wheels/*.whl | xargs -n 1 basename | sed 's/\.whl$//g' | sed 's/-/==/' | sed 's/_/-/g')
 
-# Copy the application source code
-COPY ./src ./src
+# Copy application source code
+COPY --chown=appuser:appuser . .
 
-# Change ownership of the app directory to the non-root user
-RUN chown -R appuser:appuser /app
+# Create necessary directories and set ownership
+RUN mkdir -p /app/logs /app/media && \
+    chown -R appuser:appuser /app
 
-# Switch to the non-root user
+# Switch to non-root user
 USER appuser
 
-# Expose the port the app runs on
+# Health check for container orchestration
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
 EXPOSE 8000
 
-# The CMD is defined in docker-compose.prod.yml to use Gunicorn
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-w", "4", "-b", "0.0.0.0:8000", "main:app"]
+# Production command using Gunicorn with Uvicorn worker
+CMD ["gunicorn", "main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--bind", "0.0.0.0:8000", "--timeout", "120", "--worker-tmp-dir", "/dev/shm"]

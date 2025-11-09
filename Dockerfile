@@ -1,31 +1,18 @@
-# Multi-stage Dockerfile otimizado para Video Summarizer
-FROM python:3.11-slim as base
+# Multi-stage Dockerfile optimized for Video Summarizer
+FROM python:3.12-slim as base
 
-# Definir variáveis de ambiente
+# Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
-
-# Stage
-
-
-
-
-
-
-
-
-
-
-
 
 # Stage 1: Builder
 FROM base as builder
 
 WORKDIR /app
 
-# Instalar dependências do sistema necessárias para build
+# Install system dependencies needed for build
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
@@ -33,20 +20,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libffi-dev \
     libssl-dev \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar dependências Python
+# Upgrade pip and install Python dependencies
 COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install --user --no-warn-script-location -r requirements.txt
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install --user --no-cache-dir --no-warn-script-location -r requirements.txt
 
 # Stage 2: Runtime
 FROM base as runtime
 
 WORKDIR /app
 
-# Instalar apenas dependências runtime necessárias
+# Install only necessary runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsm6 \
@@ -57,23 +43,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Criar usuário não-root
+# Create non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Copiar dependências Python do builder
+# Copy Python dependencies from builder
 COPY --from=builder /root/.local /home/appuser/.local
 
-# Copiar código da aplicação
+# Copy application code
 COPY --chown=appuser:appuser . .
 
-# Criar diretórios necessários
+# Create necessary directories
 RUN mkdir -p /app/logs /app/media /app/data && \
     chown -R appuser:appuser /app
 
-# Adicionar o diretório local do usuário ao PATH
+# Add user's local directory to PATH
 ENV PATH=/home/appuser/.local/bin:$PATH
 
-# Mudar para usuário não-root
+# Switch to non-root user
 USER appuser
 
 # Health check
@@ -82,5 +68,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 EXPOSE 8000
 
-# Comando padrão
+# Default command
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
