@@ -56,8 +56,8 @@ docker-compose*
 *.md
 docs/
 
-# Frontend
-frontend/
+# Frontend (allow shipping node_modules to ensure reproducible builds)
+# (global node_modules still ignored)
 node_modules/
 
 # Reports and diagrams

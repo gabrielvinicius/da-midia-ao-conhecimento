@@ -44,13 +44,16 @@ async def test_generate_summary_schedules_background_task(
     )
 
     media_id = uuid4()
+    transcription_id = uuid4()
     result = await service.generate_summary(
         media_id=media_id,
+        transcription_id=transcription_id,
         text_content="This is a long form transcript that should be summarised.",
         provider="test",
     )
 
     text_analysis_service_mock.schedule_summarization_task.assert_awaited_once_with(
+        transcription_id=str(transcription_id),
         media_id=str(media_id),
         text_content="This is a long form transcript that should be summarised.",
         provider="test",
@@ -77,16 +80,19 @@ async def test_generate_summary_forwards_options(
     )
 
     media_id = uuid4()
+    transcription_id = uuid4()
     options = {"force": True, "max_len": 512}
 
     result = await service.generate_summary(
         media_id=media_id,
+        transcription_id=transcription_id,
         text_content="New content that replaces the previous version.",
         provider="new",
         options=options,
     )
 
     text_analysis_service_mock.schedule_summarization_task.assert_awaited_once_with(
+        transcription_id=str(transcription_id),
         media_id=str(media_id),
         text_content="New content that replaces the previous version.",
         provider="new",

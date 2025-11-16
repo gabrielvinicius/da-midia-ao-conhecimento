@@ -1,8 +1,13 @@
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple
 
+from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.media_management.api.dependencies import (
+    MediaDependencies,
+    get_media_dependencies,
+)
 from src.media_management.application.commands.create_media_command_handler import (
     CreateMediaCommandHandler,
 )
@@ -29,6 +34,10 @@ from src.media_processing.transcription.application.queries import (
 )
 from src.media_processing.transcription.application.transcription_service import (
     TranscriptionService,
+)
+from src.media_processing.transcription.api.dependencies import (
+    TranscriptionDependencies,
+    get_transcription_dependencies,
 )
 from src.media_processing.transcription.infrastructure.logging import (
     StructuredTranscriptionLogger,
@@ -208,8 +217,27 @@ def build_media_components(
     return module, admin_context
 
 
+def bind_media_module(app: FastAPI, module: MediaModule) -> None:
+    """Register dependency overrides for media and transcription services."""
+
+    app.dependency_overrides[get_media_dependencies] = lambda: MediaDependencies(
+        queries=module.queries,
+        upload_service=module.upload_service,
+        lifecycle_service=module.lifecycle_service,
+        query_service=module.query_service,
+    )
+
+    app.dependency_overrides[get_transcription_dependencies] = (
+        lambda: TranscriptionDependencies(
+            service=module.transcription_service,
+            queries=module.transcription_queries,
+        )
+    )
+
+
 __all__ = [
     "MediaModule",
     "MediaAdminContext",
+    "bind_media_module",
     "build_media_components",
 ]

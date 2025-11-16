@@ -159,6 +159,7 @@ async def reprocess_summarization(
     try:
         task_info = await summarization_service.generate_summary(
             media_id=media_id,
+            transcription_id=transcription.id,
             text_content=transcription.text,
             provider=provider_name,
         )

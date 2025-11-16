@@ -235,6 +235,8 @@ def _run_text_extraction_sync(
 def process_summarization_task(
         self,
         transcription_id: str,
+        *,
+        media_id: Optional[str] = None,
         text_content: str,
         provider: str = "builtin",
         options: Optional[Dict[str, Any]] = None,
@@ -243,6 +245,7 @@ def process_summarization_task(
         payload = SummarizationTaskPayload.model_validate(
             {
                 "transcription_id": transcription_id,
+                "media_id": media_id,
                 "text_content": text_content,
                 "provider": provider,
                 "options": options,
