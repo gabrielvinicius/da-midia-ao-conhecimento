@@ -43,6 +43,7 @@ async def test_text_content_ready_handler_schedules_tasks():
     await handler(event)
 
     assert ("summarization", {
+        "transcription_id": "trans-9",
         "media_id": "media-1",
         "text_content": "Hello world",
         "provider": "cohere",

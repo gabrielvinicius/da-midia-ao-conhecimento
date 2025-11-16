@@ -3,8 +3,13 @@
 from dataclasses import dataclass
 
 from dependency_injector import providers
+from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.admin.api.dependencies import (
+    AdminDependencies,
+    get_admin_dependencies,
+)
 from src.admin.adapters import MediaManagementAdapter, UserManagementAdapter
 from src.admin.application.admin_service import AdminService
 from src.admin.application.queries.admin_queries import AdminQueries
@@ -69,3 +74,22 @@ def build_admin_module(
         media_service=media_service,
         service=service,
     )
+
+
+def bind_admin_module(app: FastAPI, module: AdminModule) -> None:
+    """Register dependency overrides for admin APIs."""
+
+    app.dependency_overrides[get_admin_dependencies] = lambda: AdminDependencies(
+        admin_queries=module.admin_queries,
+        audit_service=module.audit_service,
+        user_service=module.user_service,
+        media_service=module.media_service,
+        service=module.service,
+    )
+
+
+__all__ = [
+    "AdminModule",
+    "bind_admin_module",
+    "build_admin_module",
+]

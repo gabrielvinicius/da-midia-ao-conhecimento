@@ -22,9 +22,9 @@ principais são:
    executa as fábricas de cada contexto (auth, monitoring, media,
    transcription, etc.), configurando contêineres com todas as dependências
    concretas.【F:main.py†L72-L118】
-4. **Overrides FastAPI** – chama `register_module_dependencies` para ligar
-   cada função de dependência do FastAPI às instâncias produzidas pelas
-   fábricas (detalhes na seção seguinte).【F:main.py†L120-L129】【F:src/shared/application/modules.py†L42-L109】
+4. **Overrides FastAPI** – injeta as dependências declaradas em
+   `DEFAULT_MODULE_SPECS`, chamando `register_module_dependencies` com o
+   dicionário de módulos construídos (detalhes na seção seguinte).【F:main.py†L120-L133】【F:src/shared/application/modules.py†L30-L109】
 5. **Recursos compartilhados** – registra o *event bus* e o cliente de
    cache global em `ApplicationResources`, iniciando o *listener* do bus e
    abrindo a conexão Redis durante o *startup*. No *shutdown* o processo é
@@ -70,16 +70,18 @@ monolítica e estabelece limites claros entre escrita (commands) e leitura
 
 ## Overrides de dependência compartilhados
 
-`register_module_dependencies` é a única função responsável por ligar as
-dependências do FastAPI às instâncias criadas no bootstrap. Ela mapeia cada
-`get_*_dependencies` para um objeto com os serviços necessários,
-substituindo as implementações padrão com *overrides* no objeto FastAPI.【F:src/shared/application/modules.py†L42-L109】
+`DEFAULT_MODULE_SPECS` descreve, via `ModuleSpec`, quais módulos existem,
+quais binders precisam ser chamados e quais routers devem ser montados.
+`register_module_dependencies` percorre esses *specs* e executa o binder
+de cada contexto, ligando `get_*_dependencies` às instâncias criadas no
+bootstrap. `include_module_routers` reutiliza a mesma lista para montar os
+routers sem importar cada módulo manualmente.【F:src/shared/application/modules.py†L12-L118】
 
-Esse mecanismo permite que os routers permaneçam desacoplados das
-implementações concretas. Exemplo: `get_media_dependencies` passa a
-retornar a combinação de `MediaQueries`, `MediaUploadService` e
-`MediaLifecycleService` produzidos pelo container configurado no `lifespan`
-ao invés de instanciar serviços diretamente.
+Esse mecanismo permite trocar binders ou adicionar módulos sem editar
+`main.py`: basta expor um `bind_*` no respectivo `bootstrap.py` e registrar
+um novo `ModuleSpec`. Os routers permanecem desacoplados das
+implementações concretas; por exemplo, basta atualizar o spec de mídia para
+expor um novo provider e os ajustes ficam confinados ao módulo.
 
 ## Event bus e conexões entre contextos
 
@@ -125,7 +127,6 @@ aplicação de rate limiting.
 ## Stage6 – Estado em 03/11/2025
 
 ### Consolidação de módulos
-- `text_analysis`: o router consolidado (`text_analysis.api.routers`) já substitui o registro direto dos módulos legados em `main.py`. O bootstrap injeta o `TextAnalysisService` nos submódulos de sumarização, sentimento e tópicos, que agora agendam tarefas assíncronas e retornam apenas ACKs (`task_id`) nos fluxos `POST /summaries/reprocess`, `POST /sentiment-analysis/analyze`, `POST /sentiment-analysis/reprocess`, `POST /topic-modeling/analyze` e `POST /topic-modeling/reprocess`.
 - `media_processing`: permanece em transição; tasks continuam com lógica de domínio e precisam ser movidas para o `MediaProcessingService` durante a Fase 2.
 - `admin`: a fachada continua ativa, porém ainda coexistem caminhos alternativos em módulos herdados. A limpeza final depende da conclusão das etapas acima.
 
@@ -133,7 +134,9 @@ aplicação de rate limiting.
 - O `InMemoryEventBus` segue registrado em `main.py` com handlers reais para `MediaUploaded`, `TextContentReady` e `NotificationRequested`. As tasks Celery agora atuam como *wrappers* finos que apenas resolvem os serviços e delegam a execução para `TranscriptionService.process_transcription_job` e `VideoProcessingService.process_video_job`, concentrando a lógica de domínio nos serviços. A responsabilidade da próxima fase é seguir movendo qualquer regra residual dos workers legados até que restem somente operações pesadas (I/O) nas tasks, alinhado às boas práticas oficiais (`/celery/celery`). citecontext7/celery
 
 ### Organização FastAPI
-- `main.py` importa apenas routers consolidados (`auth`, `media`, `text_analysis`, `notifications`, `admin`, `monitoring`, `providers`), alinhado às recomendações do FastAPI para modularização. citecontext7/fastapi
+- `text_analysis`: o router consolidado (`text_analysis.api.routers`) continua ativo, agora registrado via `include_module_routers` somente quando o módulo está disponível. Os submódulos de sumarização, sentimento e tópicos seguem expondo os mesmos endpoints (`POST /summaries/reprocess`, `POST /sentiment-analysis/analyze`, etc.) e delegam a execução aos serviços assíncronos.
+
+- O registro de routers passou a ser dirigido por `DEFAULT_MODULE_SPECS`; `main.py` não importa mais cada router manualmente, apenas chama `include_module_routers`. Isso mantém o alinhamento com as recomendações do FastAPI para modularização e facilita a troca de providers. citecontext7/fastapi
 - `text_analysis.api.routers` agora expõe diretamente os fluxos de sumarização, sentimento e tópicos, consumindo os repositórios assíncronos e substituindo os módulos de router legados removidos nesta etapa. 【F:src/text_analysis/api/routers.py†L1-L513】
 - `StorageServiceFactory` já é importado de `src.storage.infrastructure.dependencies`, eliminando o `NameError` registrado no baseline anterior.
 
