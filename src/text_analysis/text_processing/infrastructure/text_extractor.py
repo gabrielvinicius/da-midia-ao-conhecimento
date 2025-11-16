@@ -69,6 +69,80 @@ class TextExtractor:
         )
         raise RuntimeError(f"Text extraction failed: {context.errors}")
 
+    def extract_text_sync(
+        self,
+        file_path: str,
+        extraction_method: str,
+        *,
+        storage_provider: Optional[str] = None,
+    ) -> str:
+        logger.info(
+            "text_extractor.extracting_text_sync",
+            file_path=file_path,
+            extraction_method=extraction_method,
+        )
+
+        provider = storage_provider or self._default_storage_provider
+        file_data = self._download_file_sync(file_path, provider)
+        file_type = self._infer_file_type(file_path)
+        pipeline_to_use = self._select_pipeline(extraction_method, file_type)
+
+        request = TextExtractionRequest(
+            file_data=file_data,
+            file_type=file_type,
+            filename=os.path.basename(file_path),
+            extraction_options={"method": extraction_method},
+        )
+
+        # Use sync execution if available, otherwise use async in a new event loop
+        if hasattr(pipeline_to_use, 'execute_sync'):
+            context = pipeline_to_use.execute_sync(request)
+        else:
+            import asyncio
+            try:
+                # Check if pipeline has a sync method, otherwise try async
+                if hasattr(pipeline_to_use, 'execute_sync'):
+                    context = pipeline_to_use.execute_sync(request)
+                else:
+                    import asyncio
+                    try:
+                        context = asyncio.run(pipeline_to_use.execute(request))
+                    except RuntimeError:
+                        # If there's already an event loop running, use thread-based approach
+                        import concurrent.futures
+                        def run_async():
+                            import asyncio
+                            return asyncio.run(pipeline_to_use.execute(request))
+                        
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(run_async)
+                            context = future.result()
+            except RuntimeError:
+                # If there's already an event loop, try to handle differently
+                import concurrent.futures
+                import threading
+                
+                def run_async():
+                    return asyncio.run(pipeline_to_use.execute(request))
+                
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_async)
+                    context = future.result()
+
+        if context.is_successful():
+            extracted_content = context.metadata.get("extracted_text", "")
+            logger.info(
+                "text_extractor.text_extracted_sync",
+                extracted_content_preview=extracted_content[:50],
+            )
+            return extracted_content
+
+        logger.error(
+            "text_extractor.extraction_failed_sync",
+            errors=context.errors,
+        )
+        raise RuntimeError(f"Text extraction failed: {context.errors}")
+
     async def _download_file(self, file_path: str, provider: str) -> bytes:
         try:
             storage_client = self._storage_factory.get_download_service(provider)
@@ -76,6 +150,38 @@ class TextExtractor:
         except Exception as exc:
             logger.error(
                 "text_extractor.download_failed",
+                file_path=file_path,
+                error=str(exc),
+                exc_info=True,
+            )
+            raise
+
+    def _download_file_sync(self, file_path: str, provider: str) -> bytes:
+        try:
+            # Sync version might need to handle differently depending on the storage client
+            # For now, we'll try to handle this case
+            storage_client = self._storage_factory.get_download_service(provider)
+            if hasattr(storage_client, 'download_file_sync'):
+                return storage_client.download_file_sync(file_path)
+            else:
+                # If no sync method, use async in a new event loop
+                import asyncio
+                try:
+                    return asyncio.run(storage_client.download_file(file_path))
+                except RuntimeError:
+                    # If there's already an event loop, we need to run in a separate thread
+                    import concurrent.futures
+                    import threading
+                    
+                    def run_async():
+                        return asyncio.run(storage_client.download_file(file_path))
+                    
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(run_async)
+                        return future.result()
+        except Exception as exc:
+            logger.error(
+                "text_extractor.download_failed_sync",
                 file_path=file_path,
                 error=str(exc),
                 exc_info=True,
@@ -98,6 +204,7 @@ class TextExtractor:
         if extraction_method == "advanced" or file_type in {TextType.PDF, TextType.DOCX}:
             return self.advanced_extraction_pipeline
         return self.basic_extraction_pipeline
+
 class ProcessingPipeline(Protocol):
     """Minimal protocol describing the expected pipeline behaviour."""
 

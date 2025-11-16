@@ -45,7 +45,7 @@ class FFmpegVideoAudioExtractor:
             }
 
         except Exception as e:
-            logger.error("Audio extraction failed", error=str(e), filename=filename)
+            logger.error("Audio extraction failed", extra={"error": str(e), "filename": filename})
             raise
 
     async def _extract_with_ffmpeg(self, video_data: bytes, filename: str, output_format: str) -> bytes:

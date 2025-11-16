@@ -6,13 +6,15 @@ from typing import Any, Callable, Dict, Optional
 
 import structlog
 
-from src.text_analysis.tasks import (
-    extract_text_task,
-    process_sentiment_analysis_task,
-    process_summarization_task,
-    process_text_task,
-    process_topic_modeling_task,
-)
+# Deixar os imports comentados para evitar importação circular
+# Serão importados localmente dentro das funções conforme necessário
+# from src.text_analysis.tasks import (
+#     extract_text_task,
+#     process_sentiment_analysis_task,
+#     process_summarization_task,
+#     process_text_task,
+#     process_topic_modeling_task,
+# )
 
 logger = structlog.get_logger(__name__)
 
@@ -35,6 +37,14 @@ class TextAnalysisTaskDispatcher:
 
 def _default_task_dispatcher() -> TextAnalysisTaskDispatcher:
     """Return a dispatcher wired to Celery `.delay` calls by default."""
+    # Importar localmente para evitar importação circular
+    from src.text_analysis.tasks import (
+        process_text_task,
+        extract_text_task,
+        process_summarization_task,
+        process_sentiment_analysis_task,
+        process_topic_modeling_task,
+    )
     return TextAnalysisTaskDispatcher(
         process_text=lambda *a, **kw: process_text_task.delay(*a, **kw),
         extract_text=lambda *a, **kw: extract_text_task.delay(*a, **kw),
@@ -63,6 +73,8 @@ class TextAnalysisService:
             media_id=media_id,
             processing_type=processing_type,
         )
+        # Importar localmente para evitar importação circular
+        from src.text_analysis.tasks import process_text_task
         task = self._submit(
             self._dispatcher.process_text,
             media_id=media_id,
@@ -90,6 +102,8 @@ class TextAnalysisService:
             file_path=file_path,
             extraction_method=extraction_method,
         )
+        # Importar localmente para evitar importação circular
+        from src.text_analysis.tasks import extract_text_task
         task = self._submit(
             self._dispatcher.extract_text,
             media_id=media_id,
@@ -116,6 +130,8 @@ class TextAnalysisService:
             media_id=media_id,
             provider=provider,
         )
+        # Importar localmente para evitar importação circular
+        from src.text_analysis.tasks import process_summarization_task
         task = self._submit(
             self._dispatcher.summarize_text,
             media_id=media_id,
@@ -136,7 +152,6 @@ class TextAnalysisService:
         text: str,
         provider: str,
         model: Optional[str] = None,
-        media_id: Optional[str] = None,
         language: Optional[str] = None,
     ) -> Dict[str, Any]:
         logger.info(
@@ -144,13 +159,14 @@ class TextAnalysisService:
             transcription_id=transcription_id,
             provider=provider,
         )
+        # Importar localmente para evitar importação circular
+        from src.text_analysis.tasks import process_sentiment_analysis_task
         task = self._submit(
             self._dispatcher.sentiment_analysis,
             transcription_id=transcription_id,
             text=text,
             provider=provider,
             model=model,
-            media_id=media_id,
             language=language,
         )
         logger.info(
@@ -162,7 +178,7 @@ class TextAnalysisService:
 
     async def schedule_topic_modeling_task(
         self,
-        media_id: str,
+        transcription_id: str,
         text_content: str,
         provider: str,
         language: str,
@@ -170,12 +186,14 @@ class TextAnalysisService:
     ) -> Dict[str, Any]:
         logger.info(
             "text_analysis.scheduling_topic_modeling_task",
-            media_id=media_id,
+            transcription_id=transcription_id,
             provider=provider,
         )
+        # Importar localmente para evitar importação circular
+        from src.text_analysis.tasks import process_topic_modeling_task
         task = self._submit(
             self._dispatcher.topic_modeling,
-            media_id=media_id,
+            transcription_id=transcription_id,
             text_content=text_content,
             provider=provider,
             language=language,
@@ -183,7 +201,7 @@ class TextAnalysisService:
         )
         logger.info(
             "text_analysis.topic_modeling_task_scheduled",
-            media_id=media_id,
+            transcription_id=transcription_id,
             task_id=getattr(task, "id", None),
         )
         return {"task_id": getattr(task, "id", None)}

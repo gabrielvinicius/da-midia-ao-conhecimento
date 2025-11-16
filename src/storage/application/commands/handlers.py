@@ -45,7 +45,7 @@ class StoreFileCommandHandler:
             }
 
         except Exception as e:
-            logger.error("storage.store.failed", file_path=command.file_path, error=str(e))
+            logger.error("storage.store.failed", extra={"file_path": command.file_path, "error": str(e)})
             return {
                 "success": False,
                 "error": str(e),
@@ -75,7 +75,7 @@ class DeleteFileCommandHandler:
             }
 
         except Exception as e:
-            logger.error("storage.delete.failed", file_path=command.file_path, error=str(e))
+            logger.error("storage.delete.failed", extra={"file_path": command.file_path, "error": str(e)})
             return {
                 "success": False,
                 "error": str(e),
@@ -110,7 +110,7 @@ class MoveFileCommandHandler:
             }
 
         except Exception as e:
-            logger.error("storage.move.failed", source=command.source_path, destination=command.destination_path, error=str(e))
+            logger.error("storage.move.failed", extra={"source": command.source_path, "destination": command.destination_path, "error": str(e)})
             return {
                 "success": False,
                 "error": str(e),
@@ -144,7 +144,7 @@ class ValidateFileCommandHandler:
             }
 
         except Exception as e:
-            logger.error("storage.validate.failed", file_path=command.file_path, error=str(e))
+            logger.error("storage.validate.failed", extra={"file_path": command.file_path, "error": str(e)})
             return {
                 "success": False,
                 "error": str(e),

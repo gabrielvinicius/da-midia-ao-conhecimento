@@ -1,4 +1,5 @@
 # src/transcription/api/schemas.py
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -14,8 +15,8 @@ class TranscriptionResponse(BaseModel):
     media_id: UUID
     status: TranscriptionStatus
     provider: Optional[str] = None
-    created_at: str
-    processed_at: Optional[str] = None
+    created_at: datetime
+    processed_at: Optional[datetime] = None
     error_message: Optional[str] = None
     text: str
     segments: List[Dict[str, Any]]

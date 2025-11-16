@@ -32,17 +32,54 @@ class UserService:
         )
         return await self.user_repository.save(user)
 
+    def create_user_sync(self, email: str, password: str, role: str = "user") -> User:
+        self._validate_email_format(email)
+        self._ensure_email_available_sync(email)
+        self._validate_password_strength(password)
+        normalised_role = self._normalise_role(role)
+
+        user = User(
+            id=generate_id(),
+            email=email,
+            password_hash=hash_password(password),
+            role=normalised_role,
+        )
+        return self.user_repository.save_sync(user)
+
     async def get_user_by_id(self, user_id: UUID) -> Optional[User]:
         return await self.user_repository.find_by_id(user_id)
+
+    def get_user_by_id_sync(self, user_id: UUID) -> Optional[User]:
+        return self.user_repository.find_by_id_sync(user_id)
 
     async def get_user_by_email(self, email: str) -> Optional[User]:
         return await self.user_repository.find_by_email(email)
 
+    def get_user_by_email_sync(self, email: str) -> Optional[User]:
+        return self.user_repository.find_by_email_sync(email)
+
     async def list_users(self, *, page: int = 1, limit: int = 50, search: Optional[str] = None) -> List[User]:
         return await self.user_repository.list_all(page=page, limit=limit, search=search)
 
+    def list_users_sync(self, *, page: int = 1, limit: int = 50, search: Optional[str] = None) -> List[User]:
+        return self.user_repository.list_all_sync(page=page, limit=limit, search=search)
+
     async def authenticate_user(self, email: str, password: str) -> Dict[str, Any]:
         user = await self.user_repository.find_by_email(email)
+        if user is None or not verify_password(password, user.password_hash):
+            raise ValueError("Invalid credentials")
+        token = create_access_token(user.id)
+        return {
+            "token": token,
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "role": user.role.value,
+            },
+        }
+
+    def authenticate_user_sync(self, email: str, password: str) -> Dict[str, Any]:
+        user = self.user_repository.find_by_email_sync(email)
         if user is None or not verify_password(password, user.password_hash):
             raise ValueError("Invalid credentials")
         token = create_access_token(user.id)
@@ -60,9 +97,19 @@ class UserService:
         user.role = self._normalise_role(new_role)
         return await self.user_repository.save(user)
 
+    def update_user_role_sync(self, user_id: UUID, new_role: str) -> User:
+        user = self._get_or_raise_sync(user_id)
+        user.role = self._normalise_role(new_role)
+        return self.user_repository.save_sync(user)
+
     async def delete_user(self, user_id: UUID) -> None:
         await self._get_or_raise(user_id)
         if not await self.user_repository.delete(user_id):
+            raise ValueError("User could not be deleted")
+
+    def delete_user_sync(self, user_id: UUID) -> None:
+        self._get_or_raise_sync(user_id)
+        if not self.user_repository.delete_sync(user_id):
             raise ValueError("User could not be deleted")
 
     async def activate_user(self, user_id: UUID) -> User:
@@ -70,10 +117,20 @@ class UserService:
         user.is_active = True
         return await self.user_repository.save(user)
 
+    def activate_user_sync(self, user_id: UUID) -> User:
+        user = self._get_or_raise_sync(user_id)
+        user.is_active = True
+        return self.user_repository.save_sync(user)
+
     async def deactivate_user(self, user_id: UUID) -> User:
         user = await self._get_or_raise(user_id)
         user.is_active = False
         return await self.user_repository.save(user)
+
+    def deactivate_user_sync(self, user_id: UUID) -> User:
+        user = self._get_or_raise_sync(user_id)
+        user.is_active = False
+        return self.user_repository.save_sync(user)
 
     async def change_password(self, user_id: UUID, old_password: str, new_password: str) -> None:
         user = await self._get_or_raise(user_id)
@@ -82,6 +139,14 @@ class UserService:
         self._validate_password_strength(new_password)
         user.password_hash = hash_password(new_password)
         await self.user_repository.save(user)
+
+    def change_password_sync(self, user_id: UUID, old_password: str, new_password: str) -> None:
+        user = self._get_or_raise_sync(user_id)
+        if not verify_password(old_password, user.password_hash):
+            raise ValueError("Invalid credentials")
+        self._validate_password_strength(new_password)
+        user.password_hash = hash_password(new_password)
+        self.user_repository.save_sync(user)
 
     async def update_user(self, user_id: UUID, updates: Dict[str, Any]) -> User:
         if not updates:
@@ -107,6 +172,43 @@ class UserService:
             raise ValueError(f"Cannot update fields: {sorted(unknown_keys)}")
 
         return await self.user_repository.save(user)
+
+    def update_user_sync(self, user_id: UUID, updates: Dict[str, Any]) -> User:
+        if not updates:
+            raise ValueError("No updates provided")
+        user = self._get_or_raise_sync(user_id)
+
+        if "email" in updates:
+            new_email = updates["email"]
+            self._validate_email_format(new_email)
+            if new_email != user.email:
+                self._ensure_email_available_sync(new_email)
+            user.email = new_email
+
+        if "role" in updates:
+            user.role = self._normalise_role(updates["role"])
+
+        if "is_active" in updates:
+            user.is_active = bool(updates["is_active"])
+
+        forbidden = {"id", "password_hash", "created_at"}
+        unknown_keys = forbidden.intersection(updates.keys())
+        if unknown_keys:
+            raise ValueError(f"Cannot update fields: {sorted(unknown_keys)}")
+
+        return self.user_repository.save_sync(user)
+
+    async def _get_or_raise(self, user_id: UUID) -> User:
+        user = await self.user_repository.find_by_id(user_id)
+        if user is None:
+            raise ValueError(f"User with id {user_id} not found")
+        return user
+
+    def _get_or_raise_sync(self, user_id: UUID) -> User:
+        user = self.user_repository.find_by_id_sync(user_id)
+        if user is None:
+            raise ValueError(f"User with id {user_id} not found")
+        return user
 
     async def register_user(self, email: str, password: str) -> dict[str, object]:
         user = await self.create_user(email=email, password=password, role="user")

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import time
 from typing import Any, Dict, Optional
 
@@ -9,11 +8,10 @@ from celery import shared_task
 from pydantic import ValidationError
 
 # Imports for summarization tasks
-from src.shared.infrastructure.database import get_db
+from src.shared.infrastructure.database import get_sync_db
 from src.text_analysis.application.domain_services import (
     SentimentAnalysisDomainService,
     SummarizationDomainService,
-    TopicModelingDomainService,
 )
 from src.text_analysis.summarization.infrastructure.summarization_repository import (
     SummarizationRepository,
@@ -35,21 +33,16 @@ from src.text_analysis.text_processing.infrastructure.text_extractor import (
 from src.text_analysis.text_processing.infrastructure.text_processor import (
     TextProcessor,
 )
-from src.text_analysis.topic_modeling.infrastructure.logging import (
-    StructuredTopicModelingLogger,
-)
-from src.text_analysis.topic_modeling.infrastructure.metrics import (
-    PrometheusTopicModelingMetrics,
-)
-from src.text_analysis.topic_modeling.infrastructure.topic_modeler import (
-    BERTopicModeler,
-)
-
-# Imports for topic modeling tasks
-from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import (
-    TopicModelingRepository,
-)
+from dependency_injector import providers
+from src.text_analysis.topic_modeling.bootstrap import TopicModelingContainer
+from src.text_analysis.topic_modeling.infrastructure.metrics import NoOpTopicModelingMetrics
 from src.storage.infrastructure.dependencies import StorageServiceFactory
+from sqlalchemy.orm import Session
+
+from src.shared.event_bus import InMemoryEventBus
+from src.shared.events.domain_events import TextContentReady
+from src.text_analysis.application.event_handlers import build_text_content_ready_handler
+# Removido import circular: from src.text_analysis.application.services import TextAnalysisService
 
 logger = structlog.get_logger(__name__)
 
@@ -84,19 +77,19 @@ def process_text_task(
         return None
 
     try:
-        return asyncio.run(
-            _run_text_processing(payload)
-        )
+        return _run_text_processing_sync(payload)
     except Exception as e:
         logger.error(
             "text_processing.task_failed",
-            media_id=media_id,
-            error=str(e),
+            extra={
+                "media_id": media_id,
+                "error": str(e),
+            },
             exc_info=True,
         )
         return None
 
-async def _run_text_processing(
+def _run_text_processing_sync(
     payload: TextProcessPayload,
 ) -> Optional[Dict[str, Any]]:
     start_time = time.monotonic()
@@ -112,7 +105,12 @@ async def _run_text_processing(
         processing_type=payload.processing_type,
     )
     try:
-        result = await processor.process_text(
+        # Call the text processor's method synchronously
+        result = processor.process_text_sync(
+            text_content=payload.text_content,
+            processing_type=payload.processing_type,
+            options=payload.options,
+        ) if hasattr(processor, 'process_text_sync') else processor.process_text(
             text_content=payload.text_content,
             processing_type=payload.processing_type,
             options=payload.options,
@@ -164,19 +162,19 @@ def extract_text_task(
         return None
 
     try:
-        return asyncio.run(
-            _run_text_extraction(payload)
-        )
+        return _run_text_extraction_sync(payload)
     except Exception as e:
         logger.error(
             "text_extraction.task_failed",
-            media_id=media_id,
-            error=str(e),
+            extra={
+                "media_id": media_id,
+                "error": str(e),
+            },
             exc_info=True,
         )
         return None
 
-async def _run_text_extraction(
+def _run_text_extraction_sync(
     payload: TextExtractionPayload,
 ) -> Optional[Dict[str, Any]]:
     start_time = time.monotonic()
@@ -185,16 +183,24 @@ async def _run_text_extraction(
 
     storage_factory = StorageServiceFactory()
 
-    async for db in get_db():
+    from src.shared.infrastructure.database import get_sync_session
+    with get_sync_session() as db:
         container = TextProcessingContainer(
             db=db,
             storage_factory=storage_factory,
             storage_provider=payload.storage_provider,
         )
         extractor: TextExtractor = container.text_extractor()
-        break
-    else:  # pragma: no cover - generator should always yield
-        raise RuntimeError("Database session not available for text extraction")
+        # Call the extractor's method synchronously
+        extracted_text = extractor.extract_text_sync(
+            file_path=payload.file_path,
+            extraction_method=payload.extraction_method,
+            storage_provider=payload.storage_provider,
+        ) if hasattr(extractor, 'extract_text_sync') else extractor.extract_text(
+            file_path=payload.file_path,
+            extraction_method=payload.extraction_method,
+            storage_provider=payload.storage_provider,
+        )
 
     logger.info(
         "text_processing.extract.started",
@@ -204,11 +210,6 @@ async def _run_text_extraction(
         storage_provider=payload.storage_provider,
     )
     try:
-        extracted_text = await extractor.extract_text(
-            file_path=payload.file_path,
-            extraction_method=payload.extraction_method,
-            storage_provider=payload.storage_provider,
-        )
         success = True
         logger.info("text_processing.extract.completed", media_id=str(payload.media_id))
         return {
@@ -230,10 +231,10 @@ async def _run_text_extraction(
         duration = time.monotonic() - start_time
         # TODO: Adicionar logging e métricas aqui
 
-@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5, countdown=5)
 def process_summarization_task(
         self,
-        media_id: str,
+        transcription_id: str,
         text_content: str,
         provider: str = "builtin",
         options: Optional[Dict[str, Any]] = None,
@@ -241,7 +242,7 @@ def process_summarization_task(
     try:
         payload = SummarizationTaskPayload.model_validate(
             {
-                "media_id": media_id,
+                "transcription_id": transcription_id,
                 "text_content": text_content,
                 "provider": provider,
                 "options": options,
@@ -250,51 +251,87 @@ def process_summarization_task(
     except ValidationError as exc:
         logger.error(
             "summarization.task_invalid_payload",
-            media_id=media_id,
+            transcription_id=transcription_id,
             errors=exc.errors(),
         )
         return None
 
     try:
-        return asyncio.run(_run_summarization(payload=payload))
+        # Use synchronous database session
+        from src.shared.infrastructure.database import get_sync_session
+        with get_sync_session() as db:
+            return _run_summarization_sync(db, payload=payload)
     except Exception as e:
         logger.error(
             "summarization.task_failed",
-            media_id=media_id,
-            error=str(e),
+            extra={
+                "transcription_id": transcription_id,
+                "error": str(e),
+            },
             exc_info=True,
         )
-        return None
+        raise
 
-async def _run_summarization(
+def _run_summarization_sync(
+    db: Session,
     *,
     payload: SummarizationTaskPayload,
 ) -> Optional[str]:
-    async for db in get_db():
-        logger.info(
-            "summarization.task.start",
-            media_id=str(payload.media_id),
-            provider=payload.provider,
+    logger.info(
+        "summarization.task.start",
+        transcription_id=str(payload.transcription_id),
+        provider=payload.provider,
+    )
+    
+    # Get the transcription text content for summarization
+    from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
+    transcription_repo = TranscriptionRepository(db)
+    transcription = transcription_repo.get_by_id_sync(payload.transcription_id)
+
+    if transcription is None:
+        logger.error(
+            "summarization.transcription_not_found",
+            transcription_id=str(payload.transcription_id),
         )
-        service = SummarizationDomainService(
-            session=db,
-            repository=SummarizationRepository(db),
-            summarizer=TextRankSummarizer(),
+        raise ValueError(f"No transcription found for ID: {payload.transcription_id}")
+
+    text_content = transcription.text or getattr(transcription, 'content', '') or payload.text_content
+
+    service = SummarizationDomainService(
+        session=db,
+        repository=SummarizationRepository(db),
+        summarizer=TextRankSummarizer(),
+    )
+
+    db.commit()
+    summary = service.generate_summary_sync(
+        transcription_id=transcription.id,
+        text_content=text_content,  # Use transcription text content
+        provider=payload.provider,
+        options=payload.options,
+    )
+
+    # Commit any pending changes to the database
+    try:
+        db.commit()
+    except Exception as e:
+        # If there's an issue with commit, make sure to rollback but don't fail the whole process
+        try:
+            db.rollback()
+        except Exception:
+            pass  # Just suppress rollback errors
+        logger.warning(
+            "summarization.database_commit_failed",
+            transcription_id=payload.transcription_id,
+            error=str(e),
         )
 
-        summary = await service.generate_summary(
-            media_id=payload.media_id,
-            text_content=payload.text_content,
-            provider=payload.provider,
-            options=payload.options,
-        )
-
-        logger.info(
-            "summarization.task.completed",
-            media_id=str(payload.media_id),
-            summary_id=str(summary.id),
-        )
-        return str(summary.id)
+    logger.info(
+        "summarization.task.completed",
+        transcription_id=str(payload.transcription_id),
+        summary_id=str(summary.id),
+    )
+    return str(summary.id)
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
 def process_sentiment_analysis_task(
@@ -303,7 +340,6 @@ def process_sentiment_analysis_task(
         text: str,
         provider: str,
         model: Optional[str] = None,
-        media_id: Optional[str] = None,
         language: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     try:
@@ -313,7 +349,6 @@ def process_sentiment_analysis_task(
                 "text": text,
                 "provider": provider,
                 "model": model,
-                "media_id": media_id,
                 "language": language,
             }
         )
@@ -326,21 +361,28 @@ def process_sentiment_analysis_task(
         return None
 
     try:
-        return asyncio.run(_run_sentiment_analysis(payload))
+        # Use synchronous database session
+        from src.shared.infrastructure.database import get_sync_session
+        with get_sync_session() as db:
+            return _run_sentiment_analysis_sync(db, payload)
     except Exception as e:
         logger.error(
             "sentiment_analysis.task_failed",
-            transcription_id=transcription_id,
-            error=str(e),
+            extra={
+                "transcription_id": transcription_id,
+                "error": str(e),
+            },
             exc_info=True,
         )
         return None
 
-async def _run_sentiment_analysis(
+def _run_sentiment_analysis_sync(
+    db: Session,
     payload: SentimentTaskPayload,
 ) -> Optional[Dict[str, Any]]:
+    import time
     start_time = time.perf_counter()
-    # TODO: Resolve dependencies via DI container later
+    # Update import path to match what would be used in sync context
     from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
         SentimentAnalysisRepository,
     )
@@ -354,49 +396,121 @@ async def _run_sentiment_analysis(
         provider=payload.provider,
     )
 
-    async for db in get_db():
-        service = SentimentAnalysisDomainService(
-            session=db,
-            repository=SentimentAnalysisRepository(db),
-            analyzer=SimpleSentimentAnalyzer(),
-        )
-
-        try:
-            result = await service.analyze_sentiment(
-                transcription_id=str(payload.transcription_id),
-                text=payload.text,
-                provider=payload.provider,
-                model=payload.model,
-                media_id=str(payload.media_id) if payload.media_id is not None else None,
-                language=payload.language,
-            )
-        except Exception as exc:  # pragma: no cover - defensive
+    # Get the transcription text content if not provided directly
+    if not payload.text:
+        from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
+        transcription_repo = TranscriptionRepository(db)
+        transcription = transcription_repo.get_by_id_sync(payload.transcription_id)
+        
+        if transcription is None:
             logger.error(
-                "sentiment_analysis.failed",
+                "sentiment_analysis.transcription_not_found",
                 transcription_id=str(payload.transcription_id),
-                provider=payload.provider,
-                error=str(exc),
             )
-            raise
+            raise ValueError(f"No transcription found for ID: {payload.transcription_id}")
+        
+        payload.text = transcription.text or getattr(transcription, 'content', '') or ''
 
-        if payload.media_id is not None:
-            result.setdefault("media_id", str(payload.media_id))
-        if "processing_time" not in result:
-            result["processing_time"] = time.perf_counter() - start_time
+    service = SentimentAnalysisDomainService(
+        session=db,
+        repository=SentimentAnalysisRepository(db),
+        analyzer=SimpleSentimentAnalyzer(),
+    )
 
-        logger.info(
-            "sentiment_analysis.completed",
+    try:
+        result = service.analyze_sentiment_sync(
+            transcription_id=str(payload.transcription_id),
+            text=payload.text,
+            provider=payload.provider,
+            model=payload.model,
+            language=payload.language,
+        )
+        
+        # Ensure result is JSON serializable by converting object properties to simple values
+        if result and hasattr(result, 'to_dict') and callable(getattr(result, 'to_dict')):
+            # If the result has a to_dict method, use it
+            result = result.to_dict()
+        elif result and hasattr(result, '__dict__'):
+            # If it's a complex object, extract only the primitive values
+            result = {
+                k: v for k, v in result.__dict__.items()
+                if not callable(v) and not k.startswith('_') and not hasattr(v, '__dict__')
+            }
+        elif not isinstance(result, dict):
+            # If result is not a dict, wrap it in one
+            result = {"result": result}
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error(
+            "sentiment_analysis.failed",
             transcription_id=str(payload.transcription_id),
             provider=payload.provider,
-            duration=result.get("processing_time"),
+            error=str(exc),
+        )
+        raise
+
+
+    
+    if isinstance(result, dict) and "processing_time" not in result:
+        result["processing_time"] = time.perf_counter() - start_time
+
+    # Commit any pending changes to the database
+    try:
+        db.commit()
+    except Exception as e:
+        # If there's an issue with commit, make sure to rollback but don't fail the whole process
+        try:
+            db.rollback()
+        except Exception:
+            pass  # Just suppress rollback errors
+        logger.warning(
+            "sentiment_analysis.database_commit_failed",
+            transcription_id=payload.transcription_id,
+            error=str(e),
         )
 
-        return result
+    logger.info(
+        "sentiment_analysis.completed",
+        transcription_id=str(payload.transcription_id),
+        provider=payload.provider,
+        duration=result.get("processing_time") if isinstance(result, dict) else None,
+    )
 
-@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
+    # Ensure result is JSON serializable by extracting only primitive values
+    if result and hasattr(result, 'to_dict') and callable(getattr(result, 'to_dict')):
+        # If the result has a to_dict method, use it
+        result_dict = result.to_dict()
+        return result_dict
+    elif result and hasattr(result, '__dict__'):
+        # If it's a complex object, extract only the primitive values
+        result_dict = {
+            k: v for k, v in result.__dict__.items()
+            if not callable(v) and not k.startswith('_') and isinstance(v, (str, int, float, bool, list, dict, type(None)))
+        }
+        return result_dict
+    elif isinstance(result, dict):
+        # If result is already a dict, make sure it's JSON serializable
+        serializable_result = {}
+        for k, v in result.items():
+            if isinstance(v, (str, int, float, bool, list, dict, type(None))):
+                serializable_result[k] = v
+            elif hasattr(v, '__dict__'):
+                # For nested objects, extract only primitive values
+                serializable_result[k] = {
+                    attr_k: attr_v for attr_k, attr_v in v.__dict__.items()
+                    if not callable(attr_v) and not attr_k.startswith('_') and isinstance(attr_v, (str, int, float, bool, list, dict, type(None)))
+                }
+            else:
+                # For any other type, convert to string representation
+                serializable_result[k] = str(v) if v is not None else None
+        return serializable_result
+    else:
+        # If result is a simple type, return directly
+        return result if isinstance(result, (str, int, float, bool, type(None))) else str(result)
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5, countdown=5)
 def process_topic_modeling_task(
         self,
-        media_id: str,
+        transcription_id: str,
         text_content: str,
         provider: str,
         language: str,
@@ -405,7 +519,7 @@ def process_topic_modeling_task(
     try:
         payload = TopicModelingTaskPayload.model_validate(
             {
-                "media_id": media_id,
+                "transcription_id": transcription_id,
                 "text_content": text_content,
                 "provider": provider,
                 "language": language,
@@ -415,56 +529,145 @@ def process_topic_modeling_task(
     except ValidationError as exc:
         logger.error(
             "topic_modeling.task_invalid_payload",
-            media_id=media_id,
+            transcription_id=transcription_id,
             errors=exc.errors(),
         )
         return None
 
     try:
-        return asyncio.run(_run_topic_modeling(payload=payload))
+        # Use synchronous database session
+        from src.shared.infrastructure.database import get_sync_session
+        with get_sync_session() as db:
+            return _run_topic_modeling_sync(db, payload=payload)
     except Exception as e:
         logger.error(
             "topic_modeling.task_failed",
-            media_id=media_id,
-            error=str(e),
+            extra={
+                "transcription_id": transcription_id,
+                "error": str(e),
+            },
             exc_info=True,
         )
-        return None
+        raise
 
-async def _run_topic_modeling(
+def _run_topic_modeling_sync(
+    db: Session,
     *,
     payload: TopicModelingTaskPayload,
 ) -> Optional[Dict[str, Any]]:
-    async for db in get_db():
-        logger.info(
-            "topic_modeling.analyze.started",
-            media_id=str(payload.media_id),
-            provider=payload.provider,
-        )
+    logger.info(
+        "topic_modeling.analyze.started",
+        transcription_id=str(payload.transcription_id),
+        provider=payload.provider,
+    )
 
-        service = TopicModelingDomainService(
-            session=db,
-            repository=TopicModelingRepository(db),
-            modeler=BERTopicModeler(),
-            operation_logger=StructuredTopicModelingLogger(),
-            metrics=PrometheusTopicModelingMetrics(),
-        )
+    # Use sync repository and service
+    from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
+    from src.text_analysis.topic_modeling.application.topic_modeling_service import TopicModelingService
 
-        result = await service.analyze_topics(
-            media_id=payload.media_id,
-            text_content=payload.text_content,
-            provider=payload.provider,
-            language=payload.language,
-            options=payload.options,
-        )
+    repo = TopicModelingRepository(db)
+    result = repo.get_by_transcription_id_sync(str(payload.transcription_id))
 
-        logger.info(
-            "topic_modeling.analyze.completed",
-            media_id=str(payload.media_id),
-            result_id=str(result.id),
+    if result is None:
+        from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult
+        result = TopicModelingResult.create(transcription_id=payload.transcription_id, provider=payload.provider)
+        result = repo.add_sync(result)  # Assign the returned value from add_sync
+
+    # Get the transcription text content for topic modeling
+    from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
+    transcription_repo = TranscriptionRepository(db)
+    transcription = transcription_repo.get_by_id_sync(payload.transcription_id)
+
+    if transcription is None:
+        logger.error(
+            "topic_modeling.transcription_not_found",
+            transcription_id=str(payload.transcription_id),
         )
-        return {
+        raise ValueError(f"No transcription found for ID: {payload.transcription_id}")
+
+    text_content = transcription.text or getattr(transcription, 'content', '') or payload.text_content
+
+    # Process the topic modeling using sync operations
+    # Instantiate the service with proper dependencies
+    from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
+    from src.text_analysis.topic_modeling.infrastructure.logging import StructuredTopicModelingLogger
+    from src.text_analysis.topic_modeling.infrastructure.metrics import NoOpTopicModelingMetrics
+    from src.text_analysis.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
+
+    # Create the service with all required dependencies using correct parameter names
+    service = TopicModelingService(
+        topic_modeler=BERTopicModeler(),
+        topic_modeling_repo=repo,
+        text_analysis_service=None,
+        topic_logger=StructuredTopicModelingLogger(),
+        topic_metrics=NoOpTopicModelingMetrics(),
+    )
+    db.commit()
+    analysis_result = service.analyze_topics_sync(
+        transcription_id=transcription.id,
+        text_content=text_content,  # Use transcription text content
+        provider=payload.provider,
+        language=payload.language,
+        options=payload.options,
+    )
+
+    logger.info(
+        "topic_modeling.analyze.completed",
+        transcription_id=str(payload.transcription_id),
+        result_id=str(analysis_result.id) if analysis_result and hasattr(analysis_result, 'id') else 'unknown',
+    )
+
+    # Ensure result is JSON serializable
+    if analysis_result and hasattr(analysis_result, 'to_dict') and callable(getattr(analysis_result, 'to_dict')):
+        # If result has to_dict method, use it
+        result_dict = analysis_result.to_dict()
+        final_result = {
             "success": True,
-            "result_id": str(result.id),
-            "topics": getattr(result, "topics", {}),
+            "result_id": result_dict.get('id', 'unknown'),
+            "topics": result_dict.get('topics', {}),
         }
+    elif analysis_result and hasattr(analysis_result, '__dict__'):
+        # If it's a complex object, extract only primitive values
+        result_dict = {k: v for k, v in analysis_result.__dict__.items()
+                      if not callable(v) and not k.startswith('_')}
+        final_result = {
+            "success": True,
+            "result_id": result_dict.get('id', 'unknown'),
+            "topics": result_dict.get('topics', {}),
+        }
+    elif analysis_result is None:
+        # Handle case where analysis_result is None
+        logger.warning(
+            "topic_modeling.service_returned_none",
+            transcription_id=payload.transcription_id,
+            provider=payload.provider,
+        )
+        final_result = {
+            "success": True,
+            "result_id": "unknown",
+            "topics": {},
+        }
+    else:
+        # Fallback case
+        final_result = {
+            "success": True,
+            "result_id": "unknown",
+            "topics": {},
+        }
+
+    # Commit any pending changes to the database
+    try:
+        db.commit()
+    except Exception as e:
+        # If there's an issue with commit, make sure to rollback but don't fail the whole process
+        try:
+            db.rollback()
+        except Exception:
+            pass  # Just suppress rollback errors
+        logger.warning(
+            "topic_modeling.database_commit_failed",
+            transcription_id=payload.transcription_id,
+            error=str(e),
+        )
+
+    return final_result

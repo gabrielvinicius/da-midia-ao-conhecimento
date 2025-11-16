@@ -1,33 +1,46 @@
 import io
+import logging
 import os
 import tempfile
-from typing import Optional
+from typing import Dict, Optional
 
 import av
 import numpy as np
 import resampy
 from transformers import pipeline
 
+from src.media_processing.transcription.infrastructure.dependencies import (
+    register_speech_recognition,
+)
 
+logger = logging.getLogger(__name__)
+
+
+@register_speech_recognition("huggingface")
 class HuggingfaceTranscriber:
     def __init__(self, model_name: str = "openai/whisper-base"):
-        self.model = pipeline(task="automatic-speech-recognition",model=model_name)
+        self.model = pipeline(task="automatic-speech-recognition", model=model_name)
         self.sample_rate = 16000  # Whisper expects 16kHz audio
 
     @property
     def provider_name(self) -> str:
         return "huggingface"
 
-    async def transcribe(self, file: bytes, language: str = "en") -> Optional[str]:
+    async def transcribe(self, file: bytes, language: str = "en") -> Dict[str, object]:
         path = None
         try:
             path = await self._decode_file_bytes(file)
             # The Hugging Face pipeline can use the language if the model supports it
             result = self.model(path, generate_kwargs={"language": language})
-
-            return result["text"]
+            text = result["text"].strip()
+            return {
+                "text": text,
+                "segments": None,
+                "language": language,
+                "provider": self.provider_name,
+            }
         except Exception as e:
-            logger.error(f"Transcription failed: {str(e)}")
+            logger.error("huggingface.transcription_failed", extra={"error": str(e)}, exc_info=True)
             raise RuntimeError(f"Transcription error: {str(e)}")
         finally:
             if path and os.path.exists(path):
@@ -65,7 +78,7 @@ class HuggingfaceTranscriber:
             return audio
 
         except Exception as e:
-            logger.error(f"Audio decoding from video/audio failed: {str(e)}")
+            logger.error("huggingface.audio_decode_failed", extra={"error": str(e)})
             raise RuntimeError(f"Audio decoding error: {str(e)}")
 
     async def _decode_file_bytes(self, file_bytes: bytes) -> str:

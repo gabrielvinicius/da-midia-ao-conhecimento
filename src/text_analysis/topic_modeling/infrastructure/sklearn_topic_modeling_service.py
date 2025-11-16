@@ -48,5 +48,5 @@ class SklearnTopicModelingService(ITopicModelingService):
 
             return topics
         except Exception as e:
-            logger.error("topic_modeling.process.failed", error=str(e))
+            logger.error("topic_modeling.process.failed", extra={"error": str(e)})
             return ["Error during topic modeling."]

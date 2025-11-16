@@ -27,7 +27,7 @@ services:
   redis:
     image: redis:7.2-alpine
     container_name: video_summarizer_redis
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-defaultpassword}
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
@@ -85,10 +85,11 @@ services:
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DB_HOST=postgres
       - REDIS_HOST=redis
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-defaultpassword}
+      - REDIS_PASSWORD=
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
-      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/1
+      - WHISPER_CACHE_DIR=/app/.cache/whisper
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
     env_file:
       - .env
     depends_on:
@@ -99,9 +100,10 @@ services:
     volumes:
       - ./src:/app/src:ro
       - ./main.py:/app/main.py:ro
-      - ./alembic:/app/alembic:ro
-      - ./alembic.ini:/app/alembic.ini:ro
+      - ./alembic:/app/alembic:rw
+      - ./alembic.ini:/app/alembic.ini:rw
       - media_data:/app/media
+      - media_data:/app/storage
       - ./logs:/app/logs
     networks:
       - app-network
@@ -124,10 +126,11 @@ services:
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DB_HOST=postgres
       - REDIS_HOST=redis
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-defaultpassword}
+      - REDIS_PASSWORD=
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
-      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-defaultpassword}@redis:6379/1
+      - WHISPER_CACHE_DIR=/app/.cache/whisper
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
     env_file:
       - .env
     depends_on:
@@ -139,13 +142,16 @@ services:
         condition: service_started
     volumes:
       - ./src:/app/src:ro
+      - ./alembic:/app/alembic:rw
+      - ./alembic.ini:/app/alembic.ini:rw
       - media_data:/app/media
+      - media_data:/app/storage
       - ./logs:/app/logs
     networks:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "timeout", "10", "sh", "-c", "echo 'ping' | nc backend 8000"]
+      test: ["CMD", "celery", "-A", "src.celery_app:celery", "inspect", "ping", "-d", "backend", "--timeout=1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -162,12 +168,12 @@ services:
     depends_on:
       - backend
     environment:
-      - REACT_APP_API_URL=http://backend:8000
+      - VITE_API_URL=http://backend:8000
     networks:
       - app-network
     restart: unless-stopped
-    profiles:
-      - frontend
+    #profiles:
+     # - frontend
 
 volumes:
   postgres_data:

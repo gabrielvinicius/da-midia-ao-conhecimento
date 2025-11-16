@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from faster_whisper import WhisperModel
@@ -33,32 +33,50 @@ class FastWhisperTranscriber:
     def provider_name(self) -> str:
         return "fastwhisper"
 
-    async def transcribe(self, file: bytes, language: str = "en") -> Optional[str]:
+    async def transcribe(self, file: bytes, language: str = "en") -> Dict[str, object]:
         try:
-            # The language passed as an argument takes precedence over the instance's default language
-            lang_to_use = language if language else self.language
+            lang_to_use = language or self.language
             audio_array, _ = await self._decode_audio_bytes(file)
             return await self._transcribe_audio(audio_array, lang_to_use)
         except Exception as e:
-            logger.error(f"Transcription failed: {str(e)}", exc_info=True)
+            logger.error(
+                "fastwhisper.transcription_failed",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             raise RuntimeError(f"Transcription error: {str(e)}")
 
-    async def _transcribe_audio(self, audio: np.ndarray, language: str) -> str:
+    async def _transcribe_audio(self, audio: np.ndarray, language: str) -> Dict[str, object]:
         loop = asyncio.get_running_loop()
 
-        # Run recognition in a separate thread
-        segments, _ = await loop.run_in_executor(
-            None,
-            self.model.transcribe,
-            audio,
-            language=language,
-            beam_size=5,
-            vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500),
-        )
+        def _run():
+            segments_iter, info = self.model.transcribe(
+                audio,
+                language=language,
+                beam_size=5,
+                vad_filter=True,
+                vad_parameters=dict(min_silence_duration_ms=500),
+            )
+            text_parts: List[str] = []
+            segments_payload: List[Dict[str, float | str]] = []
+            for segment in segments_iter:
+                text_parts.append(segment.text)
+                segments_payload.append(
+                    {
+                        "start": float(segment.start or 0.0),
+                        "end": float(segment.end or 0.0),
+                        "text": segment.text,
+                    }
+                )
+            return {
+                "text": " ".join(text_parts).strip(),
+                "segments": segments_payload,
+                "language": language,
+                "provider": self.provider_name,
+                "duration": getattr(info, "duration", None),
+            }
 
-        # Combine all text segments
-        return " ".join(segment.text for segment in segments)
+        return await loop.run_in_executor(None, _run)
 
     async def _decode_audio_bytes(self, file_bytes: bytes) -> Tuple[np.ndarray, int]:
         """Decodes audio bytes to a numpy array using FFmpeg."""
@@ -88,5 +106,8 @@ class FastWhisperTranscriber:
             raise RuntimeError(f"Audio decoding failed: {err_msg}")
 
         # Convert bytes to numpy int16 array
-        audio_array = np.frombuffer(stdout, dtype=np.int16)
+        audio_array = np.frombuffer(stdout, dtype=np.int16).astype(np.float32)
+        # Normalize to [-1, 1] expected by VAD/whisper pipelines
+        denom = max(np.abs(audio_array).max(), 1e-9)
+        audio_array = audio_array / denom
         return audio_array, self.sample_rate

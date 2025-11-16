@@ -62,7 +62,7 @@ class FFmpegVideoThumbnailGenerator:
             }
 
         except Exception as e:
-            logger.error("Thumbnail generation failed", error=str(e), filename=filename)
+            logger.error("Thumbnail generation failed", extra={"error": str(e), "filename": filename})
             raise
 
     async def _generate_with_ffmpeg(self, video_data: bytes, filename: str,

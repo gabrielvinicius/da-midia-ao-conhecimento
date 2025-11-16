@@ -29,7 +29,7 @@ class TopicModelingContainer(containers.DeclarativeContainer):
     """IoC container wiring topic modeling dependencies."""
 
     db: providers.Provider[AsyncSession] = providers.Dependency()
-    text_analysis_service = providers.Dependency()
+    text_analysis_service = providers.Dependency(default=None)
 
     topic_modeling_repository = providers.Factory(
         TopicModelingRepository,

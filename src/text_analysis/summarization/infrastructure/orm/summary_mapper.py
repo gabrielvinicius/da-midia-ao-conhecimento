@@ -28,7 +28,7 @@ class SummaryMapper:
     ) -> SummaryAggregate:
         aggregate = SummaryAggregate(
             id=entity.id,
-            media_id=entity.media_id,
+            transcription_id=entity.transcription_id,
             text=entity.text,
             status=entity.status,
             created_at=entity.created_at,
@@ -51,7 +51,7 @@ class SummaryMapper:
     def to_entity(self, aggregate: SummaryAggregate) -> SummaryEntity:
         return SummaryEntity(
             id=aggregate.id,
-            media_id=aggregate.media_id,
+            transcription_id=aggregate.transcription_id,
             text=aggregate.text,
             status=aggregate.status,
             created_at=_to_naive(aggregate.created_at) or datetime.utcnow(),
@@ -61,7 +61,7 @@ class SummaryMapper:
         )
 
     def apply_to_entity(self, entity: SummaryEntity, aggregate: SummaryAggregate) -> SummaryEntity:
-        entity.media_id = aggregate.media_id
+        entity.transcription_id = aggregate.transcription_id
         entity.text = aggregate.text
         entity.status = aggregate.status
         entity.created_at = _to_naive(aggregate.created_at) or entity.created_at

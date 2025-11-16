@@ -7,7 +7,11 @@ from typing import Any, Dict, Optional, Protocol
 
 from src.notifications.application.schemas import NotificationTaskPayload
 from src.notifications.tasks.notification_tasks import send_notification_task
-from src.text_analysis.application.services import TextAnalysisService
+# Removido import circular: from src.text_analysis.application.services import TextAnalysisService
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.text_analysis.application.services import TextAnalysisService
 
 
 class VideoProcessingTaskScheduler(Protocol):

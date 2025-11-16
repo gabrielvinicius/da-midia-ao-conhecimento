@@ -75,7 +75,7 @@ class PrometheusMetricsProvider(IMetricsProvider):
                     metric.inc(value)
                 logger.debug("counter_incremented", metric_name=name, value=value, labels=labels)
             except Exception as e:
-                logger.error("counter_increment_failed", metric_name=name, error=str(e))
+                logger.error("counter_increment_failed", extra={"metric_name": name, "error": str(e)})
         else:
             logger.warning("counter_not_found", metric_name=name)
 
@@ -90,7 +90,7 @@ class PrometheusMetricsProvider(IMetricsProvider):
                     metric.observe(value)
                 logger.debug("histogram_observed", metric_name=name, value=value, labels=labels)
             except Exception as e:
-                logger.error("histogram_observe_failed", metric_name=name, error=str(e))
+                logger.error("histogram_observe_failed", extra={"metric_name": name, "error": str(e)})
         else:
             logger.warning("histogram_not_found", metric_name=name)
 
@@ -105,7 +105,7 @@ class PrometheusMetricsProvider(IMetricsProvider):
                     metric.set(value)
                 logger.debug("gauge_set", metric_name=name, value=value, labels=labels)
             except Exception as e:
-                logger.error("gauge_set_failed", metric_name=name, error=str(e))
+                logger.error("gauge_set_failed", extra={"metric_name": name, "error": str(e)})
         else:
             logger.warning("gauge_not_found", metric_name=name)
 
@@ -120,7 +120,7 @@ class PrometheusMetricsProvider(IMetricsProvider):
                     metric.observe(value)
                 logger.debug("summary_observed", metric_name=name, value=value, labels=labels)
             except Exception as e:
-                logger.error("summary_observe_failed", metric_name=name, error=str(e))
+                logger.error("summary_observe_failed", extra={"metric_name": name, "error": str(e)})
         else:
             logger.warning("summary_not_found", metric_name=name)
 
@@ -148,7 +148,7 @@ class PrometheusMetricsProvider(IMetricsProvider):
                 else:
                     return metric._count._value
         except Exception as e:
-            logger.error("get_metric_value_failed", metric_name=name, error=str(e))
+            logger.error("get_metric_value_failed", extra={"metric_name": name, "error": str(e)})
             return None
 
     def list_metrics(self) -> List[str]:

@@ -12,6 +12,14 @@ from alembic import context
 from src.shared.infrastructure.database import Base  # Importar a Base
 from src.shared.config.settings import settings
 
+# Import all entity modules to ensure they are registered with the Base metadata
+from src.user_management.domain.user import User
+from src.media_management.infrastructure.orm.media_entity import MediaEntity
+from src.media_processing.transcription.domain.transcription import Transcription
+from src.text_analysis.summarization.infrastructure.orm.summary_entity import SummaryEntity
+from src.text_analysis.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysis
+from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult
+
 # ---------------------------------------------------
 
 load_dotenv(".env")

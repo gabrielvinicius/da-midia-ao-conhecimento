@@ -7,7 +7,7 @@ from celery import shared_task
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.infrastructure.database import get_db
-from src.text_analysis.application.services import TextAnalysisService
+# Removido import circular: from src.text_analysis.application.services import TextAnalysisService
 from src.text_analysis.topic_modeling.application.commands.commands import (
     AnalyzeTopicsCommand,
 )
@@ -23,7 +23,20 @@ logger = structlog.get_logger(__name__)
 def analyze_topics_task(self, media_id: str, text_content: str, provider: str, language: str, options: Optional[Dict[str, Any]] = None):
     """Celery entrypoint to trigger the topic modeling pipeline."""
     try:
-        return asyncio.run(_run_topic_modeling(media_id, text_content, provider, language, options))
+        # Use synchronous approach in Celery worker
+        import asyncio
+        try:
+            return asyncio.run(_run_topic_modeling(media_id, text_content, provider, language, options))
+        except RuntimeError:
+            # If there's already an event loop running, use thread-based approach
+            import concurrent.futures
+            def run_async():
+                import asyncio
+                return asyncio.run(_run_topic_modeling(media_id, text_content, provider, language, options))
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_async)
+                return future.result()
     except Exception as e:
         logger.error(f"Error in topic modeling task for media {media_id}: {str(e)}", exc_info=True)
         return None
@@ -36,6 +49,8 @@ async def _run_topic_modeling(media_id: str, text_content: str, provider: str, l
             raise TypeError("Expected db_session to be an AsyncSession")
 
         # --- Dependency Injection using Container ---
+        # Importar localmente para evitar circular import
+        from src.text_analysis.application.services import TextAnalysisService
         topic_modeling_container = TopicModelingContainer(
             db=db_session,
             text_analysis_service=TextAnalysisService(),

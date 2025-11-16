@@ -61,13 +61,11 @@ def build_text_content_ready_handler(
                     text=text,
                     provider=sentiment_provider,
                     model=sentiment_model,
-                    media_id=event.media_id,
                     language=language,
                 )
             except Exception as exc:  # pragma: no cover - defensive guard
                 logger.warning(
                     "text_content_ready.sentiment_failed",
-                    media_id=event.media_id,
                     transcription_id=event.transcription_id,
                     error=str(exc),
                 )
@@ -78,7 +76,7 @@ def build_text_content_ready_handler(
             topic_options = metadata.get("topic_options")
             try:
                 await text_analysis_service.schedule_topic_modeling_task(
-                    media_id=event.media_id,
+                    transcription_id=event.transcription_id,
                     text_content=text,
                     provider=topic_provider,
                     language=topic_language,
@@ -87,7 +85,7 @@ def build_text_content_ready_handler(
             except Exception as exc:  # pragma: no cover - defensive guard
                 logger.warning(
                     "text_content_ready.topic_modeling_failed",
-                    media_id=event.media_id,
+                    transcription_id=event.transcription_id,
                     error=str(exc),
                 )
 

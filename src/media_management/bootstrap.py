@@ -33,11 +33,11 @@ from src.media_processing.transcription.application.transcription_service import
 from src.media_processing.transcription.infrastructure.logging import (
     StructuredTranscriptionLogger,
 )
+from src.media_processing.transcription.infrastructure.dependencies import (
+    create_speech_recognition_service,
+)
 from src.media_processing.transcription.infrastructure.metrics import (
     PrometheusTranscriptionMetrics,
-)
-from src.media_processing.transcription.infrastructure.speech_recognizer import (
-    WhisperSpeechRecognizer,
 )
 from src.media_processing.transcription.infrastructure.task_scheduler import (
     CeleryTranscriptionTaskScheduler,
@@ -107,15 +107,16 @@ def build_media_components(
     transcription_repository = TranscriptionRepository(db=session)
     transcription_metrics = PrometheusTranscriptionMetrics()
     transcription_storage_service = S3StorageService()
-    speech_recognizer = WhisperSpeechRecognizer()
     transcription_service = TranscriptionService(
         transcription_repo=transcription_repository,
         task_scheduler=CeleryTranscriptionTaskScheduler(),
         transcription_logger=StructuredTranscriptionLogger(),
         transcription_metrics=transcription_metrics,
         storage_service=transcription_storage_service,
-        speech_recognizer=speech_recognizer,
+        speech_recognizer_factory=create_speech_recognition_service,
         db_session=session,
+        media_queries=media_queries,
+        event_bus=event_bus,
     )
     transcription_queries = TranscriptionQueries(transcription_repository=transcription_repository)
 

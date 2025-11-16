@@ -15,7 +15,7 @@ class TopicModelingResult(Base):
     __tablename__ = "topic_modeling_results"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    media_id = Column(UUID(as_uuid=True), ForeignKey("media.id"), nullable=False, unique=True)
+    transcription_id = Column(UUID(as_uuid=True), ForeignKey("transcriptions.id"), nullable=False, unique=True)
 
     # Store the list of topics/keywords
     topics = Column(JSONB, nullable=False)
@@ -29,9 +29,13 @@ class TopicModelingResult(Base):
     processed_at = Column(DateTime, nullable=True) # Adicionar processed_at
 
     @staticmethod
-    def create(media_id: UUID, provider: str) -> "TopicModelingResult":
+    def create(transcription_id: UUID, provider: str) -> "TopicModelingResult":
         """Factory method to create a new topic modeling result in a valid initial state."""
-        result = TopicModelingResult(media_id=media_id, provider=provider)
+        result = TopicModelingResult(
+            transcription_id=transcription_id,
+            provider=provider,
+            topics={}  # Initialize with empty dict to satisfy NOT NULL constraint
+        )
         result.status = TopicModelingStatus.PROCESSING
         result.created_at = datetime.utcnow()
         return result

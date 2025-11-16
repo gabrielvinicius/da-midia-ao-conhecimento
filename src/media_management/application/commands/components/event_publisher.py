@@ -11,6 +11,7 @@ from src.media_management.domain.media import Media
 from src.media_processing.tasks import process_media_task
 from src.shared.events.bus import SupportsEventBus
 from src.shared.events.domain_events import MediaUploaded
+from .upload_metadata_mapper import UploadMetadata
 
 logger = structlog.get_logger(__name__)
 
@@ -18,7 +19,7 @@ logger = structlog.get_logger(__name__)
 class MediaEventPublisher(Protocol):
     """Publishes domain events produced by media commands."""
 
-    async def publish_media_uploaded(self, media: Media, file_path: str) -> None:
+    async def publish_media_uploaded(self, media: Media, metadata: UploadMetadata) -> None:
         """Publish the media uploaded event."""
 
 
@@ -29,7 +30,8 @@ class DefaultMediaEventPublisher(MediaEventPublisher):
     event_bus: SupportsEventBus | None = None
     emit_legacy_task: bool = True
 
-    async def publish_media_uploaded(self, media: Media, file_path: str) -> None:
+    async def publish_media_uploaded(self, media: Media, metadata: UploadMetadata) -> None:
+        file_path = metadata.stored_path
         if self.event_bus is not None:
             try:
                 await self.event_bus.publish(
@@ -42,6 +44,10 @@ class DefaultMediaEventPublisher(MediaEventPublisher):
                         media_type=getattr(getattr(media, "media_type", None), "value", None)
                         if hasattr(getattr(media, "media_type", None), "value")
                         else getattr(media, "media_type", None),
+                        transcription_provider=getattr(media, "transcription_provider", None),
+                        summarization_provider=getattr(media, "summarization_provider", None),
+                        language=getattr(media, "language", None),
+                        file_size_bytes=getattr(media, "file_size", None) or metadata.file_size,
                     )
                 )
             except Exception as exc:  # pragma: no cover - fallback

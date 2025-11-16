@@ -32,3 +32,27 @@ class BERTopicModeler:
         }
         logger.info("topic_modeler.topics_modeled", num_topics=topics_result["num_topics"])
         return topics_result
+        
+    def model_topics_sync(self, text_content: str, language: str, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        logger.info(
+            "topic_modeler.modeling_topics_sync",
+            text_length=len(text_content),
+            language=language,
+            options=options
+        )
+        # Sync version of topic modeling
+        topics_result = {
+            "topics": [
+                {"id": 0, "name": "AI", "keywords": ["artificial intelligence", "machine learning"], "score": 0.8},
+                {"id": 1, "name": "Cloud", "keywords": ["aws", "azure", "gcp"], "score": 0.7}
+            ],
+            "num_topics": 2,
+            "provider": "bertopic_placeholder",
+            "model_name": "bertopic_default",
+            "processing_time_ms": 500.0,
+            "text_length": len(text_content),
+            "language": language,
+            "options": options,
+        }
+        logger.info("topic_modeler.topics_modeled_sync", num_topics=topics_result["num_topics"])
+        return topics_result

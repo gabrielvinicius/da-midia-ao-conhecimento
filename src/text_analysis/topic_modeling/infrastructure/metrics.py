@@ -3,47 +3,22 @@ from typing import Any, Dict
 
 from prometheus_client import Counter, Gauge, Histogram
 
+from src.shared.infrastructure.prometheus_metrics import shared_metrics
+
 
 class PrometheusTopicModelingMetrics:
     """Prometheus-based metrics implementation for topic modeling operations.
     Follows SRP - only responsible for metrics collection.
+    Uses shared metrics to prevent duplicate registration in Celery workers.
     """
 
     def __init__(self):
-        # Operation counters
-        self._operation_counter = Counter(
-            'topic_modeling_operations_total',
-            'Total number of topic modeling operations',
-            ['operation', 'provider', 'status']
-        )
-
-        # Operation duration histogram
-        self._operation_duration = Histogram(
-            'topic_modeling_operation_duration_seconds',
-            'Duration of topic modeling operations in seconds',
-            ['operation', 'provider']
-        )
-
-        # Input text length histogram
-        self._input_text_length = Histogram(
-            'topic_modeling_input_text_length_chars',
-            'Length of input text in characters',
-            ['provider']
-        )
-
-        # Number of topics histogram
-        self._num_topics = Histogram(
-            'topic_modeling_num_topics',
-            'Number of topics identified',
-            ['provider']
-        )
-
-        # Active operations gauge
-        self._active_operations = Gauge(
-            'topic_modeling_active_operations',
-            'Number of active topic modeling operations',
-            ['provider']
-        )
+        # Use shared metrics to prevent duplicate registration
+        self._operation_counter = shared_metrics.get_topic_modeling_operations_total()
+        self._operation_duration = shared_metrics.get_topic_modeling_operation_duration_seconds()
+        self._input_text_length = shared_metrics.get_topic_modeling_input_text_length_chars()
+        self._num_topics = shared_metrics.get_topic_modeling_num_topics()
+        self._active_operations = shared_metrics.get_topic_modeling_active_operations()
 
     async def record_operation(
         self,

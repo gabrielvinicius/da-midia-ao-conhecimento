@@ -74,7 +74,7 @@ class RedisCache:
                        db=settings.redis_db + 1)
 
         except Exception as e:
-            logger.error("Failed to connect to Redis cache", error=str(e))
+            logger.error("Failed to connect to Redis cache", extra={"error": str(e)})
             self.is_connected = False
             raise
 

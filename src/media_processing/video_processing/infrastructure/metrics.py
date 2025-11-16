@@ -3,26 +3,19 @@ from __future__ import annotations
 
 from prometheus_client import Counter, Histogram
 
+from src.shared.infrastructure.prometheus_metrics import shared_metrics
+
 
 class PrometheusVideoProcessingMetrics:
-    """Prometheus-backed metrics recorder for video processing operations."""
+    """Prometheus-backed metrics recorder for video processing operations.
+    Uses shared metrics to prevent duplicate registration in Celery workers.
+    """
 
     def __init__(self) -> None:
-        self._operations_total = Counter(
-            'video_processing_operations_total',
-            'Total number of video processing operations',
-            ['operation', 'status'],
-        )
-        self._operation_duration = Histogram(
-            'video_processing_operation_duration_seconds',
-            'Duration of video processing operations',
-            ['operation'],
-        )
-        self._file_size_bytes = Histogram(
-            'video_processing_input_file_size_bytes',
-            'Size of video files processed',
-            ['operation'],
-        )
+        # Use shared metrics to prevent duplicate registration
+        self._operations_total = shared_metrics.get_video_processing_operations_total()
+        self._operation_duration = shared_metrics.get_video_processing_duration_seconds()
+        self._file_size_bytes = shared_metrics.get_video_processing_input_file_size_bytes()
 
     async def record_operation(
         self,

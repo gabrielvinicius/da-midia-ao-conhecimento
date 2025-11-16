@@ -41,20 +41,29 @@ try:  # noqa: SIM105 - optional during refactor
         get_text_analysis_dependencies,
         TextAnalysisDependencies,
     )
+except Exception:  # pragma: no cover
+    TextAnalysisDependencies = None  # type: ignore[assignment]
+    get_text_analysis_dependencies = None  # type: ignore[assignment]
 
+try:  # noqa: SIM105 - optional during refactor
+    from src.text_analysis.summarization.api.dependencies import (
+        SummarizationDependencies,
+        get_summarization_dependencies,
+    )
 except Exception:  # pragma: no cover
     SummarizationDependencies = None  # type: ignore[assignment]
     get_summarization_dependencies = None  # type: ignore[assignment]
-    SummarizationModule = None  # type: ignore[assignment]
 try:  # noqa: SIM105 - optional during refactor
     from src.text_analysis.topic_modeling.api.dependencies import (
         TopicModelingDependencies,
+        configure_topic_modeling_dependencies,
         get_topic_modeling_dependencies,
     )
     from src.text_analysis.topic_modeling.bootstrap import TopicModelingModule
 except Exception:  # pragma: no cover
     TopicModelingDependencies = None  # type: ignore[assignment]
     get_topic_modeling_dependencies = None  # type: ignore[assignment]
+    configure_topic_modeling_dependencies = None  # type: ignore[assignment]
     TopicModelingModule = None  # type: ignore[assignment]
 from src.media_processing.transcription.api.dependencies import (
     TranscriptionDependencies,
@@ -110,9 +119,10 @@ def register_module_dependencies(
         )
     )
 
-    app.dependency_overrides[get_text_analysis_dependencies] = (
-        lambda: text_analysis
-    )
+    if get_text_analysis_dependencies is not None:
+        app.dependency_overrides[get_text_analysis_dependencies] = (
+            lambda: text_analysis
+        )
 
     summarization = getattr(text_analysis, "summarization", None) if text_analysis is not None else None
     if SummarizationDependencies is not None and get_summarization_dependencies is not None and summarization is not None:
@@ -135,13 +145,22 @@ def register_module_dependencies(
         )
 
     topic_modeling = getattr(text_analysis, "topic_modeling", None) if text_analysis is not None else None
-    if TopicModelingDependencies is not None and get_topic_modeling_dependencies is not None and topic_modeling is not None:
-        app.dependency_overrides[get_topic_modeling_dependencies] = (
-            lambda: TopicModelingDependencies(
-                service=topic_modeling.service,
-                repository=topic_modeling.repository,
-            )
+    if (
+        TopicModelingDependencies is not None
+        and get_topic_modeling_dependencies is not None
+        and topic_modeling is not None
+    ):
+        topic_dependencies = TopicModelingDependencies(
+            service=topic_modeling.service,
+            repository=topic_modeling.repository,
         )
+
+        app.dependency_overrides[get_topic_modeling_dependencies] = (
+            lambda deps=topic_dependencies: deps
+        )
+
+        if configure_topic_modeling_dependencies is not None:
+            configure_topic_modeling_dependencies(topic_dependencies)
 
     app.dependency_overrides[get_admin_dependencies] = lambda: AdminDependencies(
         admin_queries=admin.admin_queries,

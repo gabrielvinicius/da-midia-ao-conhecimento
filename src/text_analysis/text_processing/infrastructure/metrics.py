@@ -5,54 +5,23 @@ from typing import Any, Dict
 
 from prometheus_client import Counter, Gauge, Histogram
 
+from src.shared.infrastructure.prometheus_metrics import shared_metrics
+
 
 class PrometheusTextProcessingMetrics:
     """Prometheus-based metrics implementation for text processing operations.
     Follows SRP - only responsible for metrics collection.
+    Uses shared metrics to prevent duplicate registration in Celery workers.
     """
 
     def __init__(self):
-        # Operation counters
-        self._operation_counter = Counter(
-            'text_processing_operations_total',
-            'Total number of text processing operations',
-            ['operation', 'format_type', 'status']
-        )
-
-        # Operation duration histogram
-        self._operation_duration = Histogram(
-            'text_processing_operation_duration_seconds',
-            'Duration of text processing operations in seconds',
-            ['operation', 'format_type']
-        )
-
-        # File size histograms
-        self._file_size_histogram = Histogram(
-            'text_processing_file_size_bytes',
-            'Size of processed files in bytes',
-            ['format_type']
-        )
-
-        # Text length histograms
-        self._text_length_histogram = Histogram(
-            'text_processing_text_length_chars',
-            'Length of extracted text in characters',
-            ['format_type']
-        )
-
-        # Extraction ratio gauge
-        self._extraction_ratio = Histogram(
-            'text_processing_extraction_ratio',
-            'Ratio of extracted text length to file size',
-            ['format_type']
-        )
-
-        # Active operations gauge
-        self._active_operations = Gauge(
-            'text_processing_active_operations',
-            'Number of active text processing operations',
-            ['format_type']
-        )
+        # Use shared metrics to prevent duplicate registration
+        self._operation_counter = shared_metrics.get_text_processing_operations_total()
+        self._operation_duration = shared_metrics.get_text_processing_operation_duration_seconds()
+        self._file_size_histogram = shared_metrics.get_text_processing_file_size_bytes()
+        self._text_length_histogram = shared_metrics.get_text_processing_text_length_chars()
+        self._extraction_ratio = shared_metrics.get_text_processing_extraction_ratio()
+        self._active_operations = shared_metrics.get_text_processing_active_operations()
 
     async def record_operation(
         self,

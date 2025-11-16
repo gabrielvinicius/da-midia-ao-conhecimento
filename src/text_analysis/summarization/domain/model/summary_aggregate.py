@@ -39,7 +39,7 @@ class SummaryAggregate:
     """Pure domain representation of a summary."""
 
     id: UUID
-    media_id: UUID
+    transcription_id: UUID
     status: SummaryStatus = SummaryStatus.PENDING
     text: Optional[str] = None
     provider: Optional[str] = None
@@ -54,7 +54,7 @@ class SummaryAggregate:
 
     def __post_init__(self) -> None:  # pragma: no cover - defensive
         object.__setattr__(self, "id", _coerce_uuid(self.id) or uuid4())
-        object.__setattr__(self, "media_id", _coerce_uuid(self.media_id) or uuid4())
+        object.__setattr__(self, "transcription_id", _coerce_uuid(self.transcription_id) or uuid4())
 
         status = self.status
         if not isinstance(status, SummaryStatus):
@@ -80,7 +80,7 @@ class SummaryAggregate:
     def create(
         cls,
         *,
-        media_id: UUIDLike,
+        transcription_id: UUIDLike,
         provider: Optional[str],
         summary_id: Optional[UUIDLike] = None,
         created_at: Optional[datetime] = None,
@@ -92,7 +92,7 @@ class SummaryAggregate:
     ) -> "SummaryAggregate":
         return cls(
             id=_coerce_uuid(summary_id) or uuid4(),
-            media_id=_coerce_uuid(media_id) or uuid4(),
+            transcription_id=_coerce_uuid(transcription_id) or uuid4(),
             provider=provider,
             status=SummaryStatus.PROCESSING,
             created_at=created_at or datetime.now(timezone.utc),

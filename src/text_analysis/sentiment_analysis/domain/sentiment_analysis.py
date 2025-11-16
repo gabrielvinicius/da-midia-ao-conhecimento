@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from sqlalchemy import Column, DateTime, Float, ForeignKey, String
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from src.shared.infrastructure.database import Base
 
@@ -23,7 +23,6 @@ class SentimentAnalysis:
     """Aggregate root representing a sentiment analysis result."""
 
     id: str = field(default_factory=_generate_id)
-    media_id: Optional[str] = None
     transcription_id: str = field(default_factory=_generate_id)
     overall_sentiment: str = "neutral"
     sentiment_score: float = 0.0
@@ -57,10 +56,10 @@ class SentimentAnalysisRecord(Base):
 
     __tablename__ = "sentiment_analysis_results"
 
-    id = Column(String, primary_key=True, default=_generate_id)
-    media_id = Column(String, ForeignKey("media.id"), nullable=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+
     transcription_id = Column(
-        String, ForeignKey("transcriptions.id"), nullable=False, unique=True
+        UUID(as_uuid=True), ForeignKey("transcriptions.id"), nullable=False, unique=True
     )
     overall_sentiment = Column(String, nullable=False, default="neutral")
     sentiment_score = Column(Float, nullable=False, default=0.0)
@@ -79,7 +78,6 @@ class SentimentAnalysisRecord(Base):
         """Transform the ORM record into a domain entity."""
         return SentimentAnalysis(
             id=self.id,
-            media_id=self.media_id,
             transcription_id=self.transcription_id,
             overall_sentiment=self.overall_sentiment,
             sentiment_score=self.sentiment_score,
@@ -98,7 +96,6 @@ class SentimentAnalysisRecord(Base):
         """Create a persistence record from a domain entity."""
         record = SentimentAnalysisRecord(
             id=entity.id,
-            media_id=entity.media_id,
             transcription_id=entity.transcription_id,
             overall_sentiment=entity.overall_sentiment,
             sentiment_score=entity.sentiment_score,
@@ -115,7 +112,6 @@ class SentimentAnalysisRecord(Base):
 
     def update_from_entity(self, entity: SentimentAnalysis) -> None:
         """Synchronise persistence state with the provided entity."""
-        self.media_id = entity.media_id
         self.transcription_id = entity.transcription_id
         self.overall_sentiment = entity.overall_sentiment
         self.sentiment_score = entity.sentiment_score

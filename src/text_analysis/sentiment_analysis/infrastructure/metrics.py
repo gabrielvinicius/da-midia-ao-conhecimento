@@ -2,21 +2,18 @@
 
 from prometheus_client import Counter, Histogram
 
+from src.shared.infrastructure.prometheus_metrics import shared_metrics
+
 
 class PrometheusSentimentMetrics:
-    """Expose convenience wrappers around Prometheus primitives."""
+    """Expose convenience wrappers around Prometheus primitives.
+    Uses shared metrics to prevent duplicate registration in Celery workers.
+    """
 
     def __init__(self) -> None:
-        self._counter = Counter(
-            "sentiment_analysis_events_total",
-            "Total number of sentiment analysis events emitted.",
-            labelnames=("metric",),
-        )
-        self._histogram = Histogram(
-            "sentiment_analysis_processing_seconds",
-            "Observed processing time for sentiment analysis operations.",
-            labelnames=("metric",),
-        )
+        # Use shared metrics to prevent duplicate registration
+        self._counter = shared_metrics.get_sentiment_analysis_events_total()
+        self._histogram = shared_metrics.get_sentiment_analysis_processing_seconds()
 
     def increment_counter(self, metric: str) -> None:
         self._counter.labels(metric=metric).inc()

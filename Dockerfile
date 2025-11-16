@@ -51,10 +51,12 @@ COPY --from=builder /root/.local /home/appuser/.local
 
 # Copy application code
 COPY --chown=appuser:appuser . .
+COPY --chown=appuser:appuser docker/backend-entrypoint.sh /app/backend-entrypoint.sh
+RUN chmod +x /app/backend-entrypoint.sh
 
 # Create necessary directories
-RUN mkdir -p /app/logs /app/media /app/data && \
-    chown -R appuser:appuser /app
+RUN mkdir -p /app/logs /app/media /app/storage /app/data /app/.cache/whisper /home/appuser/.cache && \
+    chown -R appuser:appuser /app /home/appuser/.cache
 
 # Add user's local directory to PATH
 ENV PATH=/home/appuser/.local/bin:$PATH
@@ -68,5 +70,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 EXPOSE 8000
 
-# Default command
+ENTRYPOINT ["/app/backend-entrypoint.sh"]
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

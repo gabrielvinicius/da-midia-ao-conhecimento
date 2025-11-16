@@ -45,11 +45,77 @@ class StorageClientAdapter:
         payload, _ = result
         return payload
 
+    def download_file_sync(self, file_path: str) -> bytes:
+        """Synchronous version of download_file for use in Celery tasks."""
+        # Check if the backend has a synchronous method available
+        if hasattr(self.backend, 'download_sync'):
+            result = self.backend.download_sync(file_path)
+        else:
+            # Fallback to running the async method in a new event loop in a separate thread
+            import asyncio
+            import concurrent.futures
+            
+            def run_async_download():
+                async def async_download():
+                    return await self.backend.download(file_path)
+                
+                # Create a new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(async_download())
+                finally:
+                    loop.close()
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_async_download)
+                result = future.result()
+        
+        if result is None:
+            raise FileNotFoundError(
+                f"File '{file_path}' not found in storage provider '{self.backend.provider_name}'"
+            )
+        if isinstance(result, tuple):
+            payload, _ = result
+        else:
+            payload = result
+        return payload
+
     async def delete(self, file_path: str) -> bool:
         return await self.backend.delete(file_path)
 
+    def delete_sync(self, file_path: str) -> bool:
+        """Synchronous version of delete for use in Celery tasks."""
+        if hasattr(self.backend, 'delete_sync'):
+            return self.backend.delete_sync(file_path)
+        else:
+            import asyncio
+            import concurrent.futures
+            
+            def run_async():
+                return asyncio.run(self.backend.delete(file_path))
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_async)
+                return future.result()
+
     async def exists(self, file_path: str) -> bool:
         return await self.backend.exists(file_path)
+
+    def exists_sync(self, file_path: str) -> bool:
+        """Synchronous version of exists for use in Celery tasks."""
+        if hasattr(self.backend, 'exists_sync'):
+            return self.backend.exists_sync(file_path)
+        else:
+            import asyncio
+            import concurrent.futures
+            
+            def run_async():
+                return asyncio.run(self.backend.exists(file_path))
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_async)
+                return future.result()
 
 
 class StorageServiceFactory:

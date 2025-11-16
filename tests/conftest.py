@@ -6,7 +6,7 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-from typing import Generator
+from typing import AsyncGenerator, Generator
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -59,6 +59,16 @@ def configure_test_environment():
 
 @pytest_asyncio.fixture(scope="function")
 async def clean_db():
+    async with engine.connect() as conn:
+        await conn.begin()
+        await conn.run_sync(Base.metadata.create_all)
+        yield conn
+        await conn.rollback()
+
+from sqlalchemy import text
+
+@pytest_asyncio.fixture(scope="function")
+async def clean_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
@@ -66,10 +76,113 @@ async def clean_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
-@pytest_asyncio.fixture(scope="function")
-async def db_session(clean_db) -> AsyncSessionLocal:
+import time
+import asyncio
+from typing import AsyncGenerator, Generator
+from uuid import uuid4
+
+import pytest
+import pytest_asyncio
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+
+from main import create_app, lifespan
+from src.shared.infrastructure.database import Base, get_db, SessionLocal, engine
+from src.user_management.domain.user import User
+from tests.mocks.in_memory_event_bus import InMemoryEventBus
+from tests.mocks.in_memory_storage import InMemoryStorageService
+from tests.utils.test_data_factory import TestDataFactory
+
+# Configure pytest-asyncio
+pytest_plugins = ["pytest_asyncio"]
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create an instance of the default event loop for each test case."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+@pytest_asyncio.fixture(scope="session")
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Provide an async SQLAlchemy session."""
+    while True:
+        try:
+            async with AsyncSessionLocal() as session:
+                yield session
+            break
+        except Exception:
+            time.sleep(1)
+
+@pytest.mark.asyncio
+@pytest_asyncio.fixture(scope="function", autouse=True)
+async def clean_db():
+    """Clean the database before each test."""
     async with AsyncSessionLocal() as session:
-        yield session
+        async with session.begin():
+            for table in reversed(Base.metadata.sorted_tables):
+                await session.execute(table.delete())
+    yield
+
+@pytest_asyncio.fixture(scope="function")
+async def test_app() -> FastAPI:
+    """Create a FastAPI app instance for testing."""
+    db_name = f"test_db_{uuid4().hex}"
+    async with engine.connect() as conn:
+        await conn.execute(text(f"CREATE DATABASE {db_name}"))
+
+    test_engine = create_async_engine(
+        str(engine.url).replace(engine.url.database, db_name)
+    )
+    TestAsyncSessionLocal = async_sessionmaker(test_engine, expire_on_commit=False)
+
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    app = create_app()
+    app.dependency_overrides[get_db] = lambda: TestAsyncSessionLocal()
+    async with lifespan(app):
+        yield app
+
+    async with engine.connect() as conn:
+        await conn.execute(text(f"DROP DATABASE {db_name}"))
+
+@pytest_asyncio.fixture(scope="function")
+async def client(test_app: FastAPI) -> AsyncClient:
+    """Create an HTTP client for testing the API."""
+    async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as client:
+        yield client
+
+@pytest_asyncio.fixture(scope="function")
+async def authenticated_user(client: AsyncClient, db_session: AsyncSession) -> User:
+    """Create a user and return an auth token."""
+    user_data = {
+        "email": "test@example.com",
+        "password": "Password123",
+        "name": "Test User",
+    }
+    response = await client.post("/auth/register", json=user_data)
+    assert response.status_code == 201
+
+    user = await db_session.execute(
+        select(User).where(User.email == user_data["email"])
+    )
+    user = user.scalar_one()
+    return user
+
+@pytest_asyncio.fixture(scope="function")
+async def get_auth_dependencies(auth_module):
+    return auth_module
+
+@pytest_asyncio.fixture(scope="function")
+async def get_user_service(auth_module):
+    return auth_module.user_service
+
+@pytest_asyncio.fixture(scope="function")
+async def get_auth_queries(auth_module):
+    return auth_module.auth_queries
 
 @pytest_asyncio.fixture(scope="function")
 async def auth_module(db_session: AsyncSession) -> UserManagementModule:

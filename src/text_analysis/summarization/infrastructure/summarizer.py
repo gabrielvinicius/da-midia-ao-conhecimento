@@ -75,3 +75,33 @@ class TextRankSummarizer:
             selected = sentences[: opts.max_sentences]
 
         return " ".join(selected)
+        
+    def summarize_sync(
+        self,
+        text_content: str,
+        options: Optional[Dict[str, object]] = None,
+    ) -> str:
+        cleaned = _normalise_whitespace(text_content)
+        if not cleaned:
+            return ""
+
+        opts = SummarizerOptions.from_mapping(options)
+        sentences = _split_sentences(cleaned)
+
+        if not sentences:
+            return cleaned
+
+        meaningful: Iterable[Sentence] = (
+            sentence for sentence in sentences if len(sentence) >= opts.min_sentence_length
+        )
+
+        selected = []
+        for sentence in meaningful:
+            selected.append(sentence)
+            if len(selected) >= opts.max_sentences:
+                break
+
+        if not selected:
+            selected = sentences[: opts.max_sentences]
+
+        return " ".join(selected)

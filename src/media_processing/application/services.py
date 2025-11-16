@@ -168,10 +168,26 @@ class MediaProcessingService:
             )
             return
 
-        storage_provider = context.get("storage_provider") or event.storage_provider or "local"
-        transcription_provider = context.get("transcription_provider") or context.get("provider") or "default"
-        language = context.get("language", "en")
-        file_size_bytes = context.get("file_size_bytes", 0)
+        storage_provider = event.storage_provider or context.get("storage_provider") or "local"
+        transcription_provider = (
+            event.transcription_provider
+            or context.get("transcription_provider")
+            or context.get("provider")
+            or "fastwhisper"
+        )
+        language = event.language or context.get("language") or "en"
+        file_size_bytes = event.file_size_bytes or context.get("file_size_bytes") or 0
+        media_type_value = event.media_type or context.get("media_type")
+        media_type = None
+        try:
+            from src.media_management.domain.enums import MediaType as _MediaType
+
+            if isinstance(media_type_value, _MediaType):
+                media_type = media_type_value
+            elif media_type_value is not None:
+                media_type = _MediaType(str(media_type_value))
+        except Exception:
+            media_type = None
 
         try:
             transcription_payload = TranscriptionTaskPayload(
@@ -205,31 +221,39 @@ class MediaProcessingService:
                 error=str(exc),
             )
 
-        try:
-            video_payload = VideoTaskPayload(
-                media_id=media_id,
-                file_path=file_path,
-                storage_provider=storage_provider,
-                file_size_bytes=file_size_bytes,
-            )
-            process_video_task.delay(**video_payload.model_dump(mode="json"))
+        if media_type == MediaType.VIDEO:
+            try:
+                video_payload = VideoTaskPayload(
+                    media_id=media_id,
+                    file_path=file_path,
+                    storage_provider=storage_provider,
+                    file_size_bytes=file_size_bytes,
+                )
+                process_video_task.delay(**video_payload.model_dump(mode="json"))
+                self._logger.debug(
+                    "media_uploaded.video_task_enqueued",
+                    media_id=str(media_id),
+                    storage_provider=storage_provider,
+                    file_size_bytes=file_size_bytes,
+                )
+            except ValidationError as exc:
+                self._logger.error(
+                    "media_uploaded.video_payload_invalid",
+                    media_id=str(media_id),
+                    errors=exc.errors(),
+                )
+            except Exception as exc:  # pragma: no cover - defensive logging
+                self._logger.error(
+                    "media_uploaded.video_enqueue_failed",
+                    media_id=str(media_id),
+                    error=str(exc),
+                )
+        else:
             self._logger.debug(
-                "media_uploaded.video_task_enqueued",
+                "media_uploaded.video_task_skipped",
                 media_id=str(media_id),
-                storage_provider=storage_provider,
-                file_size_bytes=file_size_bytes,
-            )
-        except ValidationError as exc:
-            self._logger.error(
-                "media_uploaded.video_payload_invalid",
-                media_id=str(media_id),
-                errors=exc.errors(),
-            )
-        except Exception as exc:  # pragma: no cover - defensive logging
-            self._logger.error(
-                "media_uploaded.video_enqueue_failed",
-                media_id=str(media_id),
-                error=str(exc),
+                reason="non_video_media",
+                media_type=str(media_type) if media_type else media_type_value,
             )
 
     async def handle_text_content_ready(

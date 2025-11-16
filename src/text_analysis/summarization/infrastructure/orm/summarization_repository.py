@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.text_analysis.summarization.domain.model import SummaryAggregate
 
@@ -15,36 +16,102 @@ from .summary_mapper import SummaryMapper
 
 
 class SummarizationRepository:
-    def __init__(self, db: AsyncSession, mapper: Optional[SummaryMapper] = None) -> None:
+    def __init__(self, db, mapper: Optional[SummaryMapper] = None) -> None:
         self.db = db
         self._mapper = mapper or SummaryMapper()
 
     async def get_by_id(self, summary_id: UUID) -> Optional[SummaryAggregate]:
-        result = await self.db.execute(select(SummaryEntity).where(SummaryEntity.id == summary_id))
+        # Use async method if db is an async session
+        if isinstance(self.db, AsyncSession):
+            result = await self.db.execute(select(SummaryEntity).where(SummaryEntity.id == summary_id))
+            entity = result.scalar_one_or_none()
+            if entity is None:
+                return None
+            return self._mapper.to_domain(entity)
+        else:
+            # Fallback to sync method
+            return self.get_by_id_sync(summary_id)
+
+    async def get_by_media_id(self, media_id: UUID) -> Optional[SummaryAggregate]:
+        # Use async method if db is an async session
+        if isinstance(self.db, AsyncSession):
+            result = await self.db.execute(select(SummaryEntity).where(SummaryEntity.media_id == media_id))
+            entity = result.scalar_one_or_none()
+            if entity is None:
+                return None
+            return self._mapper.to_domain(entity)
+        else:
+            # Fallback to sync method
+            return self.get_by_media_id_sync(media_id)
+
+    def get_by_id_sync(self, summary_id: UUID) -> Optional[SummaryAggregate]:
+        # Use sync method - this should only be called with sync session
+        stmt = select(SummaryEntity).where(SummaryEntity.id == summary_id)
+        result = self.db.execute(stmt)
         entity = result.scalar_one_or_none()
         if entity is None:
             return None
         return self._mapper.to_domain(entity)
 
-    async def get_by_media_id(self, media_id: UUID) -> Optional[SummaryAggregate]:
-        result = await self.db.execute(select(SummaryEntity).where(SummaryEntity.media_id == media_id))
+    def get_by_transcription_id_sync(self, transcription_id: UUID) -> Optional[SummaryAggregate]:
+        # Use sync method - this should only be called with sync session
+        stmt = select(SummaryEntity).where(SummaryEntity.transcription_id == transcription_id)
+        result = self.db.execute(stmt)
+        entity = result.scalar_one_or_none()
+        if entity is None:
+            return None
+        return self._mapper.to_domain(entity)
+
+    def get_by_media_id_sync(self, media_id: UUID) -> Optional[SummaryAggregate]:
+        # Use sync method - this should only be called with sync session
+        stmt = select(SummaryEntity).where(SummaryEntity.media_id == media_id)
+        result = self.db.execute(stmt)
         entity = result.scalar_one_or_none()
         if entity is None:
             return None
         return self._mapper.to_domain(entity)
 
     async def add(self, summary: SummaryAggregate) -> SummaryAggregate:
+        # Use async method if db is an async session
+        if isinstance(self.db, AsyncSession):
+            entity = self._mapper.to_entity(summary)
+            self.db.add(entity)
+            await self.db.flush()
+            return self._mapper.merge_transient_data(
+                self._mapper.to_domain(entity),
+                summary,
+            )
+        else:
+            # Fallback to sync method
+            return self.add_sync(summary)
+
+    async def update(self, summary: SummaryAggregate) -> SummaryAggregate:
+        # Use async method if db is an async session
+        if isinstance(self.db, AsyncSession):
+            merged = await self.db.merge(self._mapper.to_entity(summary))
+            await self.db.flush()
+            return self._mapper.merge_transient_data(
+                self._mapper.to_domain(merged),
+                summary,
+            )
+        else:
+            # Fallback to sync method
+            return self.update_sync(summary)
+
+    def add_sync(self, summary: SummaryAggregate) -> SummaryAggregate:
+        # Use sync method - this should only be called with sync session
         entity = self._mapper.to_entity(summary)
         self.db.add(entity)
-        await self.db.flush()
+        self.db.flush()
         return self._mapper.merge_transient_data(
             self._mapper.to_domain(entity),
             summary,
         )
 
-    async def update(self, summary: SummaryAggregate) -> SummaryAggregate:
-        merged = await self.db.merge(self._mapper.to_entity(summary))
-        await self.db.flush()
+    def update_sync(self, summary: SummaryAggregate) -> SummaryAggregate:
+        # Use sync method - this should only be called with sync session
+        merged = self.db.merge(self._mapper.to_entity(summary))
+        self.db.flush()
         return self._mapper.merge_transient_data(
             self._mapper.to_domain(merged),
             summary,
@@ -53,9 +120,26 @@ class SummarizationRepository:
     async def save(self, summary: SummaryAggregate) -> SummaryAggregate:
         return await self.update(summary)
 
+    def save_sync(self, summary: SummaryAggregate) -> SummaryAggregate:
+        return self.update_sync(summary)
+
     async def delete_by_media_id(self, media_id: UUID) -> None:
-        result = await self.db.execute(select(SummaryEntity).where(SummaryEntity.media_id == media_id))
+        # Use async method if db is an async session
+        if isinstance(self.db, AsyncSession):
+            result = await self.db.execute(select(SummaryEntity).where(SummaryEntity.media_id == media_id))
+            entity = result.scalar_one_or_none()
+            if entity is not None:
+                await self.db.delete(entity)
+                await self.db.flush()
+        else:
+            # Fallback to sync method
+            self.delete_by_media_id_sync(media_id)
+
+    def delete_by_media_id_sync(self, media_id: UUID) -> None:
+        # Use sync method - this should only be called with sync session
+        stmt = select(SummaryEntity).where(SummaryEntity.media_id == media_id)
+        result = self.db.execute(stmt)
         entity = result.scalar_one_or_none()
         if entity is not None:
-            await self.db.delete(entity)
-            await self.db.flush()
+            self.db.delete(entity)
+            self.db.flush()

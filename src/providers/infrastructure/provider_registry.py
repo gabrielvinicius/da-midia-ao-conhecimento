@@ -8,6 +8,7 @@ from src.providers.domain.interfaces import (
     IProvider,
     IProviderRegistry,
     ProviderCapability,
+    ProviderStatus,
     ProviderType,
 )
 from src.providers.domain.provider import Provider  # Para a entidade Provider

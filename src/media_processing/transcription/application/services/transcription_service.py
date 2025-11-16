@@ -91,7 +91,7 @@ class TranscriptionService:
 
         except Exception as e:
             error = e
-            logger.error("transcription.process.failed", media_id=media_id, error=str(e))
+            logger.error("transcription.process.failed", extra={"media_id": media_id, "error": str(e)})
             if transcription_id:
                 transcription = await self.repo.get_by_id(transcription_id)
                 if transcription:
@@ -154,7 +154,7 @@ class TranscriptionService:
         )
         stdout, stderr = await process.communicate(input=audio_data)
         if process.returncode != 0:
-            logger.error("audio.normalization.failed", error=stderr.decode())
+            logger.error("audio.normalization.failed", extra={"error": stderr.decode()})
             raise RuntimeError("Audio normalization failed.")
         return stdout
 

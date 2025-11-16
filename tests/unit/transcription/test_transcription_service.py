@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -21,16 +22,34 @@ def service_dependencies():
     storage = AsyncMock()
     recognizer = AsyncMock()
     db_session = AsyncMock()
+    media_queries = AsyncMock()
+    event_bus = AsyncMock()
+
+    def recognizer_factory(_provider: str):
+        return recognizer
+
     service = TranscriptionService(
         transcription_repo=repo,
         task_scheduler=scheduler,
         transcription_logger=logger,
         transcription_metrics=metrics,
         storage_service=storage,
-        speech_recognizer=recognizer,
+        speech_recognizer_factory=recognizer_factory,
         db_session=db_session,
+        media_queries=media_queries,
+        event_bus=event_bus,
     )
-    return service, repo, scheduler, metrics, storage, recognizer, db_session
+    return (
+        service,
+        repo,
+        scheduler,
+        metrics,
+        storage,
+        recognizer,
+        db_session,
+        media_queries,
+        event_bus,
+    )
 
 
 @pytest.mark.asyncio
@@ -70,29 +89,46 @@ async def test_mark_as_failed(service_dependencies):
 @pytest.mark.asyncio
 async def test_request_transcription_generation_failure(service_dependencies):
     service, _, scheduler, metrics, *_ = service_dependencies
-    scheduler.schedule_transcription_task.side_effect = RuntimeError('error')
+    scheduler.schedule_transcription_task.side_effect = RuntimeError("error")
 
     with pytest.raises(RuntimeError):
         await service.request_transcription_generation(
             media_id=uuid4(),
-            file_path='/tmp/file.mp3',
-            storage_provider='local',
-            transcription_provider='whisper',
-            language='en',
+            file_path="/tmp/file.mp3",
+            storage_provider="local",
+            transcription_provider="whisper",
+            language="en",
         )
 
     metrics.record_operation.assert_awaited_once()
-    assert metrics.record_operation.await_args.kwargs['success'] is False
+    assert metrics.record_operation.await_args.kwargs["success"] is False
 
 
 @pytest.mark.asyncio
 async def test_process_transcription_job_success(service_dependencies):
-    service, repo, _, metrics, storage, recognizer, db_session = service_dependencies
+    (
+        service,
+        repo,
+        _,
+        metrics,
+        storage,
+        recognizer,
+        db_session,
+        media_queries,
+        event_bus,
+    ) = service_dependencies
+
     media_id = uuid4()
     transcription = Transcription(media_id=media_id, provider="whisper")
     repo.get_by_media_id.return_value = transcription
     storage.download_file.return_value = b"audio-bytes"
     recognizer.transcribe.return_value = {"text": "ok"}
+    media_queries.get_by_id.return_value = SimpleNamespace(
+        language="pt",
+        summarization_provider="huggingface",
+        storage_provider="local",
+        media_type=SimpleNamespace(value="VIDEO"),
+    )
 
     result = await service.process_transcription_job(
         media_id=media_id,
@@ -106,11 +142,15 @@ async def test_process_transcription_job_success(service_dependencies):
     repo.update.assert_awaited()
     db_session.commit.assert_awaited()
     metrics.record_operation.assert_awaited()
+    event_bus.publish.assert_awaited_once()
+    published_event = event_bus.publish.await_args.args[0]
+    assert published_event.media_id == str(media_id)
+    assert published_event.text_content == "ok"
 
 
 @pytest.mark.asyncio
 async def test_process_transcription_job_failure_marks_failed(service_dependencies):
-    service, repo, _, metrics, storage, recognizer, db_session = service_dependencies
+    service, repo, _, metrics, storage, recognizer, db_session, *_ = service_dependencies
     media_id = uuid4()
     transcription = Transcription(media_id=media_id, provider="whisper")
     repo.get_by_media_id.return_value = transcription

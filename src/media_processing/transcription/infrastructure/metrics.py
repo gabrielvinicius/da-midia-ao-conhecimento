@@ -3,47 +3,22 @@ from typing import Any, Dict
 
 from prometheus_client import Counter, Gauge, Histogram
 
+from src.shared.infrastructure.prometheus_metrics import shared_metrics
+
 
 class PrometheusTranscriptionMetrics:
     """Prometheus-based metrics implementation for transcription operations.
     Follows SRP - only responsible for metrics collection.
+    Uses shared metrics to prevent duplicate registration in Celery workers.
     """
 
     def __init__(self):
-        # Operation counters
-        self._operation_counter = Counter(
-            'transcription_operations_total',
-            'Total number of transcription operations',
-            ['operation', 'provider', 'status']
-        )
-
-        # Operation duration histogram
-        self._operation_duration = Histogram(
-            'transcription_operation_duration_seconds',
-            'Duration of transcription operations in seconds',
-            ['operation', 'provider']
-        )
-
-        # Input audio length histogram
-        self._input_audio_length = Histogram(
-            'transcription_input_audio_length_seconds',
-            'Length of input audio in seconds',
-            ['provider']
-        )
-
-        # Output text length histogram
-        self._output_text_length = Histogram(
-            'transcription_output_text_length_chars',
-            'Length of output text in characters',
-            ['provider']
-        )
-
-        # Active operations gauge
-        self._active_operations = Gauge(
-            'transcription_active_operations',
-            'Number of active transcription operations',
-            ['provider']
-        )
+        # Use shared metrics to prevent duplicate registration
+        self._operation_counter = shared_metrics.get_transcription_operation_counter()
+        self._operation_duration = shared_metrics.get_transcription_operation_duration()
+        self._input_audio_length = shared_metrics.get_transcription_input_audio_length()
+        self._output_text_length = shared_metrics.get_transcription_output_text_length()
+        self._active_operations = shared_metrics.get_transcription_active_operations()
 
     async def record_operation(
         self,

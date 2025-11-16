@@ -54,7 +54,7 @@ class FallbackCache:
             return None
 
         except Exception as e:
-            logger.warning("Fallback cache get error", key=cache_key, error=str(e))
+            logger.warning("Fallback cache get error", extra={"key": cache_key, "error": str(e)})
             return None
 
     async def set(
@@ -76,7 +76,7 @@ class FallbackCache:
             return True
 
         except Exception as e:
-            logger.error("Fallback cache set error", key=cache_key, error=str(e))
+            logger.error("Fallback cache set error", extra={"key": cache_key, "error": str(e)})
             return False
 
     async def delete(self, prefix: str, key: str, **kwargs) -> bool:
@@ -92,7 +92,7 @@ class FallbackCache:
             return False
 
         except Exception as e:
-            logger.error("Fallback cache delete error", key=cache_key, error=str(e))
+            logger.error("Fallback cache delete error", extra={"key": cache_key, "error": str(e)})
             return False
 
     async def delete_pattern(self, pattern: str) -> int:
@@ -113,7 +113,7 @@ class FallbackCache:
             return deleted_count
 
         except Exception as e:
-            logger.error("Fallback cache pattern delete error", pattern=pattern, error=str(e))
+            logger.error("Fallback cache pattern delete error", extra={"pattern": pattern, "error": str(e)})
             return 0
 
     async def check_rate_limit(self, key: str, limit: int, window: int = 60) -> dict:
@@ -150,7 +150,7 @@ class FallbackCache:
             }
 
         except Exception as e:
-            logger.error("Fallback rate limit check error", key=key, error=str(e))
+            logger.error("Fallback rate limit check error", extra={"key": key, "error": str(e)})
             # Fail open - allow the request if cache is down
             return {
                 "allowed": True,
@@ -174,7 +174,7 @@ class FallbackCache:
             return new_value
 
         except Exception as e:
-            logger.error("Fallback cache increment error", key=cache_key, error=str(e))
+            logger.error("Fallback cache increment error", extra={"key": cache_key, "error": str(e)})
             return 0
 
 

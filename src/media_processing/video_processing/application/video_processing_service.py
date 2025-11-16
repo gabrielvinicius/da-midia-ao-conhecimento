@@ -155,3 +155,154 @@ class VideoProcessingService:
                         "video_processing.metrics_failed",
                         error=str(metrics_exc),
                     )
+
+    def process_video_job_sync(
+        self,
+        *,
+        media_id: UUID,
+        file_path: str,
+        storage_provider: str,
+        file_size_bytes: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Execute video processing workflow synchronously for Celery tasks."""
+        start_time = time.monotonic()
+        success = False
+        error_occurred = False
+        video_data = b""
+        provider = storage_provider or self._default_storage_provider
+        logger.info(
+            "video_processing.job.started_sync",
+            media_id=str(media_id),
+            file_path=file_path,
+            storage_provider=provider,
+        )
+        try:
+            storage_service = self._storage_factory.get_download_service(provider)
+            # Use sync download if available, otherwise use async in separate thread
+            if hasattr(storage_service, 'download_file_sync'):
+                video_data = storage_service.download_file_sync(file_path)
+            else:
+                import concurrent.futures
+                def run_async():
+                    import asyncio
+                    return asyncio.run(storage_service.download_file(file_path))
+                
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_async)
+                    video_data = future.result()
+
+            # Use sync methods if available
+            if hasattr(self.audio_extractor, 'extract_audio_sync'):
+                audio_result = self.audio_extractor.extract_audio_sync(
+                    video_data=video_data,
+                    filename=file_path,
+                    output_format="wav",
+                )
+            else:
+                import concurrent.futures
+                def run_async():
+                    import asyncio
+                    return asyncio.run(
+                        self.audio_extractor.extract_audio(
+                            video_data=video_data,
+                            filename=file_path,
+                            output_format="wav",
+                        )
+                    )
+                
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_async)
+                    audio_result = future.result()
+
+            if hasattr(self.thumbnail_generator, 'generate_thumbnail_sync'):
+                thumbnail_result = self.thumbnail_generator.generate_thumbnail_sync(
+                    video_data=video_data,
+                    filename=file_path,
+                    size="medium",
+                    timestamp=5.0,
+                )
+            else:
+                import concurrent.futures
+                def run_async():
+                    import asyncio
+                    return asyncio.run(
+                        self.thumbnail_generator.generate_thumbnail(
+                            video_data=video_data,
+                            filename=file_path,
+                            size="medium",
+                            timestamp=5.0,
+                        )
+                    )
+                
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_async)
+                    thumbnail_result = future.result()
+
+            success = True
+            duration = time.monotonic() - start_time
+            logger.info(
+                "video_processing.job.completed_sync",
+                media_id=str(media_id),
+                duration=duration,
+            )
+            return {
+                "success": True,
+                "media_id": str(media_id),
+                "audio_extraction_result": audio_result,
+                "thumbnail_generation_result": thumbnail_result,
+                "message": "Video processed successfully",
+            }
+        except Exception as exc:
+            error_occurred = True
+            logger.error(
+                "video_processing.job.failed_sync",
+                media_id=str(media_id),
+                error=str(exc),
+                exc_info=True,
+            )
+            raise
+        finally:
+            duration = time.monotonic() - start_time
+            if self._metrics is not None:
+                effective_file_size = (
+                    file_size_bytes
+                    if file_size_bytes is not None
+                    else len(video_data) if 'video_data' in locals() and video_data else 0
+                )
+                # Use sync metrics if available
+                if hasattr(self._metrics, 'record_operation_sync'):
+                    try:
+                        self._metrics.record_operation_sync(
+                            operation="process_video_job",
+                            duration=duration,
+                            success=success,
+                            file_size_bytes=effective_file_size,
+                        )
+                    except Exception as metrics_exc:  # pragma: no cover - best effort
+                        logger.warning(
+                            "video_processing.metrics_failed_sync",
+                            error=str(metrics_exc),
+                        )
+                else:
+                    # Use async metrics in separate thread if sync not available
+                    import concurrent.futures
+                    def run_async():
+                        import asyncio
+                        return asyncio.run(
+                            self._metrics.record_operation(
+                                operation="process_video_job",
+                                duration=duration,
+                                success=success,
+                                file_size_bytes=effective_file_size,
+                            )
+                        )
+                    
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        try:
+                            future = executor.submit(run_async)
+                            future.result(timeout=5)  # Set a timeout to prevent hanging
+                        except Exception as metrics_exc:
+                            logger.warning(
+                                "video_processing.metrics_failed_sync_thread",
+                                error=str(metrics_exc),
+                            )

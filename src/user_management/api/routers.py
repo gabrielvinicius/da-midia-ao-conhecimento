@@ -42,7 +42,7 @@ async def login_for_access_token(
         value=result["token"],
         httponly=True,
         samesite="lax",
-        secure=True,
+        secure=False,  # Alterado para False para funcionar em ambiente de desenvolvimento HTTP
     )
     return {"message": "Authentication successful"}
 

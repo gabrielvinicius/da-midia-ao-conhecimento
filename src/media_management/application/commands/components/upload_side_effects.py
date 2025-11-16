@@ -28,4 +28,4 @@ class DefaultMediaUploadSideEffectPublisher(MediaUploadSideEffectPublisher):
 
     async def publish(self, media: Media, metadata: UploadMetadata) -> None:
         await self.metrics_publisher.publish(media, metadata.file_size)
-        await self.event_publisher.publish_media_uploaded(media, metadata.stored_path)
+        await self.event_publisher.publish_media_uploaded(media, metadata)

@@ -49,8 +49,8 @@ RUN pip install --no-index --find-links /wheels --no-cache-dir --no-deps --force
 COPY --chown=appuser:appuser . .
 
 # Create necessary directories and set ownership
-RUN mkdir -p /app/logs /app/media && \
-    chown -R appuser:appuser /app
+RUN mkdir -p /app/logs /app/media /app/storage /app/.cache/whisper /home/appuser/.cache && \
+    chown -R appuser:appuser /app /home/appuser/.cache
 
 # Switch to non-root user
 USER appuser

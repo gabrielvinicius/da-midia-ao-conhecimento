@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
-from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 # OpenTelemetry Imports
@@ -30,6 +30,7 @@ from src.shared.events.domain_events import (
     NotificationRequested,
     TextContentReady,
 )
+from src.shared.api.dependencies import get_current_user_websocket
 from src.shared.exceptions.api_errors import register_exception_handlers
 
 # from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
@@ -51,6 +52,7 @@ except Exception:  # pragma: no cover - optional module
     text_analysis_router = None  # type: ignore[assignment]
 from src.notifications.application.event_handlers import handle_notification_requested
 from src.user_management.bootstrap import build_user_management_module
+from src.user_management.domain.user import User
 
 # Ensure Celery app is importable during API startup
 try:  # noqa: SIM105 - best-effort import
@@ -124,7 +126,7 @@ async def lifespan(app: FastAPI):
         auth_module = build_user_management_module(session)
         monitoring_module = build_monitoring_module(session)
         providers_module = build_providers_module()
-        notification_module = build_notification_module(
+        notification_module = await build_notification_module(
             session=session,
             auth_queries=auth_module.auth_queries,
         )
@@ -138,12 +140,26 @@ async def lifespan(app: FastAPI):
         )
 
         if not lightweight_mode:
-            text_analysis_module = build_text_analysis_module(
+            text_analysis_module = await build_text_analysis_module(
                 session,
                 media_module=media_module,
                 notification_module=notification_module,
                 monitoring_module=monitoring_module,
             )
+
+            if getattr(text_analysis_module, "topic_modeling", None) is None:
+                try:
+                    from src.text_analysis.topic_modeling.bootstrap import (
+                        build_topic_modeling_module,
+                    )
+
+                    topic_module = await build_topic_modeling_module(
+                        session=session,
+                        text_analysis_service=text_analysis_module.service,
+                    )
+                    text_analysis_module.topic_modeling = topic_module
+                except Exception as exc:  # pragma: no cover
+                    logger.warning("topic_modeling.bootstrap_failed", error=str(exc))
         else:
             logger.warning("text_analysis.bootstrap_skipped", reason="lightweight_mode")
             text_analysis_module = SimpleNamespace(service=None)
@@ -258,36 +274,26 @@ def create_app() -> FastAPI:
 
     # Add WebSocket endpoints for real-time notifications
     @app.websocket("/ws/notifications")
-    async def websocket_notifications(websocket: WebSocket):
+    async def websocket_notifications(
+        websocket: WebSocket,
+        current_user: User = Depends(get_current_user_websocket),
+    ):
         from src.notifications.infrastructure.connection_manager import manager
-        
-        # Accept the connection
-        await websocket.accept()
-        
-        # For this implementation, we'll create a simple connection
-        # In a production app, you'd need proper token authentication
-        # This is just a basic implementation for demonstration
-        user_id = "demo_user"  # This should be extracted from token in real implementation
-        
-        # Connect the user to the notification manager
+
+        user_id = str(current_user.id)
         try:
             await manager.connect(user_id, websocket)
-            
             try:
-                # Listen for messages from the client
                 while True:
                     data = await websocket.receive_text()
-                    # Process client messages if needed
-                    # For now, just print them
                     print(f"Received message from user {user_id}: {data}")
-                    # Echo back to client
                     await websocket.send_text(f"Server received: {data}")
             except WebSocketDisconnect:
                 manager.disconnect(user_id, websocket)
                 print(f"WebSocket connection for user {user_id} closed")
         except Exception as e:
             print(f"WebSocket error: {e}")
-            await websocket.close(code=1000)  # Normal closure
+            await websocket.close(code=1000)
 
     return app  # This was missing!
 

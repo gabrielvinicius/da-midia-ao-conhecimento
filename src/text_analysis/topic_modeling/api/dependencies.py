@@ -21,10 +21,22 @@ class TopicModelingDependencies:
     repository: TopicModelingRepository
 
 
+_configured_topic_dependencies: TopicModelingDependencies | None = None
+
+
+def configure_topic_modeling_dependencies(
+    dependencies: TopicModelingDependencies,
+) -> None:
+    global _configured_topic_dependencies
+    _configured_topic_dependencies = dependencies
+
+
 def get_topic_modeling_dependencies() -> TopicModelingDependencies:
-    raise TopicModelingDependenciesNotConfigured(
-        "Topic modeling dependencies are not configured. Register providers in the lifespan handler."
-    )
+    if _configured_topic_dependencies is None:
+        raise TopicModelingDependenciesNotConfigured(
+            "Topic modeling dependencies are not configured. Register providers in the lifespan handler."
+        )
+    return _configured_topic_dependencies
 
 
 TopicDeps = Annotated[
@@ -47,6 +59,7 @@ def get_topic_modeling_repository(
 __all__ = [
     "TopicModelingDependencies",
     "TopicModelingDependenciesNotConfigured",
+    "configure_topic_modeling_dependencies",
     "get_topic_modeling_dependencies",
     "get_topic_modeling_repository",
     "get_topic_modeling_service",
