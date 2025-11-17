@@ -1,8 +1,14 @@
 """Bootstrap for user management unifying user and auth services."""
 from dataclasses import dataclass
 
+from fastapi import FastAPI
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.user_management.api.dependencies import (
+    AuthDependencies,
+    get_auth_dependencies,
+)
 from src.user_management.application import AuthQueries, AuthService
 from src.user_management.application.user_service import UserService
 from src.user_management.config.settings import AuthSettings
@@ -33,4 +39,19 @@ def build_user_management_module(session: AsyncSession) -> UserManagementModule:
     )
 
 
-__all__ = ["UserManagementModule", "build_user_management_module"]
+def bind_user_management_module(app: FastAPI, module: UserManagementModule) -> None:
+    """Wire dependency overrides for the user management module."""
+
+    app.dependency_overrides[get_auth_dependencies] = lambda: AuthDependencies(
+        user_service=module.user_service,
+        auth_service=module.auth_service,
+        auth_queries=module.auth_queries,
+        settings=module.settings,
+    )
+
+
+__all__ = [
+    "UserManagementModule",
+    "bind_user_management_module",
+    "build_user_management_module",
+]

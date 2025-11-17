@@ -5,15 +5,30 @@ from types import SimpleNamespace
 
 import structlog
 from dependency_injector import providers
+from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.text_analysis.api.dependencies import get_text_analysis_dependencies
 from src.text_analysis.application.services import TextAnalysisService
+from src.text_analysis.sentiment_analysis.api.dependencies import (
+    SentimentDependencies,
+    get_sentiment_dependencies,
+)
 from src.text_analysis.sentiment_analysis.bootstrap import (
     build_sentiment_analysis_module,
+)
+from src.text_analysis.summarization.api.dependencies import (
+    SummarizationDependencies,
+    get_summarization_dependencies,
 )
 from src.text_analysis.summarization.bootstrap import (
     SummarizationContainer,
     build_summarization_module,
+)
+from src.text_analysis.topic_modeling.api.dependencies import (
+    TopicModelingDependencies,
+    configure_topic_modeling_dependencies,
+    get_topic_modeling_dependencies,
 )
 from src.text_analysis.topic_modeling.bootstrap import (
     build_topic_modeling_module,
@@ -72,3 +87,53 @@ async def build_text_analysis_module(
         sentiment=sentiment_module,
         topic_modeling=topic_module,
     )
+
+
+def bind_text_analysis_module(
+    app: FastAPI, module: TextAnalysisModule | None
+) -> None:
+    """Expose text analysis stack dependencies when available."""
+
+    if module is None:
+        return
+
+    app.dependency_overrides[get_text_analysis_dependencies] = lambda: module
+
+    if getattr(module, "summarization", None) is not None:
+        summarization = module.summarization
+
+        app.dependency_overrides[get_summarization_dependencies] = (
+            lambda: SummarizationDependencies(
+                service=summarization.service,
+                repository=summarization.repository,
+            )
+        )
+
+    if getattr(module, "sentiment", None) is not None:
+        sentiment = module.sentiment
+
+        app.dependency_overrides[get_sentiment_dependencies] = (
+            lambda: SentimentDependencies(
+                service=sentiment.service,
+                repository=sentiment.repository,
+            )
+        )
+
+    if getattr(module, "topic_modeling", None) is not None:
+        topic = module.topic_modeling
+        topic_dependencies = TopicModelingDependencies(
+            service=topic.service,
+            repository=topic.repository,
+        )
+
+        app.dependency_overrides[get_topic_modeling_dependencies] = (
+            lambda deps=topic_dependencies: deps
+        )
+        configure_topic_modeling_dependencies(topic_dependencies)
+
+
+__all__ = [
+    "TextAnalysisModule",
+    "bind_text_analysis_module",
+    "build_text_analysis_module",
+]

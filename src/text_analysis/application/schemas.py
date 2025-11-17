@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src.media_processing.application.schemas import MediaTaskPayload
 
@@ -27,10 +27,17 @@ class TextExtractionPayload(MediaTaskPayload):
 class SummarizationTaskPayload(BaseModel):
     """Payload for summarization tasks executed via Celery."""
 
-    media_id: UUID
+    transcription_id: UUID
+    media_id: Optional[UUID] = None
     text_content: str = Field(min_length=1)
     provider: str = Field(default="builtin", min_length=1)
     options: Optional[Dict[str, Any]] = None
+
+    @model_validator(mode="after")
+    def _ensure_ids(self) -> "SummarizationTaskPayload":
+        if self.transcription_id is None:
+            raise ValueError("transcription_id is required for summarization tasks")
+        return self
 
 
 class SentimentTaskPayload(BaseModel):

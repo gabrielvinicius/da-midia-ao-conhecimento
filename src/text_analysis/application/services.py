@@ -120,13 +120,16 @@ class TextAnalysisService:
 
     async def schedule_summarization_task(
         self,
-        media_id: str,
+        *,
+        transcription_id: str,
+        media_id: Optional[str],
         text_content: str,
         provider: str = "builtin",
         options: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         logger.info(
             "text_analysis.scheduling_summarization_task",
+            transcription_id=transcription_id,
             media_id=media_id,
             provider=provider,
         )
@@ -134,6 +137,7 @@ class TextAnalysisService:
         from src.text_analysis.tasks import process_summarization_task
         task = self._submit(
             self._dispatcher.summarize_text,
+            transcription_id=transcription_id,
             media_id=media_id,
             text_content=text_content,
             provider=provider,
@@ -141,7 +145,7 @@ class TextAnalysisService:
         )
         logger.info(
             "text_analysis.summarization_task_scheduled",
-            media_id=media_id,
+            transcription_id=transcription_id,
             task_id=getattr(task, "id", None),
         )
         return {"task_id": getattr(task, "id", None)}

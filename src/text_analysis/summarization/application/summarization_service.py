@@ -38,13 +38,16 @@ class SummarizationService:
         self,
         *,
         media_id: UUID | str,
+        transcription_id: UUID | str,
         text_content: str,
         provider: str = "builtin",
         options: Optional[dict[str, object]] = None,
     ) -> Dict[str, Any]:
         """Requests the generation of a summary for the supplied media by scheduling a task."""
         media_uuid = _ensure_uuid(media_id)
+        transcription_uuid = _ensure_uuid(transcription_id)
         task_result = await self._text_analysis_service.schedule_summarization_task(
+            transcription_id=str(transcription_uuid),
             media_id=str(media_uuid),
             text_content=text_content,
             provider=provider,

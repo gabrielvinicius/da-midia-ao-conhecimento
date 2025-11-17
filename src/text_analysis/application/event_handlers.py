@@ -37,19 +37,28 @@ def build_text_content_ready_handler(
         summarization_provider = metadata.get("summarization_provider", "builtin")
         summarization_options = metadata.get("summarization_options")
 
-        try:
-            await text_analysis_service.schedule_summarization_task(
-                media_id=event.media_id,
-                text_content=text,
-                provider=summarization_provider,
-                options=summarization_options,
-            )
-        except Exception as exc:  # pragma: no cover - defensive guard
+        if event.transcription_id is None:
             logger.warning(
-                "text_content_ready.summarization_failed",
+                "text_content_ready.summarization_skipped",
                 media_id=event.media_id,
-                error=str(exc),
+                reason="missing_transcription_id",
             )
+        else:
+            try:
+                await text_analysis_service.schedule_summarization_task(
+                    transcription_id=event.transcription_id,
+                    media_id=event.media_id,
+                    text_content=text,
+                    provider=summarization_provider,
+                    options=summarization_options,
+                )
+            except Exception as exc:  # pragma: no cover - defensive guard
+                logger.warning(
+                    "text_content_ready.summarization_failed",
+                    media_id=event.media_id,
+                    transcription_id=event.transcription_id,
+                    error=str(exc),
+                )
 
         if event.transcription_id:
             sentiment_provider = metadata.get("sentiment_provider", "builtin")

@@ -19,7 +19,11 @@ from src.shared.application.lifecycle import (
     start_application_resources,
     stop_application_resources,
 )
-from src.shared.application.modules import register_module_dependencies
+from src.shared.application.modules import (
+    DEFAULT_MODULE_SPECS,
+    include_module_routers,
+    register_module_dependencies,
+)
 from src.shared.application.service_registry import (
     attach_domain_services,
     build_domain_service_registry,
@@ -46,10 +50,6 @@ from src.text_analysis.application.event_handlers import (
 )
 from src.text_analysis.bootstrap import build_text_analysis_module
 
-try:  # noqa: SIM105 - tolerate partial availability during consolidation
-    from src.text_analysis.api.routers import router as text_analysis_router
-except Exception:  # pragma: no cover - optional module
-    text_analysis_router = None  # type: ignore[assignment]
 from src.notifications.application.event_handlers import handle_notification_requested
 from src.user_management.bootstrap import build_user_management_module
 from src.user_management.domain.user import User
@@ -59,17 +59,6 @@ try:  # noqa: SIM105 - best-effort import
     from src.celery_app import celery as _celery_app  # type: ignore F401
 except Exception:
     _celery_app = None  # Celery not required for API process to start
-
-# API Routers
-from src.admin.api.routers import router as admin_router
-from src.media_management.api.routers import router as media_router
-from src.media_processing.transcription.api.routers import (
-    router as transcription_router,
-)
-from src.monitoring.api.routers import router as monitoring_router
-from src.notifications.api.routers import router as notification_router
-from src.providers.api.routers import router as providers_router
-from src.user_management.api.routers import router as auth_router
 
 
 def build_event_bus() -> InMemoryEventBus:
@@ -171,15 +160,21 @@ async def lifespan(app: FastAPI):
             media_facade=media_admin_context.facade,
         )
 
+        module_instances = {
+            "auth": auth_module,
+            "monitoring": monitoring_module,
+            "media": media_module,
+            "notifications": notification_module,
+            "providers": providers_module,
+            "admin": admin_module,
+        }
+        if text_analysis_module is not None:
+            module_instances["text_analysis"] = text_analysis_module
+
         register_module_dependencies(
             app,
-            auth=auth_module,
-            monitoring=monitoring_module,
-            media=media_module,
-            notifications=notification_module,
-            providers=providers_module,
-            text_analysis=text_analysis_module,
-            admin=admin_module,
+            module_instances=module_instances,
+            specs=DEFAULT_MODULE_SPECS,
         )
         domain_registry = build_domain_service_registry(
             user_management=auth_module,
@@ -262,15 +257,7 @@ def create_app() -> FastAPI:
     )
 
     # --- Route Registration ---
-    app.include_router(providers_router)
-    app.include_router(auth_router)
-    app.include_router(media_router)
-    app.include_router(transcription_router)
-    if text_analysis_router is not None:
-        app.include_router(text_analysis_router)
-    app.include_router(notification_router)
-    app.include_router(admin_router)
-    app.include_router(monitoring_router)
+    include_module_routers(app, specs=DEFAULT_MODULE_SPECS)
 
     # Add WebSocket endpoints for real-time notifications
     @app.websocket("/ws/notifications")

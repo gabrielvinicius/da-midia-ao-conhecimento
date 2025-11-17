@@ -2,7 +2,9 @@
 from dataclasses import dataclass
 
 from dependency_injector import containers, providers
+from fastapi import FastAPI
 
+from src.providers.api.dependencies import get_provider_registry
 from src.providers.domain.interfaces import (
     IProviderRegistry,
     ProviderCapability,
@@ -30,6 +32,12 @@ def build_providers_module() -> ProvidersModule:
     provider_registry = container.provider_registry()
     _seed_default_providers(provider_registry)
     return ProvidersModule(provider_registry=provider_registry)
+
+
+def bind_providers_module(app: FastAPI, module: ProvidersModule) -> None:
+    """Expose the provider registry through FastAPI dependency overrides."""
+
+    app.dependency_overrides[get_provider_registry] = lambda: module.provider_registry
 
 
 def _seed_default_providers(registry: IProviderRegistry) -> None:
@@ -136,3 +144,10 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
     for provider in defaults:
         # InMemoryProviderRegistry already guards against duplicates; we ignore warnings.
         registry.register_provider(provider)
+
+
+__all__ = [
+    "ProvidersModule",
+    "bind_providers_module",
+    "build_providers_module",
+]

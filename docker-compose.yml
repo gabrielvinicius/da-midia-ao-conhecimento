@@ -159,8 +159,8 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/frontend.Dockerfile
       target: production
     container_name: video_summarizer_frontend
     ports:
