@@ -23,8 +23,9 @@ from src.text_analysis.sentiment_analysis.infrastructure.metrics import (
 from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
     SentimentAnalysisRepository,
 )
+from src.shared.config.settings import settings
 from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analyzer import (
-    SimpleSentimentAnalyzer,
+    create_registry,
 )
 
 
@@ -38,13 +39,18 @@ class SentimentAnalysisContainer(containers.DeclarativeContainer):
     text_analysis_service = providers.Dependency(default=None)
 
     repository = providers.Factory(SentimentAnalysisRepository, db=db)
-    analyzer = providers.Singleton(SimpleSentimentAnalyzer)
+    provider_registry = providers.Singleton(
+        create_registry,
+        enabled=settings.sentiment_enabled_list,
+        default_provider=settings.SENTIMENT_DEFAULT_PROVIDER,
+        plugin_modules=settings.sentiment_plugin_modules,
+        overrides=settings.sentiment_provider_overrides,
+    )
     sentiment_logger = providers.Singleton(StructuredSentimentLogger)
     sentiment_metrics = providers.Singleton(PrometheusSentimentMetrics)
 
     sentiment_analysis_service = providers.Factory(
         SentimentAnalysisService,
-        analyzer=analyzer,
         repository=repository,
         text_analysis_service=text_analysis_service,
         logger=sentiment_logger,

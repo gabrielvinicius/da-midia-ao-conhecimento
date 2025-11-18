@@ -6,6 +6,7 @@ from typing import Callable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.shared.config.settings import settings
 from src.text_analysis.sentiment_analysis.application.sentiment_analysis_service import (
     SentimentAnalysisService,
 )
@@ -19,7 +20,7 @@ from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repo
     SentimentAnalysisRepository,
 )
 from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analyzer import (
-    SimpleSentimentAnalyzer,
+    create_registry,
 )
 
 
@@ -27,14 +28,18 @@ class SentimentServiceFactory:
     """Callable factory that instantiates ``SentimentAnalysisService`` objects."""
 
     def __init__(self) -> None:
-        self._analyzer = SimpleSentimentAnalyzer()
         self._logger = StructuredSentimentLogger()
         self._metrics = PrometheusSentimentMetrics()
+        self._provider_registry = create_registry(
+            enabled=settings.sentiment_enabled_list,
+            default_provider=settings.SENTIMENT_DEFAULT_PROVIDER,
+            plugin_modules=settings.sentiment_plugin_modules,
+            overrides=settings.sentiment_provider_overrides,
+        )
 
     def __call__(self, db: AsyncSession) -> SentimentAnalysisService:
         repository = SentimentAnalysisRepository(db)
         return SentimentAnalysisService(
-            analyzer=self._analyzer,
             repository=repository,
             logger=self._logger,
             metrics=self._metrics,
@@ -62,4 +67,3 @@ __all__ = [
     "create_sentiment_analysis_service",
     "get_sentiment_service_factory",
 ]
-

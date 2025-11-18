@@ -43,9 +43,9 @@ def test_summary_response_from_domain_normalises_collections() -> None:
 
 
 def test_sentiment_analysis_response_flattens_domain_payload() -> None:
+    media_id = str(uuid4())
     analysis = SentimentAnalysis(
         id=str(uuid4()),
-        media_id=str(uuid4()),
         transcription_id=str(uuid4()),
         overall_sentiment="POSITIVE",
         sentiment_score=0.78,
@@ -59,7 +59,7 @@ def test_sentiment_analysis_response_flattens_domain_payload() -> None:
         updated_at=datetime.now(timezone.utc),
     )
 
-    dto = SentimentAnalysisResponse.from_domain(analysis)
+    dto = SentimentAnalysisResponse.from_domain(analysis, media_id=media_id)
 
     assert dto.id == analysis.id
     assert dto.label == "POSITIVE"
@@ -75,23 +75,22 @@ def test_topic_modeling_response_converts_topics_to_strings() -> None:
     media_id = uuid4()
     result = TopicModelingResult(
         id=uuid4(),
-        media_id=media_id,
         topics=[
             {"name": "Tech", "keywords": ["ai", "ml"]},
             "General insights",
         ],
         status=TopicModelingStatus.COMPLETED,
-        provider="bertopic",
+        provider="sklearn_lda",
     )
     result.created_at = datetime.now(timezone.utc)
     result.processed_at = datetime.now(timezone.utc)
 
-    dto = TopicModelingResponse.from_domain(result)
+    dto = TopicModelingResponse.from_domain(result, media_id=str(media_id))
 
     assert dto.id == str(result.id)
     assert dto.media_id == str(media_id)
     assert dto.status == TopicModelingStatus.COMPLETED
-    assert dto.provider == "bertopic"
+    assert dto.provider == "sklearn_lda"
     assert dto.topics[0] == "Tech: ai, ml"
     assert "General insights" in dto.topics
     assert dto.raw_topics and dto.raw_topics[0]["name"] == "Tech"

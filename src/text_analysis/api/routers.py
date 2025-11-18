@@ -85,6 +85,7 @@ async def get_summary_by_media_id(
     *,
     current_user: User = Depends(get_current_user),
     media_queries: MediaQueries = Depends(get_media_queries),
+    transcription_queries: TranscriptionQueries = Depends(_get_transcription_queries),
     repository: SummarizationRepository = Depends(get_summarization_repository),
 ):
     """Return the most recent summary for the supplied media."""
@@ -94,14 +95,21 @@ async def get_summary_by_media_id(
     if str(media.user_id) != str(current_user.id) and current_user.role.value != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-    summary = await repository.get_by_media_id(media_id)
+    transcription = await transcription_queries.get_by_media_id(str(media_id))
+    if transcription is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transcription not found for the given media ID",
+        )
+
+    summary = await repository.get_by_transcription_id(transcription.id)
     if summary is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Summary not found for the given media ID",
         )
 
-    return SummaryResponse.from_domain(summary)
+    return SummaryResponse.from_domain(summary, media_id=str(media_id))
 
 
 @router.get(
@@ -114,6 +122,7 @@ async def get_summary_by_id(
     *,
     current_user: User = Depends(get_current_user),
     media_queries: MediaQueries = Depends(get_media_queries),
+    transcription_queries: TranscriptionQueries = Depends(_get_transcription_queries),
     repository: SummarizationRepository = Depends(get_summarization_repository),
 ):
     """Return a summary aggregate by its identifier."""
@@ -121,13 +130,17 @@ async def get_summary_by_id(
     if summary is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Summary not found")
 
-    media = await media_queries.get_by_id(str(summary.media_id))
+    transcription = await transcription_queries.get_by_id(str(summary.transcription_id))
+    if transcription is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcription not found")
+
+    media = await media_queries.get_by_id(str(transcription.media_id))
     if media is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
     if str(media.user_id) != str(current_user.id) and current_user.role.value != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-    return SummaryResponse.from_domain(summary)
+    return SummaryResponse.from_domain(summary, media_id=str(media.id))
 
 
 @router.post(
@@ -208,7 +221,7 @@ async def get_sentiment_analysis_by_media_id(
             detail="Sentiment analysis result not found for the given media ID.",
         )
 
-    return SentimentAnalysisResponse.from_domain(analysis)
+    return SentimentAnalysisResponse.from_domain(analysis, media_id=str(media_id))
 
 
 @router.post(
@@ -386,7 +399,7 @@ async def get_topic_modeling_result_by_media_id(
             detail="Topic modeling result not found for the given media ID.",
         )
 
-    return TopicModelingResponse.from_domain(analysis_result)
+    return TopicModelingResponse.from_domain(analysis_result, media_id=str(media_id))
 
 
 @router.post(
@@ -397,12 +410,13 @@ async def get_topic_modeling_result_by_media_id(
 async def analyze_topics(
     text_content: str = Form(..., description="Text to analyze for topics"),
     media_id: Optional[UUID] = Form(None, description="Associated media ID"),
-    provider: str = Form("bertopic_placeholder", description="Provider to use for topic modeling"),
+    provider: str = Form("sklearn_lda", description="Provider to use for topic modeling"),
     language: str = Form("en", description="Language of the text"),
     options: Optional[dict[str, Any]] = Form(None, description="Additional options for topic modeling"),
     *,
     current_user: User = Depends(get_current_user),
     media_queries: MediaQueries = Depends(get_media_queries),
+    transcription_queries: TranscriptionQueries = Depends(_get_transcription_queries),
     topic_service: TopicModelingService = Depends(get_topic_modeling_service),
 ):
     """Analyze topics in the provided text content."""
@@ -412,20 +426,25 @@ async def analyze_topics(
     if len(text_content) < 100:
         return create_error_response("Text too short for topic modeling", "Input validation failed")
 
-    media_uuid_str: Optional[str] = None
-    if media_id is not None:
-        media = await media_queries.get_by_id(str(media_id))
-        if media is None:
-            return create_error_response("Media not found", "Invalid media ID")
-        if str(media.user_id) != str(current_user.id) and current_user.role.value != "admin":
-            return create_error_response("Not authorized", "Access denied")
-        media_uuid_str = str(media_id)
+    if media_id is None:
+        return create_error_response("Media ID required", "Provide a valid media identifier")
 
-    media_uuid = media_id or UUID(int=0)
+    media = await media_queries.get_by_id(str(media_id))
+    if media is None:
+        return create_error_response("Media not found", "Invalid media ID")
+    if str(media.user_id) != str(current_user.id) and current_user.role.value != "admin":
+        return create_error_response("Not authorized", "Access denied")
+
+    transcription = await transcription_queries.get_by_media_id(str(media_id))
+    if transcription is None:
+        return create_error_response("No transcription found", "Transcription required for topic modeling")
+
+    media_uuid_str: Optional[str] = str(media_id)
 
     try:
         result = await topic_service.request_topic_analysis(
-            media_id=media_uuid,
+            media_id=media_id,
+            transcription_id=UUID(str(transcription.id)),
             text_content=text_content,
             provider=provider,
             language=language,
@@ -480,8 +499,9 @@ async def reprocess_topic_modeling(
     try:
         result = await topic_service.request_topic_analysis(
             media_id=media_id,
+            transcription_id=UUID(str(transcription.id)),
             text_content=transcription.text,
-            provider=provider or "bertopic_placeholder",
+            provider=provider or "sklearn_lda",
             language=language,
         )
     except Exception as exc:  # pragma: no cover - defensive
@@ -490,7 +510,7 @@ async def reprocess_topic_modeling(
     task_info = result if isinstance(result, dict) else {}
     ack = TopicModelingAck(
         media_id=task_info.get("media_id", str(media_id)),
-        provider=task_info.get("provider", provider or "bertopic_placeholder"),
+        provider=task_info.get("provider", provider or "sklearn_lda"),
         language=task_info.get("language", language),
         task_id=task_info.get("task_id"),
     )

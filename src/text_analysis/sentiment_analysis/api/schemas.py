@@ -27,7 +27,12 @@ class SentimentAnalysisResponse(BaseModel):
     updated_at: datetime
 
     @classmethod
-    def from_domain(cls, analysis: SentimentAnalysis) -> "SentimentAnalysisResponse":
+    def from_domain(
+        cls,
+        analysis: SentimentAnalysis,
+        *,
+        media_id: Optional[str] = None,
+    ) -> "SentimentAnalysisResponse":
         """Create a DTO aligned with the frontend contract."""
         full_result: Dict[str, Any] = {
             "emotions": analysis.emotions or {},
@@ -41,9 +46,9 @@ class SentimentAnalysisResponse(BaseModel):
             full_result["model"] = analysis.model
 
         return cls(
-            id=analysis.id,
-            media_id=analysis.media_id,
-            transcription_id=analysis.transcription_id,
+            id=str(analysis.id),
+            media_id=media_id or getattr(analysis, "media_id", None),
+            transcription_id=str(analysis.transcription_id),
             label=analysis.overall_sentiment,
             score=analysis.sentiment_score,
             confidence=analysis.confidence,

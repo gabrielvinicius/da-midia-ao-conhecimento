@@ -275,7 +275,7 @@ async def test_topic_modeling_read_and_schedule(client: AsyncClient, auth_token:
     media_id = uuid4()
     media_queries.register(media_id, owner_id)
 
-    result = TopicModelingResult.create(media_id=media_id, provider="bertopic")
+    result = TopicModelingResult.create(media_id=media_id, provider="sklearn_lda")
     await topic_repo.add(result)
     assert await topic_repo.get_by_media_id(media_id) is not None
 
@@ -285,7 +285,7 @@ async def test_topic_modeling_read_and_schedule(client: AsyncClient, auth_token:
         "/topic-modeling/analyze",
         data={
             "text_content": "Lorem ipsum " * 10,
-            "provider": "bertopic",
+            "provider": "sklearn_lda",
             "language": "en",
         },
         headers=headers,
@@ -298,4 +298,4 @@ async def test_topic_modeling_read_and_schedule(client: AsyncClient, auth_token:
     assert queue_response.status_code == 200, queue_response.text
     queue_payload = queue_response.json()
     assert queue_payload["analysis"]["task_id"] is not None
-    assert queue_payload["analysis"]["provider"] == "bertopic"
+    assert queue_payload["analysis"]["provider"] == "sklearn_lda"

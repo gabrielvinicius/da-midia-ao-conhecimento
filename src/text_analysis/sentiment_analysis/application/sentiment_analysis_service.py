@@ -15,13 +15,12 @@ class SentimentAnalysisService:
     def __init__(
         self,
         *,
-        analyzer: Any,
+        analyzer: Any | None = None,
         repository: Any,
         text_analysis_service: TextAnalysisService,
         logger: Any = None,
         metrics: Any = None,
     ) -> None:
-        self._analyzer = analyzer
         self._repository = repository
         self._text_analysis_service = text_analysis_service
         self._logger = logger

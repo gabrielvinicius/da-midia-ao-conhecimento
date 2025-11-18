@@ -17,8 +17,9 @@ from src.text_analysis.topic_modeling.infrastructure.logging import (
 from src.text_analysis.topic_modeling.infrastructure.metrics import (
     PrometheusTopicModelingMetrics,
 )
+from src.shared.config.settings import settings
 from src.text_analysis.topic_modeling.infrastructure.topic_modeler import (
-    BERTopicModeler,
+    create_registry,
 )
 from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import (
     TopicModelingRepository,
@@ -30,6 +31,7 @@ class TopicModelingContainer(containers.DeclarativeContainer):
 
     db: providers.Provider[AsyncSession] = providers.Dependency()
     text_analysis_service = providers.Dependency(default=None)
+    topic_modeler_registry = providers.Dependency()
 
     topic_modeling_repository = providers.Factory(
         TopicModelingRepository,
@@ -37,11 +39,9 @@ class TopicModelingContainer(containers.DeclarativeContainer):
     )
     topic_modeling_logger = providers.Singleton(StructuredTopicModelingLogger)
     topic_modeling_metrics = providers.Singleton(PrometheusTopicModelingMetrics)
-    topic_modeler = providers.Singleton(BERTopicModeler)
-
     topic_modeling_service = providers.Factory(
         TopicModelingService,
-        topic_modeler=topic_modeler,
+        topic_modeler_registry=topic_modeler_registry,
         topic_modeling_repo=topic_modeling_repository,
         text_analysis_service=text_analysis_service,
         topic_logger=topic_modeling_logger,
@@ -65,9 +65,16 @@ async def build_topic_modeling_module(
     *,
     text_analysis_service,
 ) -> TopicModelingModule:
+    registry = create_registry(
+        enabled=settings.topic_modeling_enabled_list,
+        default_provider=settings.TOPIC_MODELING_DEFAULT_PROVIDER,
+        plugin_modules=settings.topic_modeling_plugin_modules,
+        overrides=settings.topic_modeling_provider_overrides,
+    )
     container = TopicModelingContainer(
         db=session,
         text_analysis_service=providers.Object(text_analysis_service),
+        topic_modeler_registry=providers.Object(registry),
     )
 
     module = TopicModelingModule(

@@ -61,12 +61,17 @@ class TopicModelingResponse(BaseModel):
         return readable, serialisable or None
 
     @classmethod
-    def from_domain(cls, result: TopicModelingResult) -> "TopicModelingResponse":
+    def from_domain(
+        cls,
+        result: TopicModelingResult,
+        *,
+        media_id: Optional[str] = None,
+    ) -> "TopicModelingResponse":
         topics, raw_topics = cls._coerce_topics(result.topics)
 
         return cls(
             id=str(result.id),
-            media_id=str(result.media_id),
+            media_id=media_id or getattr(result, "media_id", None) or "",
             status=result.status,
             provider=getattr(result, "provider", None),
             topics=topics,

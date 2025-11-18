@@ -1,7 +1,6 @@
 # src/notifications/bootstrap.py
 from dataclasses import dataclass
 
-from dependency_injector import containers, providers
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,31 +25,6 @@ from src.notifications.infrastructure.notification_repository import (
 from src.user_management.application.queries.auth_queries import AuthQueries
 
 
-class NotificationContainer(containers.DeclarativeContainer):
-    db: providers.Provider[AsyncSession] = providers.Dependency()
-    auth_queries: providers.Provider[AuthQueries] = providers.Dependency()
-
-    # Infrastructure Services
-    notification_repository = providers.Factory(NotificationRepository, db=db)
-    connection_manager = providers.Object(connection_manager_instance)
-    notification_logger = providers.Singleton(StructuredNotificationLogger)
-    notification_metrics = providers.Singleton(PrometheusNotificationMetrics)
-
-    # Consolidated Application Service
-    notification_service = providers.Factory(
-        NotificationService,
-        notification_repo=notification_repository,
-        connection_manager=connection_manager,
-        auth_queries=auth_queries,
-        # event_bus is no longer used
-        notification_logger=notification_logger,
-        notification_metrics=notification_metrics,
-        email_sender=providers.Object(None),  # Placeholder
-        sms_sender=providers.Object(None),   # Placeholder
-        push_sender=providers.Object(None)   # Placeholder
-    )
-
-
 @dataclass
 class NotificationModule:
     service: NotificationService
@@ -62,13 +36,22 @@ async def build_notification_module(
     session: AsyncSession,
     auth_queries: AuthQueries,
 ) -> NotificationModule:
-    container = NotificationContainer(db=session)
-    container.auth_queries.override(providers.Object(auth_queries))
-    # No event bus needed
-
-    repository = container.notification_repository()
+    repository = NotificationRepository(db=session)
+    notification_logger = StructuredNotificationLogger()
+    notification_metrics = PrometheusNotificationMetrics()
+    connection_manager = connection_manager_instance
+    service = NotificationService(
+        notification_repo=repository,
+        connection_manager=connection_manager,
+        auth_queries=auth_queries,
+        notification_logger=notification_logger,
+        notification_metrics=notification_metrics,
+        email_sender=None,
+        sms_sender=None,
+        push_sender=None,
+    )
     module = NotificationModule(
-        service=container.notification_service(),
+        service=service,
         repository=repository,
         queries=NotificationQueries(notification_repository=repository),
     )

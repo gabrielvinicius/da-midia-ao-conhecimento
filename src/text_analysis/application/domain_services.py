@@ -129,7 +129,7 @@ class SentimentAnalysisDomainService:
 
     session: Session
     repository: SentimentAnalysisRepository
-    analyzer: Any
+    provider_registry: Any
 
     async def analyze_sentiment(
         self,
@@ -140,23 +140,25 @@ class SentimentAnalysisDomainService:
         model: Optional[str] = None,
         language: Optional[str] = None,
     ) -> Dict[str, Any]:
+        provider_impl = self.provider_registry.get(provider)
+        resolved_provider = provider_impl.provider_name
+
         analysis = await self.repository.find_by_transcription_id(transcription_id)
         if analysis is None:
             analysis = SentimentAnalysis(
                 transcription_id=transcription_id,
-                provider=provider,
+                provider=resolved_provider,
                 model=model,
             )
 
-        payload = await self.analyzer.analyze(
+        payload = await provider_impl.analyze(
             text=text,
-            provider=provider,
-            model=model,
             language=language,
+            model=model,
         )
 
         analysis.update_from_payload(payload)
-        analysis.provider = provider
+        analysis.provider = resolved_provider
         analysis.model = model
 
         saved = await self.repository.save(analysis)
@@ -165,13 +167,13 @@ class SentimentAnalysisDomainService:
         logger.info(
             "sentiment_analysis.domain.completed",
             transcription_id=transcription_id,
-            provider=provider,
+            provider=resolved_provider,
         )
 
         response = {
             "success": True,
             "analysis": saved,
-            "provider": provider,
+            "provider": resolved_provider,
             "model": model,
             "processing_time": payload.get("processing_time"),
         }
@@ -187,48 +189,47 @@ class SentimentAnalysisDomainService:
         model: Optional[str] = None,
         language: Optional[str] = None,
     ) -> Dict[str, Any]:
+        provider_impl = self.provider_registry.get(provider)
+        resolved_provider = provider_impl.provider_name
+
         analysis = self.repository.find_by_transcription_id_sync(transcription_id)
         if analysis is None:
             analysis = SentimentAnalysis(
                 transcription_id=transcription_id,
-                provider=provider,
+                provider=resolved_provider,
                 model=model,
             )
 
-        # Handle async analyzer methods by running in a separate thread if needed
-        if hasattr(self.analyzer, 'analyze_sync'):
-            payload = self.analyzer.analyze_sync(
-                text=text, 
-                provider=provider, 
-                model=model, 
-                language=language
+        if hasattr(provider_impl, 'analyze_sync'):
+            payload = provider_impl.analyze_sync(
+                text=text,
+                language=language,
+                model=model,
             )
         else:
-            # Use async method in a separate thread context for Celery workers
             import concurrent.futures
+
             def run_async():
                 import asyncio
-                # Create a new event loop for this thread
+
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    # Run the async analyzer method
-                    coro = self.analyzer.analyze(
-                        text=text, 
-                        provider=provider, 
-                        model=model, 
-                        language=language
+                    return loop.run_until_complete(
+                        provider_impl.analyze(
+                            text=text,
+                            language=language,
+                            model=model,
+                        )
                     )
-                    return loop.run_until_complete(coro)
                 finally:
                     loop.close()
-            
+
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_async)
-                payload = future.result()
+                payload = executor.submit(run_async).result()
 
         analysis.update_from_payload(payload)
-        analysis.provider = provider
+        analysis.provider = resolved_provider
         analysis.model = model
 
         saved = self.repository.save_sync(analysis)
@@ -237,13 +238,13 @@ class SentimentAnalysisDomainService:
         logger.info(
             "sentiment_analysis.domain.completed",
             transcription_id=transcription_id,
-            provider=provider,
+            provider=resolved_provider,
         )
 
         response = {
             "success": True,
             "analysis": saved,
-            "provider": provider,
+            "provider": resolved_provider,
             "model": model,
             "processing_time": payload.get("processing_time"),
         }

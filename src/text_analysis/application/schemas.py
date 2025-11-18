@@ -54,7 +54,7 @@ class SentimentTaskPayload(BaseModel):
 class TopicModelingTaskPayload(BaseModel):
     """Payload for topic modeling tasks."""
 
-    media_id: UUID
+    transcription_id: UUID
     text_content: str = Field(min_length=1)
     provider: str = Field(min_length=1)
     language: str = Field(min_length=2, max_length=32)

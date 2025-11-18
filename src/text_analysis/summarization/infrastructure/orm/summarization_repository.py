@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from src.text_analysis.summarization.domain.model import SummaryAggregate
+from src.media_processing.transcription.domain.transcription import Transcription as TranscriptionEntity
 
 from .summary_entity import SummaryEntity
 from .summary_mapper import SummaryMapper
@@ -35,7 +36,12 @@ class SummarizationRepository:
     async def get_by_media_id(self, media_id: UUID) -> Optional[SummaryAggregate]:
         # Use async method if db is an async session
         if isinstance(self.db, AsyncSession):
-            result = await self.db.execute(select(SummaryEntity).where(SummaryEntity.media_id == media_id))
+            stmt = (
+                select(SummaryEntity)
+                .join(TranscriptionEntity, SummaryEntity.transcription_id == TranscriptionEntity.id)
+                .where(TranscriptionEntity.media_id == media_id)
+            )
+            result = await self.db.execute(stmt)
             entity = result.scalar_one_or_none()
             if entity is None:
                 return None
@@ -64,12 +70,27 @@ class SummarizationRepository:
 
     def get_by_media_id_sync(self, media_id: UUID) -> Optional[SummaryAggregate]:
         # Use sync method - this should only be called with sync session
-        stmt = select(SummaryEntity).where(SummaryEntity.media_id == media_id)
+        stmt = (
+            select(SummaryEntity)
+            .join(TranscriptionEntity, SummaryEntity.transcription_id == TranscriptionEntity.id)
+            .where(TranscriptionEntity.media_id == media_id)
+        )
         result = self.db.execute(stmt)
         entity = result.scalar_one_or_none()
         if entity is None:
             return None
         return self._mapper.to_domain(entity)
+
+    async def get_by_transcription_id(self, transcription_id: UUID) -> Optional[SummaryAggregate]:
+        if isinstance(self.db, AsyncSession):
+            result = await self.db.execute(
+                select(SummaryEntity).where(SummaryEntity.transcription_id == transcription_id)
+            )
+            entity = result.scalar_one_or_none()
+            if entity is None:
+                return None
+            return self._mapper.to_domain(entity)
+        return self.get_by_transcription_id_sync(transcription_id)
 
     async def add(self, summary: SummaryAggregate) -> SummaryAggregate:
         # Use async method if db is an async session
@@ -126,7 +147,12 @@ class SummarizationRepository:
     async def delete_by_media_id(self, media_id: UUID) -> None:
         # Use async method if db is an async session
         if isinstance(self.db, AsyncSession):
-            result = await self.db.execute(select(SummaryEntity).where(SummaryEntity.media_id == media_id))
+            stmt = (
+                select(SummaryEntity)
+                .join(TranscriptionEntity, SummaryEntity.transcription_id == TranscriptionEntity.id)
+                .where(TranscriptionEntity.media_id == media_id)
+            )
+            result = await self.db.execute(stmt)
             entity = result.scalar_one_or_none()
             if entity is not None:
                 await self.db.delete(entity)
@@ -137,7 +163,11 @@ class SummarizationRepository:
 
     def delete_by_media_id_sync(self, media_id: UUID) -> None:
         # Use sync method - this should only be called with sync session
-        stmt = select(SummaryEntity).where(SummaryEntity.media_id == media_id)
+        stmt = (
+            select(SummaryEntity)
+            .join(TranscriptionEntity, SummaryEntity.transcription_id == TranscriptionEntity.id)
+            .where(TranscriptionEntity.media_id == media_id)
+        )
         result = self.db.execute(stmt)
         entity = result.scalar_one_or_none()
         if entity is not None:

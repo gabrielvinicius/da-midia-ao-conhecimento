@@ -388,11 +388,12 @@ def _run_sentiment_analysis_sync(
     import time
     start_time = time.perf_counter()
     # Update import path to match what would be used in sync context
+    from src.shared.config.settings import settings
     from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
         SentimentAnalysisRepository,
     )
     from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analyzer import (
-        SimpleSentimentAnalyzer,
+        create_registry,
     )
 
     logger.info(
@@ -416,10 +417,17 @@ def _run_sentiment_analysis_sync(
         
         payload.text = transcription.text or getattr(transcription, 'content', '')
 
+    registry = create_registry(
+        enabled=settings.sentiment_enabled_list,
+        default_provider=settings.SENTIMENT_DEFAULT_PROVIDER,
+        plugin_modules=settings.sentiment_plugin_modules,
+        overrides=settings.sentiment_provider_overrides,
+    )
+
     service = SentimentAnalysisDomainService(
         session=db,
         repository=SentimentAnalysisRepository(db),
-        analyzer=SimpleSentimentAnalyzer(),
+        provider_registry=registry,
     )
 
     try:
@@ -564,33 +572,37 @@ def _run_topic_modeling_sync(
 ) -> Optional[Dict[str, Any]]:
     logger.info(
         "topic_modeling.analyze.started",
-        media_id=str(payload.media_id),
+        transcription_id=str(payload.transcription_id),
         provider=payload.provider,
     )
 
     # Use sync repository and service
+    from src.shared.config.settings import settings
     from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
     from src.text_analysis.topic_modeling.application.topic_modeling_service import TopicModelingService
+    from src.text_analysis.topic_modeling.infrastructure.topic_modeler import (
+        create_registry,
+    )
 
     repo = TopicModelingRepository(db)
-    result = repo.get_by_media_id_sync(str(payload.media_id))
+    result = repo.get_by_transcription_id_sync(str(payload.transcription_id))
 
     if result is None:
         from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult
-        result = TopicModelingResult.create(media_id=payload.media_id, provider=payload.provider)
+        result = TopicModelingResult.create(transcription_id=payload.transcription_id, provider=payload.provider)
         result = repo.add_sync(result)  # Assign the returned value from add_sync
 
     # Get the transcription text content for topic modeling
     from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
     transcription_repo = TranscriptionRepository(db)
-    transcription = transcription_repo.get_by_media_id_sync(payload.media_id)
+    transcription = transcription_repo.get_by_id_sync(payload.transcription_id)
 
     if transcription is None:
         logger.error(
             "topic_modeling.transcription_not_found",
-            media_id=str(payload.media_id),
+            transcription_id=str(payload.transcription_id),
         )
-        raise ValueError(f"No transcription found for media ID: {payload.media_id}")
+        raise ValueError(f"No transcription found for ID: {payload.transcription_id}")
 
     text_content = transcription.text or getattr(transcription, 'content', '') or payload.text_content
 
@@ -599,11 +611,16 @@ def _run_topic_modeling_sync(
     from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
     from src.text_analysis.topic_modeling.infrastructure.logging import StructuredTopicModelingLogger
     from src.text_analysis.topic_modeling.infrastructure.metrics import NoOpTopicModelingMetrics
-    from src.text_analysis.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
 
-    # Create the service with all required dependencies using correct parameter names
+    registry = create_registry(
+        enabled=settings.topic_modeling_enabled_list,
+        default_provider=settings.TOPIC_MODELING_DEFAULT_PROVIDER,
+        plugin_modules=settings.topic_modeling_plugin_modules,
+        overrides=settings.topic_modeling_provider_overrides,
+    )
+
     service = TopicModelingService(
-        topic_modeler=BERTopicModeler(),
+        topic_modeler_registry=registry,
         topic_modeling_repo=repo,
         text_analysis_service=None,
         topic_logger=StructuredTopicModelingLogger(),
@@ -611,7 +628,8 @@ def _run_topic_modeling_sync(
     )
     # Use a different variable name for the analysis result to avoid confusing with the initial result
     analysis_result = service.analyze_topics_sync(
-        media_id=payload.media_id,
+        media_id=transcription.media_id,
+        transcription_id=transcription.id,
         text_content=text_content,  # Use transcription text content
         provider=payload.provider,
         language=payload.language,
@@ -620,7 +638,7 @@ def _run_topic_modeling_sync(
 
     logger.info(
         "topic_modeling.analyze.completed",
-        media_id=str(payload.media_id),
+        transcription_id=str(payload.transcription_id),
         result_id=str(analysis_result.id) if analysis_result and hasattr(analysis_result, 'id') else 'unknown',
     )
 
@@ -646,7 +664,7 @@ def _run_topic_modeling_sync(
         # Handle case where analysis_result is None
         logger.warning(
             "topic_modeling.service_returned_none",
-            media_id=payload.media_id,
+            transcription_id=payload.transcription_id,
             provider=payload.provider,
         )
         final_result = {
@@ -673,7 +691,7 @@ def _run_topic_modeling_sync(
             pass  # Just suppress rollback errors
         logger.warning(
             "topic_modeling.database_commit_failed",
-            media_id=payload.media_id,
+            transcription_id=payload.transcription_id,
             error=str(e),
         )
 

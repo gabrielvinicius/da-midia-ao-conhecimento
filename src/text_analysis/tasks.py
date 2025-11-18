@@ -386,11 +386,12 @@ def _run_sentiment_analysis_sync(
     import time
     start_time = time.perf_counter()
     # Update import path to match what would be used in sync context
+    from src.shared.config.settings import settings
     from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
         SentimentAnalysisRepository,
     )
     from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analyzer import (
-        SimpleSentimentAnalyzer,
+        create_registry,
     )
 
     logger.info(
@@ -414,10 +415,17 @@ def _run_sentiment_analysis_sync(
         
         payload.text = transcription.text or getattr(transcription, 'content', '') or ''
 
+    registry = create_registry(
+        enabled=settings.sentiment_enabled_list,
+        default_provider=settings.SENTIMENT_DEFAULT_PROVIDER,
+        plugin_modules=settings.sentiment_plugin_modules,
+        overrides=settings.sentiment_provider_overrides,
+    )
+
     service = SentimentAnalysisDomainService(
         session=db,
         repository=SentimentAnalysisRepository(db),
-        analyzer=SimpleSentimentAnalyzer(),
+        provider_registry=registry,
     )
 
     try:
@@ -565,8 +573,12 @@ def _run_topic_modeling_sync(
     )
 
     # Use sync repository and service
+    from src.shared.config.settings import settings
     from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
     from src.text_analysis.topic_modeling.application.topic_modeling_service import TopicModelingService
+    from src.text_analysis.topic_modeling.infrastructure.topic_modeler import (
+        create_registry,
+    )
 
     repo = TopicModelingRepository(db)
     result = repo.get_by_transcription_id_sync(str(payload.transcription_id))
@@ -597,9 +609,15 @@ def _run_topic_modeling_sync(
     from src.text_analysis.topic_modeling.infrastructure.metrics import NoOpTopicModelingMetrics
     from src.text_analysis.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
 
-    # Create the service with all required dependencies using correct parameter names
+    registry = create_registry(
+        enabled=settings.topic_modeling_enabled_list,
+        default_provider=settings.TOPIC_MODELING_DEFAULT_PROVIDER,
+        plugin_modules=settings.topic_modeling_plugin_modules,
+        overrides=settings.topic_modeling_provider_overrides,
+    )
+
     service = TopicModelingService(
-        topic_modeler=BERTopicModeler(),
+        topic_modeler_registry=registry,
         topic_modeling_repo=repo,
         text_analysis_service=None,
         topic_logger=StructuredTopicModelingLogger(),
@@ -607,6 +625,7 @@ def _run_topic_modeling_sync(
     )
     db.commit()
     analysis_result = service.analyze_topics_sync(
+        media_id=transcription.media_id,
         transcription_id=transcription.id,
         text_content=text_content,  # Use transcription text content
         provider=payload.provider,

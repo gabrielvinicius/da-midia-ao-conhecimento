@@ -28,14 +28,25 @@ class SummaryResponse(BaseModel):
     processing_time: Optional[float] = None
 
     @classmethod
-    def from_domain(cls, summary: SummaryAggregate) -> "SummaryResponse":
+    def from_domain(
+        cls,
+        summary: SummaryAggregate,
+        *,
+        media_id: Optional[str] = None,
+    ) -> "SummaryResponse":
         """Convert the domain aggregate into a serialisable DTO."""
         bullet_points = list(summary.bullet_points) if summary.bullet_points else None
         key_topics = list(summary.key_topics) if summary.key_topics else None
 
+        media_identifier = media_id or (
+            str(summary.media_id) if getattr(summary, "media_id", None) else None
+        )
+        if media_identifier is None:
+            raise ValueError("media_id is required to serialise a summary response")
+
         return cls(
             id=str(summary.id),
-            media_id=str(summary.media_id),
+            media_id=media_identifier,
             status=summary.status,
             provider=summary.provider,
             text=summary.text,

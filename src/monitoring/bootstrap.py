@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-from dependency_injector import containers, providers
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,46 +10,9 @@ from src.monitoring.api.dependencies import (
 from src.monitoring.application.analytics_queries import AnalyticsQueries
 from src.monitoring.application.metrics_service import MetricsService
 from src.monitoring.config.settings import AnalyticsSettings
-from src.monitoring.domain.interfaces import (
-    IAnalyticsQueries,
-    IAnalyticsRepository,
-    IMetricsProvider,
-)
+from src.monitoring.domain.interfaces import IAnalyticsQueries
 from src.monitoring.infrastructure.analytics_repository import AnalyticsRepository
 from src.monitoring.infrastructure.prometheus_provider import PrometheusMetricsProvider
-
-
-class MonitoringContainer(containers.DeclarativeContainer):
-    db: providers.Provider[AsyncSession] = providers.Dependency()
-
-    # Configuration
-    config = providers.Configuration()
-
-    # Settings
-    analytics_settings = providers.Singleton(AnalyticsSettings)
-
-    # Infrastructure
-    analytics_repository: providers.Provider[IAnalyticsRepository] = providers.Factory(
-        AnalyticsRepository,
-        db=db,
-    )
-
-    metrics_provider: providers.Provider[IMetricsProvider] = providers.Singleton(
-        PrometheusMetricsProvider
-    )
-
-    # Application Services
-    analytics_queries: providers.Provider[IAnalyticsQueries] = providers.Factory(
-        AnalyticsQueries,
-        analytics_repo=analytics_repository,
-        settings=analytics_settings
-    )
-
-    metrics_service = providers.Singleton(
-        MetricsService,
-        metrics_provider=metrics_provider,
-        analytics_repository=analytics_repository
-    )
 
 
 @dataclass
@@ -60,10 +22,21 @@ class MonitoringModule:
 
 
 def build_monitoring_module(session: AsyncSession) -> MonitoringModule:
-    container = MonitoringContainer(db=session)
+    settings = AnalyticsSettings()
+    analytics_repository = AnalyticsRepository(db=session)
+    metrics_provider = PrometheusMetricsProvider()
+    analytics_queries = AnalyticsQueries(
+        analytics_repo=analytics_repository,
+        settings=settings,
+    )
+    metrics_service = MetricsService(
+        metrics_provider=metrics_provider,
+        analytics_repository=analytics_repository,
+    )
+
     return MonitoringModule(
-        analytics_queries=container.analytics_queries(),
-        metrics_service=container.metrics_service(),
+        analytics_queries=analytics_queries,
+        metrics_service=metrics_service,
     )
 
 

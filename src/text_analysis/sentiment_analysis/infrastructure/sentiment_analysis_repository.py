@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from src.media_processing.transcription.domain.transcription import Transcription
 from src.text_analysis.sentiment_analysis.domain.sentiment_analysis import (
     SentimentAnalysis,
     SentimentAnalysisRecord,
@@ -47,8 +48,10 @@ class SentimentAnalysisRepository:
         return record.to_entity() if record else None
 
     async def get_by_media_id(self, media_id: str) -> Optional[SentimentAnalysis]:
-        stmt = select(SentimentAnalysisRecord).where(
-            SentimentAnalysisRecord.media_id == media_id
+        stmt = (
+            select(SentimentAnalysisRecord)
+            .join(Transcription, SentimentAnalysisRecord.transcription_id == Transcription.id)
+            .where(Transcription.media_id == media_id)
         )
         result = await self._db.execute(stmt)
         record = result.scalar_one_or_none()
@@ -90,8 +93,10 @@ class SentimentAnalysisRepository:
         return record.to_entity() if record else None
 
     def get_by_media_id_sync(self, media_id: str) -> Optional[SentimentAnalysis]:
-        stmt = select(SentimentAnalysisRecord).where(
-            SentimentAnalysisRecord.media_id == media_id
+        stmt = (
+            select(SentimentAnalysisRecord)
+            .join(Transcription, SentimentAnalysisRecord.transcription_id == Transcription.id)
+            .where(Transcription.media_id == media_id)
         )
         result = self._db.execute(stmt)
         record = result.scalar_one_or_none()
@@ -108,4 +113,3 @@ class SentimentAnalysisRepository:
 
 
 __all__ = ["SentimentAnalysisRepository"]
-

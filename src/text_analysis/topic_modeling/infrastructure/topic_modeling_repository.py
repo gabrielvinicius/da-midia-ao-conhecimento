@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from src.media_processing.transcription.domain.transcription import Transcription
 from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult
 
 
@@ -29,7 +30,18 @@ class TopicModelingRepository:
         await self.db.flush()
 
     async def get_by_media_id(self, media_id: UUID) -> Optional[TopicModelingResult]:
-        result = await self.db.execute(select(TopicModelingResult).where(TopicModelingResult.media_id == media_id))
+        stmt = (
+            select(TopicModelingResult)
+            .join(Transcription, TopicModelingResult.transcription_id == Transcription.id)
+            .where(Transcription.media_id == media_id)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_by_transcription_id(self, transcription_id: UUID) -> Optional[TopicModelingResult]:
+        result = await self.db.execute(
+            select(TopicModelingResult).where(TopicModelingResult.transcription_id == transcription_id)
+        )
         return result.scalar_one_or_none()
 
     def get_by_id_sync(self, result_id: UUID) -> Optional[TopicModelingResult]:
@@ -38,7 +50,11 @@ class TopicModelingRepository:
         return result.scalar_one_or_none()
 
     def get_by_media_id_sync(self, media_id: UUID) -> Optional[TopicModelingResult]:
-        stmt = select(TopicModelingResult).where(TopicModelingResult.media_id == media_id)
+        stmt = (
+            select(TopicModelingResult)
+            .join(Transcription, TopicModelingResult.transcription_id == Transcription.id)
+            .where(Transcription.media_id == media_id)
+        )
         result = self.db.execute(stmt)
         return result.scalar_one_or_none()
 
