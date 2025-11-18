@@ -1,6 +1,3 @@
-from dataclasses import dataclass
-from typing import Annotated
-
 from fastapi import Depends
 
 from src.text_analysis.topic_modeling.application.topic_modeling_service import (
@@ -15,52 +12,39 @@ class TopicModelingDependenciesNotConfigured(RuntimeError):
     pass
 
 
-@dataclass(frozen=True)
-class TopicModelingDependencies:
-    service: TopicModelingService
-    repository: TopicModelingRepository
-
-
-_configured_topic_dependencies: TopicModelingDependencies | None = None
+_topic_service: TopicModelingService | None = None
+_topic_repository: TopicModelingRepository | None = None
 
 
 def configure_topic_modeling_dependencies(
-    dependencies: TopicModelingDependencies,
+    *,
+    service: TopicModelingService,
+    repository: TopicModelingRepository,
 ) -> None:
-    global _configured_topic_dependencies
-    _configured_topic_dependencies = dependencies
+    global _topic_service, _topic_repository
+    _topic_service = service
+    _topic_repository = repository
 
 
-def get_topic_modeling_dependencies() -> TopicModelingDependencies:
-    if _configured_topic_dependencies is None:
+def get_topic_modeling_service() -> TopicModelingService:
+    if _topic_service is None:
         raise TopicModelingDependenciesNotConfigured(
-            "Topic modeling dependencies are not configured. Register providers in the lifespan handler."
+            "Topic modeling service not configured. Register it during app startup."
         )
-    return _configured_topic_dependencies
+    return _topic_service
 
 
-TopicDeps = Annotated[
-    TopicModelingDependencies, Depends(get_topic_modeling_dependencies)
-]
-
-
-def get_topic_modeling_service(
-    deps: TopicDeps,
-) -> TopicModelingService:
-    return deps.service
-
-
-def get_topic_modeling_repository(
-    deps: TopicDeps,
-) -> TopicModelingRepository:
-    return deps.repository
+def get_topic_modeling_repository() -> TopicModelingRepository:
+    if _topic_repository is None:
+        raise TopicModelingDependenciesNotConfigured(
+            "Topic modeling repository not configured. Register it during app startup."
+        )
+    return _topic_repository
 
 
 __all__ = [
-    "TopicModelingDependencies",
     "TopicModelingDependenciesNotConfigured",
     "configure_topic_modeling_dependencies",
-    "get_topic_modeling_dependencies",
     "get_topic_modeling_repository",
     "get_topic_modeling_service",
 ]

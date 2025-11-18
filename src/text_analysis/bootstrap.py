@@ -26,9 +26,7 @@ from src.text_analysis.summarization.bootstrap import (
     build_summarization_module,
 )
 from src.text_analysis.topic_modeling.api.dependencies import (
-    TopicModelingDependencies,
     configure_topic_modeling_dependencies,
-    get_topic_modeling_dependencies,
 )
 from src.text_analysis.topic_modeling.bootstrap import (
     build_topic_modeling_module,
@@ -123,15 +121,10 @@ def bind_text_analysis_module(
 
     if getattr(module, "topic_modeling", None) is not None:
         topic = module.topic_modeling
-        topic_dependencies = TopicModelingDependencies(
+        configure_topic_modeling_dependencies(
             service=topic.service,
             repository=topic.repository,
         )
-
-        app.dependency_overrides[get_topic_modeling_dependencies] = (
-            lambda deps=topic_dependencies: deps
-        )
-        configure_topic_modeling_dependencies(topic_dependencies)
 
 
 __all__ = [
