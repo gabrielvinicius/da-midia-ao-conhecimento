@@ -1,4 +1,6 @@
 // Commands API - Para operações de escrita (CQRS Write Side)
+import type { AxiosProgressEvent } from 'axios';
+
 import api from '@/lib/api';
 import authService from '@/services/auth.service';
 import { Media, UserUpdateRequest } from '@/types';
@@ -20,7 +22,14 @@ export interface ReprocessMediaCommand {
   mediaId: string;
 }
 
-export const executeCreateMedia = async (command: CreateMediaCommand): Promise<Media> => {
+type UploadOptions = {
+  onProgress?: (percent: number, event: AxiosProgressEvent) => void;
+};
+
+export const executeCreateMedia = async (
+  command: CreateMediaCommand,
+  options?: UploadOptions,
+): Promise<Media> => {
   console.log('🎬 Executando CreateMediaCommand:', command);
   
   const { file, ...queryParams } = command;
@@ -50,6 +59,14 @@ export const executeCreateMedia = async (command: CreateMediaCommand): Promise<M
   
   const response = await api.post<Media>(url, formData, {
     timeout: 300000, // 5 minutos
+    onUploadProgress: (event) => {
+      if (!event.total) {
+        options?.onProgress?.(0, event);
+        return;
+      }
+      const percentCompleted = Math.round((event.loaded * 100) / event.total);
+      options?.onProgress?.(percentCompleted, event);
+    },
   });
   
   console.log('✅ CreateMediaCommand executado:', response.data);

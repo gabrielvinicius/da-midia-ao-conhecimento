@@ -1,16 +1,8 @@
-
-import axios from "axios";
+import api from "@/lib/api";
 import { User, UserCredentials, UserRegistration } from "../types";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-const authApi = axios.create({
-  baseURL: `${API_URL}/auth`,
-  withCredentials: true,
-});
-
 export const register = async (userData: UserRegistration): Promise<User> => {
-  const response = await authApi.post("/register", userData);
+  const response = await api.post("/auth/register", userData);
   return response.data;
 };
 
@@ -19,7 +11,7 @@ export const login = async (credentials: UserCredentials): Promise<{ message: st
   payload.append('username', credentials.email);
   payload.append('password', credentials.password);
 
-  const response = await authApi.post("/token", payload, {
+  const response = await api.post("/auth/token", payload, {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
@@ -33,8 +25,8 @@ export const logout = () => {
 };
 
 export const getCurrentUser = async (): Promise<User> => {
-  const response = await authApi.get("/me");
+  const response = await api.get("/auth/me");
   return response.data;
 };
 
-export default authApi;
+export default { register, login, logout, getCurrentUser };

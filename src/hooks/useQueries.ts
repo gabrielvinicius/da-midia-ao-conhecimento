@@ -10,15 +10,14 @@ import {
   getSentimentAnalysisByMediaId,
   getTopicModelingByMediaId,
   getCurrentUser,
-  getStorageProviders,
-  getTranscriptionProviders,
-  getSummarizationProviders,
   getAllProviders,
   getNotifications,
   getSystemStats,
   getAllUsers,
   getAllMediaAdmin,
 } from '@/api/queries';
+import { useProviders } from '@/features/providers/hooks/useProviders';
+import { useStorageProviders } from '@/features/providers/hooks/useStorageProviders';
 
 // =============================================================================
 // MEDIA QUERIES
@@ -157,29 +156,9 @@ export const useCurrentUserQuery = () => {
 // PROVIDER QUERIES
 // =============================================================================
 
-export const useStorageProvidersQuery = () => {
-  return useQuery({
-    queryKey: ['providers', 'storage'],
-    queryFn: getStorageProviders,
-    staleTime: 10 * 60 * 1000, // 10 minutos (providers raramente mudam)
-  });
-};
-
-export const useTranscriptionProvidersQuery = () => {
-  return useQuery({
-    queryKey: ['providers', 'transcription'],
-    queryFn: getTranscriptionProviders,
-    staleTime: 10 * 60 * 1000,
-  });
-};
-
-export const useSummarizationProvidersQuery = () => {
-  return useQuery({
-    queryKey: ['providers', 'summarization'],
-    queryFn: getSummarizationProviders,
-    staleTime: 10 * 60 * 1000,
-  });
-};
+export const useStorageProvidersQuery = useStorageProviders;
+export const useTranscriptionProvidersQuery = () => useProviders('transcription');
+export const useSummarizationProvidersQuery = () => useProviders('summarization');
 
 export const useAllProvidersQuery = () => {
   return useQuery({

@@ -13,6 +13,8 @@ export interface RegisterData {
 
 export interface TokenResponse {
     message: string;
+    access_token: string;
+    token_type: string;
 }
 
 import { UserRole } from "../types";
@@ -64,6 +66,9 @@ class AuthService {
 
         this.hasActiveSession = true;
         sessionStorage.setItem('has_session', 'true');
+        if (response.data?.access_token) {
+            sessionStorage.setItem('access_token', response.data.access_token);
+        }
 
         return response.data;
     }
@@ -123,6 +128,7 @@ class AuthService {
     clearLocalAuth(): void {
         sessionStorage.removeItem('csrf_token');
         sessionStorage.removeItem('has_session');
+        sessionStorage.removeItem('access_token');
         this.hasActiveSession = false;
         console.log('🧹 Dados de autenticação limpos');
     }
@@ -138,7 +144,7 @@ class AuthService {
      * Obter token atual
      */
     getToken(): string | null {
-        return null;
+        return sessionStorage.getItem('access_token');
     }
 
     /**

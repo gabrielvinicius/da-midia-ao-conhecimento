@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { Notification } from '../types';
 import { toast } from 'react-toastify';
+import authService from '../services/auth.service';
+import { buildWsUrl } from '@/lib/api';
 
 export type ConnectionStatus = 'CONNECTING' | 'OPEN' | 'CLOSING' | 'CLOSED' | 'RECONNECTING';
 
@@ -16,12 +18,6 @@ interface WebSocketContextType {
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
 
-// Construct WebSocket URL from environment variable
-const constructWsUrl = (): string => {
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-  return apiUrl.replace(/^http/, 'ws');
-};
-
 export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
   const { user, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
@@ -29,12 +25,14 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('CLOSED');
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const shouldReconnectRef = useRef(true);
 
   const connect = useCallback(() => {
     if (socketRef.current || !isAuthenticated || !user) return;
 
-    // Construct WebSocket URL with user authentication
-    const wsUrl = `${constructWsUrl()}/ws/notifications`;
+    const token = authService.getToken();
+    const baseUrl = buildWsUrl("/ws/notifications");
+    const wsUrl = token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
     const ws = new WebSocket(wsUrl);
     socketRef.current = ws;
 
@@ -49,7 +47,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
       socketRef.current = null;
       
       // Attempt to reconnect if user is still authenticated
-      if (isAuthenticated && connectionStatus !== 'CLOSING') {
+      if (isAuthenticated && shouldReconnectRef.current) {
         setConnectionStatus('RECONNECTING');
         if (reconnectTimerRef.current) {
           clearTimeout(reconnectTimerRef.current);
@@ -111,16 +109,18 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
         console.error('Failed to parse WebSocket message:', parseError);
       }
     };
-  }, [isAuthenticated, user, queryClient, connectionStatus]);
+  }, [isAuthenticated, user, queryClient]);
 
   // Effect to manage WebSocket connection lifecycle
   useEffect(() => {
     if (isAuthenticated && user) {
+      shouldReconnectRef.current = true;
       connect();
     } else {
       // Close connection if user is no longer authenticated
       if (socketRef.current) {
         setConnectionStatus('CLOSING');
+        shouldReconnectRef.current = false;
         socketRef.current.close();
         socketRef.current = null;
       }
@@ -135,6 +135,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
     // Cleanup on unmount
     return () => {
       if (socketRef.current) {
+        shouldReconnectRef.current = false;
         socketRef.current.close();
         socketRef.current = null;
       }

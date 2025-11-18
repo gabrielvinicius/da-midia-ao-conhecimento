@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { useAuth } from '../../../contexts/AuthContext';
 import { Notification } from '../../../types';
 import { toast } from 'react-toastify';
+import { buildWsUrl } from '@/lib/api';
 
 interface NotificationContextType {
   notifications: Notification[];
@@ -11,8 +12,6 @@ interface NotificationContextType {
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
-
-const WS_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/^http/, 'ws');
 
 export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   const { isAuthenticated } = useAuth();
@@ -28,7 +27,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const ws = new WebSocket(`${WS_URL}/notifications/ws`);
+    const ws = new WebSocket(buildWsUrl('/notifications/ws'));
 
     ws.onopen = () => {
       console.log('Notifications WebSocket connected');

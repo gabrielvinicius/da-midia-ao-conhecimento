@@ -6,8 +6,7 @@
 
 import axios, { AxiosError, AxiosResponse } from 'axios';
 import { toast } from 'react-toastify';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { getApiBaseUrl } from './api';
 
 // Interface para resposta de erro padronizada
 interface ApiError {
@@ -32,7 +31,6 @@ class SecureApiClient {
 
   constructor() {
     this.axiosInstance = axios.create({
-      baseURL: API_URL,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -46,6 +44,10 @@ class SecureApiClient {
     // Request interceptor para adicionar CSRF token
     this.axiosInstance.interceptors.request.use(
       (config) => {
+        if (!config.baseURL) {
+          config.baseURL = getApiBaseUrl();
+        }
+
         // Adicionar CSRF token para métodos que modificam dados
         if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase() || '')) {
           if (this.csrfToken) {

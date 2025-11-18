@@ -2,7 +2,8 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-    readonly VITE_API_URL: string;
+    readonly VITE_API_URL?: string;
+    readonly VITE_FORCE_API_URL?: string;
     readonly VITE_ENABLE_MOCK: boolean;
     readonly VITE_TOAST_DURATION: number;
     readonly VITE_MAX_UPLOAD_SIZE: number;

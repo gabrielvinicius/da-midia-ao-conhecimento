@@ -1,8 +1,9 @@
 import { useTopicModeling } from "../hooks/useTopicModeling";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { TopicModelingStatus } from "@/types";
+import { formatDistanceToNow } from "date-fns";
 
 interface TopicModelingResultPanelProps {
   mediaId: string;
@@ -26,28 +27,49 @@ export const TopicModelingResultPanel = ({ mediaId }: TopicModelingResultPanelPr
       return <p className="text-destructive text-center text-xs">Error loading topics.</p>;
     }
 
-    if (!analysis || !analysis.topics || analysis.topics.length === 0) {
-      return <p className="text-muted-foreground text-center text-xs">Awaiting text content to start analysis...</p>;
+    if (!analysis) {
+      return <p className="text-muted-foreground text-center text-xs">Awaiting topic modeling...</p>;
     }
 
-    if (analysis.status !== TopicModelingStatus.COMPLETED) {
+    const rawTopics = analysis.raw_topics;
+    if ((!rawTopics || rawTopics.length === 0) && (!analysis.topics || analysis.topics.length === 0)) {
       return (
         <p className="text-muted-foreground text-center text-xs">
           {analysis.status === TopicModelingStatus.PROCESSING
             ? "Topic modeling is processing..."
-            : "Topic modeling is not available yet."}
+            : "Topics will appear after the transcription is completed."}
         </p>
       );
     }
 
-    const topics = analysis.topics;
+    if (rawTopics && rawTopics.length > 0) {
+      return (
+        <div className="space-y-3 text-sm leading-relaxed">
+          {rawTopics.map((topic, index) => {
+            const keywords = (topic.keywords || topic.terms || [])
+              .map((keyword: any) =>
+                typeof keyword === "string" ? keyword : keyword?.[0] || keyword?.term || keyword
+              )
+              .filter(Boolean)
+              .slice(0, 6);
+            const label = topic.name || topic.label || `Topic ${index + 1}`;
+            const sentence = keywords.length
+              ? `${label} destaca ${keywords.slice(0, -1).join(", ")} e ${keywords[keywords.length - 1]}.`
+              : `${label} possui pouca informação disponível.`;
+            return (
+              <div key={topic.id ?? index} className="rounded-md border border-border/60 p-3 bg-muted/40">
+                <p>{sentence}</p>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
 
     return (
-      <div className="flex flex-wrap gap-2 justify-center">
-        {topics.map((topic, index) => (
-          <Badge key={index} variant="secondary" className="text-sm">
-            {topic}
-          </Badge>
+      <div className="space-y-2 text-sm">
+        {(analysis.topics || []).map((topic, index) => (
+          <p key={index}>{topic}</p>
         ))}
       </div>
     );
@@ -57,6 +79,16 @@ export const TopicModelingResultPanel = ({ mediaId }: TopicModelingResultPanelPr
     <Card>
       <CardHeader>
         <CardTitle className="text-center">Key Topics</CardTitle>
+        {analysis && (
+          <CardDescription className="text-xs text-center">
+            Provider {analysis.provider ?? "sklearn_lda"}
+            {analysis.processed_at && (
+              <>
+                {' '}- updated {formatDistanceToNow(new Date(analysis.processed_at), { addSuffix: true })}
+              </>
+            )}
+          </CardDescription>
+        )}
       </CardHeader>
       <CardContent className="pt-4">
         {renderContent()}

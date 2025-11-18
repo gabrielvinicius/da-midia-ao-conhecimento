@@ -1,20 +1,59 @@
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const normalizeBase = (value: string) => value.replace(/\/$/, '');
+const ensureAbsolutePath = (path: string): string => (path.startsWith('/') ? path : `/${path}`);
+
+const envConfiguredBase = () => {
+  const configured = (import.meta.env.VITE_API_URL || '').trim();
+  return configured ? normalizeBase(configured) : '';
+};
+
+const getGlobalOrigin = (): string | undefined => {
+  const globalScope = globalThis as typeof globalThis & { location?: Location };
+  return globalScope.location?.origin ? normalizeBase(globalScope.location.origin) : undefined;
+};
+
+let cachedBaseUrl: string | null = null;
+
+export const getApiBaseUrl = (): string => {
+  if (cachedBaseUrl) {
+    return cachedBaseUrl;
+  }
+
+  const forced = import.meta.env.VITE_FORCE_API_URL === 'true';
+  const configured = envConfiguredBase();
+
+  if (import.meta.env.PROD && !forced) {
+    const runtime = getGlobalOrigin();
+    if (runtime) {
+      cachedBaseUrl = runtime;
+      return cachedBaseUrl;
+    }
+  }
+
+  cachedBaseUrl = configured || 'http://localhost:8000';
+  return cachedBaseUrl;
+};
+
+export const buildApiUrl = (path = '/'): string => `${getApiBaseUrl()}${ensureAbsolutePath(path)}`;
+export const buildWsUrl = (path = '/'): string => buildApiUrl(path).replace(/^http/, 'ws');
 
 const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
   withCredentials: true,
 });
 
 // Request interceptor to add the auth token to headers
 api.interceptors.request.use(
   (config) => {
-    // Nada para anexar: cookies httpOnly já viajam por withCredentials
+    if (!config.baseURL) {
+      config.baseURL = getApiBaseUrl();
+    }
+    const token = sessionStorage.getItem('access_token');
+    if (token) {
+      config.headers = config.headers ?? {};
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {

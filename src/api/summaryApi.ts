@@ -1,16 +1,8 @@
-
-import axios from "axios";
+import api from "@/lib/api";
 import { Summary, SummarizationReprocessResponse } from "../types";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-const summaryApi = axios.create({
-  baseURL: `${API_URL}/summaries`,
-  withCredentials: true,
-});
-
 export const getSummaryByMediaId = async (mediaId: string): Promise<Summary> => {
-  const response = await summaryApi.get(`/?media_id=${mediaId}`);
+  const response = await api.get(`/summaries/?media_id=${mediaId}`);
   return response.data;
 };
 
@@ -35,7 +27,7 @@ export const reprocessSummarization = async (
     formData.append("force", options.force.toString());
   }
 
-  const response = await summaryApi.post<SummarizationReprocessResponse>("/reprocess", formData, {
+  const response = await api.post<SummarizationReprocessResponse>("/summaries/reprocess", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
@@ -43,4 +35,4 @@ export const reprocessSummarization = async (
   return response.data;
 };
 
-export default summaryApi;
+export default { getSummaryByMediaId, reprocessSummarization };

@@ -1,3 +1,4 @@
+import { useState, useRef } from "react";
 import { UserRole } from "@/types";
 import { useParams } from "react-router-dom";
 import { useMediaDetail, useReprocessMedia } from "../features/media/hooks/useMedia";
@@ -8,13 +9,25 @@ import { TopicModelingResultPanel } from "@/features/topic_modeling/components/T
 import { Skeleton } from "../components/ui/Skeleton";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useAuth } from "../contexts/AuthContext";
 import { format } from "date-fns";
-import { MediaType, MediaStatus } from "@/types";
+import { MediaType, MediaStatus, TranscriptionStatus } from "@/types";
+import { MediaPlayer } from "@/features/media/components/MediaPlayer";
+import { useTranscription } from "@/features/transcription/hooks/useTranscription";
+import { TranscriptionPanel } from "@/features/transcription/components/TranscriptionPanel";
+import { buildApiUrl } from "@/lib/api";
 
 const MediaDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const playerRef = useRef<HTMLMediaElement>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const {
+    data: transcriptionData,
+    isLoading: isTranscriptionLoading,
+    isError: isTranscriptionError,
+  } = useTranscription(id ?? "");
 
   if (!id) {
     return <p>No media ID provided.</p>;
@@ -54,6 +67,15 @@ const MediaDetailPage = () => {
   }
 
   const isPlayable = media.media_type === MediaType.AUDIO || media.media_type === MediaType.VIDEO;
+  const isTextMedia = media.media_type === MediaType.TEXT;
+  const streamUrl = buildApiUrl(`/media/${media.id}/stream`);
+
+  const handleSeek = (time: number) => {
+    if (playerRef.current) {
+      playerRef.current.currentTime = time;
+      playerRef.current.play();
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -86,13 +108,60 @@ const MediaDetailPage = () => {
         )}
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Media Playback</CardTitle>
+          <CardDescription className="text-sm text-muted-foreground">
+            Storage: {media.storage_provider}
+            {media.original_file_path && (
+              <> · {media.original_file_path}</>
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {isPlayable ? (
+            <MediaPlayer
+              src={streamUrl}
+              mediaType={media.media_type as MediaType.AUDIO | MediaType.VIDEO}
+              playerRef={playerRef}
+              onTimeUpdate={setCurrentTime}
+            />
+          ) : isTextMedia ? (
+            <TextPreview
+              isLoading={isTranscriptionLoading}
+              isError={isTranscriptionError}
+              transcription={transcriptionData?.result?.text || transcriptionData?.text || ""}
+              status={transcriptionData?.status}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Pré-visualização indisponível para este tipo de arquivo.
+            </p>
+          )}
+          <div className="text-xs text-muted-foreground flex justify-between flex-wrap gap-2">
+            <span>Provider: {media.storage_provider}</span>
+            {media.original_file_path && <span className="truncate">Path: {media.original_file_path}</span>}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Main Content Layout */}
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-8">
-          {isPlayable ? (
-            <InteractiveTranscriptionPanel mediaId={id} mediaType={media.media_type as MediaType.AUDIO | MediaType.VIDEO} />
-          ) : (
-            <p className="text-center text-muted-foreground py-16">Interactive transcription is only available for audio and video files.</p>
+          {isPlayable && (
+            <InteractiveTranscriptionPanel
+              mediaId={id}
+              currentTime={currentTime}
+              onSeek={handleSeek}
+            />
+          )}
+          {!isPlayable && isTextMedia && (
+            <TranscriptionPanel mediaId={id} />
+          )}
+          {!isPlayable && !isTextMedia && (
+            <p className="text-center text-muted-foreground py-16">
+              Ainda não há transcrição disponível para este tipo de arquivo.
+            </p>
           )}
         </div>
         <div className="lg:col-span-1 space-y-8">
@@ -106,3 +175,55 @@ const MediaDetailPage = () => {
 };
 
 export default MediaDetailPage;
+
+type TextPreviewProps = {
+  transcription: string;
+  isLoading: boolean;
+  isError: boolean;
+  status?: TranscriptionStatus;
+};
+
+const TextPreview = ({ transcription, isLoading, isError, status }: TextPreviewProps) => {
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-4 w-1/2" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return <p className="text-sm text-destructive">Erro ao carregar a transcrição.</p>;
+  }
+
+  if (!transcription) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Estamos processando o texto deste documento. Volte em instantes para visualizar a transcrição.
+      </p>
+    );
+  }
+
+  const truncated = transcription.length > 800 ? `${transcription.slice(0, 800)}…` : transcription;
+  const statusLabel = status ? status.toLowerCase() : "";
+
+  return (
+    <div className="space-y-2">
+      <pre className="max-h-60 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 text-sm">
+        {truncated}
+      </pre>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span className="flex items-center gap-2">
+          <Badge variant="secondary" className="uppercase tracking-wide">
+            {statusLabel || "transcrito"}
+          </Badge>
+          Prévia em texto bruto
+        </span>
+        <span>
+          Exibindo {Math.min(truncated.length, transcription.length)} de {transcription.length} caracteres
+        </span>
+      </div>
+    </div>
+  );
+};

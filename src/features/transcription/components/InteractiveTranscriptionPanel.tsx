@@ -1,20 +1,18 @@
 import * as React from 'react';
 import { saveAs } from 'file-saver';
 import { useTranscription } from "../hooks/useTranscription";
-import { MediaPlayer } from '@/features/media/components/MediaPlayer';
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Download } from "lucide-react";
-import { TranscriptionSegment, MediaType, TranscriptionStatus } from '@/types';
+import { TranscriptionSegment, TranscriptionStatus } from '@/types';
 import { EditSpeakersDialog } from './EditSpeakersDialog'; // Import the new dialog
 
 interface InteractiveTranscriptionPanelProps {
   mediaId: string;
-  mediaType: MediaType.AUDIO | MediaType.VIDEO;
+  currentTime: number;
+  onSeek?: (time: number) => void;
 }
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Helper to get a consistent color for each speaker
 const speakerColors: { [key: string]: string } = {};
@@ -32,21 +30,31 @@ const getSpeakerColor = (speaker: string) => {
   return speakerColors[speaker];
 };
 
-export const InteractiveTranscriptionPanel = ({ mediaId, mediaType }: InteractiveTranscriptionPanelProps) => {
+export const InteractiveTranscriptionPanel = ({ mediaId, currentTime, onSeek }: InteractiveTranscriptionPanelProps) => {
   const { data: transcription, isLoading, isError } = useTranscription(mediaId);
-  const [currentTime, setCurrentTime] = React.useState(0);
-  const playerRef = React.useRef<HTMLMediaElement>(null);
 
   const handleSegmentClick = (segment: TranscriptionSegment) => {
-    if (playerRef.current) {
-      playerRef.current.currentTime = segment.start;
-      playerRef.current.play();
+    if (onSeek) {
+      onSeek(segment.start);
     }
   };
 
   const resolvedText = transcription?.result?.text ?? transcription?.text ?? "";
   const resolvedSegments = transcription?.result?.segments ?? [];
   const isDiarized = transcription?.result?.diarized ?? resolvedSegments.some((segment) => Boolean(segment.speaker));
+  const durationSeconds = React.useMemo(() => {
+    if (resolvedSegments.length > 0) {
+      return resolvedSegments[resolvedSegments.length - 1].end;
+    }
+    return transcription?.result?.duration ?? transcription?.duration ?? null;
+  }, [resolvedSegments, transcription]);
+
+  const formattedDuration = React.useMemo(() => {
+    if (!durationSeconds) return null;
+    const minutes = Math.floor(durationSeconds / 60);
+    const seconds = Math.round(durationSeconds % 60).toString().padStart(2, '0');
+    return `${minutes}m${seconds}`;
+  }, [durationSeconds]);
 
   const handleDownload = () => {
     if (transcription && resolvedText) {
@@ -67,12 +75,12 @@ export const InteractiveTranscriptionPanel = ({ mediaId, mediaType }: Interactiv
 
     return (
       <div className="space-y-4">
-        <MediaPlayer
-          src={`${API_URL}/media/${mediaId}/stream`}
-          mediaType={mediaType}
-          playerRef={playerRef}
-          onTimeUpdate={setCurrentTime}
-        />
+        {formattedDuration && (
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>Duration</span>
+            <span className="font-medium">{formattedDuration}</span>
+          </div>
+        )}
         {!isDiarized && transcription.status === TranscriptionStatus.COMPLETED && (
           <div className="text-center text-sm text-muted-foreground p-2">Identifying speakers...</div>
         )}

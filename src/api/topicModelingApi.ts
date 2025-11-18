@@ -1,13 +1,6 @@
 // frontend/src/api/topicModelingApi.ts
-import axios from "axios";
+import api from "@/lib/api";
 import { TopicModelingAcceptedResponse, TopicModelingResult } from "../types";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-const topicModelingApi = axios.create({
-  baseURL: `${API_URL}/topic-modeling`,
-  withCredentials: true,
-});
 
 const handle404 = (error: any) => {
   if (error?.response?.status === 404) {
@@ -18,7 +11,7 @@ const handle404 = (error: any) => {
 
 export const getTopicModelingResultByMediaId = async (mediaId: string): Promise<TopicModelingResult | null> => {
   try {
-    const response = await topicModelingApi.get(`/?media_id=${mediaId}`);
+    const response = await api.get(`/topic-modeling/?media_id=${mediaId}`);
     return response.data;
   } catch (error: any) {
     return handle404(error);
@@ -42,7 +35,7 @@ export const reprocessTopicModeling = async (
     formData.append("force", options.force.toString());
   }
 
-  const response = await topicModelingApi.post<TopicModelingAcceptedResponse>("/reprocess", formData, {
+  const response = await api.post<TopicModelingAcceptedResponse>("/topic-modeling/reprocess", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
@@ -50,4 +43,4 @@ export const reprocessTopicModeling = async (
   return response.data;
 };
 
-export default topicModelingApi;
+export default { getTopicModelingResultByMediaId, reprocessTopicModeling };

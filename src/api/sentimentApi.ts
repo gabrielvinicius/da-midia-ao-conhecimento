@@ -1,13 +1,6 @@
 // frontend/src/api/sentimentApi.ts
-import axios from "axios";
+import api from "@/lib/api";
 import { SentimentAnalysisResult, SentimentAnalysisAcceptedResponse } from "../types";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-const sentimentApi = axios.create({
-  baseURL: `${API_URL}/sentiment-analysis`,
-  withCredentials: true,
-});
 
 const handle404 = (error: any) => {
   if (error?.response?.status === 404) {
@@ -18,7 +11,7 @@ const handle404 = (error: any) => {
 
 export const getSentimentAnalysisByMediaId = async (mediaId: string): Promise<SentimentAnalysisResult | null> => {
   try {
-    const response = await sentimentApi.get(`/?media_id=${mediaId}`);
+    const response = await api.get(`/sentiment-analysis/?media_id=${mediaId}`);
     return response.data;
   } catch (error: any) {
     return handle404(error);
@@ -42,7 +35,7 @@ export const reprocessSentimentAnalysis = async (
     formData.append("force", options.force.toString());
   }
 
-  const response = await sentimentApi.post<SentimentAnalysisAcceptedResponse>("/reprocess", formData, {
+  const response = await api.post<SentimentAnalysisAcceptedResponse>("/sentiment-analysis/reprocess", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
@@ -50,4 +43,4 @@ export const reprocessSentimentAnalysis = async (
   return response.data;
 };
 
-export default sentimentApi;
+export default { getSentimentAnalysisByMediaId, reprocessSentimentAnalysis };

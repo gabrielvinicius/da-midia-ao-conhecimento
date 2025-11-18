@@ -1,5 +1,6 @@
 // CQRS Command Hooks - Para operações de escrita
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
@@ -32,12 +33,20 @@ import { useAuth } from '@/contexts/AuthContext';
 export const useCreateMediaCommand = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [progress, setProgress] = useState(0);
 
-  return useMutation({
-    mutationFn: (command: CreateMediaCommand) => executeCreateMedia(command),
+  const mutation = useMutation({
+    mutationFn: (command: CreateMediaCommand) =>
+      executeCreateMedia(command, {
+        onProgress: (percent) => setProgress(percent),
+      }),
+    onMutate: () => {
+      setProgress(0);
+    },
     onSuccess: (data) => {
       const filename = data.original_file_path?.split('/').pop() || 'arquivo';
       toast.success(`Arquivo "${filename}" enviado com sucesso! Pipeline: ${data.processing_pipeline?.join(' → ')}`);
+      setProgress(100);
       
       // Invalidar queries relacionadas
       queryClient.invalidateQueries({ queryKey: ['media'] });
@@ -47,6 +56,7 @@ export const useCreateMediaCommand = () => {
     },
     onError: (error: any) => {
       console.error('❌ CreateMediaCommand falhou:', error);
+      setProgress(0);
       
       let errorMessage = 'Erro ao fazer upload do arquivo';
       if (error?.response?.data?.detail) {
@@ -58,6 +68,8 @@ export const useCreateMediaCommand = () => {
       toast.error(errorMessage);
     },
   });
+
+  return { ...mutation, progress };
 };
 
 export const useReprocessMediaCommand = () => {

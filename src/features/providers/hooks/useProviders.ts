@@ -1,10 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
-import { getProviders, ProviderType } from '../api';
+import { ProviderType } from '../api';
+import { useProviderList } from '../context/ProvidersContext';
 
-export const useProviders = (type: ProviderType) => {
-  return useQuery({
-    queryKey: ['providers', type],
-    queryFn: () => getProviders(type),
-    staleTime: Infinity, // Provider list is static, no need to refetch
-  });
-};
+export const useProviders = (type: ProviderType) => useProviderList(type);

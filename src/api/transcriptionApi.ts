@@ -1,16 +1,8 @@
-
-import axios from "axios";
+import api from "@/lib/api";
 import { Transcription } from "../types";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-const transcriptionApi = axios.create({
-  baseURL: `${API_URL}/transcriptions`,
-  withCredentials: true,
-});
-
 export const getTranscriptionByMediaId = async (mediaId: string): Promise<Transcription> => {
-  const response = await transcriptionApi.get(`/?media_id=${mediaId}`);
+  const response = await api.get(`/transcriptions/?media_id=${mediaId}`);
   return response.data;
 };
 
@@ -35,7 +27,7 @@ export const transcribeAudio = async (
     formData.append("word_timestamps", options.wordTimestamps.toString());
   }
 
-  const response = await transcriptionApi.post("/transcribe", formData, {
+  const response = await api.post("/transcriptions/transcribe", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
@@ -64,7 +56,7 @@ export const reprocessTranscription = async (
     formData.append("force", options.force.toString());
   }
 
-  const response = await transcriptionApi.post("/reprocess", formData, {
+  const response = await api.post("/transcriptions/reprocess", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
@@ -72,4 +64,4 @@ export const reprocessTranscription = async (
   return response.data;
 };
 
-export default transcriptionApi;
+export default { getTranscriptionByMediaId, transcribeAudio, reprocessTranscription };

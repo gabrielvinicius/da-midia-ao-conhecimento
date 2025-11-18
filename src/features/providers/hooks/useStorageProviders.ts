@@ -1,5 +1,3 @@
-import { useStorageProvidersQuery } from '@/hooks/useQueries';
+import { useProviders } from './useProviders';
 
-export const useStorageProviders = () => {
-  return useStorageProvidersQuery();
-};
+export const useStorageProviders = () => useProviders('storage');

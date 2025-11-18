@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
+import { ProvidersProvider } from "./features/providers/context/ProvidersContext";
 
 // Layouts
 import AppLayout from "./components/AppLayout";
@@ -29,7 +30,8 @@ const App = () => {
   return (
     <AuthProvider>
       <WebSocketProvider>
-        <Router>
+        <ProvidersProvider>
+          <Router>
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
@@ -60,6 +62,7 @@ const App = () => {
             <Route path="*" element={<Navigate to="/login" />} />
           </Routes>
         </Router>
+        </ProvidersProvider>
       </WebSocketProvider>
     </AuthProvider>
   );

@@ -8,6 +8,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import VideoUpload from '../components/VideoUpload';
 import { getVideosByUser, uploadVideo } from '@/services/video.service';
 import { Video } from '@/types';
+import { buildApiUrl } from '@/lib/api';
 
 export default function UserDashboard() {
     const navigate = useNavigate();
@@ -46,7 +47,7 @@ export default function UserDashboard() {
         // Carrega os vídeos iniciais (já feito pelo useQuery acima)
 
         // Configura a conexão SSE
-        const eventSource = new EventSource(`${import.meta.env.VITE_API_URL}/videos/events`);
+        const eventSource = new EventSource(buildApiUrl('/videos/events'));
 
         eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);

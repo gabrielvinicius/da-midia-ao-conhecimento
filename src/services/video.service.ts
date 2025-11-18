@@ -1,5 +1,5 @@
 // src/services/video.service.ts
-import api from "./api";
+import api, { buildApiUrl } from "@/lib/api";
 import { Video } from "@/types";
 
 export const getVideosByUser = async (): Promise<Video[]> => {
@@ -50,7 +50,7 @@ export const subscribeToVideoEvents = (
     onVideoUpdate: (video: Video) => void,
     onError: (error: Event) => void
 ): EventSource => {
-    const eventSource = new EventSource(`${import.meta.env.VITE_API_URL}/videos/events`, {
+    const eventSource = new EventSource(buildApiUrl('/videos/events'), {
         withCredentials: true,
     });
 

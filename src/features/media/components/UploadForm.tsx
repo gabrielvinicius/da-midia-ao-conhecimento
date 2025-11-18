@@ -54,7 +54,7 @@ const uploadSchema = z.object({
 type UploadFormValues = z.infer<typeof uploadSchema>;
 
 export const UploadForm = () => {
-  const { mutate: upload, isPending } = useCreateMediaCommand();
+  const { mutate: upload, isPending, progress } = useCreateMediaCommand();
   const { data: transcriptionProviders } = useProviders("transcription");
   const { data: summarizationProviders } = useProviders("summarization");
   const { data: sentimentProviders } = useProviders("sentiment");
@@ -174,7 +174,19 @@ export const UploadForm = () => {
         {form.formState.errors.file && (
           <p className="text-sm text-destructive">{form.formState.errors.file.message?.toString()}</p>
         )}
-        
+
+        {(isPending || progress > 0) && (
+          <div className="space-y-1">
+            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-150"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">Upload em andamento: {progress}%</p>
+          </div>
+        )}
+
         {selectedFile && (
           <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-md border">
             <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Arquivo Selecionado:</h4>

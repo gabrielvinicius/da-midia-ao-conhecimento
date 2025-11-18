@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../contexts/AuthContext';
-import api from '../services/api';
+import api from '@/lib/api';
+import { buildApiUrl } from '@/lib/api';
 import { toast } from 'react-toastify';
 import { jsPDF } from 'jspdf';
 import { saveAs } from 'file-saver';
@@ -59,7 +60,7 @@ export default function SummaryView() {
     useEffect(() => {
         if (!videoId || videoInfo?.status === 'COMPLETED') return;
 
-        const eventSource = new EventSource(`${import.meta.env.VITE_API_URL}/videos/events`);
+        const eventSource = new EventSource(buildApiUrl('/videos/events'));
 
         eventSource.onmessage = (event) => {
             const data = JSON.parse(event.data);
