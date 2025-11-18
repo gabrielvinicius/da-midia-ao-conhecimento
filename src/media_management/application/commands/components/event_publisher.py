@@ -46,6 +46,8 @@ class DefaultMediaEventPublisher(MediaEventPublisher):
                         else getattr(media, "media_type", None),
                         transcription_provider=getattr(media, "transcription_provider", None),
                         summarization_provider=getattr(media, "summarization_provider", None),
+                        sentiment_provider=getattr(media, "sentiment_provider", None),
+                        topic_modeling_provider=getattr(media, "topic_modeling_provider", None),
                         language=getattr(media, "language", None),
                         file_size_bytes=getattr(media, "file_size", None) or metadata.file_size,
                     )

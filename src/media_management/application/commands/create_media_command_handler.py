@@ -128,6 +128,8 @@ class CreateMediaCommandHandler:
             storage_provider=command.storage_provider,
             transcription_provider=command.transcription_provider,
             summarization_provider=command.summarization_provider,
+            sentiment_provider=command.sentiment_provider,
+            topic_modeling_provider=command.topic_modeling_provider,
             status=MediaStatus.UPLOADED,
         )
 

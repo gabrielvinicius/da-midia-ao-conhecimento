@@ -1,7 +1,6 @@
 # src/providers/bootstrap.py
 from dataclasses import dataclass
 
-from dependency_injector import containers, providers
 from fastapi import FastAPI
 
 from src.providers.api.dependencies import get_provider_registry
@@ -15,21 +14,13 @@ from src.providers.domain.provider import Provider
 from src.providers.infrastructure.provider_registry import InMemoryProviderRegistry
 
 
-class ProvidersContainer(containers.DeclarativeContainer):
-    # Implementações concretas das interfaces de domínio
-    provider_registry: providers.Provider[IProviderRegistry] = providers.Singleton(
-        InMemoryProviderRegistry
-    )
-
-
 @dataclass
 class ProvidersModule:
     provider_registry: IProviderRegistry
 
 
 def build_providers_module() -> ProvidersModule:
-    container = ProvidersContainer()
-    provider_registry = container.provider_registry()
+    provider_registry = InMemoryProviderRegistry()
     _seed_default_providers(provider_registry)
     return ProvidersModule(provider_registry=provider_registry)
 
@@ -138,6 +129,50 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.MULTI_LANGUAGE,
                 ProviderCapability.CUSTOM_MODELS,
             ],
+        ),
+        Provider(
+            name="transformers",
+            provider_type=ProviderType.SENTIMENT_ANALYSIS,
+            status=ProviderStatus.ACTIVE,
+            capabilities=[
+                ProviderCapability.BATCH_PROCESSING,
+                ProviderCapability.MULTI_LANGUAGE,
+            ],
+        ),
+        Provider(
+            name="vader",
+            provider_type=ProviderType.SENTIMENT_ANALYSIS,
+            status=ProviderStatus.ACTIVE,
+            capabilities=[
+                ProviderCapability.BATCH_PROCESSING,
+            ],
+        ),
+        Provider(
+            name="sklearn_lda",
+            provider_type=ProviderType.TOPIC_MODELING,
+            status=ProviderStatus.ACTIVE,
+            capabilities=[
+                ProviderCapability.BATCH_PROCESSING,
+            ],
+            configuration={"algorithm": "LatentDirichletAllocation"},
+        ),
+        Provider(
+            name="bertopic",
+            provider_type=ProviderType.TOPIC_MODELING,
+            status=ProviderStatus.ACTIVE,
+            capabilities=[
+                ProviderCapability.BATCH_PROCESSING,
+                ProviderCapability.MULTI_LANGUAGE,
+            ],
+        ),
+        Provider(
+            name="keyword_frequency",
+            provider_type=ProviderType.TOPIC_MODELING,
+            status=ProviderStatus.ACTIVE,
+            capabilities=[
+                ProviderCapability.BATCH_PROCESSING,
+            ],
+            configuration={"strategy": "tfidf"},
         ),
     ]
 

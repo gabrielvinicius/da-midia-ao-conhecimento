@@ -31,6 +31,8 @@ class MediaUploadService:
         storage_provider: str,
         transcription_provider: Optional[str] = None,
         summarization_provider: Optional[str] = None,
+        sentiment_provider: Optional[str] = None,
+        topic_modeling_provider: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Validate input and dispatch the create media command."""
@@ -43,6 +45,8 @@ class MediaUploadService:
             storage_provider=storage_provider,
             transcription_provider=transcription_provider,
             summarization_provider=summarization_provider,
+            sentiment_provider=sentiment_provider,
+            topic_modeling_provider=topic_modeling_provider,
             metadata=metadata,
         )
 

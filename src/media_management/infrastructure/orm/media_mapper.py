@@ -35,6 +35,8 @@ class MediaMapper:
             storage_provider=entity.storage_provider,
             transcription_provider=entity.transcription_provider,
             summarization_provider=entity.summarization_provider,
+            sentiment_provider=entity.sentiment_provider,
+            topic_modeling_provider=entity.topic_modeling_provider,
             status=entity.status,
             created_at=entity.created_at,
             error_message=entity.error_message,
@@ -60,6 +62,8 @@ class MediaMapper:
             storage_provider=aggregate.storage_provider,
             transcription_provider=aggregate.transcription_provider,
             summarization_provider=aggregate.summarization_provider,
+            sentiment_provider=aggregate.sentiment_provider,
+            topic_modeling_provider=aggregate.topic_modeling_provider,
             status=aggregate.status,
             created_at=_to_naive(aggregate.created_at) or datetime.utcnow(),
             error_message=aggregate.error_message,
@@ -74,6 +78,8 @@ class MediaMapper:
         entity.storage_provider = aggregate.storage_provider
         entity.transcription_provider = aggregate.transcription_provider
         entity.summarization_provider = aggregate.summarization_provider
+        entity.sentiment_provider = aggregate.sentiment_provider
+        entity.topic_modeling_provider = aggregate.topic_modeling_provider
         entity.status = aggregate.status
         entity.error_message = aggregate.error_message
         entity.language = aggregate.language

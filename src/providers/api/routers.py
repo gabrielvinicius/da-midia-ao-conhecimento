@@ -1,5 +1,5 @@
 # src/providers/api/routers.py
-from typing import Annotated, Optional
+from typing import Annotated, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -22,6 +22,88 @@ router = APIRouter(
     prefix="/providers",
     tags=["Providers"],
 )
+
+
+def _list_provider_names(
+    provider_registry: IProviderRegistry,
+    provider_type: ProviderType,
+) -> list[str]:
+    """Return active provider names or fall back to the registered set."""
+
+    providers = provider_registry.get_active_providers(provider_type)
+    if not providers:
+        providers = provider_registry.list_providers(provider_type)
+    return sorted({provider.get_name() for provider in providers})
+
+
+def _serialize_provider_map(provider_registry: IProviderRegistry) -> dict[str, list[str]]:
+    """Build a dictionary keyed by provider type for quick dropdown usage."""
+
+    relevant_types = (
+        ProviderType.STORAGE,
+        ProviderType.TRANSCRIPTION,
+        ProviderType.SUMMARIZATION,
+        ProviderType.SENTIMENT_ANALYSIS,
+        ProviderType.TOPIC_MODELING,
+    )
+    return {
+        provider_type.value: _list_provider_names(provider_registry, provider_type)
+        for provider_type in relevant_types
+    }
+
+
+@router.get(
+    "/",
+    summary="Return provider names grouped by type",
+    response_model=Dict[str, List[str]],
+)
+async def get_provider_name_map(
+    provider_registry: Annotated[IProviderRegistry, Depends(get_provider_registry)],
+    current_user: User = Depends(get_current_user),
+) -> dict[str, list[str]]:
+    """Expose a minimal provider catalogue for upload forms."""
+
+    return _serialize_provider_map(provider_registry)
+
+
+@router.get("/storage", summary="List storage providers", response_model=List[str])
+async def list_storage_providers(
+    provider_registry: Annotated[IProviderRegistry, Depends(get_provider_registry)],
+    current_user: User = Depends(get_current_user),
+) -> list[str]:
+    return _list_provider_names(provider_registry, ProviderType.STORAGE)
+
+
+@router.get("/transcription", summary="List transcription providers", response_model=List[str])
+async def list_transcription_providers(
+    provider_registry: Annotated[IProviderRegistry, Depends(get_provider_registry)],
+    current_user: User = Depends(get_current_user),
+) -> list[str]:
+    return _list_provider_names(provider_registry, ProviderType.TRANSCRIPTION)
+
+
+@router.get("/summarization", summary="List summarization providers", response_model=List[str])
+async def list_summarization_providers(
+    provider_registry: Annotated[IProviderRegistry, Depends(get_provider_registry)],
+    current_user: User = Depends(get_current_user),
+) -> list[str]:
+    return _list_provider_names(provider_registry, ProviderType.SUMMARIZATION)
+
+
+@router.get("/sentiment", summary="List sentiment providers", response_model=List[str])
+async def list_sentiment_providers(
+    provider_registry: Annotated[IProviderRegistry, Depends(get_provider_registry)],
+    current_user: User = Depends(get_current_user),
+) -> list[str]:
+    return _list_provider_names(provider_registry, ProviderType.SENTIMENT_ANALYSIS)
+
+
+@router.get("/topics", summary="List topic modeling providers", response_model=List[str])
+async def list_topic_modeling_providers(
+    provider_registry: Annotated[IProviderRegistry, Depends(get_provider_registry)],
+    current_user: User = Depends(get_current_user),
+) -> list[str]:
+    return _list_provider_names(provider_registry, ProviderType.TOPIC_MODELING)
 
 
 @router.get("/summary", response_model=ProviderSummaryResponse, summary="Get comprehensive provider summary")

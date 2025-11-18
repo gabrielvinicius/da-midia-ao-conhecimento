@@ -21,6 +21,9 @@ class TranscriptionTaskPayload(MediaTaskPayload):
 
     transcription_provider: str = Field(default="default", min_length=1)
     language: str = Field(default="en", min_length=2, max_length=10)
+    summarization_provider: Optional[str] = Field(default=None)
+    sentiment_provider: Optional[str] = Field(default=None)
+    topic_modeling_provider: Optional[str] = Field(default=None)
 
 
 class VideoTaskPayload(MediaTaskPayload):

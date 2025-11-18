@@ -15,5 +15,6 @@ class CreateMediaCommand:
     storage_provider: str
     transcription_provider: Optional[str] = None
     summarization_provider: Optional[str] = None
+    sentiment_provider: Optional[str] = None
+    topic_modeling_provider: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
-

@@ -1,5 +1,6 @@
 # src/media_management/api/schemas.py
 from datetime import datetime
+from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -49,5 +50,25 @@ class MediaResponse(BaseModel):
         json_schema_extra={"example": "PROCESSING"},
     )
     created_at: datetime = Field(..., description="The timestamp when the media was uploaded.")
+    storage_provider: Optional[str] = Field(
+        default=None,
+        description="Storage provider used for the media file.",
+    )
+    transcription_provider: Optional[str] = Field(
+        default=None,
+        description="Transcription provider requested for this media.",
+    )
+    summarization_provider: Optional[str] = Field(
+        default=None,
+        description="Summarization provider selected for downstream tasks.",
+    )
+    sentiment_provider: Optional[str] = Field(
+        default=None,
+        description="Sentiment analysis provider selected for text analysis.",
+    )
+    topic_modeling_provider: Optional[str] = Field(
+        default=None,
+        description="Topic modeling provider selected for text analysis.",
+    )
 
     model_config = ConfigDict(from_attributes=True)

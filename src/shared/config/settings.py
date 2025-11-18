@@ -1,6 +1,7 @@
+import json
 import os
 from dotenv import load_dotenv
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 # Load environment variables from .env file
 load_dotenv(override=True)
@@ -59,6 +60,42 @@ class Settings:
     JAEGER_AGENT_HOST: Optional[str] = os.getenv("JAEGER_AGENT_HOST", "localhost")
     JAEGER_AGENT_PORT: Optional[int] = int(os.getenv("JAEGER_AGENT_PORT", 6831))
 
+    # Topic Modeling Providers
+    TOPIC_MODELING_ENABLED_PROVIDERS: str = os.getenv(
+        "TOPIC_MODELING_ENABLED_PROVIDERS",
+        "sklearn_lda,keyword_frequency,bertopic",
+    )
+    TOPIC_MODELING_DEFAULT_PROVIDER: str = os.getenv(
+        "TOPIC_MODELING_DEFAULT_PROVIDER",
+        "sklearn_lda",
+    )
+    TOPIC_MODELING_PLUGIN_MODULES: str = os.getenv(
+        "TOPIC_MODELING_PLUGIN_MODULES",
+        "",
+    )
+    TOPIC_MODELING_PROVIDER_OVERRIDES: str = os.getenv(
+        "TOPIC_MODELING_PROVIDER_OVERRIDES",
+        "{}",
+    )
+
+    # Sentiment Providers
+    SENTIMENT_ENABLED_PROVIDERS: str = os.getenv(
+        "SENTIMENT_ENABLED_PROVIDERS",
+        "transformers,vader",
+    )
+    SENTIMENT_DEFAULT_PROVIDER: str = os.getenv(
+        "SENTIMENT_DEFAULT_PROVIDER",
+        "transformers",
+    )
+    SENTIMENT_PLUGIN_MODULES: str = os.getenv(
+        "SENTIMENT_PLUGIN_MODULES",
+        "",
+    )
+    SENTIMENT_PROVIDER_OVERRIDES: str = os.getenv(
+        "SENTIMENT_PROVIDER_OVERRIDES",
+        "{}",
+    )
+
     @property
     def database_url(self) -> str:
         return f"{self.DB_SCHEME}://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
@@ -66,5 +103,41 @@ class Settings:
     @property
     def sync_database_url(self) -> str:
         return self.database_url.replace("+asyncpg", "")
+
+    @property
+    def topic_modeling_enabled_list(self) -> List[str]:
+        return [p.strip() for p in self.TOPIC_MODELING_ENABLED_PROVIDERS.split(",") if p.strip()]
+
+    @property
+    def topic_modeling_plugin_modules(self) -> List[str]:
+        return [p.strip() for p in self.TOPIC_MODELING_PLUGIN_MODULES.split(",") if p.strip()]
+
+    @property
+    def topic_modeling_provider_overrides(self) -> Dict[str, Dict[str, Any]]:
+        try:
+            parsed = json.loads(self.TOPIC_MODELING_PROVIDER_OVERRIDES)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+        return {}
+
+    @property
+    def sentiment_enabled_list(self) -> List[str]:
+        return [p.strip() for p in self.SENTIMENT_ENABLED_PROVIDERS.split(",") if p.strip()]
+
+    @property
+    def sentiment_plugin_modules(self) -> List[str]:
+        return [p.strip() for p in self.SENTIMENT_PLUGIN_MODULES.split(",") if p.strip()]
+
+    @property
+    def sentiment_provider_overrides(self) -> Dict[str, Dict[str, Any]]:
+        try:
+            parsed = json.loads(self.SENTIMENT_PROVIDER_OVERRIDES)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+        return {}
 
 settings = Settings()

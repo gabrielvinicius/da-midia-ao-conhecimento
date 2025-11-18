@@ -37,6 +37,8 @@ class MediaAggregate:
     status: MediaStatus = MediaStatus.UPLOADED
     transcription_provider: Optional[str] = None
     summarization_provider: Optional[str] = None
+    sentiment_provider: Optional[str] = None
+    topic_modeling_provider: Optional[str] = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     error_message: Optional[str] = None
     language: Optional[str] = None
@@ -70,6 +72,8 @@ class MediaAggregate:
         storage_provider: str,
         transcription_provider: Optional[str] = None,
         summarization_provider: Optional[str] = None,
+        sentiment_provider: Optional[str] = None,
+        topic_modeling_provider: Optional[str] = None,
         language: Optional[str] = None,
         filename: Optional[str] = None,
         file_size: Optional[int] = None,
@@ -88,6 +92,8 @@ class MediaAggregate:
             storage_provider=storage_provider,
             transcription_provider=transcription_provider,
             summarization_provider=summarization_provider,
+            sentiment_provider=sentiment_provider,
+            topic_modeling_provider=topic_modeling_provider,
             language=language,
             filename=filename,
             file_size=file_size,
@@ -134,6 +140,8 @@ class MediaAggregate:
         error_message: object = _MISSING,
         transcription_provider: Optional[str] = None,
         summarization_provider: Optional[str] = None,
+        sentiment_provider: Optional[str] = None,
+        topic_modeling_provider: Optional[str] = None,
     ) -> "MediaAggregate":
         """Return a copy with the provided fields replaced."""
         updates: dict[str, object] = {}
@@ -157,6 +165,10 @@ class MediaAggregate:
             updates["transcription_provider"] = transcription_provider
         if summarization_provider is not None:
             updates["summarization_provider"] = summarization_provider
+        if sentiment_provider is not None:
+            updates["sentiment_provider"] = sentiment_provider
+        if topic_modeling_provider is not None:
+            updates["topic_modeling_provider"] = topic_modeling_provider
 
         if not updates:
             return self

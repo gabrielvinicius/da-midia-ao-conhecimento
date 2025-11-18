@@ -175,13 +175,18 @@ class MediaProcessingService:
             or context.get("provider")
             or "fastwhisper"
         )
+        summarization_provider = event.summarization_provider or context.get("summarization_provider")
+        sentiment_provider = event.sentiment_provider or context.get("sentiment_provider")
+        topic_provider = event.topic_modeling_provider or context.get("topic_modeling_provider")
         language = event.language or context.get("language") or "en"
         file_size_bytes = event.file_size_bytes or context.get("file_size_bytes") or 0
         media_type_value = event.media_type or context.get("media_type")
         media_type = None
+        media_enum = None
         try:
             from src.media_management.domain.enums import MediaType as _MediaType
 
+            media_enum = _MediaType
             if isinstance(media_type_value, _MediaType):
                 media_type = media_type_value
             elif media_type_value is not None:
@@ -196,6 +201,9 @@ class MediaProcessingService:
                 storage_provider=storage_provider,
                 transcription_provider=transcription_provider,
                 language=language,
+                summarization_provider=summarization_provider,
+                sentiment_provider=sentiment_provider,
+                topic_modeling_provider=topic_provider,
                 file_size_bytes=file_size_bytes,
             )
             process_transcription_task.delay(
@@ -221,7 +229,7 @@ class MediaProcessingService:
                 error=str(exc),
             )
 
-        if media_type == MediaType.VIDEO:
+        if media_enum and media_type == media_enum.VIDEO:
             try:
                 video_payload = VideoTaskPayload(
                     media_id=media_id,
@@ -253,7 +261,7 @@ class MediaProcessingService:
                 "media_uploaded.video_task_skipped",
                 media_id=str(media_id),
                 reason="non_video_media",
-                media_type=str(media_type) if media_type else media_type_value,
+                media_type=str(media_type) if media_type else str(media_type_value),
             )
 
     async def handle_text_content_ready(

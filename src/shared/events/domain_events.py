@@ -46,6 +46,8 @@ class MediaUploaded(DomainEvent):
     file_path: Optional[str] = None
     transcription_provider: Optional[str] = None
     summarization_provider: Optional[str] = None
+    sentiment_provider: Optional[str] = None
+    topic_modeling_provider: Optional[str] = None
     language: Optional[str] = None
     file_size_bytes: Optional[int] = None
 

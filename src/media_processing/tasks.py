@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
+from uuid import UUID
 
 import structlog
 from celery import shared_task
@@ -10,20 +12,165 @@ from src.media_processing.application.schemas import (
 )
 from src.shared.event_bus import InMemoryEventBus
 from src.shared.events.domain_events import TextContentReady
-from src.shared.infrastructure.database import get_sync_db
+from src.shared.infrastructure.database import get_sync_session
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.text_analysis.application.event_handlers import build_text_content_ready_handler
 from src.text_analysis.application.services import TextAnalysisService
 
 logger = structlog.get_logger(__name__)
 
-@shared_task
-def placeholder_media_processing_task():
-    """Placeholder task for media processing."""
-    pass
+@dataclass
+class _MediaDispatchContext:
+    media_id: UUID
+    file_path: str
+    storage_provider: str
+    transcription_provider: str
+    language: str
+    media_type: Optional[str]
+    file_size_bytes: Optional[int]
+    summarization_provider: Optional[str]
+    sentiment_provider: Optional[str]
+    topic_modeling_provider: Optional[str]
 
-# Backward compatibility: some modules still import process_media_task explicitly
-process_media_task = placeholder_media_processing_task
+
+def _load_media_dispatch_context(media_uuid: UUID) -> Optional[_MediaDispatchContext]:
+    from src.media_management.domain.enums import MediaStatus
+    from src.media_management.infrastructure.orm.media_entity import MediaEntity
+
+    with get_sync_session() as session:
+        media: MediaEntity | None = session.get(MediaEntity, media_uuid)
+        if media is None:
+            return None
+
+        media.status = MediaStatus.PROCESSING
+        media.error_message = None
+        session.flush()
+
+        media_type_value = getattr(media, "media_type", None)
+        if media_type_value is not None:
+            media_type_value = getattr(media_type_value, "value", str(media_type_value))
+
+        return _MediaDispatchContext(
+            media_id=media_uuid,
+            file_path=media.original_file_path or "",
+            storage_provider=(media.storage_provider or "local"),
+            transcription_provider=(media.transcription_provider or "fastwhisper"),
+            language=media.language or "en",
+            media_type=media_type_value,
+            file_size_bytes=getattr(media, "file_size", None),
+            summarization_provider=getattr(media, "summarization_provider", None),
+            sentiment_provider=getattr(media, "sentiment_provider", None),
+            topic_modeling_provider=getattr(media, "topic_modeling_provider", None),
+        )
+
+
+def _mark_media_failed(media_uuid: UUID, reason: str) -> None:
+    truncated_reason = reason[:250]
+    from src.media_management.domain.enums import MediaStatus
+    from src.media_management.infrastructure.orm.media_entity import MediaEntity
+
+    with get_sync_session() as session:
+        media: MediaEntity | None = session.get(MediaEntity, media_uuid)
+        if media is None:
+            return
+        media.status = MediaStatus.FAILED
+        media.error_message = truncated_reason
+        session.flush()
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
+def process_media_task(self, media_id: str) -> None:
+    """Entry point that dispatches concrete processing tasks for a media item."""
+    logger.info("media_processing.dispatch.started", media_id=media_id)
+
+    try:
+        media_uuid = UUID(str(media_id))
+    except ValueError:
+        logger.error("media_processing.dispatch.invalid_id", media_id=media_id)
+        return
+
+    try:
+        context = _load_media_dispatch_context(media_uuid)
+    except Exception as exc:
+        logger.error("media_processing.dispatch.db_error", media_id=media_id, error=str(exc), exc_info=True)
+        raise
+
+    if context is None:
+        logger.warning("media_processing.dispatch.media_not_found", media_id=media_id)
+        return
+
+    if not context.file_path:
+        reason = "missing file path for media"
+        logger.error("media_processing.dispatch.missing_file_path", media_id=media_id)
+        _mark_media_failed(media_uuid, reason)
+        return
+
+    try:
+        transcription_payload = TranscriptionTaskPayload(
+            media_id=context.media_id,
+            file_path=context.file_path,
+            storage_provider=context.storage_provider,
+            transcription_provider=context.transcription_provider,
+            language=context.language,
+            file_size_bytes=context.file_size_bytes,
+            summarization_provider=context.summarization_provider,
+            sentiment_provider=context.sentiment_provider,
+            topic_modeling_provider=context.topic_modeling_provider,
+        )
+        process_transcription_task.delay(**transcription_payload.model_dump(mode="json"))
+        logger.info(
+            "media_processing.dispatch.transcription_enqueued",
+            media_id=media_id,
+            provider=context.transcription_provider,
+            language=context.language,
+        )
+    except ValidationError as exc:
+        logger.error(
+            "media_processing.dispatch.invalid_transcription_payload",
+            media_id=media_id,
+            errors=exc.errors(),
+        )
+        _mark_media_failed(media_uuid, "invalid transcription payload")
+        return
+    except Exception as exc:
+        logger.error(
+            "media_processing.dispatch.transcription_enqueue_failed",
+            media_id=media_id,
+            error=str(exc),
+            exc_info=True,
+        )
+        _mark_media_failed(media_uuid, "failed to enqueue transcription task")
+        raise
+
+    if context.media_type == "VIDEO":
+        try:
+            video_payload = VideoTaskPayload(
+                media_id=context.media_id,
+                file_path=context.file_path,
+                storage_provider=context.storage_provider,
+                file_size_bytes=context.file_size_bytes,
+            )
+            process_video_task.delay(**video_payload.model_dump(mode="json"))
+            logger.info(
+                "media_processing.dispatch.video_enqueued",
+                media_id=media_id,
+                storage_provider=context.storage_provider,
+            )
+        except ValidationError as exc:
+            logger.error(
+                "media_processing.dispatch.invalid_video_payload",
+                media_id=media_id,
+                errors=exc.errors(),
+            )
+        except Exception as exc:
+            logger.error(
+                "media_processing.dispatch.video_enqueue_failed",
+                media_id=media_id,
+                error=str(exc),
+                exc_info=True,
+            )
+
+    logger.info("media_processing.dispatch.completed", media_id=media_id)
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
 def process_transcription_task(
@@ -34,6 +181,9 @@ def process_transcription_task(
     transcription_provider: str,
     language: str = "en",
     file_size_bytes: Optional[int] = None,
+    summarization_provider: Optional[str] = None,
+    sentiment_provider: Optional[str] = None,
+    topic_modeling_provider: Optional[str] = None,
 ) -> Optional[str]:
     try:
         payload = TranscriptionTaskPayload.model_validate(
@@ -44,6 +194,9 @@ def process_transcription_task(
                 "transcription_provider": transcription_provider,
                 "language": language,
                 "file_size_bytes": file_size_bytes,
+                "summarization_provider": summarization_provider,
+                "sentiment_provider": sentiment_provider,
+                "topic_modeling_provider": topic_modeling_provider,
             }
         )
     except ValidationError as exc:
@@ -56,7 +209,6 @@ def process_transcription_task(
 
     try:
         # Use synchronous database session for celery tasks
-        from src.shared.infrastructure.database import get_sync_session
         with get_sync_session() as db:
             return _execute_transcription_job_sync(
                 db,
@@ -129,6 +281,9 @@ def _execute_transcription_job_sync(
             storage_provider=payload.storage_provider,
             transcription_provider=payload.transcription_provider,
             language=payload.language,
+            summarization_provider=payload.summarization_provider,
+            sentiment_provider=payload.sentiment_provider,
+            topic_modeling_provider=payload.topic_modeling_provider,
         )
         
         # Commit any pending changes to the database
@@ -178,7 +333,6 @@ def process_video_task(
 
     try:
         # Use synchronous database session for celery tasks
-        from src.shared.infrastructure.database import get_sync_session
         with get_sync_session() as db:
             return _execute_video_processing_job_sync(
                 db,

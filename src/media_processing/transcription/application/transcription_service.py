@@ -19,7 +19,7 @@ logger = structlog.get_logger(__name__)
 
 DEFAULT_SUMMARIZATION_PROVIDER = "builtin"
 DEFAULT_SENTIMENT_PROVIDER = "builtin"
-DEFAULT_TOPIC_PROVIDER = "bertopic"
+DEFAULT_TOPIC_PROVIDER = "sklearn_lda"
 
 
 class TranscriptionService:
@@ -55,6 +55,9 @@ class TranscriptionService:
         storage_provider: str,
         transcription_provider: str,
         language: str,
+        summarization_provider: Optional[str] = None,
+        sentiment_provider: Optional[str] = None,
+        topic_modeling_provider: Optional[str] = None,
     ) -> Optional[str]:
         """Execute transcription workflow synchronously for Celery tasks."""
         start_time = time.monotonic()
@@ -127,6 +130,9 @@ class TranscriptionService:
                 media_id=media_id,
                 language=language,
                 storage_provider=storage_provider,
+                summarization_provider=summarization_provider,
+                sentiment_provider=sentiment_provider,
+                topic_modeling_provider=topic_modeling_provider,
             )
 
             success = True
@@ -202,6 +208,9 @@ class TranscriptionService:
         media_id: UUID,
         language: str,
         storage_provider: str,
+        summarization_provider: Optional[str] = None,
+        sentiment_provider: Optional[str] = None,
+        topic_modeling_provider: Optional[str] = None,
     ) -> None:
         """Synchronous version of publishing text content ready event."""
         if self._event_bus is None:
@@ -217,7 +226,15 @@ class TranscriptionService:
             return
 
         # Build metadata for the event
-        metadata = self._build_text_ready_metadata(transcription, media_id=media_id, language=language, storage_provider=storage_provider)
+        metadata = self._build_text_ready_metadata(
+            transcription,
+            media_id=media_id,
+            language=language,
+            storage_provider=storage_provider,
+            summarization_provider=summarization_provider,
+            sentiment_provider=sentiment_provider,
+            topic_provider=topic_modeling_provider,
+        )
         event = TextContentReady(
             media_id=str(transcription.media_id),
             transcription_id=str(transcription.id),
@@ -252,6 +269,9 @@ class TranscriptionService:
         media_id: UUID,
         language: str,
         storage_provider: str,
+        summarization_provider: Optional[str] = None,
+        sentiment_provider: Optional[str] = None,
+        topic_provider: Optional[str] = None,
     ) -> Dict[str, Any]:
         metadata: Dict[str, Any] = {}
 
@@ -261,9 +281,9 @@ class TranscriptionService:
         if storage_provider:
             metadata["storage_provider"] = storage_provider
 
-        metadata["summarization_provider"] = DEFAULT_SUMMARIZATION_PROVIDER
-        metadata["sentiment_provider"] = DEFAULT_SENTIMENT_PROVIDER
-        metadata["topic_provider"] = DEFAULT_TOPIC_PROVIDER
+        metadata["summarization_provider"] = summarization_provider or DEFAULT_SUMMARIZATION_PROVIDER
+        metadata["sentiment_provider"] = sentiment_provider or DEFAULT_SENTIMENT_PROVIDER
+        metadata["topic_provider"] = topic_provider or DEFAULT_TOPIC_PROVIDER
 
         # Add other metadata as needed
         return metadata
