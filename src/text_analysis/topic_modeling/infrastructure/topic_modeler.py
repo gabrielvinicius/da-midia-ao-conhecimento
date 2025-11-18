@@ -19,6 +19,14 @@ from typing import Any, Callable, Dict, List, Optional
 
 import structlog
 
+from src.providers.domain.interfaces import (
+    IProviderRegistry,
+    ProviderCapability,
+    ProviderStatus,
+    ProviderType,
+)
+from src.providers.domain.provider import Provider
+
 logger = structlog.get_logger(__name__)
 
 try:  # scikit-learn é opcional, mas preferido quando disponível
@@ -74,6 +82,47 @@ def create_registry(
         default_provider=default_provider,
         overrides=overrides,
     )
+
+
+def register_providers_in_registry(
+    topic_registry: "TopicModelerRegistry",
+    provider_registry: IProviderRegistry | None,
+) -> None:
+    """Sync topic modelers with the shared provider registry."""
+
+    if provider_registry is None:
+        return
+
+    capability_map = {
+        "sklearn_lda": [ProviderCapability.BATCH_PROCESSING, ProviderCapability.MULTI_LANGUAGE],
+        "bertopic": [
+            ProviderCapability.BATCH_PROCESSING,
+            ProviderCapability.MULTI_LANGUAGE,
+            ProviderCapability.CUSTOM_MODELS,
+        ],
+        "keyword_frequency": [ProviderCapability.BATCH_PROCESSING],
+    }
+
+    for name, modeler in topic_registry.providers.items():
+        capabilities = capability_map.get(name, [ProviderCapability.BATCH_PROCESSING])
+        provider = Provider(
+            name=name,
+            provider_type=ProviderType.TOPIC_MODELING,
+            status=ProviderStatus.ACTIVE,
+            capabilities=capabilities,
+            version=getattr(modeler, "provider_version", "1.0.0"),
+            configuration={
+                "default": topic_registry.default_provider == name,
+            },
+        )
+        try:
+            provider_registry.register_provider(provider)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.warning(
+                "topic_modeler.provider_registry_register_failed",
+                provider=name,
+                error=str(exc),
+            )
 
 
 class BaseTopicModeler:

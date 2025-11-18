@@ -20,6 +20,7 @@ from src.text_analysis.topic_modeling.infrastructure.metrics import (
 from src.shared.config.settings import settings
 from src.text_analysis.topic_modeling.infrastructure.topic_modeler import (
     create_registry,
+    register_providers_in_registry,
 )
 from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import (
     TopicModelingRepository,
@@ -64,6 +65,7 @@ async def build_topic_modeling_module(
     session: AsyncSession,
     *,
     text_analysis_service,
+    provider_registry=None,
 ) -> TopicModelingModule:
     registry = create_registry(
         enabled=settings.topic_modeling_enabled_list,
@@ -71,6 +73,7 @@ async def build_topic_modeling_module(
         plugin_modules=settings.topic_modeling_plugin_modules,
         overrides=settings.topic_modeling_provider_overrides,
     )
+    register_providers_in_registry(registry, provider_registry)
     container = TopicModelingContainer(
         db=session,
         text_analysis_service=providers.Object(text_analysis_service),

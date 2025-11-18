@@ -52,6 +52,7 @@ async def build_text_analysis_module(
     media_module,
     notification_module,
     monitoring_module,
+    provider_registry=None,
 ) -> TextAnalysisModule:
     """Builds and configures the text analysis module and its dependencies.
     """
@@ -77,6 +78,7 @@ async def build_text_analysis_module(
     topic_module = await build_topic_modeling_module(
         session=session,
         text_analysis_service=text_analysis_service,
+        provider_registry=provider_registry,
     )
 
     logger.info("text_analysis.bootstrap.completed")

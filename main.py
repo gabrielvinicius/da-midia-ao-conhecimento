@@ -134,6 +134,7 @@ async def lifespan(app: FastAPI):
                 media_module=media_module,
                 notification_module=notification_module,
                 monitoring_module=monitoring_module,
+                provider_registry=providers_module.provider_registry,
             )
 
             if getattr(text_analysis_module, "topic_modeling", None) is None:
@@ -145,6 +146,7 @@ async def lifespan(app: FastAPI):
                     topic_module = await build_topic_modeling_module(
                         session=session,
                         text_analysis_service=text_analysis_module.service,
+                        provider_registry=providers_module.provider_registry,
                     )
                     text_analysis_module.topic_modeling = topic_module
                 except Exception as exc:  # pragma: no cover

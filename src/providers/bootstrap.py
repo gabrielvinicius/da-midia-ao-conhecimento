@@ -147,33 +147,6 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.BATCH_PROCESSING,
             ],
         ),
-        Provider(
-            name="sklearn_lda",
-            provider_type=ProviderType.TOPIC_MODELING,
-            status=ProviderStatus.ACTIVE,
-            capabilities=[
-                ProviderCapability.BATCH_PROCESSING,
-            ],
-            configuration={"algorithm": "LatentDirichletAllocation"},
-        ),
-        Provider(
-            name="bertopic",
-            provider_type=ProviderType.TOPIC_MODELING,
-            status=ProviderStatus.ACTIVE,
-            capabilities=[
-                ProviderCapability.BATCH_PROCESSING,
-                ProviderCapability.MULTI_LANGUAGE,
-            ],
-        ),
-        Provider(
-            name="keyword_frequency",
-            provider_type=ProviderType.TOPIC_MODELING,
-            status=ProviderStatus.ACTIVE,
-            capabilities=[
-                ProviderCapability.BATCH_PROCESSING,
-            ],
-            configuration={"strategy": "tfidf"},
-        ),
     ]
 
     for provider in defaults:
