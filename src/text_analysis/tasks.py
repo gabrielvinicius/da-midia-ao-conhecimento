@@ -607,8 +607,6 @@ def _run_topic_modeling_sync(
     from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import TopicModelingRepository
     from src.text_analysis.topic_modeling.infrastructure.logging import StructuredTopicModelingLogger
     from src.text_analysis.topic_modeling.infrastructure.metrics import NoOpTopicModelingMetrics
-    from src.text_analysis.topic_modeling.infrastructure.topic_modeler import BERTopicModeler
-
     registry = create_registry(
         enabled=settings.topic_modeling_enabled_list,
         default_provider=settings.TOPIC_MODELING_DEFAULT_PROVIDER,
