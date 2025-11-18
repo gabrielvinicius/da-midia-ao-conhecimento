@@ -30,6 +30,7 @@ class TextAnalysisTaskDispatcher:
     summarize_text: TaskCallable
     sentiment_analysis: TaskCallable
     topic_modeling: TaskCallable
+    document_processing: TaskCallable
 
     def dispatch(self, task: TaskCallable, *args, **kwargs):
         return task(*args, **kwargs)
@@ -39,6 +40,7 @@ def _default_task_dispatcher() -> TextAnalysisTaskDispatcher:
     """Return a dispatcher wired to Celery `.delay` calls by default."""
     # Importar localmente para evitar importação circular
     from src.text_analysis.tasks import (
+        process_text_document_task,
         process_text_task,
         extract_text_task,
         process_summarization_task,
@@ -51,6 +53,7 @@ def _default_task_dispatcher() -> TextAnalysisTaskDispatcher:
         summarize_text=lambda *a, **kw: process_summarization_task.delay(*a, **kw),
         sentiment_analysis=lambda *a, **kw: process_sentiment_analysis_task.delay(*a, **kw),
         topic_modeling=lambda *a, **kw: process_topic_modeling_task.delay(*a, **kw),
+        document_processing=lambda *a, **kw: process_text_document_task.delay(*a, **kw),
     )
 
 
@@ -113,6 +116,44 @@ class TextAnalysisService:
         )
         logger.info(
             "text_analysis.extract_text_task_scheduled",
+            media_id=media_id,
+            task_id=getattr(task, "id", None),
+        )
+        return {"task_id": getattr(task, "id", None)}
+
+    async def schedule_document_processing_task(
+        self,
+        *,
+        media_id: str,
+        file_path: str,
+        storage_provider: str,
+        extraction_method: str = "basic",
+        language: Optional[str] = None,
+        summarization_provider: Optional[str] = None,
+        sentiment_provider: Optional[str] = None,
+        topic_modeling_provider: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        logger.info(
+            "text_analysis.scheduling_document_processing",
+            media_id=media_id,
+            file_path=file_path,
+            extraction_method=extraction_method,
+        )
+        from src.text_analysis.tasks import process_text_document_task
+
+        task = self._submit(
+            self._dispatcher.document_processing,
+            media_id=media_id,
+            file_path=file_path,
+            storage_provider=storage_provider,
+            extraction_method=extraction_method,
+            language=language,
+            summarization_provider=summarization_provider,
+            sentiment_provider=sentiment_provider,
+            topic_modeling_provider=topic_modeling_provider,
+        )
+        logger.info(
+            "text_analysis.document_processing_task_scheduled",
             media_id=media_id,
             task_id=getattr(task, "id", None),
         )

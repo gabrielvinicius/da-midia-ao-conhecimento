@@ -29,7 +29,11 @@ class MediaUploadValidator:
             raise ValueError("Unsupported file format")
 
         ext = extension[1]
-        if ext not in set(self._settings.allowed_audio_extensions) and ext not in set(
-            self._settings.allowed_video_extensions
-        ):
+        allowed_extensions = (
+            set(self._settings.allowed_audio_extensions)
+            | set(self._settings.allowed_video_extensions)
+            | set(self._settings.allowed_text_extensions)
+        )
+
+        if ext not in allowed_extensions:
             raise ValueError("Unsupported file format")

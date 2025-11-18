@@ -24,6 +24,15 @@ class TextExtractionPayload(MediaTaskPayload):
     extraction_method: str = Field(default="basic", min_length=1)
 
 
+class TextDocumentTaskPayload(TextExtractionPayload):
+    """Payload usado para processar documentos de texto completos."""
+
+    language: Optional[str] = Field(default=None, min_length=2, max_length=16)
+    summarization_provider: Optional[str] = Field(default=None)
+    sentiment_provider: Optional[str] = Field(default=None)
+    topic_modeling_provider: Optional[str] = Field(default=None)
+
+
 class SummarizationTaskPayload(BaseModel):
     """Payload for summarization tasks executed via Celery."""
 
@@ -72,6 +81,7 @@ class TopicExtractionTaskPayload(BaseModel):
 __all__ = [
     "TextProcessPayload",
     "TextExtractionPayload",
+    "TextDocumentTaskPayload",
     "SummarizationTaskPayload",
     "SentimentTaskPayload",
     "TopicModelingTaskPayload",

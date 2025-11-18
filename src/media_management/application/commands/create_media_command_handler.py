@@ -37,7 +37,7 @@ class CreateMediaCommandHandler:
     """Coordinates media upload, persistence, metrics and event publication."""
 
     MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024  # 500MB
-    MIN_FILE_SIZE_BYTES = 1 * 1024  # 1KB
+    MIN_FILE_SIZE_BYTES = 1  # permite qualquer arquivo não vazio
 
     _MEDIA_TYPE_MAP: Dict[str, MediaType] = {
         ".mp3": MediaType.AUDIO,

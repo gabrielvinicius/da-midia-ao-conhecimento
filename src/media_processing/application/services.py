@@ -190,44 +190,52 @@ class MediaProcessingService:
             if isinstance(media_type_value, _MediaType):
                 media_type = media_type_value
             elif media_type_value is not None:
-                media_type = _MediaType(str(media_type_value))
+                candidate = str(media_type_value).upper()
+                media_type = _MediaType(candidate)
         except Exception:
             media_type = None
 
-        try:
-            transcription_payload = TranscriptionTaskPayload(
-                media_id=media_id,
-                file_path=file_path,
-                storage_provider=storage_provider,
-                transcription_provider=transcription_provider,
-                language=language,
-                summarization_provider=summarization_provider,
-                sentiment_provider=sentiment_provider,
-                topic_modeling_provider=topic_provider,
-                file_size_bytes=file_size_bytes,
-            )
-            process_transcription_task.delay(
-                **transcription_payload.model_dump(mode="json")
-            )
+        if media_enum and media_type == media_enum.TEXT:
             self._logger.debug(
-                "media_uploaded.transcription_task_enqueued",
+                "media_uploaded.transcription_task_skipped",
                 media_id=str(media_id),
-                storage_provider=storage_provider,
-                transcription_provider=transcription_provider,
-                language=language,
+                reason="text_document",
             )
-        except ValidationError as exc:
-            self._logger.error(
-                "media_uploaded.transcription_payload_invalid",
-                media_id=str(media_id),
-                errors=exc.errors(),
-            )
-        except Exception as exc:  # pragma: no cover - defensive logging
-            self._logger.error(
-                "media_uploaded.transcription_enqueue_failed",
-                media_id=str(media_id),
-                error=str(exc),
-            )
+        else:
+            try:
+                transcription_payload = TranscriptionTaskPayload(
+                    media_id=media_id,
+                    file_path=file_path,
+                    storage_provider=storage_provider,
+                    transcription_provider=transcription_provider,
+                    language=language,
+                    summarization_provider=summarization_provider,
+                    sentiment_provider=sentiment_provider,
+                    topic_modeling_provider=topic_provider,
+                    file_size_bytes=file_size_bytes,
+                )
+                process_transcription_task.delay(
+                    **transcription_payload.model_dump(mode="json")
+                )
+                self._logger.debug(
+                    "media_uploaded.transcription_task_enqueued",
+                    media_id=str(media_id),
+                    storage_provider=storage_provider,
+                    transcription_provider=transcription_provider,
+                    language=language,
+                )
+            except ValidationError as exc:
+                self._logger.error(
+                    "media_uploaded.transcription_payload_invalid",
+                    media_id=str(media_id),
+                    errors=exc.errors(),
+                )
+            except Exception as exc:  # pragma: no cover - defensive logging
+                self._logger.error(
+                    "media_uploaded.transcription_enqueue_failed",
+                    media_id=str(media_id),
+                    error=str(exc),
+                )
 
         if media_enum and media_type == media_enum.VIDEO:
             try:

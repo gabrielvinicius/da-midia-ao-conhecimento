@@ -238,3 +238,4 @@ class TextExtractionRequest:
     file_type: TextType
     filename: str
     extraction_options: Dict[str, Any]
+    quality_threshold: float = 0.8

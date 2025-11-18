@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import structlog
@@ -19,6 +21,7 @@ from src.text_analysis.summarization.infrastructure.summarization_repository imp
 from src.text_analysis.application.schemas import (
     SentimentTaskPayload,
     SummarizationTaskPayload,
+    TextDocumentTaskPayload,
     TextExtractionPayload,
     TextProcessPayload,
     TopicModelingTaskPayload,
@@ -42,14 +45,9 @@ from sqlalchemy.orm import Session
 from src.shared.event_bus import InMemoryEventBus
 from src.shared.events.domain_events import TextContentReady
 from src.text_analysis.application.event_handlers import build_text_content_ready_handler
-# Removido import circular: from src.text_analysis.application.services import TextAnalysisService
+from src.text_analysis.application.services import TextAnalysisService
 
 logger = structlog.get_logger(__name__)
-
-@shared_task
-def placeholder_text_analysis_task():
-    """Placeholder task for text analysis."""
-    pass
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
 def process_text_task(
@@ -161,18 +159,73 @@ def extract_text_task(
         )
         return None
 
+    logger.info(
+        "text_extraction.task_received",
+        media_id=media_id,
+        file_path=file_path,
+        extraction_method=extraction_method,
+        storage_provider=payload.storage_provider,
+    )
+
     try:
         return _run_text_extraction_sync(payload)
-    except Exception as e:
+    except Exception as exc:  # pragma: no cover - defensive logging guard
         logger.error(
             "text_extraction.task_failed",
-            extra={
-                "media_id": media_id,
-                "error": str(e),
-            },
+            media_id=media_id,
+            error=str(exc),
             exc_info=True,
         )
+        raise
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
+def process_text_document_task(
+    self,
+    *,
+    media_id: str,
+    file_path: str,
+    storage_provider: str,
+    extraction_method: str = "basic",
+    language: Optional[str] = None,
+    summarization_provider: Optional[str] = None,
+    sentiment_provider: Optional[str] = None,
+    topic_modeling_provider: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    try:
+        payload = TextDocumentTaskPayload.model_validate(
+            {
+                "media_id": media_id,
+                "file_path": file_path,
+                "storage_provider": storage_provider,
+                "extraction_method": extraction_method,
+                "language": language,
+                "summarization_provider": summarization_provider,
+                "sentiment_provider": sentiment_provider,
+                "topic_modeling_provider": topic_modeling_provider,
+            }
+        )
+    except ValidationError as exc:
+        logger.error(
+            "text_document.task_invalid_payload",
+            media_id=media_id,
+            errors=exc.errors(),
+        )
         return None
+
+    from src.shared.infrastructure.database import get_sync_session
+
+    try:
+        with get_sync_session() as db:
+            return _run_text_document_pipeline(db, payload)
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.error(
+            "text_document.task_failed",
+            media_id=media_id,
+            error=str(exc),
+            exc_info=True,
+        )
+        raise
 
 def _run_text_extraction_sync(
     payload: TextExtractionPayload,
@@ -230,6 +283,141 @@ def _run_text_extraction_sync(
     finally:
         duration = time.monotonic() - start_time
         # TODO: Adicionar logging e métricas aqui
+
+
+def _run_text_document_pipeline(db, payload: TextDocumentTaskPayload) -> Dict[str, Any]:
+    """Executa download, extração e publicação para documentos de texto."""
+    storage_factory = StorageServiceFactory()
+    container = TextProcessingContainer(
+        db=db,
+        storage_factory=storage_factory,
+        storage_provider=payload.storage_provider,
+    )
+    extractor: TextExtractor = container.text_extractor()
+
+    extracted_text = extractor.extract_text_sync(
+        file_path=payload.file_path,
+        extraction_method=payload.extraction_method,
+        storage_provider=payload.storage_provider,
+    )
+
+    if not extracted_text.strip():
+        raise ValueError("Extracted text is empty")
+
+    result = _persist_text_document(
+        db=db,
+        payload=payload,
+        extracted_text=extracted_text,
+    )
+    logger.info(
+        "text_document.pipeline.completed",
+        media_id=str(payload.media_id),
+        transcription_id=result.get("transcription_id"),
+    )
+    return result
+
+
+def _persist_text_document(
+    *,
+    db,
+    payload: TextDocumentTaskPayload,
+    extracted_text: str,
+) -> Dict[str, Any]:
+    from src.media_management.domain.enums import MediaStatus
+    from src.media_management.infrastructure.orm.media_entity import MediaEntity
+    from src.media_processing.transcription.domain.transcription import (
+        Transcription,
+        TranscriptionStatus,
+    )
+    from src.media_processing.transcription.infrastructure.transcription_repository import (
+        TranscriptionRepository,
+    )
+
+    now = datetime.now(timezone.utc)
+    repo = TranscriptionRepository(db)
+    transcription = repo.get_by_media_id_sync(payload.media_id)
+
+    if transcription is None:
+        transcription = Transcription(
+            media_id=payload.media_id,
+            content=extracted_text,
+            language=payload.language,
+            provider="text-document",
+            status=TranscriptionStatus.COMPLETED,
+            processed_at=now,
+            updated_at=now,
+        )
+        repo.add_sync(transcription)
+    else:
+        transcription.content = extracted_text
+        transcription.language = payload.language or transcription.language
+        transcription.provider = "text-document"
+        transcription.status = TranscriptionStatus.COMPLETED
+        transcription.processed_at = now
+        transcription.updated_at = now
+        repo.update_sync(transcription)
+
+    media_entity: MediaEntity | None = db.get(MediaEntity, payload.media_id)
+    if media_entity is not None:
+        media_entity.status = MediaStatus.COMPLETED
+        media_entity.error_message = None
+        if payload.language:
+            media_entity.language = payload.language
+        if payload.summarization_provider:
+            media_entity.summarization_provider = payload.summarization_provider
+        if payload.sentiment_provider:
+            media_entity.sentiment_provider = payload.sentiment_provider
+        if payload.topic_modeling_provider:
+            media_entity.topic_modeling_provider = payload.topic_modeling_provider
+
+    db.flush()
+    db.commit()
+
+    _publish_text_document_event(transcription, payload, extracted_text)
+
+    return {
+        "success": True,
+        "media_id": str(payload.media_id),
+        "transcription_id": str(transcription.id),
+    }
+
+
+def _publish_text_document_event(
+    transcription,
+    payload: TextDocumentTaskPayload,
+    extracted_text: str,
+) -> None:
+    event_bus = InMemoryEventBus()
+    text_analysis_service = TextAnalysisService()
+    event_bus.subscribe(
+        TextContentReady,
+        build_text_content_ready_handler(text_analysis_service),
+    )
+
+    metadata = {
+        "language": payload.language,
+        "storage_provider": payload.storage_provider,
+        "summarization_provider": payload.summarization_provider,
+        "sentiment_provider": payload.sentiment_provider,
+        "topic_provider": payload.topic_modeling_provider,
+    }
+    metadata = {k: v for k, v in metadata.items() if v is not None}
+
+    event = TextContentReady(
+        media_id=str(transcription.media_id),
+        transcription_id=str(transcription.id),
+        text_content=extracted_text,
+        metadata=metadata,
+    )
+
+    try:
+        asyncio.run(event_bus.publish(event))
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(event_bus.publish(event))
+        finally:
+            loop.close()
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5, countdown=5)
 def process_summarization_task(

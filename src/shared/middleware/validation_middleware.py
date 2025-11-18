@@ -31,16 +31,18 @@ class ContentValidationMiddleware(BaseHTTPMiddleware):
         app,
         *,
         allowed_content_types: Optional[Iterable[str]] = None,
-        max_body_size: int = 100 * 1024 * 1024,
+        max_body_size: int = 600 * 1024 * 1024,
     ) -> None:
         super().__init__(app)
-        self.allowed_content_types = {
+        default_content_types = {
             "application/json",
             "multipart/form-data",
             "application/x-www-form-urlencoded",
+            "text/plain",  # support raw text uploads (e.g., .txt summaries)
         }
         if allowed_content_types:
-            self.allowed_content_types.update(allowed_content_types)
+            default_content_types.update(allowed_content_types)
+        self.allowed_content_types = default_content_types
         self.max_body_size = max_body_size
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
@@ -95,7 +97,8 @@ class ContentValidationMiddleware(BaseHTTPMiddleware):
     @staticmethod
     def _build_response(status_code: int, validation_errors: Sequence[dict]) -> JSONResponse:
         error_response = create_validation_error_response(list(validation_errors))
-        return JSONResponse(status_code=status_code, content=error_response.model_dump())
+        payload = error_response.model_dump(mode="json")
+        return JSONResponse(status_code=status_code, content=jsonable_encoder(payload))
 
 
 from fastapi.encoders import jsonable_encoder

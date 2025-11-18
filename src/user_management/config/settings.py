@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Tuple
+from typing import Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -25,6 +25,12 @@ class AuthSettings:
             for origin in os.getenv("AUTH_ALLOWED_ORIGINS", "").split(",")
             if origin.strip()
         )
+    )
+    cookie_secure: bool = field(
+        default_factory=lambda: os.getenv("AUTH_COOKIE_SECURE", "0").lower() in {"1", "true", "yes"}
+    )
+    cookie_samesite: str = field(
+        default_factory=lambda: os.getenv("AUTH_COOKIE_SAMESITE", "lax").lower()
     )
 
 

@@ -105,6 +105,36 @@ def process_media_task(self, media_id: str) -> None:
         _mark_media_failed(media_uuid, reason)
         return
 
+    if (context.media_type or "").upper() == "TEXT":
+        try:
+            from src.text_analysis.tasks import process_text_document_task
+
+            process_text_document_task.delay(
+                media_id=str(context.media_id),
+                file_path=context.file_path,
+                storage_provider=context.storage_provider,
+                extraction_method="basic",
+                language=context.language,
+                summarization_provider=context.summarization_provider,
+                sentiment_provider=context.sentiment_provider,
+                topic_modeling_provider=context.topic_modeling_provider,
+            )
+            logger.info(
+                "media_processing.dispatch.text_task_enqueued",
+                media_id=media_id,
+                storage_provider=context.storage_provider,
+            )
+            return
+        except Exception as exc:
+            logger.error(
+                "media_processing.dispatch.text_task_failed",
+                media_id=media_id,
+                error=str(exc),
+                exc_info=True,
+            )
+            _mark_media_failed(media_uuid, str(exc))
+            return
+
     try:
         transcription_payload = TranscriptionTaskPayload(
             media_id=context.media_id,
@@ -142,7 +172,7 @@ def process_media_task(self, media_id: str) -> None:
         _mark_media_failed(media_uuid, "failed to enqueue transcription task")
         raise
 
-    if context.media_type == "VIDEO":
+    if (context.media_type or "").upper() == "VIDEO":
         try:
             video_payload = VideoTaskPayload(
                 media_id=context.media_id,
