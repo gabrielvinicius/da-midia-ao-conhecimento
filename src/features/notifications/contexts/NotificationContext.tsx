@@ -28,10 +28,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    const ws = new WebSocket(`${WS_URL}/notifications/ws?token=${token}`);
+    const ws = new WebSocket(`${WS_URL}/notifications/ws`);
 
     ws.onopen = () => {
       console.log('Notifications WebSocket connected');

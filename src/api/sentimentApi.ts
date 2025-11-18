@@ -6,30 +6,34 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const sentimentApi = axios.create({
   baseURL: `${API_URL}/sentiment-analysis`,
+  withCredentials: true,
 });
 
-sentimentApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+const handle404 = (error: any) => {
+  if (error?.response?.status === 404) {
+    return null;
   }
-  return config;
-});
+  throw error;
+};
 
-export const getSentimentAnalysisByMediaId = async (mediaId: string): Promise<SentimentAnalysisResult> => {
-  const response = await sentimentApi.get(`/?media_id=${mediaId}`);
-  return response.data;
+export const getSentimentAnalysisByMediaId = async (mediaId: string): Promise<SentimentAnalysisResult | null> => {
+  try {
+    const response = await sentimentApi.get(`/?media_id=${mediaId}`);
+    return response.data;
+  } catch (error: any) {
+    return handle404(error);
+  }
 };
 
 export const reprocessSentimentAnalysis = async (
-  mediaId: string,
+  transcriptionId: string,
   options?: {
     provider?: string;
     force?: boolean;
   }
 ): Promise<SentimentAnalysisAcceptedResponse> => {
   const formData = new FormData();
-  formData.append("media_id", mediaId);
+  formData.append("transcription_id", transcriptionId);
   
   if (options?.provider) {
     formData.append("provider", options.provider);

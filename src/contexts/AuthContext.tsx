@@ -18,11 +18,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Function to fetch the current user
 const fetchCurrentUser = async (): Promise<User | null> => {
-  if (!authService.isAuthenticated()) {
-    console.log('🔍 Usuário não autenticado');
-    return null;
-  }
-
   try {
     console.log('👤 Buscando dados do usuário atual...');
     const user = await authService.getCurrentUser();
@@ -30,7 +25,6 @@ const fetchCurrentUser = async (): Promise<User | null> => {
     return user;
   } catch (error) {
     console.error('❌ Erro ao buscar usuário:', error);
-    // Limpar dados de auth se token inválido
     authService.clearLocalAuth();
     return null;
   }
@@ -46,17 +40,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     queryFn: fetchCurrentUser,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: false, // Don't retry on failure, as it means user is not logged in
-    enabled: authService.isAuthenticated(), // Only run if authenticated
-    refetchOnWindowFocus: false, // Não refetch automaticamente
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
     if (currentUser) {
       setUser(currentUser);
       console.log('✅ Usuário definido no contexto:', currentUser);
-    } else if (currentUser === null && authService.isAuthenticated()) {
-      // Se a query retornou null mas ainda há token, pode ser erro temporário
-      console.warn('⚠️ Query retornou null mas usuário está autenticado');
     }
   }, [currentUser]);
 
@@ -89,7 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const value = {
     user,
     setUser,
-    isAuthenticated: !!user && authService.isAuthenticated(),
+    isAuthenticated: !!user,
     isLoading,
     logout,
     refreshToken,

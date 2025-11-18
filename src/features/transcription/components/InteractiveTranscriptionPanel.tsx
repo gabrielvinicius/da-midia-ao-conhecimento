@@ -44,21 +44,24 @@ export const InteractiveTranscriptionPanel = ({ mediaId, mediaType }: Interactiv
     }
   };
 
+  const resolvedText = transcription?.result?.text ?? transcription?.text ?? "";
+  const resolvedSegments = transcription?.result?.segments ?? [];
+  const isDiarized = transcription?.result?.diarized ?? resolvedSegments.some((segment) => Boolean(segment.speaker));
+
   const handleDownload = () => {
-    if (transcription && transcription.result?.text) {
-      const blob = new Blob([transcription.result.text], { type: "text/plain;charset=utf-8" });
+    if (transcription && resolvedText) {
+      const blob = new Blob([resolvedText], { type: "text/plain;charset=utf-8" });
       saveAs(blob, `transcription-${mediaId}.txt`);
     }
   };
 
-  const canDownload = transcription?.status === TranscriptionStatus.COMPLETED && !!transcription.result?.text;
-  const isDiarized = transcription?.result?.diarized === true;
+  const canDownload = transcription?.status === TranscriptionStatus.COMPLETED && !!resolvedText;
 
   const renderContent = () => {
     if (isLoading) {
       return <Skeleton className="h-48 w-full" />;
     }
-    if (isError || !transcription || !transcription.result) {
+    if (isError || !transcription) {
       return <p className="text-muted-foreground">Transcription not available.</p>;
     }
 
@@ -74,7 +77,7 @@ export const InteractiveTranscriptionPanel = ({ mediaId, mediaType }: Interactiv
           <div className="text-center text-sm text-muted-foreground p-2">Identifying speakers...</div>
         )}
         <div className="h-96 overflow-y-auto space-y-2 rounded-md border p-4 bg-muted/20">
-          {transcription.result.segments.map((segment, index) => {
+          {resolvedSegments.map((segment, index) => {
             const isActive = currentTime >= segment.start && currentTime < segment.end;
             const speakerId = segment.speaker || 'UNKNOWN';
             // Use the alias if it exists, otherwise fall back to the speaker ID

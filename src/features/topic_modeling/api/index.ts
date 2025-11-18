@@ -1,13 +1,22 @@
 import api from '@/lib/api';
 import { TopicModelingAcceptedResponse, TopicModelingResult } from '@/types';
 
-export const getTopicModelingResult = async (mediaId: string): Promise<TopicModelingResult> => {
+const handle404 = (error: any) => {
+  if (error?.response?.status === 404) {
+    return null;
+  }
+  throw error;
+};
+
+export const getTopicModelingResult = async (mediaId: string): Promise<TopicModelingResult | null> => {
   console.log('📊 Buscando resultado de modelagem de tópicos para mídia:', mediaId);
-  
-  const response = await api.get<TopicModelingResult>(`/topic-modeling/?media_id=${mediaId}`);
-  console.log('✅ Resultado de modelagem de tópicos obtido:', response.data);
-  
-  return response.data;
+  try {
+    const response = await api.get<TopicModelingResult>(`/topic-modeling/?media_id=${mediaId}`);
+    console.log('✅ Resultado de modelagem de tópicos obtido:', response.data);
+    return response.data;
+  } catch (error: any) {
+    return handle404(error);
+  }
 };
 
 export const reprocessTopicModeling = async (
@@ -39,13 +48,15 @@ export const reprocessTopicModeling = async (
   return response.data;
 };
 
-export const getTopicModeling = async (mediaId: string): Promise<TopicModelingResult> => {
+export const getTopicModeling = async (mediaId: string): Promise<TopicModelingResult | null> => {
   console.log('🏷️ Buscando topic modeling para mídia:', mediaId);
-  
-  const response = await api.get<TopicModelingResult>(`/topic-modeling/?media_id=${mediaId}`);
-  console.log('✅ Topic modeling obtido:', response.data);
-  
-  return response.data;
+  try {
+    const response = await api.get<TopicModelingResult>(`/topic-modeling/?media_id=${mediaId}`);
+    console.log('✅ Topic modeling obtido:', response.data);
+    return response.data;
+  } catch (error: any) {
+    return handle404(error);
+  }
 };
 
 export const getAllTopicModeling = async (): Promise<TopicModelingResult[]> => {

@@ -95,10 +95,6 @@ export const useAuthenticateUserCommand = () => {
   return useMutation({
     mutationFn: (command: AuthenticateUserCommand) => executeAuthenticateUser(command),
     onSuccess: async (data) => {
-      if (data.access_token) {
-        localStorage.setItem('token', data.access_token);
-      }
-      
       try {
         // Buscar dados do usuário após login
         const { getCurrentUser } = await import('@/api/queries');

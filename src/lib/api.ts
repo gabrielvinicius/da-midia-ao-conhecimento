@@ -3,38 +3,18 @@ import { toast } from 'react-toastify';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-/**
- * @deprecated Use secureApi from './secure-api.ts' instead
- * This legacy API client is kept for backward compatibility
- */
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
 // Request interceptor to add the auth token to headers
 api.interceptors.request.use(
   (config) => {
-    // Buscar token do localStorage
-    const token = localStorage.getItem('token');
-    if (token) {
-      // Garantir que o header Authorization existe
-      if (!config.headers) {
-        config.headers = new axios.AxiosHeaders();
-      }
-      config.headers.Authorization = `Bearer ${token}`;
-      
-      console.log('🔑 Token adicionado ao request:', {
-        url: config.url,
-        method: config.method,
-        hasToken: !!token,
-        tokenPreview: token.substring(0, 20) + '...'
-      });
-    } else {
-      console.warn('⚠️ Nenhum token encontrado no localStorage para request:', config.url);
-    }
+    // Nada para anexar: cookies httpOnly já viajam por withCredentials
     return config;
   },
   (error) => {
@@ -66,51 +46,38 @@ api.interceptors.response.use(
     });
     
     // Se erro 401 e não é uma requisição de auth, tentar refresh
-    if (error.response?.status === 401 && 
-        originalRequest && 
-        !originalRequest.url?.includes('/auth/token') &&
-        !originalRequest.url?.includes('/auth/refresh') &&
-        !originalRequest._retry) {
-      
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest.url?.includes('/auth/token') &&
+      !originalRequest._retry
+    ) {
       originalRequest._retry = true;
-      
-      console.log('🔄 Tentando refresh automático do token...');
-      
+      console.log('🔄 Tentando refresh automático com cookies...');
+
       try {
-        // Importar AuthService dinamicamente para evitar dependência circular
         const { default: authService } = await import('../services/auth.service');
-        
-        // Tentar refresh token
         await authService.refreshToken();
-        
-        console.log('✅ Token refreshed, repetindo requisição original');
-        
-        // Repetir a requisição original com o novo token
+        console.log('✅ Sessão renovada, repetindo requisição original');
         return api.request(originalRequest);
-        
       } catch (refreshError) {
         console.error('❌ Refresh token falhou:', refreshError);
-        
-        // Limpar dados de auth e redirecionar
-        localStorage.removeItem('token');
-        sessionStorage.removeItem('csrf_token');
+        const { default: authService } = await import('../services/auth.service');
+        authService.clearLocalAuth();
         toast.error('Sessão expirada. Faça login novamente.');
-        
         if (!window.location.pathname.includes('/login')) {
           window.location.href = '/login';
         }
-        
         return Promise.reject(refreshError);
       }
     }
-    
-    // Tratar outros códigos de status
+
     if (error.response?.status === 401) {
-      console.warn('🔐 Token inválido ou expirado');
-      localStorage.removeItem('token');
-      sessionStorage.removeItem('csrf_token');
+      console.warn('🔐 Sessão inválida ou expirada');
+      const { default: authService } = await import('../services/auth.service');
+      authService.clearLocalAuth();
       toast.error('Sessão expirada. Faça login novamente.');
-      
+
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
       }

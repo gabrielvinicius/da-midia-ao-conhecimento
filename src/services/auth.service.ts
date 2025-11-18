@@ -12,9 +12,7 @@ export interface RegisterData {
 }
 
 export interface TokenResponse {
-    access_token: string;
-    token_type: string;
-    csrf_token?: string;
+    message: string;
 }
 
 import { UserRole } from "../types";
@@ -35,6 +33,11 @@ class AuthService {
     private static instance: AuthService;
     private refreshPromise: Promise<void> | null = null;
     private isRefreshing = false;
+    private hasActiveSession: boolean;
+
+    private constructor() {
+        this.hasActiveSession = sessionStorage.getItem('has_session') === 'true';
+    }
 
     public static getInstance(): AuthService {
         if (!AuthService.instance) {
@@ -44,43 +47,24 @@ class AuthService {
     }
 
     /**
-     * Login com token no localStorage (legacy mode)
+     * Login usando cookies httpOnly entregues pelo backend FastAPI
      */
-    async loginLegacy(data: LoginData): Promise<TokenResponse> {
-        console.log('🔐 Login Legacy - usando localStorage');
-        const response = await api.post<TokenResponse>("/auth/token/legacy", {
-            username: data.username,
-            password: data.password
-        });
-        
-        // Armazenar token no localStorage
-        if (response.data.access_token) {
-            localStorage.setItem('token', response.data.access_token);
-            console.log('✅ Token armazenado no localStorage');
-        }
-        
-        return response.data;
-    }
+    async login(data: LoginData): Promise<TokenResponse> {
+        console.log('🛡️ Login usando cookies httpOnly');
 
-    /**
-     * Login seguro com cookies httpOnly
-     */
-    async loginSecure(data: LoginData): Promise<TokenResponse> {
-        console.log('🛡️ Login Seguro - usando cookies httpOnly');
-        const response = await api.post<TokenResponse>("/auth/token", {
-            username: data.username,
-            password: data.password
-        }, {
-            withCredentials: true // Importante para cookies
+        const payload = new URLSearchParams();
+        payload.append('username', data.username);
+        payload.append('password', data.password);
+
+        const response = await api.post<TokenResponse>("/auth/token", payload, {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
         });
-        
-        // Com login seguro, o token vai para cookies httpOnly
-        // Só salvamos o CSRF token se necessário
-        if (response.data.csrf_token) {
-            sessionStorage.setItem('csrf_token', response.data.csrf_token);
-            console.log('✅ CSRF token armazenado');
-        }
-        
+
+        this.hasActiveSession = true;
+        sessionStorage.setItem('has_session', 'true');
+
         return response.data;
     }
 
@@ -97,6 +81,8 @@ class AuthService {
      */
     async getCurrentUser(): Promise<User> {
         const response = await api.get<User>("/auth/me");
+        this.hasActiveSession = true;
+        sessionStorage.setItem('has_session', 'true');
         return response.data;
     }
 
@@ -104,33 +90,11 @@ class AuthService {
      * Refresh token (apenas para modo seguro)
      */
     async refreshToken(): Promise<TokenResponse> {
-        if (this.isRefreshing && this.refreshPromise) {
-            await this.refreshPromise;
-            return { access_token: 'refreshed', token_type: 'bearer' };
-        }
-
-        this.isRefreshing = true;
-        this.refreshPromise = this._performRefresh();
-
-        try {
-            const result = await this.refreshPromise;
-            return { access_token: 'refreshed', token_type: 'bearer' };
-        } finally {
-            this.isRefreshing = false;
-            this.refreshPromise = null;
-        }
+        throw new Error('Refresh token não suportado pelo backend atual');
     }
 
     private async _performRefresh(): Promise<void> {
-        console.log('🔄 Refreshing token...');
-        const response = await api.post<TokenResponse>("/auth/refresh", {}, {
-            withCredentials: true
-        });
-        
-        if (response.data.csrf_token) {
-            sessionStorage.setItem('csrf_token', response.data.csrf_token);
-            console.log('✅ Token refreshed successfully');
-        }
+        throw new Error('Refresh token não suportado');
     }
 
     /**
@@ -138,14 +102,10 @@ class AuthService {
      */
     async logout(): Promise<void> {
         try {
-            // Tentar logout no servidor (para cookies)
-            await api.post("/auth/logout", {}, {
-                withCredentials: true
-            });
+            await api.post("/auth/logout", {});
         } catch (error) {
             console.warn('Logout no servidor falhou:', error);
         } finally {
-            // Limpar dados locais sempre
             this.clearLocalAuth();
         }
     }
@@ -161,8 +121,9 @@ class AuthService {
      * Limpar dados de autenticação local
      */
     clearLocalAuth(): void {
-        localStorage.removeItem('token');
         sessionStorage.removeItem('csrf_token');
+        sessionStorage.removeItem('has_session');
+        this.hasActiveSession = false;
         console.log('🧹 Dados de autenticação limpos');
     }
 
@@ -170,16 +131,14 @@ class AuthService {
      * Verificar se o usuário está autenticado
      */
     isAuthenticated(): boolean {
-        const token = localStorage.getItem('token');
-        // TODO: Verificar se o token não está expirado
-        return !!token;
+        return this.hasActiveSession;
     }
 
     /**
      * Obter token atual
      */
     getToken(): string | null {
-        return localStorage.getItem('token');
+        return null;
     }
 
     /**
@@ -195,8 +154,8 @@ const authService = AuthService.getInstance();
 export default authService;
 
 // Exportar métodos individuais para compatibilidade
-export const login = (data: LoginData) => authService.loginLegacy(data);
-export const loginSecure = (data: LoginData) => authService.loginSecure(data);
+export const login = (data: LoginData) => authService.login(data);
+export const loginSecure = (data: LoginData) => authService.login(data);
 export const register = (data: RegisterData) => authService.register(data);
 export const getCurrentUser = () => authService.getCurrentUser();
 export const logout = () => authService.logout();

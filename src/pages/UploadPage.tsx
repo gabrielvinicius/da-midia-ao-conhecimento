@@ -1,8 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/Card";
 import { UploadForm } from "../features/media/components/UploadForm";
-import { DebugUpload } from "../components/DebugUpload";
-import { SimpleUpload } from "../components/SimpleUpload";
-import { TokenTest } from "../components/TokenTest";
 
 const UploadPage = () => {
   return (
@@ -21,11 +18,6 @@ const UploadPage = () => {
           </CardContent>
         </Card>
 
-        {/* Componentes de Teste - Remover em produção */}
-        <TokenTest />
-        <SimpleUpload />
-        <DebugUpload />
-
         {/* File Type Information Cards */}
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -43,7 +35,7 @@ const UploadPage = () => {
                 <strong>Formatos:</strong> .mp4, .webm, .mov, .avi, .mkv
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                <strong>Processamento:</strong> Transcrição → Sumarização → Análise de Sentimento
+                <strong>Processamento:</strong> Transcrição → Sumarização → Sentimento → Tópicos
               </p>
               <p className="text-sm text-blue-600 dark:text-blue-400">
                 Ideal para: Reuniões, aulas, entrevistas
@@ -62,7 +54,7 @@ const UploadPage = () => {
                 <strong>Formatos:</strong> .mp3, .wav, .m4a, .flac
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                <strong>Processamento:</strong> Transcrição → Sumarização → Análise de Sentimento
+                <strong>Processamento:</strong> Transcrição → Sumarização → Sentimento → Tópicos
               </p>
               <p className="text-sm text-blue-600 dark:text-blue-400">
                 Ideal para: Podcasts, gravações, chamadas
@@ -81,7 +73,7 @@ const UploadPage = () => {
                 <strong>Formatos:</strong> .pdf, .txt
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                <strong>Processamento:</strong> Sumarização → Análise de Sentimento
+                <strong>Processamento:</strong> Sumarização → Sentimento → Tópicos
               </p>
               <p className="text-sm text-blue-600 dark:text-blue-400">
                 Ideal para: Documentos, artigos, relatórios

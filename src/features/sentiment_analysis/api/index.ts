@@ -1,13 +1,23 @@
 import api from "@/lib/api";
 import { SentimentAnalysisAcceptedResponse, SentimentAnalysisResult } from "@/types";
 
-export const getSentimentAnalysis = async (mediaId: string): Promise<SentimentAnalysisResult> => {
+const handle404 = (error: any) => {
+  if (error?.response?.status === 404) {
+    return null;
+  }
+  throw error;
+};
+
+export const getSentimentAnalysis = async (mediaId: string): Promise<SentimentAnalysisResult | null> => {
   console.log('🎭 Buscando análise de sentimento para mídia:', mediaId);
   
-  const response = await api.get<SentimentAnalysisResult>(`/sentiment-analysis/?media_id=${mediaId}`);
-  console.log('✅ Análise de sentimento obtida:', response.data);
-  
-  return response.data;
+  try {
+    const response = await api.get<SentimentAnalysisResult>(`/sentiment-analysis/?media_id=${mediaId}`);
+    console.log('✅ Análise de sentimento obtida:', response.data);
+    return response.data;
+  } catch (error: any) {
+    return handle404(error);
+  }
 };
 
 export const getAllSentimentAnalyses = async (): Promise<SentimentAnalysisResult[]> => {
@@ -20,16 +30,16 @@ export const getAllSentimentAnalyses = async (): Promise<SentimentAnalysisResult
 };
 
 export const reprocessSentimentAnalysis = async (
-  mediaId: string,
+  transcriptionId: string,
   options?: {
     provider?: string;
     force?: boolean;
   }
 ): Promise<SentimentAnalysisAcceptedResponse> => {
-  console.log('🔄 Reprocessando análise de sentimento para mídia:', mediaId);
+  console.log('🔄 Reprocessando análise de sentimento para transcrição:', transcriptionId);
   
   const formData = new FormData();
-  formData.append('media_id', mediaId);
+  formData.append('transcription_id', transcriptionId);
   
   if (options?.provider) {
     formData.append('provider', options.provider);

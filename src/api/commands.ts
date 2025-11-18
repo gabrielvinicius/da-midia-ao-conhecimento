@@ -1,5 +1,6 @@
 // Commands API - Para operações de escrita (CQRS Write Side)
 import api from '@/lib/api';
+import authService from '@/services/auth.service';
 import { Media, UserUpdateRequest } from '@/types';
 
 // =============================================================================
@@ -11,6 +12,8 @@ export interface CreateMediaCommand {
   storageProvider: string;
   transcriptionProvider?: string;
   summarizationProvider?: string;
+  sentimentProvider?: string;
+  topicModelingProvider?: string;
 }
 
 export interface ReprocessMediaCommand {
@@ -34,6 +37,12 @@ export const executeCreateMedia = async (command: CreateMediaCommand): Promise<M
   }
   if (queryParams.summarizationProvider) {
     backendParams.summarization_provider = queryParams.summarizationProvider;
+  }
+  if (queryParams.sentimentProvider) {
+    backendParams.sentiment_provider = queryParams.sentimentProvider;
+  }
+  if (queryParams.topicModelingProvider) {
+    backendParams.topic_modeling_provider = queryParams.topicModelingProvider;
   }
 
   const queryString = new URLSearchParams(backendParams).toString();
@@ -77,14 +86,14 @@ export interface ChangePasswordCommand {
 
 export const executeAuthenticateUser = async (command: AuthenticateUserCommand) => {
   console.log('🔐 Executando AuthenticateUserCommand');
-  
-  const response = await api.post('/auth/token/legacy', {
+
+  const response = await authService.login({
     username: command.email,
     password: command.password,
   });
-  
+
   console.log('✅ AuthenticateUserCommand executado');
-  return response.data;
+  return response;
 };
 
 export const executeCreateUser = async (command: CreateUserCommand) => {

@@ -26,8 +26,9 @@ export const EditSpeakersDialog = ({ transcription }: EditSpeakersDialogProps) =
 
   // Extract unique speaker IDs from the segments
   const uniqueSpeakers = React.useMemo(() => {
-    if (!transcription.result?.segments) return [];
-    const speakers = new Set(transcription.result.segments.map(s => s.speaker).filter(Boolean));
+    const segments = transcription.result?.segments ?? [];
+    if (!segments.length) return [];
+    const speakers = new Set(segments.map(s => s.speaker).filter(Boolean));
     return Array.from(speakers) as string[];
   }, [transcription]);
 

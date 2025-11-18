@@ -123,19 +123,7 @@ export const useSentimentAnalysisByMediaIdQuery = (mediaId: string) => {
     queryKey: ['sentiment-analysis', mediaId],
     queryFn: () => getSentimentAnalysisByMediaId(mediaId),
     enabled: !!mediaId,
-    retry: (failureCount, error: any) => {
-      if (error?.response?.status === 404 || error?.response?.status === 202) {
-        return false;
-      }
-      return failureCount < 3;
-    },
-    refetchInterval: (query) => {
-      const error = query.state.error as any;
-      if (error?.response?.status === 404 || error?.response?.status === 202) {
-        return 10000;
-      }
-      return false;
-    },
+    refetchInterval: (query) => (!query.state.data ? 10000 : false),
   });
 };
 
@@ -148,19 +136,7 @@ export const useTopicModelingByMediaIdQuery = (mediaId: string) => {
     queryKey: ['topic-modeling', mediaId],
     queryFn: () => getTopicModelingByMediaId(mediaId),
     enabled: !!mediaId,
-    retry: (failureCount, error: any) => {
-      if (error?.response?.status === 404 || error?.response?.status === 202) {
-        return false;
-      }
-      return failureCount < 3;
-    },
-    refetchInterval: (query) => {
-      const error = query.state.error as any;
-      if (error?.response?.status === 404 || error?.response?.status === 202) {
-        return 10000;
-      }
-      return false;
-    },
+    refetchInterval: (query) => (!query.state.data ? 10000 : false),
   });
 };
 
@@ -174,7 +150,6 @@ export const useCurrentUserQuery = () => {
     queryFn: getCurrentUser,
     staleTime: 5 * 60 * 1000, // 5 minutos
     retry: false,
-    enabled: !!localStorage.getItem('token'),
   });
 };
 

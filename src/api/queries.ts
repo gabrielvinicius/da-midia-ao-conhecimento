@@ -41,14 +41,10 @@ export const getMediaByUser = async (): Promise<Media[]> => {
 export const getTranscriptionByMediaId = async (mediaId: string): Promise<Transcription> => {
   console.log('📖 Executando GetTranscriptionByMediaIdQuery:', mediaId);
   
-  const response = await api.get<Transcription[]>(`/transcriptions/?media_id=${mediaId}`);
+  const response = await api.get<Transcription>(`/transcriptions/?media_id=${mediaId}`);
   
-  if (!response.data || response.data.length === 0) {
-    throw new Error('Transcription not found');
-  }
-  
-  console.log('✅ GetTranscriptionByMediaIdQuery executada:', response.data[0]);
-  return response.data[0];
+  console.log('✅ GetTranscriptionByMediaIdQuery executada:', response.data);
+  return response.data;
 };
 
 export const getTranscriptionById = async (transcriptionId: string): Promise<Transcription> => {
@@ -67,20 +63,16 @@ export const getTranscriptionById = async (transcriptionId: string): Promise<Tra
 export const getSummaryByMediaId = async (mediaId: string): Promise<Summary> => {
   console.log('📖 Executando GetSummaryByMediaIdQuery:', mediaId);
   
-  const response = await api.get<Summary[]>(`/summarization/?media_id=${mediaId}`);
+  const response = await api.get<Summary>(`/summaries/?media_id=${mediaId}`);
   
-  if (!response.data || response.data.length === 0) {
-    throw new Error('Summary not found');
-  }
-  
-  console.log('✅ GetSummaryByMediaIdQuery executada:', response.data[0]);
-  return response.data[0];
+  console.log('✅ GetSummaryByMediaIdQuery executada:', response.data);
+  return response.data;
 };
 
 export const getSummaryById = async (summaryId: string): Promise<Summary> => {
   console.log('📖 Executando GetSummaryByIdQuery:', summaryId);
   
-  const response = await api.get<Summary>(`/summarization/${summaryId}`);
+  const response = await api.get<Summary>(`/summaries/${summaryId}`);
   
   console.log('✅ GetSummaryByIdQuery executada:', response.data);
   return response.data;
@@ -90,26 +82,37 @@ export const getSummaryById = async (summaryId: string): Promise<Summary> => {
 // SENTIMENT ANALYSIS QUERIES
 // =============================================================================
 
-export const getSentimentAnalysisByMediaId = async (mediaId: string): Promise<SentimentAnalysisResult> => {
+export const getSentimentAnalysisByMediaId = async (mediaId: string): Promise<SentimentAnalysisResult | null> => {
   console.log('📖 Executando GetSentimentAnalysisByMediaIdQuery:', mediaId);
   
-  const response = await api.get<SentimentAnalysisResult>(`/sentiment-analysis/?media_id=${mediaId}`);
-  
-  console.log('✅ GetSentimentAnalysisByMediaIdQuery executada:', response.data);
-  return response.data;
+  try {
+    const response = await api.get<SentimentAnalysisResult>(`/sentiment-analysis/?media_id=${mediaId}`);
+    console.log('✅ GetSentimentAnalysisByMediaIdQuery executada:', response.data);
+    return response.data;
+  } catch (error: any) {
+    if (error?.response?.status === 404) {
+      return null;
+    }
+    throw error;
+  }
 };
 
 // =============================================================================
 // TOPIC MODELING QUERIES
 // =============================================================================
 
-export const getTopicModelingByMediaId = async (mediaId: string): Promise<TopicModelingResult> => {
+export const getTopicModelingByMediaId = async (mediaId: string): Promise<TopicModelingResult | null> => {
   console.log('📖 Executando GetTopicModelingByMediaIdQuery:', mediaId);
-  
-  const response = await api.get<TopicModelingResult>(`/topic-modeling/?media_id=${mediaId}`);
-  
-  console.log('✅ GetTopicModelingByMediaIdQuery executada:', response.data);
-  return response.data;
+  try {
+    const response = await api.get<TopicModelingResult>(`/topic-modeling/?media_id=${mediaId}`);
+    console.log('✅ GetTopicModelingByMediaIdQuery executada:', response.data);
+    return response.data;
+  } catch (error: any) {
+    if (error?.response?.status === 404) {
+      return null;
+    }
+    throw error;
+  }
 };
 
 // =============================================================================
@@ -153,6 +156,20 @@ export const getSummarizationProviders = async (): Promise<string[]> => {
   const response = await api.get<string[]>('/providers/summarization');
   
   console.log('✅ GetSummarizationProvidersQuery executada:', response.data);
+  return response.data;
+};
+
+export const getSentimentProviders = async (): Promise<string[]> => {
+  console.log('📖 Executando GetSentimentProvidersQuery');
+  const response = await api.get<string[]>('/providers/sentiment');
+  console.log('✅ GetSentimentProvidersQuery executada:', response.data);
+  return response.data;
+};
+
+export const getTopicModelingProviders = async (): Promise<string[]> => {
+  console.log('📖 Executando GetTopicModelingProvidersQuery');
+  const response = await api.get<string[]>('/providers/topics');
+  console.log('✅ GetTopicModelingProvidersQuery executada:', response.data);
   return response.data;
 };
 

@@ -14,8 +14,7 @@ export default function Login() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const data = await login({ username, password });
-            localStorage.setItem("token", data.access_token);
+            await login({ username, password });
             navigate("/user");
         } catch (error) {
             console.error(error);

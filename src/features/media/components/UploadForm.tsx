@@ -13,9 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
-import { useUploadMedia } from '../hooks/useMedia';
 import { useProviders } from '@/features/providers/hooks/useProviders';
 import { useStorageProviders } from '@/features/providers/hooks/useStorageProviders';
+import { useCreateMediaCommand } from '@/hooks/useCommands';
+import { CreateMediaCommand } from '@/api/commands';
 
 const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200 MB (conforme configuração do backend)
 const ACCEPTED_FILE_TYPES = [
@@ -28,6 +29,8 @@ const uploadSchema = z.object({
   storageProvider: z.string().default("local"),
   transcriptionProvider: z.string().optional(),
   summarizationProvider: z.string().optional(),
+  sentimentProvider: z.string().optional(),
+  topicModelingProvider: z.string().optional(),
   file: z
     .any()
     .refine((files) => files?.length === 1, "Arquivo é obrigatório.")
@@ -51,9 +54,11 @@ const uploadSchema = z.object({
 type UploadFormValues = z.infer<typeof uploadSchema>;
 
 export const UploadForm = () => {
-  const { mutate: upload, isPending } = useUploadMedia();
+  const { mutate: upload, isPending } = useCreateMediaCommand();
   const { data: transcriptionProviders } = useProviders("transcription");
   const { data: summarizationProviders } = useProviders("summarization");
+  const { data: sentimentProviders } = useProviders("sentiment");
+  const { data: topicProviders } = useProviders("topics");
   const { data: storageProviders, isLoading: isLoadingStorage } = useStorageProviders();
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [fileType, setFileType] = React.useState<'video' | 'audio' | 'text' | null>(null);
@@ -97,6 +102,8 @@ export const UploadForm = () => {
       // Reset providers quando tipo de arquivo muda
       form.setValue('transcriptionProvider', undefined);
       form.setValue('summarizationProvider', undefined);
+      form.setValue('sentimentProvider', undefined);
+      form.setValue('topicModelingProvider', undefined);
     } else {
       setSelectedFile(null);
       setFileType(null);
@@ -116,8 +123,8 @@ export const UploadForm = () => {
     });
     
     // Enviar apenas providers relevantes baseados no tipo de arquivo
-    const uploadData: any = {
-      file: file, 
+    const uploadData: CreateMediaCommand = {
+      file,
       storageProvider: data.storageProvider,
     };
     
@@ -131,6 +138,14 @@ export const UploadForm = () => {
     // Incluir summarizationProvider para todos os tipos
     if (data.summarizationProvider) {
       uploadData.summarizationProvider = data.summarizationProvider;
+    }
+
+    if (data.sentimentProvider) {
+      uploadData.sentimentProvider = data.sentimentProvider;
+    }
+
+    if (data.topicModelingProvider) {
+      uploadData.topicModelingProvider = data.topicModelingProvider;
     }
     
     console.log('Sending upload data:', uploadData);
@@ -263,15 +278,58 @@ export const UploadForm = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Sentiment Provider */}
+              <div className="space-y-2">
+                <Label htmlFor="sentiment-provider">
+                  Provider de Análise de Sentimento
+                  <span className="text-xs text-gray-500 ml-1">(executado após a transcrição)</span>
+                </Label>
+                <Select onValueChange={(value) => form.setValue('sentimentProvider', value)} disabled={isPending}>
+                  <SelectTrigger id="sentiment-provider">
+                    <SelectValue placeholder="Selecione um provider (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sentimentProviders?.map(p => (
+                      <SelectItem key={p} value={p}>
+                        {p === 'transformers' ? 'Transformers (BERT/RoBERTa)' :
+                         p === 'vader' ? 'VADER (Lexicon)' : p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Topic Modeling Provider */}
+              <div className="space-y-2">
+                <Label htmlFor="topic-provider">
+                  Provider de Modelagem de Tópicos
+                  <span className="text-xs text-gray-500 ml-1">(executado após a sumarização)</span>
+                </Label>
+                <Select onValueChange={(value) => form.setValue('topicModelingProvider', value)} disabled={isPending}>
+                  <SelectTrigger id="topic-provider">
+                    <SelectValue placeholder="Selecione um provider (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {topicProviders?.map(p => (
+                      <SelectItem key={p} value={p}>
+                        {p === 'sklearn_lda' ? 'Scikit-Learn LDA' :
+                         p === 'bertopic' ? 'BERTopic' :
+                         p === 'keyword_frequency' ? 'Frequência de Palavras' : p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             
             {/* Information about processing */}
             <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
               <p className="text-sm text-blue-700 dark:text-blue-300">
                 <strong>Pipeline de Processamento:</strong>
-                {fileType === 'video' && " Vídeo → Transcrição → Sumarização + Análise de Sentimento"}
-                {fileType === 'audio' && " Áudio → Transcrição → Sumarização + Análise de Sentimento"}
-                {fileType === 'text' && " Texto → Sumarização + Análise de Sentimento (sem transcrição)"}
+                {fileType === 'video' && " Vídeo → Transcrição → Sumarização → Sentimento → Tópicos"}
+                {fileType === 'audio' && " Áudio → Transcrição → Sumarização → Sentimento → Tópicos"}
+                {fileType === 'text' && " Texto → Sumarização → Sentimento → Tópicos"}
               </p>
             </div>
           </div>

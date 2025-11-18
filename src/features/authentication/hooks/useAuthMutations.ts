@@ -15,11 +15,6 @@ export const useLogin = () => {
     onSuccess: async (data) => {
       console.log('Login response:', data);
       
-      // Salvar token no localStorage
-      if (data.access_token && data.access_token !== 'set_in_cookie') {
-        localStorage.setItem('token', data.access_token);
-      }
-      
       try {
         // Buscar dados do usuário
         const user = await getMe();

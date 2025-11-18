@@ -47,6 +47,8 @@ export interface Media {
   storage_provider?: string;
   transcription_provider?: string;
   summarization_provider?: string;
+  sentiment_provider?: string;
+  topic_modeling_provider?: string;
   processing_pipeline?: string[];
   file_size_mb?: number;
   error_message?: string;

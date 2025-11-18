@@ -50,7 +50,6 @@ export const subscribeToVideoEvents = (
     onVideoUpdate: (video: Video) => void,
     onError: (error: Event) => void
 ): EventSource => {
-    const token = localStorage.getItem("token");
     const eventSource = new EventSource(`${import.meta.env.VITE_API_URL}/videos/events`, {
         withCredentials: true,
     });

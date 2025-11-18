@@ -6,6 +6,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const authApi = axios.create({
   baseURL: `${API_URL}/auth`,
+  withCredentials: true,
 });
 
 export const register = async (userData: UserRegistration): Promise<User> => {
@@ -13,37 +14,27 @@ export const register = async (userData: UserRegistration): Promise<User> => {
   return response.data;
 };
 
-export const login = async (credentials: UserCredentials): Promise<{ access_token: string }> => {
-  const response = await authApi.post("/token/legacy", {
-    username: credentials.email,
-    password: credentials.password,
+export const login = async (credentials: UserCredentials): Promise<{ message: string }> => {
+  const payload = new URLSearchParams();
+  payload.append('username', credentials.email);
+  payload.append('password', credentials.password);
+
+  const response = await authApi.post("/token", payload, {
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
   });
-  if (response.data.access_token && response.data.access_token !== "set_in_cookie") {
-    localStorage.setItem("token", response.data.access_token);
-  }
+
   return response.data;
 };
 
 export const logout = () => {
-  localStorage.removeItem("token");
+  // Sessão é controlada por cookies httpOnly; não há token local para limpar
 };
 
 export const getCurrentUser = async (): Promise<User> => {
-  const token = localStorage.getItem("token");
-  const response = await authApi.get("/me", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  const response = await authApi.get("/me");
   return response.data;
 };
-
-authApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 export default authApi;

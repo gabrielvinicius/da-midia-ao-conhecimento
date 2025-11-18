@@ -303,18 +303,32 @@ class SecureApiClient {
 
   // Métodos para análise de sentimento
   async getSentimentAnalysis(mediaId: string) {
-    const response = await this.axiosInstance.get(`/sentiment-analysis/`, {
-      params: { media_id: mediaId }
-    });
-    return response.data;
+    try {
+      const response = await this.axiosInstance.get(`/sentiment-analysis/`, {
+        params: { media_id: mediaId }
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   // Métodos para topic modeling
   async getTopicModeling(mediaId: string) {
-    const response = await this.axiosInstance.get(`/topic-modeling/`, {
-      params: { media_id: mediaId }
-    });
-    return response.data;
+    try {
+      const response = await this.axiosInstance.get(`/topic-modeling/`, {
+        params: { media_id: mediaId }
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   // Métodos para notificações

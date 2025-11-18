@@ -2,9 +2,7 @@ import authService, { LoginData, RegisterData, ChangePasswordData } from '@/serv
 import { User, UserCredentials, UserRegistration, ChangePasswordPayload } from '@/types';
 
 export interface LoginResponse {
-  access_token: string;
-  token_type: string;
-  csrf_token?: string;
+  message: string;
 }
 
 export const login = async (credentials: UserCredentials): Promise<LoginResponse> => {
@@ -12,35 +10,16 @@ export const login = async (credentials: UserCredentials): Promise<LoginResponse
   
   try {
     const loginData: LoginData = {
-      username: credentials.email, // Backend espera 'username'
+      username: credentials.email,
       password: credentials.password,
     };
     
-    // Usar o novo AuthService
-    const response = await authService.loginLegacy(loginData);
+    const response = await authService.login(loginData);
     
     console.log('✅ Login bem-sucedido:', response);
     return response;
   } catch (error) {
     console.error('❌ Erro no login:', error);
-    throw error;
-  }
-};
-
-export const loginSecure = async (credentials: UserCredentials): Promise<LoginResponse> => {
-  console.log('🛡️ Fazendo login seguro via AuthService:', { email: credentials.email });
-  
-  try {
-    const loginData: LoginData = {
-      username: credentials.email,
-      password: credentials.password,
-    };
-    
-    const response = await authService.loginSecure(loginData);
-    console.log('✅ Login seguro bem-sucedido:', response);
-    return response;
-  } catch (error) {
-    console.error('❌ Erro no login seguro:', error);
     throw error;
   }
 };
