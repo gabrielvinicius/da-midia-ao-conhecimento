@@ -157,6 +157,7 @@ def build_media_components(
         media_repo=media_repository,
         media_logger=media_logger,
         media_metrics=media_metrics,
+        storage_factory=storage_service_factory,
     )
 
     reprocess_media_handler = ReprocessMediaCommandHandler(
@@ -225,6 +226,7 @@ def bind_media_module(app: FastAPI, module: MediaModule) -> None:
         upload_service=module.upload_service,
         lifecycle_service=module.lifecycle_service,
         query_service=module.query_service,
+        facade=module.facade,
     )
 
     app.dependency_overrides[get_transcription_dependencies] = (

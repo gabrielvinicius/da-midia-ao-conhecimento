@@ -76,7 +76,18 @@ class AnalyticsQueries(IAnalyticsQueries):
 
         """
         # Get success/failure rates
-        success_rates = await self.analytics_repo.get_success_failure_rates(time_range)
+        raw_success_rates = await self.analytics_repo.get_success_failure_rates(time_range)
+
+        stage_keys = ["media", "transcription", "summarization"]
+        success_rates = {
+            key: raw_success_rates.get(key, {
+                "completed": 0,
+                "failed": 0,
+                "total": 0,
+                "success_rate": 0.0,
+            })
+            for key in stage_keys
+        }
 
         # Get user activity metrics
         user_metrics = await self.analytics_repo.get_user_activity_metrics()
@@ -85,7 +96,7 @@ class AnalyticsQueries(IAnalyticsQueries):
         media_distribution = await self.analytics_repo.get_media_type_distribution()
 
         # Calculate overall system health score
-        overall_success_rate = success_rates["media"]["success_rate"]
+        overall_success_rate = success_rates["media"].get("success_rate", 0.0)
         health_score = self._calculate_health_score(success_rates, user_metrics)
 
         return {

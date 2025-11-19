@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import os
 from typing import Any, Dict
 
 import structlog
@@ -5,6 +9,7 @@ import structlog
 from src.monitoring.domain.interfaces import (
     IAnalyticsRepository,
     IMetricsProvider,
+    TimeRange,
 )
 
 logger = structlog.get_logger(__name__)
@@ -13,26 +18,56 @@ class MetricsService:
     def __init__(self, metrics_provider: IMetricsProvider, analytics_repository: IAnalyticsRepository):
         self.metrics_provider = metrics_provider
         self.analytics_repository = analytics_repository
+        self._revenue_per_upload = float(os.getenv("BUSINESS_REVENUE_PER_UPLOAD", "12.0"))
 
-    def get_metrics_summary(self) -> Dict[str, Any]:
-        # This is a placeholder. In a real implementation, this would gather various metrics
-        # from the metrics_provider and analytics_repository to provide a comprehensive summary.
-        return {
-            "provider_metrics": {
-                "available_metrics": self.metrics_provider.list_metrics(),
-                "provider_type": "Prometheus"
-            },
-            "generated_at": "2025-10-21T00:00:00Z" # Placeholder
+    async def get_metrics_summary(self) -> Dict[str, Any]:
+        raw_success_rates = await self.analytics_repository.get_success_failure_rates(TimeRange.LAST_WEEK)
+        success_rates = {
+            key: raw_success_rates.get(key, {})
+            for key in ["media", "transcription", "summarization"]
+        }
+        user_metrics = await self.analytics_repository.get_user_activity_metrics()
+        media_distribution = await self.analytics_repository.get_media_type_distribution()
+        business_kpis = await self.get_business_kpis()
+        performance_summary = await self.get_performance_summary()
+
+        provider_metrics = {
+            "available_metrics": self.metrics_provider.list_metrics(),
+            "provider_type": getattr(self.metrics_provider, "provider_name", "Prometheus"),
         }
 
-    def health_check(self) -> Dict[str, Any]:
-        # Placeholder for health check logic
         return {
-            "metrics_provider": "Operational",
-            "business_metrics": "Operational",
-            "performance_metrics": "Operational",
-            "total_metrics": len(self.metrics_provider.list_metrics()),
-            "checked_at": "2025-10-21T00:00:00Z" # Placeholder
+            "provider_metrics": provider_metrics,
+            "success_rates": success_rates,
+            "user_metrics": user_metrics,
+            "media_distribution": media_distribution,
+            "business_kpis": business_kpis,
+            "performance_summary": performance_summary,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    async def health_check(self) -> Dict[str, Any]:
+        metrics_available = len(self.metrics_provider.list_metrics())
+        success_rates = await self.analytics_repository.get_success_failure_rates(TimeRange.LAST_DAY)
+        media_stats = success_rates.get("media", {})
+        status = "healthy"
+        issues = []
+
+        if (media_stats.get("failed") or 0) > (media_stats.get("total") or 1) * 0.3:
+            status = "warning"
+            issues.append("Taxa de falhas acima de 30% nas últimas 24h")
+
+        if metrics_available == 0:
+            status = "degraded"
+            issues.append("Nenhuma métrica registrada no provedor")
+
+        return {
+            "status": status,
+            "metrics_provider": "Operational" if metrics_available else "Unavailable",
+            "performance_metrics": "Operational",  # derivado dos cálculos acima
+            "total_metrics": metrics_available,
+            "issues": issues,
+            "checked_at": datetime.now(timezone.utc).isoformat(),
         }
 
     def track_media_upload_with_context(self, status: str, media_type: str, user_id: Any) -> None:
@@ -71,37 +106,53 @@ class MetricsService:
         else:
             logger.warning("unsupported_metric_type", metric_type=metric_type)
 
-    def get_business_kpis(self) -> Dict[str, Any]:
-        # Placeholder for business KPIs
+    async def get_business_kpis(self) -> Dict[str, Any]:
+        success_rates = await self.analytics_repository.get_success_failure_rates(TimeRange.LAST_MONTH)
+        media_stats = success_rates.get("media", {})
+        total_uploads = float(media_stats.get("total", 0))
+        successful_uploads = float(media_stats.get("completed", 0))
+        upload_success_rate = (successful_uploads / total_uploads * 100) if total_uploads else 0.0
+        total_revenue = successful_uploads * self._revenue_per_upload
+
         return {
-            "total_uploads": 1000.0,
-            "successful_uploads": 950.0,
-            "upload_success_rate_percent": 95.0,
-            "total_revenue_usd": 10000.0,
-            "average_revenue_per_upload": 10.0,
-            "processing_completions": 980.0,
-            "calculated_at": "2025-10-21T00:00:00Z"
+            "total_uploads": total_uploads,
+            "successful_uploads": successful_uploads,
+            "upload_success_rate_percent": round(upload_success_rate, 2),
+            "total_revenue_usd": round(total_revenue, 2),
+            "average_revenue_per_upload": self._revenue_per_upload,
+            "processing_completions": float(media_stats.get("completed", 0)),
+            "calculated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-    def get_performance_summary(self) -> Dict[str, Any]:
-        # Placeholder for performance summary
+    async def get_performance_summary(self) -> Dict[str, Any]:
+        success_rates = await self.analytics_repository.get_success_failure_rates(TimeRange.LAST_WEEK)
+        processing_trends = await self.analytics_repository.get_average_processing_times()
+        media_stats = success_rates.get("media", {})
+
+        total_processing = media_stats.get("total", 0)
+        completed_processing = media_stats.get("completed", 0)
+        failure_rate = ((media_stats.get("failed", 0) / total_processing) * 100) if total_processing else 0.0
+
         return {
             "request_metrics": {
-                "total_requests": 10000.0,
-                "slow_requests": 50.0,
-                "error_requests": 10.0,
-                "slow_request_rate_percent": 0.5,
-                "error_rate_percent": 0.01
+                "total_requests": self.metrics_provider.get_metric_value("REQUEST_COUNT") or 0,
+                "error_rate_percent": round(failure_rate, 2),
             },
             "processing_metrics": {
-                "total_processing": 5000.0,
-                "long_processing": 20.0,
-                "long_processing_rate_percent": 0.4
+                "total_processing": total_processing,
+                "completed": completed_processing,
+                "avg_transcription_seconds": processing_trends.get("transcription_avg_seconds", 0.0),
+                "avg_summarization_seconds": processing_trends.get("summarization_avg_seconds", 0.0),
             },
             "resource_metrics": {
-                "cpu_usage_percent": 45.0,
-                "memory_usage_percent": 60.0
+                "cpu_usage_percent": self.metrics_provider.get_metric_value("SYSTEM_RESOURCE_USAGE_CPU") or 0,
+                "memory_usage_percent": self.metrics_provider.get_metric_value("SYSTEM_RESOURCE_USAGE_MEMORY") or 0,
             },
-            "overall_health": "Good",
-            "calculated_at": "2025-10-21T00:00:00Z"
+            "throughput_metrics": {
+                "media_por_dia": round(total_processing / 7, 2) if total_processing else 0,
+                "conclusoes_por_hora": round(completed_processing / (7 * 24), 2) if completed_processing else 0,
+                "taxa_conclusao_percent": round((completed_processing / total_processing * 100), 2) if total_processing else 0.0,
+            },
+            "overall_health": "Good" if failure_rate < 10 else "Warning",
+            "calculated_at": datetime.now(timezone.utc).isoformat(),
         }

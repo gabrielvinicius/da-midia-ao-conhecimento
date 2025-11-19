@@ -40,6 +40,19 @@ class MediaQueries:
     async def count_by_status(self, status: MediaStatus) -> int:
         return await self.media_repository.count_by_status(status)
 
+    async def count_filtered(
+        self,
+        *,
+        user_id: Optional[UUID] = None,
+        status: Optional[MediaStatus] = None,
+        search: Optional[str] = None,
+    ) -> int:
+        return await self.media_repository.count_filtered(
+            user_id=user_id,
+            status=status,
+            search=search,
+        )
+
     async def count_by_user(self, user_id: UUID) -> int:
         return await self.media_repository.count_by_user(user_id)
 

@@ -71,3 +71,28 @@ class TopicModelingRepository:
     def update_sync(self, result: TopicModelingResult) -> TopicModelingResult:
         self.db.flush()
         return result
+
+    async def delete_by_media_id(self, media_id: UUID) -> None:
+        if isinstance(self.db, AsyncSession):
+            stmt = (
+                select(TopicModelingResult)
+                .join(Transcription, TopicModelingResult.transcription_id == Transcription.id)
+                .where(Transcription.media_id == media_id)
+            )
+            result = await self.db.execute(stmt)
+            for entity in result.scalars().all():
+                await self.db.delete(entity)
+            await self.db.flush()
+        else:
+            self.delete_by_media_id_sync(media_id)
+
+    def delete_by_media_id_sync(self, media_id: UUID) -> None:
+        stmt = (
+            select(TopicModelingResult)
+            .join(Transcription, TopicModelingResult.transcription_id == Transcription.id)
+            .where(Transcription.media_id == media_id)
+        )
+        result = self.db.execute(stmt)
+        for entity in result.scalars().all():
+            self.db.delete(entity)
+        self.db.flush()

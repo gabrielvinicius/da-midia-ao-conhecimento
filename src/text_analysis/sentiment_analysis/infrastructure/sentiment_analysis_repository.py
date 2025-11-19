@@ -111,5 +111,27 @@ class SentimentAnalysisRepository:
         result = self._db.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def delete_by_media_id(self, media_id: str) -> None:
+        stmt = (
+            select(SentimentAnalysisRecord)
+            .join(Transcription, SentimentAnalysisRecord.transcription_id == Transcription.id)
+            .where(Transcription.media_id == media_id)
+        )
+        result = await self._db.execute(stmt)
+        for record in result.scalars().all():
+            await self._db.delete(record)
+        await self._db.flush()
+
+    def delete_by_media_id_sync(self, media_id: str) -> None:
+        stmt = (
+            select(SentimentAnalysisRecord)
+            .join(Transcription, SentimentAnalysisRecord.transcription_id == Transcription.id)
+            .where(Transcription.media_id == media_id)
+        )
+        result = self._db.execute(stmt)
+        for record in result.scalars().all():
+            self._db.delete(record)
+        self._db.flush()
+
 
 __all__ = ["SentimentAnalysisRepository"]

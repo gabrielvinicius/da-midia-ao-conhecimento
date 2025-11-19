@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import Depends
 
+from src.media_management.application.facade import MediaManagementFacade
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.application.services import (
     MediaLifecycleService,
@@ -21,6 +22,7 @@ class MediaDependencies:
     upload_service: MediaUploadService
     lifecycle_service: MediaLifecycleService
     query_service: MediaQueryService
+    facade: MediaManagementFacade
 
 
 def get_media_dependencies() -> MediaDependencies:
@@ -48,6 +50,10 @@ def get_media_queries(deps: MediaDeps) -> MediaQueries:
     return deps.queries
 
 
+def get_media_facade(deps: MediaDeps) -> MediaManagementFacade:
+    return deps.facade
+
+
 __all__ = [
     "MediaDependencies",
     "MediaDependenciesNotConfigured",
@@ -55,5 +61,6 @@ __all__ = [
     "get_media_lifecycle_service",
     "get_media_queries",
     "get_media_query_service",
+    "get_media_facade",
     "get_media_upload_service",
 ]

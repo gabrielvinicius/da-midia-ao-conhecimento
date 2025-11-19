@@ -9,6 +9,8 @@ from src.admin.application.services.admin_user_service import AdminUserService
 from src.user_management.application.queries.auth_queries import AuthQueries
 from src.user_management.domain.user import User
 
+import math
+
 
 @dataclass(slots=True)
 class UserManagementAdapter:
@@ -24,7 +26,15 @@ class UserManagementAdapter:
         limit: int,
         search: Optional[str],
     ) -> list[User]:
-        return await self.auth_queries.list_all(page=page, limit=limit, search=search)
+        items = await self.auth_queries.list_all(page=page, limit=limit, search=search)
+        total_items = await self.auth_queries.count_filtered(search=search)
+        total_pages = math.ceil(total_items / limit) if limit else 1
+        return {
+            "items": items,
+            "total_items": total_items,
+            "total_pages": total_pages,
+            "current_page": page,
+        }
 
     async def update_user_role(
         self,

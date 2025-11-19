@@ -352,19 +352,20 @@ class BusinessKPIsResponse(BaseModel):
 class RequestMetrics(BaseModel):
     """Request metrics summary."""
 
-    total_requests: float
-    slow_requests: float
-    error_requests: float
-    slow_request_rate_percent: float
-    error_rate_percent: float
+    total_requests: float = 0
+    error_rate_percent: float = 0
+    slow_requests: Optional[float] = None
+    error_requests: Optional[float] = None
+    slow_request_rate_percent: Optional[float] = None
 
 
 class ProcessingMetrics(BaseModel):
     """Processing metrics summary."""
 
     total_processing: float
-    long_processing: float
-    long_processing_rate_percent: float
+    completed: float
+    avg_transcription_seconds: float
+    avg_summarization_seconds: float
 
 
 class ResourceMetrics(BaseModel):
@@ -380,6 +381,7 @@ class PerformanceSummaryResponse(BaseModel):
     request_metrics: RequestMetrics
     processing_metrics: ProcessingMetrics
     resource_metrics: ResourceMetrics
+    throughput_metrics: Dict[str, Any]
     overall_health: str
     calculated_at: str
 
@@ -388,6 +390,9 @@ class MetricsSummaryResponse(BaseModel):
     """Response schema for comprehensive metrics summary."""
 
     provider_metrics: ProviderMetrics
+    success_rates: Dict[str, Any]
+    user_metrics: Dict[str, Any]
+    media_distribution: Dict[str, Any]
     business_kpis: Optional[Dict[str, Any]] = None
     performance_summary: Optional[Dict[str, Any]] = None
     generated_at: str
@@ -396,11 +401,11 @@ class MetricsSummaryResponse(BaseModel):
 class HealthCheckResponse(BaseModel):
     """Response schema for health check."""
 
+    status: str
     metrics_provider: str
-    business_metrics: str
     performance_metrics: str
     total_metrics: int
-    provider_test: Optional[str] = None
+    issues: List[str] = []
     checked_at: str
 
 

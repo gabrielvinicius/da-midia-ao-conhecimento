@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.media_processing.transcription.domain.transcription import TranscriptionStatus
 
@@ -19,10 +19,24 @@ class TranscriptionResponse(BaseModel):
     processed_at: Optional[datetime] = None
     error_message: Optional[str] = None
     text: str
-    segments: List[Dict[str, Any]]
-    speaker_aliases: Dict[str, str]
+    segments: List[Dict[str, Any]] = Field(default_factory=list)
+    speaker_aliases: Dict[str, str] = Field(default_factory=dict)
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("segments", mode="before")
+    @classmethod
+    def _ensure_segments_list(cls, value: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+        if value is None:
+            return []
+        return value
+
+    @field_validator("speaker_aliases", mode="before")
+    @classmethod
+    def _ensure_aliases_dict(cls, value: Optional[Dict[str, str]]) -> Dict[str, str]:
+        if value is None:
+            return {}
+        return value
 
 
 class SpeakerAliasesUpdateRequest(BaseModel):

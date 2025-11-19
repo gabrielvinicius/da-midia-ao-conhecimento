@@ -1,9 +1,9 @@
 # src/media_management/api/schemas.py
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from src.media_management.domain.media import MediaStatus, MediaType
 
@@ -70,5 +70,27 @@ class MediaResponse(BaseModel):
         default=None,
         description="Topic modeling provider selected for text analysis.",
     )
+
+    @computed_field(return_type=List[str])
+    @property
+    def processing_pipeline(self) -> List[str]:
+        pipeline: List[str] = ["upload"]
+
+        if self.media_type == MediaType.VIDEO:
+            pipeline.append("video_processing")
+
+        if self.media_type == MediaType.TEXT:
+            pipeline.append("extract_text")
+        else:
+            pipeline.append("transcription")
+
+        if self.summarization_provider:
+            pipeline.append("summarization")
+        if self.sentiment_provider:
+            pipeline.append("sentiment")
+        if self.topic_modeling_provider:
+            pipeline.append("topic_modeling")
+
+        return pipeline
 
     model_config = ConfigDict(from_attributes=True)

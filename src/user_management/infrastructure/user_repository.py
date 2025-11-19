@@ -99,6 +99,24 @@ class UserRepository:
         result = self.db.execute(select(func.count()).select_from(User))
         return result.scalar_one()
 
+    async def count_filtered(self, search: Optional[str] = None) -> int:
+        from sqlalchemy.ext.asyncio import AsyncSession
+        if isinstance(self.db, AsyncSession):
+            stmt = select(func.count()).select_from(User)
+            if search:
+                stmt = stmt.where(User.email.ilike(f"%{search}%"))
+            result = await self.db.execute(stmt)
+            return result.scalar_one()
+        return self.count_filtered_sync(search=search)
+
+    def count_filtered_sync(self, search: Optional[str] = None) -> int:
+        from sqlalchemy import select
+        stmt = select(func.count()).select_from(User)
+        if search:
+            stmt = stmt.where(User.email.ilike(f"%{search}%"))
+        result = self.db.execute(stmt)
+        return result.scalar_one()
+
     async def count_active(self) -> int:
         """Return the total number of active users."""
         from sqlalchemy.ext.asyncio import AsyncSession

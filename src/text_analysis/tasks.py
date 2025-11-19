@@ -4,6 +4,7 @@ import asyncio
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+from uuid import UUID
 
 import structlog
 from celery import shared_task
@@ -46,8 +47,30 @@ from src.shared.event_bus import InMemoryEventBus
 from src.shared.events.domain_events import TextContentReady
 from src.text_analysis.application.event_handlers import build_text_content_ready_handler
 from src.text_analysis.application.services import TextAnalysisService
+from src.media_management.domain.enums import MediaStatus
+from src.media_management.infrastructure.orm.media_entity import MediaEntity
 
 logger = structlog.get_logger(__name__)
+
+
+def _update_media_status(
+    db: Session,
+    media_id: Optional[UUID],
+    status: MediaStatus,
+    *,
+    error_message: Optional[str] = None,
+) -> None:
+    """Safely update the media status if the entity exists."""
+    if media_id is None:
+        return
+
+    media_entity: MediaEntity | None = db.get(MediaEntity, media_id)
+    if media_entity is None:
+        return
+
+    media_entity.status = status
+    media_entity.error_message = error_message
+    db.flush()
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
 def process_text_task(
@@ -323,8 +346,6 @@ def _persist_text_document(
     payload: TextDocumentTaskPayload,
     extracted_text: str,
 ) -> Dict[str, Any]:
-    from src.media_management.domain.enums import MediaStatus
-    from src.media_management.infrastructure.orm.media_entity import MediaEntity
     from src.media_processing.transcription.domain.transcription import (
         Transcription,
         TranscriptionStatus,
@@ -359,8 +380,7 @@ def _persist_text_document(
 
     media_entity: MediaEntity | None = db.get(MediaEntity, payload.media_id)
     if media_entity is not None:
-        media_entity.status = MediaStatus.COMPLETED
-        media_entity.error_message = None
+        _update_media_status(db, payload.media_id, MediaStatus.COMPLETED)
         if payload.language:
             media_entity.language = payload.language
         if payload.summarization_provider:
@@ -494,35 +514,38 @@ def _run_summarization_sync(
         summarizer=TextRankSummarizer(),
     )
 
-    db.commit()
-    summary = service.generate_summary_sync(
-        transcription_id=transcription.id,
-        text_content=text_content,  # Use transcription text content
-        provider=payload.provider,
-        options=payload.options,
-    )
+    media_uuid = payload.media_id
 
-    # Commit any pending changes to the database
     try:
-        db.commit()
-    except Exception as e:
-        # If there's an issue with commit, make sure to rollback but don't fail the whole process
-        try:
-            db.rollback()
-        except Exception:
-            pass  # Just suppress rollback errors
-        logger.warning(
-            "summarization.database_commit_failed",
-            transcription_id=payload.transcription_id,
-            error=str(e),
+        summary = service.generate_summary_sync(
+            transcription_id=transcription.id,
+            text_content=text_content,
+            provider=payload.provider,
+            options=payload.options,
         )
 
-    logger.info(
-        "summarization.task.completed",
-        transcription_id=str(payload.transcription_id),
-        summary_id=str(summary.id),
-    )
-    return str(summary.id)
+        if media_uuid is not None:
+            _update_media_status(db, media_uuid, MediaStatus.COMPLETED)
+
+        db.commit()
+
+        logger.info(
+            "summarization.task.completed",
+            transcription_id=str(payload.transcription_id),
+            summary_id=str(summary.id),
+        )
+        return str(summary.id)
+    except Exception as exc:
+        if media_uuid is not None:
+            try:
+                _update_media_status(db, media_uuid, MediaStatus.FAILED, error_message=str(exc))
+                db.commit()
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+        raise
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
 def process_sentiment_analysis_task(

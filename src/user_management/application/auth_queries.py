@@ -26,11 +26,13 @@ class AuthQueries:
         return await self.user_repository.find_by_email(email)
 
     async def list_all(self, *, page: int = 1, limit: int = 50, search: Optional[str] = None) -> List[User]:
-        # For compatibility we just delegate to repository list_all; pagination/search can be added later.
-        users = await self.user_repository.list_all()
-        if search:
-            lowered = search.lower()
-            users = [user for user in users if lowered in user.email.lower()]
-        start = (page - 1) * limit
-        end = start + limit
-        return users[start:end]
+        return await self.user_repository.list_all(page=page, limit=limit, search=search)
+
+    async def count_all(self) -> int:
+        return await self.user_repository.count_all()
+
+    async def count_active(self) -> int:
+        return await self.user_repository.count_active()
+
+    async def count_filtered(self, *, search: Optional[str] = None) -> int:
+        return await self.user_repository.count_filtered(search=search)

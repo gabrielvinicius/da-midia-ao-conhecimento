@@ -118,6 +118,23 @@ class MediaRepository:
         result = await self.db.execute(stmt)
         return [self._mapper.to_domain(entity) for entity in result.scalars().all()]
 
+    async def count_filtered(
+        self,
+        *,
+        user_id: Optional[UUID] = None,
+        status: Optional[MediaStatus] = None,
+        search: Optional[str] = None,
+    ) -> int:
+        stmt = select(func.count()).select_from(MediaEntity)
+        if user_id is not None:
+            stmt = stmt.where(MediaEntity.user_id == user_id)
+        if status is not None:
+            stmt = stmt.where(MediaEntity.status == status)
+        if search:
+            stmt = stmt.where(MediaEntity.original_file_path.ilike(f"%{search}%"))
+        result = await self.db.execute(stmt)
+        return result.scalar_one()
+
     async def list_all(
         self,
         user_id: Optional[UUID] = None,

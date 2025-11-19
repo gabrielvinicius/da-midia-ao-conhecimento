@@ -40,12 +40,12 @@ class AnalyticsRepository(IAnalyticsRepository):
                     func.extract('epoch', Transcription.processed_at - Transcription.created_at)
                 ).label("transcription_avg_seconds"),
                 func.avg(
-                    func.extract('epoch', Summary.processed_at - Summary.created_at)
+                    func.extract('epoch', SummaryEntity.processed_at - SummaryEntity.created_at)
                 ).label("summarization_avg_seconds"),
                 func.count(MediaEntity.id).label("total_media_analyzed")
             )
             .join(Transcription, MediaEntity.id == Transcription.media_id)
-            .join(SummaryEntity, MediaEntity.id == SummaryEntity.media_id)
+            .join(SummaryEntity, SummaryEntity.transcription_id == Transcription.id)
             .where(
                 MediaEntity.status == MediaStatus.COMPLETED,
                 Transcription.status == TranscriptionStatus.COMPLETED,
@@ -99,17 +99,17 @@ class AnalyticsRepository(IAnalyticsRepository):
             stmt = (
                 select(
                     func.avg(
-                        func.extract('epoch', Summary.processed_at - Summary.created_at)
+                        func.extract('epoch', SummaryEntity.processed_at - SummaryEntity.created_at)
                     ).label("avg_seconds"),
                     func.min(
-                        func.extract('epoch', Summary.processed_at - Summary.created_at)
+                        func.extract('epoch', SummaryEntity.processed_at - SummaryEntity.created_at)
                     ).label("min_seconds"),
                     func.max(
-                        func.extract('epoch', Summary.processed_at - Summary.created_at)
+                        func.extract('epoch', SummaryEntity.processed_at - SummaryEntity.created_at)
                     ).label("max_seconds"),
-                    func.count(Summary.id).label("total_processed")
+                    func.count(SummaryEntity.id).label("total_processed")
                 )
-                .where(Summary.status == SummaryStatus.COMPLETED)
+                .where(SummaryEntity.status == SummaryStatus.COMPLETED)
             )
         else:
             # For other types, return empty stats
@@ -228,15 +228,15 @@ class AnalyticsRepository(IAnalyticsRepository):
 
         """
         base_query = select(
-            Media.user_id,
-            func.count(Media.id).label("total_media"),
-            func.count().filter(Media.status == MediaStatus.COMPLETED).label("completed_media"),
-            func.count().filter(Media.status == MediaStatus.FAILED).label("failed_media"),
-            func.count().filter(Media.status == MediaStatus.PROCESSING).label("processing_media")
-        ).group_by(Media.user_id)
+            MediaEntity.user_id,
+            func.count(MediaEntity.id).label("total_media"),
+            func.count().filter(MediaEntity.status == MediaStatus.COMPLETED).label("completed_media"),
+            func.count().filter(MediaEntity.status == MediaStatus.FAILED).label("failed_media"),
+            func.count().filter(MediaEntity.status == MediaStatus.PROCESSING).label("processing_media")
+        ).group_by(MediaEntity.user_id)
 
         if user_id:
-            base_query = base_query.where(Media.user_id == user_id)
+            base_query = base_query.where(MediaEntity.user_id == user_id)
 
         result = await self.db.execute(base_query)
         rows = result.fetchall()
@@ -287,12 +287,12 @@ class AnalyticsRepository(IAnalyticsRepository):
         """
         stmt = (
             select(
-                Media.media_type,
-                func.count(Media.id).label("count"),
-                func.count().filter(Media.status == MediaStatus.COMPLETED).label("completed"),
-                func.count().filter(Media.status == MediaStatus.FAILED).label("failed")
+                MediaEntity.media_type,
+                func.count(MediaEntity.id).label("count"),
+                func.count().filter(MediaEntity.status == MediaStatus.COMPLETED).label("completed"),
+                func.count().filter(MediaEntity.status == MediaStatus.FAILED).label("failed")
             )
-            .group_by(Media.media_type)
+            .group_by(MediaEntity.media_type)
         )
 
         result = await self.db.execute(stmt)

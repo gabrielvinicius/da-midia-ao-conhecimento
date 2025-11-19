@@ -119,7 +119,8 @@ async def get_comprehensive_analytics_report(
     metrics_service = Depends(get_metrics_service),
 ):
     """Get comprehensive analytics report (admin only)."""
-    if not current_user.role or current_user.role.value != "admin":
+    role_value = (current_user.role.value if current_user.role else "").lower()
+    if role_value != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -128,8 +129,8 @@ async def get_comprehensive_analytics_report(
     try:
         # Gather comprehensive analytics data
         system_performance = await analytics_queries.get_system_performance_metrics(time_range)
-        metrics_summary = metrics_service.get_metrics_summary()
-        health_check = metrics_service.health_check()
+        metrics_summary = await metrics_service.get_metrics_summary()
+        health_check = await metrics_service.health_check()
 
         return {
             "report_type": "comprehensive_analytics",
@@ -157,7 +158,7 @@ async def get_metrics_summary(
 ):
     """Get comprehensive metrics summary from all services."""
     try:
-        summary = metrics_service.get_metrics_summary()
+        summary = await metrics_service.get_metrics_summary()
         return MetricsSummaryResponse(**summary)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -169,7 +170,7 @@ async def get_metrics_health(
 ):
     """Perform health check of the metrics system."""
     try:
-        health = metrics_service.health_check()
+        health = await metrics_service.health_check()
         return HealthCheckResponse(**health)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -183,7 +184,8 @@ async def get_business_kpis(
 ):
     """Get key business performance indicators."""
     # Only admins can view business metrics
-    if not current_user.role or current_user.role.value != "admin":
+    role_value = (current_user.role.value if getattr(current_user, "role", None) else "").lower()
+    if role_value != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required to view business metrics"
@@ -191,7 +193,7 @@ async def get_business_kpis(
 
     try:
         # Assuming MetricsService has a method to get business KPIs
-        kpis = metrics_service.get_business_kpis() # This method needs to be implemented in MetricsService
+        kpis = await metrics_service.get_business_kpis()
         return BusinessKPIsResponse(**kpis)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -252,7 +254,7 @@ async def get_performance_summary(
     """Get performance metrics summary."""
     try:
         # Assuming MetricsService has a method to get performance summary
-        summary = metrics_service.get_performance_summary() # This method needs to be implemented in MetricsService
+        summary = await metrics_service.get_performance_summary()
         return PerformanceSummaryResponse(**summary)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

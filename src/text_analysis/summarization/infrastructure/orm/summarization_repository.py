@@ -145,7 +145,6 @@ class SummarizationRepository:
         return self.update_sync(summary)
 
     async def delete_by_media_id(self, media_id: UUID) -> None:
-        # Use async method if db is an async session
         if isinstance(self.db, AsyncSession):
             stmt = (
                 select(SummaryEntity)
@@ -153,23 +152,19 @@ class SummarizationRepository:
                 .where(TranscriptionEntity.media_id == media_id)
             )
             result = await self.db.execute(stmt)
-            entity = result.scalar_one_or_none()
-            if entity is not None:
+            for entity in result.scalars().all():
                 await self.db.delete(entity)
-                await self.db.flush()
+            await self.db.flush()
         else:
-            # Fallback to sync method
             self.delete_by_media_id_sync(media_id)
 
     def delete_by_media_id_sync(self, media_id: UUID) -> None:
-        # Use sync method - this should only be called with sync session
         stmt = (
             select(SummaryEntity)
             .join(TranscriptionEntity, SummaryEntity.transcription_id == TranscriptionEntity.id)
             .where(TranscriptionEntity.media_id == media_id)
         )
         result = self.db.execute(stmt)
-        entity = result.scalar_one_or_none()
-        if entity is not None:
+        for entity in result.scalars().all():
             self.db.delete(entity)
-            self.db.flush()
+        self.db.flush()

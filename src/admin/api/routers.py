@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from src.admin.application.admin_service import AdminService
 from src.media_management.api.schemas import MediaResponse
 from src.shared.api.dependencies import get_current_admin_user
+from src.shared.api.schemas import PaginatedResponse
 from src.user_management.api.schemas import UserResponse
 from src.user_management.domain.user import User
 
@@ -28,7 +29,7 @@ async def get_system_stats(service: AdminService = Depends(get_admin_service)):
     return await service.get_system_stats()
 
 
-@router.get("/users", response_model=List[UserResponse], summary="List all users in the system")
+@router.get("/users", response_model=PaginatedResponse[UserResponse], summary="List all users in the system")
 async def list_all_users(
     service: AdminService = Depends(get_admin_service),
     page: int = Query(1, ge=1, description="Page number"),
@@ -36,7 +37,13 @@ async def list_all_users(
     search: Optional[str] = Query(None, description="Search term for user email")
 ):
     """Lists all users with pagination and search capabilities."""
-    return await service.list_users(page=page, limit=limit, search=search)
+    result = await service.list_users(page=page, limit=limit, search=search)
+    return PaginatedResponse[UserResponse](
+        total_items=result["total_items"],
+        total_pages=result["total_pages"],
+        current_page=result["current_page"],
+        items=result["items"],
+    )
 
 
 @router.put("/users/{user_id}", response_model=UserResponse, summary="Update a user's role")
@@ -72,7 +79,7 @@ async def delete_user(
         raise HTTPException(status_code=status_code, detail=str(e))
 
 
-@router.get("/media", response_model=List[MediaResponse], summary="List all media in the system")
+@router.get("/media", response_model=PaginatedResponse[MediaResponse], summary="List all media in the system")
 async def list_all_media(
     service: AdminService = Depends(get_admin_service),
     page: int = Query(1, ge=1),
@@ -80,7 +87,13 @@ async def list_all_media(
     search: Optional[str] = Query(None, description="Search term for media filename")
 ):
     """Lists all media items with pagination and search capabilities."""
-    return await service.list_media(page=page, limit=limit, search=search)
+    result = await service.list_media(page=page, limit=limit, search=search)
+    return PaginatedResponse[MediaResponse](
+        total_items=result["total_items"],
+        total_pages=result["total_pages"],
+        current_page=result["current_page"],
+        items=result["items"],
+    )
 
 
 @router.delete("/media/{media_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a media item")
