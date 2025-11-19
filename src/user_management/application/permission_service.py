@@ -2,12 +2,13 @@
 from uuid import UUID
 
 from src.user_management.domain.interfaces import IUserPermissionService
-from src.user_management.domain.user import User
+from src.user_management.domain.user import User, UserRole
 
 
 class UserPermissionService(IUserPermissionService):
     def validate_admin_operation(self, admin_user: User, target_user_id: UUID) -> None:
-        if not admin_user.role or admin_user.role.value != "admin":
+        role_value = admin_user.role.value if admin_user.role else ""
+        if role_value.upper() != UserRole.ADMIN.value:
             raise PermissionError("Only administrators can perform this operation.")
 
         if admin_user.id == target_user_id:

@@ -6,6 +6,7 @@ from typing import Any, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, HTTPException, status
+from fastapi.responses import JSONResponse
 
 from src.media_management.api.dependencies import get_media_queries
 from src.media_management.application.queries.media_queries import MediaQueries
@@ -394,9 +395,12 @@ async def get_topic_modeling_result_by_media_id(
         analysis_result = await topic_service.get_topic_modeling_result(media_id)
 
     if analysis_result is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Topic modeling result not found for the given media ID.",
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content={
+                "detail": "Modelagem de tópicos ainda está em processamento para esta mídia.",
+                "status": "PROCESSING",
+            },
         )
 
     return TopicModelingResponse.from_domain(analysis_result, media_id=str(media_id))

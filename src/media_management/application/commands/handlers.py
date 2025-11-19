@@ -2,6 +2,7 @@
 import time  # Adicionar para calcular duração
 
 import structlog
+from uuid import UUID
 
 from src.media_management.application.commands.commands import (
     DeleteMediaCommand,
@@ -10,6 +11,17 @@ from src.media_management.application.commands.commands import (
 from src.media_management.infrastructure.logging import StructuredMediaLogger
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
+from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
+from src.text_analysis.summarization.infrastructure.summarization_repository import (
+    SummarizationRepository,
+)
+from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
+    SentimentAnalysisRepository,
+)
+from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import (
+    TopicModelingRepository,
+)
+from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 logger = structlog.get_logger(__name__)
 
@@ -21,11 +33,13 @@ class DeleteMediaCommandHandler:
         self,
         media_repo: MediaRepository,
         media_logger: StructuredMediaLogger,
-        media_metrics: PrometheusMediaMetrics
+        media_metrics: PrometheusMediaMetrics,
+        storage_factory: StorageServiceFactory,
     ):
         self.media_repo = media_repo
         self.media_logger = media_logger
         self.media_metrics = media_metrics
+        self.storage_factory = storage_factory
 
     async def handle(self, command: DeleteMediaCommand) -> None:
         start_time = time.monotonic()
@@ -50,7 +64,17 @@ class DeleteMediaCommandHandler:
             # TODO: Obter o tamanho real do arquivo para file_size_bytes
             file_size_bytes = 1024 * 1024 # Placeholder
 
-            await self.media_repo.delete(media)
+            await self._delete_associated_records(media.id)
+            await self._delete_original_file(media)
+            await self.media_repo.delete(media.id)
+
+            session = getattr(self.media_repo, "db", None)
+            if session is not None and hasattr(session, "commit"):
+                try:
+                    await session.commit()
+                except Exception:
+                    await session.rollback()
+                    raise
             success = True
             logger.info(
                 f"media_management.{operation_name}.completed",
@@ -82,6 +106,50 @@ class DeleteMediaCommandHandler:
                 duration=duration,
                 file_size_bytes=file_size_bytes
             )
+
+    async def _delete_associated_records(self, media_id: UUID) -> None:
+        db = getattr(self.media_repo, "db", None)
+        if db is None:
+            return
+
+        transcription_repo = TranscriptionRepository(db)
+        summarization_repo = SummarizationRepository(db)
+        sentiment_repo = SentimentAnalysisRepository(db)
+        topic_repo = TopicModelingRepository(db)
+
+        try:
+            await summarization_repo.delete_by_media_id(media_id)
+        except Exception as exc:
+            logger.warning("media.delete.summaries_failed", media_id=str(media_id), error=str(exc))
+
+        try:
+            await sentiment_repo.delete_by_media_id(str(media_id))
+        except Exception as exc:
+            logger.warning("media.delete.sentiment_failed", media_id=str(media_id), error=str(exc))
+
+        try:
+            await topic_repo.delete_by_media_id(media_id)
+        except Exception as exc:
+            logger.warning("media.delete.topic_failed", media_id=str(media_id), error=str(exc))
+
+        try:
+            await transcription_repo.delete_by_media_id(media_id)
+        except Exception as exc:
+            logger.warning("media.delete.transcription_failed", media_id=str(media_id), error=str(exc))
+
+    async def _delete_original_file(self, media) -> None:
+        file_path = getattr(media, "original_file_path", None)
+        if not file_path:
+            return
+
+        provider = (getattr(media, "storage_provider", None) or "local").lower()
+        storage_client = self.storage_factory.create_storage_service(provider)
+        try:
+            await storage_client.delete(file_path)
+        except FileNotFoundError:
+            logger.info("media.delete.file_missing", path=file_path, provider=provider)
+        except Exception as exc:
+            logger.warning("media.delete.file_failed", path=file_path, provider=provider, error=str(exc))
 
 
 class ReprocessMediaCommandHandler:
