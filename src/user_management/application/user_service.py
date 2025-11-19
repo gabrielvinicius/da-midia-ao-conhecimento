@@ -148,6 +148,43 @@ class UserService:
         user.password_hash = hash_password(new_password)
         self.user_repository.save_sync(user)
 
+    async def ensure_admin_user(
+        self,
+        *,
+        email: str,
+        default_password: str,
+        force_password_reset: bool = False,
+    ) -> User:
+        """Ensure that ``email`` is associated with an admin account.
+
+        Creates the user if needed or elevates the existing account role. Optionally
+        resets the password so staging environments keep deterministic credentials.
+        """
+
+        normalised_email = email.strip().lower()
+        if not normalised_email:
+            raise ValueError("Admin email must not be empty")
+
+        self._validate_password_strength(default_password)
+
+        existing = await self.user_repository.find_by_email(normalised_email)
+        if existing is None:
+            return await self.create_user(normalised_email, default_password, role=UserRole.ADMIN.value)
+
+        updated = False
+        if existing.role != UserRole.ADMIN:
+            existing.role = UserRole.ADMIN
+            updated = True
+
+        if force_password_reset:
+            existing.password_hash = hash_password(default_password)
+            updated = True
+
+        if updated:
+            return await self.user_repository.save(existing)
+
+        return existing
+
     async def update_user(self, user_id: UUID, updates: Dict[str, Any]) -> User:
         if not updates:
             raise ValueError("No updates provided")

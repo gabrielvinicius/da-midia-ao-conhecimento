@@ -192,6 +192,30 @@ async def lifespan(app: FastAPI):
             text_analysis_service=getattr(text_analysis_module, "service", None),
         )
 
+        default_admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "user@example.com").strip()
+        default_admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "Admin123!")
+        force_admin_password = os.getenv("DEFAULT_ADMIN_FORCE_PASSWORD", "0").lower() in {"1", "true", "yes"}
+
+        if default_admin_email and default_admin_password:
+            try:
+                admin_user = await auth_module.user_service.ensure_admin_user(
+                    email=default_admin_email,
+                    default_password=default_admin_password,
+                    force_password_reset=force_admin_password,
+                )
+                logger.info(
+                    "auth.ensure_admin.success",
+                    email=default_admin_email,
+                    user_id=str(admin_user.id),
+                    force_password_reset=force_admin_password,
+                )
+            except Exception as exc:  # pragma: no cover - defensive guard
+                logger.warning(
+                    "auth.ensure_admin.failed",
+                    email=default_admin_email,
+                    error=str(exc),
+                )
+
         logger.info("Inicializando recursos compartilhados", component="bootstrap")
         try:
             await start_application_resources(resources)
