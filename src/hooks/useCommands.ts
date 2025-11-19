@@ -13,6 +13,7 @@ import {
   executeUpdateUserRole,
   executeDeleteUser,
   executeDeleteMedia,
+  executeDeleteUserMedia,
   executeAdminReprocessMedia,
   CreateMediaCommand,
   ReprocessMediaCommand,
@@ -23,6 +24,7 @@ import {
   UpdateUserRoleCommand,
   DeleteUserCommand,
   DeleteMediaCommand,
+  DeleteUserMediaCommand,
 } from '@/api/commands';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -91,6 +93,26 @@ export const useReprocessMediaCommand = () => {
     onError: (error: any) => {
       console.error('❌ ReprocessMediaCommand falhou:', error);
       toast.error('Erro ao reprocessar arquivo');
+    },
+  });
+};
+
+export const useDeleteUserMediaCommand = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (command: DeleteUserMediaCommand) => executeDeleteUserMedia(command),
+    onSuccess: (_, variables) => {
+      toast.success('Mídia excluída com sucesso.');
+      queryClient.invalidateQueries({ queryKey: ['media-list'] });
+      if (variables.mediaId) {
+        queryClient.invalidateQueries({ queryKey: ['media', variables.mediaId] });
+      }
+    },
+    onError: (error: any) => {
+      console.error('❌ DeleteMediaCommand falhou:', error);
+      const message = error?.response?.data?.detail || 'Erro ao excluir a mídia';
+      toast.error(message);
     },
   });
 };

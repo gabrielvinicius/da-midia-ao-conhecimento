@@ -174,6 +174,10 @@ export interface DeleteMediaCommand {
   mediaId: string;
 }
 
+export interface DeleteUserMediaCommand {
+  mediaId: string;
+}
+
 export const executeUpdateUserRole = async (command: UpdateUserRoleCommand) => {
   console.log('👑 Executando UpdateUserRoleCommand:', command);
   
@@ -199,6 +203,14 @@ export const executeDeleteMedia = async (command: DeleteMediaCommand) => {
   await api.delete(`/admin/media/${command.mediaId}`);
   
   console.log('✅ DeleteMediaCommand executado');
+};
+
+export const executeDeleteUserMedia = async (command: DeleteUserMediaCommand) => {
+  console.log('🗑️ Executando DeleteUserMediaCommand:', command);
+
+  await api.delete(`/media/${command.mediaId}`);
+
+  console.log('✅ DeleteUserMediaCommand executado');
 };
 
 export const executeAdminReprocessMedia = async (command: ReprocessMediaCommand) => {

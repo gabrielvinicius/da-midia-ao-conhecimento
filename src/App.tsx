@@ -20,6 +20,7 @@ import DashboardPage from "./pages/DashboardPage";
 import MediaDetailPage from "./pages/MediaDetailPage";
 import UploadPage from "./pages/UploadPage";
 import SettingsPage from "./pages/SettingsPage"; // Import the new page
+import { AdminAnalyticsPage } from "./features/admin/pages/AdminAnalyticsPage";
 
 // Admin Pages
 import { AdminDashboardPage } from "./features/admin/pages/AdminDashboardPage";
@@ -53,6 +54,7 @@ const App = () => {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="dashboard" element={<AdminDashboardPage />} />
+                <Route path="analytics" element={<AdminAnalyticsPage />} />
                 <Route path="users" element={<AdminUsersPage />} />
                 <Route path="media" element={<AdminAllMediaPage />} />
               </Route>

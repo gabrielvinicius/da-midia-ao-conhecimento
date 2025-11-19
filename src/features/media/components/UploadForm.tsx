@@ -210,21 +210,27 @@ export const UploadForm = () => {
         <Label htmlFor="storage-provider">Provider de Armazenamento</Label>
         <Select 
           onValueChange={(value) => form.setValue('storageProvider', value)} 
-          disabled={isPending || isLoadingStorage}
+          disabled={isPending || isLoadingStorage || (storageProviders?.length ?? 0) === 0}
           defaultValue="local"
         >
           <SelectTrigger id="storage-provider">
-            <SelectValue placeholder="Selecione onde armazenar o arquivo" />
+            <SelectValue placeholder={isLoadingStorage ? 'Carregando providers...' : 'Selecione onde armazenar o arquivo'} />
           </SelectTrigger>
           <SelectContent>
-            {storageProviders?.map(provider => (
-              <SelectItem key={provider} value={provider}>
-                {provider === 'local' ? '💾 Local (Servidor)' : 
-                 provider === 's3' ? '☁️ Amazon S3' : 
-                 provider === 'minio' ? '🗃️ MinIO' : 
-                 `📁 ${provider.toUpperCase()}`}
+            {storageProviders && storageProviders.length > 0 ? (
+              storageProviders.map(provider => (
+                <SelectItem key={provider} value={provider}>
+                  {provider === 'local' ? '💾 Local (Servidor)' : 
+                   provider === 's3' ? '☁️ Amazon S3' : 
+                   provider === 'minio' ? '🗃️ MinIO' : 
+                   `📁 ${provider.toUpperCase()}`}
+                </SelectItem>
+              ))
+            ) : (
+              <SelectItem value="_empty" disabled>
+                {isLoadingStorage ? 'Carregando opções...' : 'Nenhum provider disponível'}
               </SelectItem>
-            ))}
+            )}
           </SelectContent>
         </Select>
         <p className="text-xs text-gray-500">
@@ -256,13 +262,19 @@ export const UploadForm = () => {
                       <SelectValue placeholder="Selecione um provider (opcional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      {transcriptionProviders?.map(p => (
-                        <SelectItem key={p} value={p}>
-                          {p === 'whisper' ? 'Whisper (OpenAI)' : 
-                           p === 'huggingface' ? 'HuggingFace' : 
-                           p === 'fastwhisper' ? 'Fast Whisper' : p}
+                      {transcriptionProviders && transcriptionProviders.length > 0 ? (
+                        transcriptionProviders.map(p => (
+                          <SelectItem key={p} value={p}>
+                            {p === 'whisper' ? 'Whisper (OpenAI)' : 
+                             p === 'huggingface' ? 'HuggingFace' : 
+                             p === 'fastwhisper' ? 'Fast Whisper' : p}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="_empty" disabled>
+                          Nenhum provider disponível
                         </SelectItem>
-                      ))}
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -281,12 +293,18 @@ export const UploadForm = () => {
                     <SelectValue placeholder="Selecione um provider (opcional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {summarizationProviders?.map(p => (
-                      <SelectItem key={p} value={p}>
-                        {p === 'openai' ? 'OpenAI' : 
-                         p === 'huggingface' ? 'HuggingFace' : p}
+                    {summarizationProviders && summarizationProviders.length > 0 ? (
+                      summarizationProviders.map(p => (
+                        <SelectItem key={p} value={p}>
+                          {p === 'openai' ? 'OpenAI' : 
+                           p === 'huggingface' ? 'HuggingFace' : p}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="_empty" disabled>
+                        Nenhum provider disponível
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -302,12 +320,18 @@ export const UploadForm = () => {
                     <SelectValue placeholder="Selecione um provider (opcional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {sentimentProviders?.map(p => (
-                      <SelectItem key={p} value={p}>
-                        {p === 'transformers' ? 'Transformers (BERT/RoBERTa)' :
-                         p === 'vader' ? 'VADER (Lexicon)' : p}
+                    {sentimentProviders && sentimentProviders.length > 0 ? (
+                      sentimentProviders.map(p => (
+                        <SelectItem key={p} value={p}>
+                          {p === 'transformers' ? 'Transformers (BERT/RoBERTa)' :
+                           p === 'vader' ? 'VADER (Lexicon)' : p}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="_empty" disabled>
+                        Nenhum provider disponível
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -323,13 +347,19 @@ export const UploadForm = () => {
                     <SelectValue placeholder="Selecione um provider (opcional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {topicProviders?.map(p => (
-                      <SelectItem key={p} value={p}>
-                        {p === 'sklearn_lda' ? 'Scikit-Learn LDA' :
-                         p === 'bertopic' ? 'BERTopic' :
-                         p === 'keyword_frequency' ? 'Frequência de Palavras' : p}
+                    {topicProviders && topicProviders.length > 0 ? (
+                      topicProviders.map(p => (
+                        <SelectItem key={p} value={p}>
+                          {p === 'sklearn_lda' ? 'Scikit-Learn LDA' :
+                           p === 'bertopic' ? 'BERTopic' :
+                           p === 'keyword_frequency' ? 'Frequência de Palavras' : p}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="_empty" disabled>
+                        Nenhum provider disponível
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
               </div>

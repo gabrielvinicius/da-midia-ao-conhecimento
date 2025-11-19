@@ -9,9 +9,18 @@ const envConfiguredBase = () => {
   return configured ? normalizeBase(configured) : '';
 };
 
-const getGlobalOrigin = (): string | undefined => {
-  const globalScope = globalThis as typeof globalThis & { location?: Location };
-  return globalScope.location?.origin ? normalizeBase(globalScope.location.origin) : undefined;
+const API_PREFIX = "/api";
+
+const runtimeOrigin = (): string | undefined => {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+  try {
+    return window.location?.origin ? normalizeBase(window.location.origin) : undefined;
+  } catch (error) {
+    console.warn('Não foi possível ler window.location.origin', error);
+    return undefined;
+  }
 };
 
 let cachedBaseUrl: string | null = null;
@@ -24,17 +33,22 @@ export const getApiBaseUrl = (): string => {
   const forced = import.meta.env.VITE_FORCE_API_URL === 'true';
   const configured = envConfiguredBase();
 
-  if (import.meta.env.PROD && !forced) {
-    const runtime = getGlobalOrigin();
-    if (runtime) {
-      cachedBaseUrl = runtime;
-      return cachedBaseUrl;
-    }
+  const origin = runtimeOrigin();
+  if (origin && (!import.meta.env.PROD || !forced)) {
+    cachedBaseUrl = `${origin}${API_PREFIX}`;
+    return cachedBaseUrl;
   }
 
   cachedBaseUrl = configured || 'http://localhost:8000';
   return cachedBaseUrl;
 };
+
+if (typeof window !== 'undefined') {
+  const origin = runtimeOrigin();
+  if (origin) {
+    cachedBaseUrl = `${origin}${API_PREFIX}`;
+  }
+}
 
 export const buildApiUrl = (path = '/'): string => `${getApiBaseUrl()}${ensureAbsolutePath(path)}`;
 export const buildWsUrl = (path = '/'): string => buildApiUrl(path).replace(/^http/, 'ws');

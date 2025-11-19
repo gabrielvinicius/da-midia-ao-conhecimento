@@ -3,10 +3,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Media, MediaStatus, MediaType } from "../../../types";
-import { FileText, CheckCircle, XCircle, Loader2, Clock, Video, Music, FileImage, MoreVertical, Eye, RotateCcw } from "lucide-react";
+import { FileText, CheckCircle, XCircle, Loader2, Clock, Video, Music, FileImage, MoreVertical, Eye, RotateCcw, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useReprocessMedia } from "../hooks/useMedia";
+import { useDeleteUserMediaCommand } from "@/hooks/useCommands";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/DropdownMenu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/AlertDialog";
 
 interface MediaCardProps {
   media: Media;
@@ -49,6 +69,7 @@ const mediaTypeConfig: Record<MediaType, { icon: React.ReactNode; label: string;
 
 export const MediaCard = ({ media }: MediaCardProps) => {
   const { mutate: reprocess, isPending: isReprocessing } = useReprocessMedia();
+  const { mutate: deleteMedia, isPending: isDeleting } = useDeleteUserMediaCommand();
   const { icon: statusIcon, color: statusColor, label: statusLabel, bgColor: statusBgColor } = statusConfig[media.status] || statusConfig[MediaStatus.PENDING];
   const { icon: typeIcon, label: typeLabel, color: typeColor } = mediaTypeConfig[media.media_type] || mediaTypeConfig[MediaType.TEXT];
 
@@ -78,6 +99,51 @@ export const MediaCard = ({ media }: MediaCardProps) => {
               </p>
             </div>
           </div>
+          <AlertDialog>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                  <span className="sr-only">Abrir menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                <DropdownMenuItem asChild>
+                  <Link to={`/media/${media.id}`} className="flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    Ver detalhes
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-red-600 focus:text-red-600" disabled={isDeleting} asChild>
+                  <AlertDialogTrigger asChild>
+                    <button className="w-full flex items-center gap-2">
+                      <Trash2 className="h-4 w-4" />
+                      Excluir mídia
+                    </button>
+                  </AlertDialogTrigger>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir “{filename}”?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Essa ação remove o arquivo original e todas as transcrições, resumos e análises vinculadas. Não será possível desfazer.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-600 hover:bg-red-700"
+                  onClick={() => deleteMedia({ mediaId: media.id })}
+                >
+                  {isDeleting ? 'Excluindo...' : 'Excluir'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </CardHeader>
       

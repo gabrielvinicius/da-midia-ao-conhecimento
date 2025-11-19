@@ -1,8 +1,9 @@
 import { createContext, useContext, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getProviders, ProviderType } from '../api';
+import { getProvidersMap, ProviderType } from '../api';
+import { useAuth } from '@/contexts/AuthContext';
 
-type ProviderMap = Record<ProviderType, string[]>;
+type ProviderMap = Partial<Record<ProviderType, string[]>>;
 
 interface ProvidersContextValue {
   providers: Partial<ProviderMap>;
@@ -12,27 +13,22 @@ interface ProvidersContextValue {
 
 const ProvidersContext = createContext<ProvidersContextValue | undefined>(undefined);
 
-const providerTypes: ProviderType[] = [
-  'storage',
-  'transcription',
-  'summarization',
-  'sentiment',
-  'topics',
-];
-
 export const ProvidersProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated } = useAuth();
   const result = useQuery({
-    queryKey: ['providers', 'all'],
+    queryKey: ['providers', 'map'],
     queryFn: async () => {
-      const entries = await Promise.all(
-        providerTypes.map(async (type) => {
-          const data = await getProviders(type);
-          return [type, data] as const;
-        })
-      );
-      return Object.fromEntries(entries) as ProviderMap;
+      const map = await getProvidersMap();
+      return map as ProviderMap;
     },
-    staleTime: Infinity,
+    enabled: isAuthenticated,
+    staleTime: 5 * 60 * 1000,
+    retry: (failureCount, error: any) => {
+      if (error?.response?.status === 401) {
+        return false;
+      }
+      return failureCount < 3;
+    },
   });
 
   const value = useMemo<ProvidersContextValue>(
