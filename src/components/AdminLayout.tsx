@@ -1,11 +1,26 @@
-import { Outlet, Link, NavLink } from 'react-router-dom';
-import { Home, Users, FolderKanban, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { Outlet, Link, NavLink, useLocation } from 'react-router-dom';
+import { Home, Users, FolderKanban, LogOut, BarChart3, Menu, UserCircle, Settings, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/Button';
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator'; // Import the new component
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/DropdownMenu";
 
 const AdminLayout = () => {
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const isAdminRoute = location.pathname.startsWith('/admin');
+  const layoutClass = isSidebarCollapsed
+    ? 'grid min-h-screen w-full md:grid-cols-[72px_1fr]'
+    : 'grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]';
 
   const navLinkClasses = (isActive: boolean) =>
     `flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
@@ -15,27 +30,40 @@ const AdminLayout = () => {
     }`;
 
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-      <div className="hidden border-r bg-muted/40 md:block">
+    <div className={layoutClass}>
+      <div className={`hidden border-r bg-muted/40 md:block ${isSidebarCollapsed ? 'w-[72px]' : ''}`}>
         <div className="flex h-full max-h-screen flex-col gap-2">
-          <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-            <Link to="/admin" className="flex items-center gap-2 font-semibold">
-              <span className="">Admin Panel</span>
-            </Link>
+          <div className={`flex h-14 items-center border-b ${isSidebarCollapsed ? 'justify-center px-0' : 'px-4 lg:px-6'} lg:h-[60px]`}>
+            <button
+              className="inline-flex items-center justify-center rounded-md border p-2 text-sm"
+              onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+              aria-label="Alternar menu"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
+            {!isSidebarCollapsed && (
+              <Link to="/admin" className="ml-3 flex items-center gap-2 font-semibold">
+                <span>Painel Administrativo</span>
+              </Link>
+            )}
           </div>
           <div className="flex-1">
-            <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
+            <nav className={`grid items-start ${isSidebarCollapsed ? 'px-1' : 'px-2 text-sm font-medium lg:px-4'}`}>
               <NavLink to="/admin/dashboard" className={({ isActive }) => navLinkClasses(isActive)}>
                 <Home className="mr-3 h-4 w-4" />
-                Dashboard
+                {!isSidebarCollapsed && 'Resumo'}
               </NavLink>
               <NavLink to="/admin/users" className={({ isActive }) => navLinkClasses(isActive)}>
                 <Users className="mr-3 h-4 w-4" />
-                Users
+                {!isSidebarCollapsed && 'Usuários'}
               </NavLink>
               <NavLink to="/admin/media" className={({ isActive }) => navLinkClasses(isActive)}>
                 <FolderKanban className="mr-3 h-4 w-4" />
-                Media
+                {!isSidebarCollapsed && 'Mídias'}
+              </NavLink>
+              <NavLink to="/admin/analytics" className={({ isActive }) => navLinkClasses(isActive)}>
+                <BarChart3 className="mr-3 h-4 w-4" />
+                {!isSidebarCollapsed && 'Análises'}
               </NavLink>
             </nav>
           </div>
@@ -43,15 +71,38 @@ const AdminLayout = () => {
       </div>
       <div className="flex flex-col">
         <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
-          <div className="w-full flex-1">
-            <h1 className="text-lg font-semibold">Admin</h1>
-          </div>
+          <div className="w-full flex-1" />
           <div className="flex items-center gap-4">
-            <ConnectionStatusIndicator /> {/* Add the indicator */}
-            <span className="text-sm text-muted-foreground hidden sm:inline-block">{user?.email}</span>
-            <Button variant="ghost" size="icon" onClick={logout}>
-              <LogOut className="h-5 w-5" />
-            </Button>
+            <ConnectionStatusIndicator />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" size="icon" className="rounded-full">
+                  <UserCircle className="h-5 w-5" />
+                  <span className="sr-only">Menu do usuário</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Configurações</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to={isAdminRoute ? '/dashboard' : '/admin/dashboard'}>
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    <span>{isAdminRoute ? 'Painel do usuário' : 'Painel Admin'}</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={logout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sair</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">

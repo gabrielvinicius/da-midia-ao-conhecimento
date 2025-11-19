@@ -12,6 +12,9 @@ export const getTopicModelingResult = async (mediaId: string): Promise<TopicMode
   console.log('📊 Buscando resultado de modelagem de tópicos para mídia:', mediaId);
   try {
     const response = await api.get<TopicModelingResult>(`/topic-modeling/?media_id=${mediaId}`);
+    if (response.status === 202 || (response.data as any)?.status === 'PROCESSING') {
+      return null;
+    }
     console.log('✅ Resultado de modelagem de tópicos obtido:', response.data);
     return response.data;
   } catch (error: any) {
@@ -52,6 +55,9 @@ export const getTopicModeling = async (mediaId: string): Promise<TopicModelingRe
   console.log('🏷️ Buscando topic modeling para mídia:', mediaId);
   try {
     const response = await api.get<TopicModelingResult>(`/topic-modeling/?media_id=${mediaId}`);
+    if (response.status === 202 || (response.data as any)?.status === 'PROCESSING') {
+      return null;
+    }
     console.log('✅ Topic modeling obtido:', response.data);
     return response.data;
   } catch (error: any) {

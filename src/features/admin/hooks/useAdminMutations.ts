@@ -1,6 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
-import { deleteUser, deleteMedia, updateUser, UserUpdatePayload, reprocessMedia } from '../api';
+import {
+  deleteUser,
+  deleteMedia,
+  updateUser,
+  UserUpdatePayload,
+  reprocessMedia,
+  bulkReprocessFailedMedia,
+  cleanupOrphanedFiles,
+} from '../api';
 
 export const useDeleteUser = () => {
   const queryClient = useQueryClient();
@@ -8,7 +16,7 @@ export const useDeleteUser = () => {
   return useMutation({
     mutationFn: (userId: string) => deleteUser(userId),
     onSuccess: () => {
-      toast.success('User deleted successfully.');
+      toast.success('Usuário removido com sucesso.');
       queryClient.invalidateQueries({ queryKey: ['admin-all-users'] });
     },
     onError: (error) => {
@@ -23,7 +31,7 @@ export const useDeleteMedia = () => {
   return useMutation({
     mutationFn: (mediaId: string) => deleteMedia(mediaId),
     onSuccess: () => {
-      toast.success('Media deleted successfully.');
+      toast.success('Mídia excluída com sucesso.');
       queryClient.invalidateQueries({ queryKey: ['admin-all-media'] });
     },
     onError: (error) => {
@@ -38,7 +46,7 @@ export const useUpdateUser = () => {
   return useMutation({
     mutationFn: ({ userId, payload }: { userId: string; payload: UserUpdatePayload }) => updateUser(userId, payload),
     onSuccess: () => {
-      toast.success('User updated successfully.');
+      toast.success('Usuário atualizado com sucesso.');
       queryClient.invalidateQueries({ queryKey: ['admin-all-users'] });
     },
     onError: (error) => {
@@ -53,13 +61,42 @@ export const useReprocessMedia = () => {
   return useMutation({
     mutationFn: (mediaId: string) => reprocessMedia(mediaId),
     onSuccess: (data) => {
-      toast.success(data.message || 'Reprocessing initiated.');
+      toast.success(data.message || 'Reprocessamento iniciado.');
       // No need to invalidate queries here. The WebSocket update will refresh the UI.
       // We can, however, invalidate to get the initial PENDING state faster if needed.
       queryClient.invalidateQueries({ queryKey: ['admin-all-media'] });
     },
     onError: (error) => {
       console.error('Failed to reprocess media:', error);
+    },
+  });
+};
+
+export const useBulkReprocessMedia = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => bulkReprocessFailedMedia(),
+    onSuccess: (data) => {
+      toast.success(data.message || 'Reprocessamento em lote iniciado.');
+      queryClient.invalidateQueries({ queryKey: ['admin-all-media'] });
+    },
+    onError: (error) => {
+      console.error('Failed to bulk reprocess media:', error);
+      toast.error('Erro ao reprocessar mídia em massa.');
+    },
+  });
+};
+
+export const useCleanupOrphanedFiles = () => {
+  return useMutation({
+    mutationFn: () => cleanupOrphanedFiles(),
+    onSuccess: (data) => {
+      toast.success(data.message || 'Limpeza concluída com sucesso.');
+    },
+    onError: (error) => {
+      console.error('Failed to cleanup orphaned files:', error);
+      toast.error('Erro ao limpar arquivos órfãos.');
     },
   });
 };
