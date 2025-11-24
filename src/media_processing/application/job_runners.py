@@ -34,6 +34,12 @@ from src.media_processing.video_processing.infrastructure.video_audio_extractor 
 from src.media_processing.video_processing.infrastructure.video_thumbnail_generator import (
     FFmpegVideoThumbnailGenerator,
 )
+from src.media_management.application.queries.media_queries_sync import (
+    MediaQueriesSync,
+)
+from src.media_management.infrastructure.media_repository_sync import (
+    MediaRepositorySync,
+)
 from src.shared.event_bus import InMemoryEventBus
 from src.shared.events.domain_events import TextContentReady
 from src.storage.infrastructure.dependencies import StorageServiceFactory
@@ -53,15 +59,12 @@ class _NoopVideoTaskScheduler:
 
 def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optional[str]:
     """Execute the transcription pipeline in-process for Celery."""
-    from src.media_management.application.queries.media_queries import MediaQueries
-    from src.media_management.infrastructure.media_repository import MediaRepository
-
     storage_factory = StorageServiceFactory()
     storage_adapter = storage_factory.create_storage_service(payload.storage_provider)
 
     transcription_repo = TranscriptionRepository(db)
-    media_repo = MediaRepository(db=db)
-    media_queries = MediaQueries(media_repository=media_repo)
+    media_repo = MediaRepositorySync(db=db)
+    media_queries = MediaQueriesSync(media_repository=media_repo)
 
     event_bus = InMemoryEventBus()
     text_analysis_service = TextAnalysisService()

@@ -7,8 +7,12 @@ from src.text_analysis.topic_modeling.infrastructure.dependencies import (
 )
 
 # Import dependencies for manual construction
-from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_management.infrastructure.media_repository import MediaRepository
+from src.media_management.application.queries.media_queries_sync import (
+    MediaQueriesSync,
+)
+from src.media_management.infrastructure.media_repository_sync import (
+    MediaRepositorySync,
+)
 from src.shared.infrastructure.database import get_sync_db
 from src.text_analysis.application.schemas import TopicExtractionTaskPayload
 from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import (
@@ -53,8 +57,8 @@ def _run_topic_modeling_sync(payload: TopicExtractionTaskPayload, db_session):
     service_factory = create_topic_modeling_service_sync  # Use sync version if available
 
     # The handler now needs MediaQueries to fetch the language
-    media_repo = MediaRepository(db=db_session)  # This should work with sync session now
-    media_queries = MediaQueries(media_repository=media_repo)
+    media_repo = MediaRepositorySync(db=db_session)
+    media_queries = MediaQueriesSync(media_repository=media_repo)
 
     handler = ExtractTopicsCommandHandler(
         topic_service_factory=service_factory,
