@@ -3,6 +3,7 @@ import { StatCard } from "../components/StatCard";
 import { useSystemStats, useSystemHealth, useMediaProcessingStats } from "../hooks/useAdminQueries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { percentFormatter } from "../components/AnalyticsWidgets";
 
 const ProgressBar = ({ value = 0, label, color = "bg-primary" }: { value?: number; label: string; color?: string }) => {
   const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
@@ -10,7 +11,7 @@ const ProgressBar = ({ value = 0, label, color = "bg-primary" }: { value?: numbe
   <div>
     <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
       <span>{label}</span>
-      <span>{safeValue.toFixed(1)}%</span>
+      <span>{percentFormatter(safeValue)}</span>
     </div>
     <div className="h-2 rounded-full bg-muted">
       <div className={`h-2 rounded-full ${color}`} style={{ width: `${Math.min(safeValue, 100)}%` }} />
@@ -26,51 +27,62 @@ export const AdminDashboardPage = () => {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold tracking-tight mb-6">Admin Dashboard</h1>
+      <div className="mb-6">
+        <p className="text-sm uppercase text-muted-foreground">Painel administrativo</p>
+        <h1 className="text-3xl font-bold tracking-tight">Visão geral das operações</h1>
+      </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <StatCard
-          title="Total Users"
+          title="Usuários cadastrados"
           value={stats?.total_users ?? 0}
           icon={<Users className="h-4 w-4 text-muted-foreground" />}
           isLoading={isLoading}
+          description="Contas ativas na plataforma"
         />
         <StatCard
-          title="Active Users"
+          title="Usuários ativos"
           value={stats?.active_users ?? 0}
           icon={<Activity className="h-4 w-4 text-muted-foreground" />}
           isLoading={isLoading}
+          description="Sessões ativas nas últimas 24h"
         />
         <StatCard
-          title="Total Media Files"
+          title="Mídias registradas"
           value={stats?.total_media ?? 0}
           icon={<FolderKanban className="h-4 w-4 text-muted-foreground" />}
           isLoading={isLoading}
+          description="Itens catalogados no pipeline"
         />
         <StatCard
-          title="Currently Processing"
+          title="Processando agora"
           value={stats?.processing_media ?? 0}
           icon={<Loader2 className="h-4 w-4 text-muted-foreground" />}
           isLoading={isLoading}
+          description="Fila atual de jobs"
         />
         <StatCard
-          title="Failed Media"
+          title="Falhas acumuladas"
           value={stats?.failed_media ?? 0}
           icon={<ShieldAlert className="h-4 w-4 text-muted-foreground" />}
           isLoading={isLoading}
+          description="Mídias que exigem reprocessamento"
         />
-          <StatCard
-            title="Success Rate"
-            value={`${(stats?.success_rate ?? 0).toFixed(1)}%`}
-            icon={<CheckCircle2 className="h-4 w-4 text-muted-foreground" />}
-            isLoading={isLoading}
-          />
+        <StatCard
+          title="Taxa de sucesso"
+          value={stats?.success_rate ?? 0}
+          suffix="%"
+          decimals={1}
+          icon={<CheckCircle2 className="h-4 w-4 text-muted-foreground" />}
+          isLoading={isLoading}
+          description="Mídias concluídas na janela atual"
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2 mt-6">
         <Card>
           <CardHeader>
-            <CardTitle>System Health</CardTitle>
-            <CardDescription>Status atual dos serviços críticos.</CardDescription>
+            <CardTitle>Saúde do sistema</CardTitle>
+            <CardDescription>Status consolidado dos serviços críticos.</CardDescription>
           </CardHeader>
           <CardContent>
             {isHealthLoading ? (
@@ -80,7 +92,7 @@ export const AdminDashboardPage = () => {
                 <div className="flex items-center gap-2">
                   <span className={`h-2 w-2 rounded-full ${health.status === 'healthy' ? 'bg-green-500' : 'bg-yellow-500'}`} />
                   <span className="text-sm font-medium capitalize">{health.status}</span>
-                  <span className="text-xs text-muted-foreground">Atualizado {new Date(health.timestamp).toLocaleString()}</span>
+                  <span className="text-xs text-muted-foreground">Atualizado {new Date(health.timestamp).toLocaleString("pt-BR")}</span>
                 </div>
                 <div className="text-sm text-muted-foreground">
                   Usuários ativos: {health.active_users}/{health.total_users}
@@ -106,7 +118,7 @@ export const AdminDashboardPage = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Media Processing Mix</CardTitle>
+            <CardTitle>Mix de processamento</CardTitle>
             <CardDescription>Distribuição das mídias por status.</CardDescription>
           </CardHeader>
           <CardContent>
