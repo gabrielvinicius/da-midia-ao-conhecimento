@@ -63,13 +63,14 @@ class WhisperSpeechRecognizer:
         )
         audio = await self._decode_audio_bytes(file)
         loop = asyncio.get_running_loop()
+        whisper_language = None if (language.lower() == "auto") else language
 
         def _run():
-            result = self.model.transcribe(audio, language=language)
+            result = self.model.transcribe(audio, language=whisper_language)
             return {
                 "text": result.get("text", "").strip(),
                 "segments": result.get("segments"),
-                "language": result.get("language", language),
+                "language": result.get("language", language if language != "auto" else None),
                 "provider": self.provider_name,
             }
 

@@ -35,6 +35,10 @@ COMPLETED -> PROCESSING (reprocessar manualmente)
 
 Qualquer mudança fora dessas transições gera `ValueError` nos repositórios `MediaRepository` (async) e `MediaRepositorySync` (Celery). Isso garante que eventos e notificações mantenham coerência com a jornada real do arquivo.
 
+### Detecção automática de idioma (Whisper)
+
+Os jobs de transcrição agora aceitam `language="auto"` (padrão). Quando `auto` é informado, o Whisper executa detecção automática e o idioma retornado passa a ser salvo no `Transcription.language`, propagado para eventos `TextContentReady` e utilizado pelos módulos de sumarização/sentimento/tópicos. Para forçar um idioma específico, basta enviar `language="pt"`, `"en"`, etc.
+
 This project is a practical implementation of several advanced software architecture patterns:
 
 - **Modular Monolith & Domain-Driven Design (DDD)**: The application is organized into Bounded Contexts (e.g., `media_management`, `transcription`, `notifications`), each with its own clear domain.

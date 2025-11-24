@@ -106,16 +106,24 @@ class TranscriptionService:
             audio_bytes = self.storage_service.download_file_sync(file_path)
 
             recognizer = self._resolve_speech_recognizer(transcription_provider)
-            
+            requested_language = (language or "auto").lower()
+
             # Use sync transcription if available, otherwise try async in new thread
             if hasattr(recognizer, 'transcribe_sync'):
-                result_payload = recognizer.transcribe_sync(audio_bytes, language=language)
+                result_payload = recognizer.transcribe_sync(
+                    audio_bytes,
+                    language=requested_language,
+                )
             else:
                 import concurrent.futures
+
                 def run_async():
                     import asyncio
-                    return asyncio.run(recognizer.transcribe(audio_bytes, language=language))
-                
+
+                    return asyncio.run(
+                        recognizer.transcribe(audio_bytes, language=requested_language)
+                    )
+
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(run_async)
                     result_payload = future.result()
@@ -124,11 +132,13 @@ class TranscriptionService:
             transcription = self.transcription_repo.update_sync(transcription)
             self.db_session.commit()
 
+            effective_language = transcription.language or language
+
             # Publish event synchronously if possible
             self._publish_text_content_ready_sync(
                 transcription=transcription,
                 media_id=media_id,
-                language=language,
+                language=effective_language,
                 storage_provider=storage_provider,
                 summarization_provider=summarization_provider,
                 sentiment_provider=sentiment_provider,
