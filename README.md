@@ -23,6 +23,18 @@ This project serves as a comprehensive, real-world example of applying modern, e
 
 For a detailed overview of how the backend composes modules, shared resources, and cross-context integrations, read the updated [architecture guide](docs/architecture.md).
 
+### Media status machine
+
+Uploads now seguem uma máquina de estados explícita:
+
+```
+UPLOADED -> PROCESSING -> COMPLETED
+                       -> FAILED -> PROCESSING (reprocessamento)
+COMPLETED -> PROCESSING (reprocessar manualmente)
+```
+
+Qualquer mudança fora dessas transições gera `ValueError` nos repositórios `MediaRepository` (async) e `MediaRepositorySync` (Celery). Isso garante que eventos e notificações mantenham coerência com a jornada real do arquivo.
+
 This project is a practical implementation of several advanced software architecture patterns:
 
 - **Modular Monolith & Domain-Driven Design (DDD)**: The application is organized into Bounded Contexts (e.g., `media_management`, `transcription`, `notifications`), each with its own clear domain.

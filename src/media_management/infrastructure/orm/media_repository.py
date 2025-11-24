@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.domain.enums import MediaStatus
+from src.media_management.domain.media_state import DEFAULT_MEDIA_STATE_MACHINE
 from src.media_management.domain.model import MediaAggregate
 from src.media_management.application.notifications import enqueue_media_status_notification
 import structlog
@@ -67,6 +68,7 @@ class MediaRepository:
         result = await self.db.execute(select(MediaEntity).where(MediaEntity.id == media_id))
         entity = result.scalar_one()
         previous_status = entity.status
+        DEFAULT_MEDIA_STATE_MACHINE.assert_transition(previous_status, status)
         previous_error = entity.error_message
         entity.status = status
         entity.error_message = error_message

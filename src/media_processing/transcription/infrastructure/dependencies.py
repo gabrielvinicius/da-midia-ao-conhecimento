@@ -33,9 +33,9 @@ def create_speech_recognition_service(provider: str) -> Any:
         return factory()
 
     logger.warning(
-        "speech_recognizer.provider_not_registered",
-        provider=provider,
-        available=list(_SPEECH_RECOGNIZERS.keys()),
+        "speech_recognizer.provider_not_registered provider=%s available=%s",
+        provider,
+        list(_SPEECH_RECOGNIZERS.keys()),
     )
     return _load_whisper_recognizer()
 

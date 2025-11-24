@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.media_management.application.notifications import enqueue_media_status_notification
 from src.media_management.domain.enums import MediaStatus
+from src.media_management.domain.media_state import DEFAULT_MEDIA_STATE_MACHINE
 from src.media_management.domain.model import MediaAggregate
 from src.media_management.infrastructure.orm.media_entity import MediaEntity
 from src.media_management.infrastructure.orm.media_mapper import MediaMapper
@@ -42,6 +43,7 @@ class MediaRepositorySync:
             return None
 
         previous_status = entity.status
+        DEFAULT_MEDIA_STATE_MACHINE.assert_transition(previous_status, status)
         previous_error = entity.error_message
         entity.status = status
         entity.error_message = error_message
