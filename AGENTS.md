@@ -12,6 +12,11 @@ Python: 4-space indent, 88-column max, double quotes. Lint and format using `poe
 ## Testing Guidelines
 Use `poetry run pytest tests/unit` for fast feedback. Mark async tests with `@pytest.mark.asyncio`. Integration flows in `tests/integration` expect Postgres and Redis—bring them up with Docker first. Extend fixture factories from `tests/conftest.py`, and document any long-running scenarios so Stage 6 validation stays reproducible.
 
+### Backend Tests dentro dos Containers
+- A imagem `backend` já instala `pytest`, `pytest-asyncio` e `httpx` via `requirements.txt`.
+- Para validar rapidamente dentro do Docker: `docker compose exec backend python -m pytest test_db_connection.py -vv` e demais arquivos utilitários (`test_app.py`, etc.).
+- Sempre que editar `requirements.txt`, reconstrua os serviços (`docker compose up --build backend worker`).
+
 ## MCP Agent Shortcuts
 The Codex CLI exposes several MCP servers.
 - `context7.resolve-library-id "fastapi"` → `context7.get-library-docs "<id>"` to pull official docs before coding.
@@ -20,6 +25,9 @@ The Codex CLI exposes several MCP servers.
 - `magicuidesign.getUIComponents` (plus `getButtons`, `getAnimations`) for rapid UI scaffolds.
 - `playwright.browser_navigate "https://localhost:8000"` then `browser_wait_for` to script smoke checks.
 - `zen.consensus`, `zen.planner`, and `zen.testgen` support plan tracking, analysis, and suite design—run them before large architectural moves.
+- `zen.refactor` para encontrar oportunidades de limpeza arquitetural, `zen.thinkdeep` para investigações multi-etapas e `zen.sequentialthinking` para decompor tarefas grandes.
+- `mcp-compass.recommend-mcp-servers` ajuda a descobrir MCPs externos, `memory` guarda contexto persistente e o pacote `context7` cobre documentação técnica.
+- Use o MCP `github.*` (list/get/create PRs, branches, commits) para automatizar interações com o repositório remoto; comandos `git` locais seguem disponíveis quando for preciso inspecionar a working tree.
 
 ## Commit & Pull Request Guidelines
 Commits follow Conventional style with context scopes (`refactor(admin): ...`). Keep messages in English, referencing the plan checkpoint (e.g., `Stage6-6.2.1`). PRs must list validation commands, link tracking issues, and add screenshots for UI updates. Ensure `poetry run pytest` and `npm run build` (when UI changes land) are green before requesting review.

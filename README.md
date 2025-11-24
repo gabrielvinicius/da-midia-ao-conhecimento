@@ -89,6 +89,21 @@ After starting the containers for the first time, open a new terminal and run th
 docker-compose exec backend alembic upgrade head
 ```
 
+### 5. Backend Tests dentro do Docker
+
+Os testes rápidos do backend rodam dentro do container `backend`, que agora já inclui as dependências necessárias (`pytest`, `pytest-asyncio`, `httpx`). Exemplos:
+
+```bash
+# Testa a conectividade com o banco usando pytest-asyncio
+docker compose exec backend python -m pytest test_db_connection.py -vv
+
+# Executa outros testes utilitários que residem na raiz do projeto
+docker compose exec backend python -m pytest test_app.py test_main_import.py \
+  test_sqlalchemy_connection.py test_sync_sqlalchemy_connection.py -vv
+```
+
+Se adicionar novos arquivos de teste sob `tests/`, basta referenciá-los no comando acima. Caso precise atualizar dependências de teste, edite `requirements.txt` e reconstrua as imagens com `docker compose up --build backend worker`.
+
 ## Core API Overview
 
 - **`POST /media/`**: Upload a new media file to start the processing pipeline.

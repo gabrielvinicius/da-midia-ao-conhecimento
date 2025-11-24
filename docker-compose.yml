@@ -151,7 +151,7 @@ services:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "celery", "-A", "src.celery_app:celery", "inspect", "ping", "-d", "backend", "--timeout=1"]
+      test: ["CMD", "bash", "-c", "celery -A src.celery_app:celery inspect ping --timeout=3"]
       interval: 30s
       timeout: 10s
       retries: 3

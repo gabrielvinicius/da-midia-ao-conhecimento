@@ -12,7 +12,6 @@ from src.media_processing.application.schemas import (
     TranscriptionTaskPayload,
     VideoTaskPayload,
 )
-from src.media_processing.tasks import process_transcription_task, process_video_task
 from src.media_processing.transcription.application.queries.transcription_queries import (
     TranscriptionQueries,
 )
@@ -145,6 +144,12 @@ class MediaProcessingService:
     ) -> None:
         """Trigger downstream processing whenever a media upload completes."""
         context = context or {}
+
+        # Import Celery tasks lazily to avoid circular imports during startup
+        from src.media_processing.tasks import (
+            process_transcription_task,
+            process_video_task,
+        )
 
         try:
             media_id = UUID(event.media_id)

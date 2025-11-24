@@ -53,6 +53,11 @@ pybreaker>=1.1.1
 psutil>=6.1.0
 dependency-injector>=4.45.0
 
+# Testing & Tooling
+pytest>=9.0.1
+pytest-asyncio>=0.23.8
+httpx>=0.28.1
+
 # OpenTelemetry for Distributed Tracing
 opentelemetry-api>=1.28.0
 opentelemetry-sdk>=1.28.0

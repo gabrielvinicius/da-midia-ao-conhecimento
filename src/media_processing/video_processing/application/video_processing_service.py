@@ -9,9 +9,6 @@ import structlog
 from src.media_processing.video_processing.infrastructure.metrics import (
     PrometheusVideoProcessingMetrics,
 )
-from src.media_processing.video_processing.infrastructure.task_scheduler import (
-    CeleryVideoProcessingTaskScheduler,
-)
 from src.media_processing.video_processing.infrastructure.video_audio_extractor import (
     FFmpegVideoAudioExtractor,
 )
@@ -32,7 +29,7 @@ class VideoProcessingService:
         self,
         video_audio_extractor: FFmpegVideoAudioExtractor,
         video_thumbnail_generator: FFmpegVideoThumbnailGenerator,
-        video_processing_task_scheduler: CeleryVideoProcessingTaskScheduler,
+        video_processing_task_scheduler: Any,
         storage_factory: StorageServiceFactory,
         default_storage_provider: str = "local",
         video_processing_metrics: Optional[PrometheusVideoProcessingMetrics] = None,

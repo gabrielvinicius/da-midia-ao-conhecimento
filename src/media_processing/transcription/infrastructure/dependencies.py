@@ -5,9 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Dict
 
-from src.media_processing.transcription.infrastructure.speech_recognizer import (
-    WhisperSpeechRecognizer,
-)
 from src.media_processing.transcription.infrastructure.transcription_repository import (
     TranscriptionRepository,
 )
@@ -15,7 +12,7 @@ from src.media_processing.transcription.infrastructure.transcription_repository 
 logger = logging.getLogger(__name__)
 
 _SPEECH_RECOGNIZERS: Dict[str, Callable[[], Any]] = {
-    "whisper": WhisperSpeechRecognizer,
+    "whisper": lambda: _load_whisper_recognizer(),
 }
 
 
@@ -40,6 +37,10 @@ def create_speech_recognition_service(provider: str) -> Any:
         provider=provider,
         available=list(_SPEECH_RECOGNIZERS.keys()),
     )
+    return _load_whisper_recognizer()
+
+
+def _load_whisper_recognizer():
     from src.media_processing.transcription.infrastructure.speech_recognizer import (
         WhisperSpeechRecognizer,
     )
