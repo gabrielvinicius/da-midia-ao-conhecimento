@@ -5,9 +5,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import structlog
+
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
 from src.storage.application.storage_service import StorageService
 from src.storage.infrastructure.local_storage_service import LocalStorageService
+
+
+logger = structlog.get_logger(__name__)
 
 
 @dataclass
@@ -34,14 +39,22 @@ class StorageClientAdapter:
         }
 
     async def download(self, file_path: str):
-        return await self.backend.download(file_path)
+        result = await self.backend.download(file_path)
+        if result is None:
+            legacy = self._legacy_lookup(file_path)
+            if legacy is not None:
+                return legacy, Path(file_path).name
+        return result
 
     async def download_file(self, file_path: str) -> bytes:
         result = await self.backend.download(file_path)
         if result is None:
-            raise FileNotFoundError(
-                f"File '{file_path}' not found in storage provider '{self.backend.provider_name}'"
-            )
+            legacy_bytes = self._legacy_lookup(file_path)
+            if legacy_bytes is None:
+                raise FileNotFoundError(
+                    f"File '{file_path}' not found in storage provider '{self.backend.provider_name}'"
+                )
+            return legacy_bytes
         payload, _ = result
         return payload
 
@@ -72,14 +85,46 @@ class StorageClientAdapter:
                 result = future.result()
         
         if result is None:
-            raise FileNotFoundError(
-                f"File '{file_path}' not found in storage provider '{self.backend.provider_name}'"
-            )
+            legacy_bytes = self._legacy_lookup(file_path)
+            if legacy_bytes is None:
+                raise FileNotFoundError(
+                    f"File '{file_path}' not found in storage provider '{self.backend.provider_name}'"
+                )
+            return legacy_bytes
         if isinstance(result, tuple):
             payload, _ = result
         else:
             payload = result
         return payload
+
+    def _legacy_lookup(self, file_path: str) -> Optional[bytes]:
+        """Fallback para registros legados que armazenavam apenas o nome do arquivo."""
+        candidate = Path(file_path)
+        if candidate.is_absolute() or candidate.parent != Path("."):
+            return None
+        backend_root = Path(getattr(self.backend, "_root", ""))
+        if not backend_root.exists():
+            return None
+        matches = list(backend_root.rglob(candidate.name))
+        if not matches:
+            return None
+        match = matches[0]
+        try:
+            logger.warning(
+                "storage.legacy_lookup_hit",
+                original=file_path,
+                resolved=str(match),
+                provider=self.backend.provider_name,
+            )
+            return match.read_bytes()
+        except Exception as exc:  # pragma: no cover - filesystem failures
+            logger.error(
+                "storage.legacy_lookup_failed",
+                original=file_path,
+                resolved=str(match),
+                error=str(exc),
+            )
+            return None
 
     async def delete(self, file_path: str) -> bool:
         return await self.backend.delete(file_path)
