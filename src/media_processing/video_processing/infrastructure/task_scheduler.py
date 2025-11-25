@@ -3,8 +3,6 @@ from typing import Any
 
 import structlog
 
-from src.media_processing.tasks import process_video_task
-
 logger = structlog.get_logger(__name__)
 
 
@@ -25,6 +23,8 @@ class CeleryVideoProcessingTaskScheduler:
             storage_provider=storage_provider,
             file_size_bytes=file_size_bytes,
         )
+        from src.media_processing.tasks import process_video_task
+
         task = process_video_task.delay(
             media_id=media_id,
             file_path=file_path,
