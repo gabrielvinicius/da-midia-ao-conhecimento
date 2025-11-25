@@ -3,6 +3,9 @@
 ## Project Structure & Module Organization
 Backend code lives in `src/`, grouped by bounded contexts such as `media_management`, `media_processing`, `text_analysis`, and `admin` (the orchestration facade). Shared helpers stay in `src/shared`, background jobs in each module’s `tasks.py`, and FastAPI boots from `main.py`. Database migrations reside in `alembic/`, while operational scripts live in `scripts/`. Automated suites sit in `tests/` (`unit`, `integration`, `e2e`, `smoke`). The React frontend remains in `frontend/` with feature folders inside `frontend/src`. Architecture notes sit in `docs/`.
 
+### Module Deprecations & Cleanup Status
+- `media_management`: `MediaService` é o único ponto de entrada suportado. Os antigos utilitários (`application/services/file_*`, `media_type_classifier`, `media_uploader`, `media_event_manager`) e `application/commands/components` foram removidos após a migração dos testes. Novas features devem continuar plugadas apenas no `MediaService`/`MediaOrchestrator`.
+
 ## Build, Test, and Development Commands
 Spin up dependencies via `python -m venv .venv && source .venv/bin/activate` or rely on Poetry with `poetry install`. Launch the API through `poetry run uvicorn main:app --reload`; for full stack services use `docker-compose up --build`. Apply migrations with `docker-compose exec backend alembic upgrade head`. Frontend cycle: `cd frontend && npm install`, then `npm run dev`. Match CI by running `poetry run pytest` and `poetry run mypy` before opening a PR.
 

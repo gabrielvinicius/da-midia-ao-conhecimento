@@ -16,11 +16,11 @@ from src.shared.api.unified_schemas import (
 )
 from src.user_management.domain.user import User
 
-from ..application.facade import MediaManagementFacade
+from ..application.facade import MediaOrchestrator
 from ..application.services import MediaService
 from .dependencies import (
     get_media_service,
-    get_media_facade,
+    get_media_orchestrator,
 )
 from .schemas import MediaResponse
 from src.storage.infrastructure.dependencies import StorageServiceFactory
@@ -95,11 +95,11 @@ async def get_media_by_id(
 async def delete_media(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
-    media_facade: MediaManagementFacade = Depends(get_media_facade),
+    media_orchestrator: MediaOrchestrator = Depends(get_media_orchestrator),
 ):
     """Delete a media file and all related artifacts owned by the current user."""
     try:
-        await media_facade.delete_media_for_user(media_id=media_id, acting_user=current_user)
+        await media_orchestrator.delete_media_for_user(media_id=media_id, acting_user=current_user)
     except PermissionError:
         raise HTTPException(status_code=404, detail="Media not found or not authorized")
     except ValueError as exc:

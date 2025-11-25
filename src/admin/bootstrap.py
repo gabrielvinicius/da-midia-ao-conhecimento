@@ -17,7 +17,7 @@ from src.admin.application.services.admin_audit_service import AdminAuditService
 from src.admin.application.services.admin_media_service import AdminMediaService
 from src.admin.application.services.admin_user_service import AdminUserService
 from src.admin.container import AdminContainer
-from src.media_management.application.facade import MediaManagementFacade
+from src.media_management.application.facade import MediaOrchestrator
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.user_management.application.queries.auth_queries import AuthQueries
 
@@ -35,12 +35,12 @@ def build_admin_module(
     session: AsyncSession,
     auth_queries: AuthQueries,
     media_queries: MediaQueries,
-    media_facade: MediaManagementFacade,
+    media_orchestrator: MediaOrchestrator,
 ) -> AdminModule:
     container = AdminContainer(db=session)
     container.auth_queries.override(providers.Object(auth_queries))
     container.media_queries.override(providers.Object(media_queries))
-    container.media_facade.override(providers.Object(media_facade))
+    container.media_orchestrator.override(providers.Object(media_orchestrator))
 
     admin_queries = container.admin_queries()
     audit_service = container.admin_audit_service()
@@ -52,7 +52,7 @@ def build_admin_module(
         admin_user_service=user_service,
     )
     media_adapter = MediaManagementAdapter(
-        media_facade=media_facade,
+        media_orchestrator=media_orchestrator,
         admin_media_service=media_service,
     )
 
