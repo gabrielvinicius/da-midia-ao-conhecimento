@@ -57,7 +57,7 @@ A tabela abaixo resume os módulos principais e suas integrações diretas:
 | Contexto | Superfície exposta | Integrações notáveis |
 | --- | --- | --- |
 | `auth` | `AuthModule` com serviços e *queries* de autenticação | Apenas depende da sessão; fornece *queries* para outros módulos como `notifications` e `admin`.【F:src/auth/bootstrap.py†L1-L28】【F:main.py†L88-L100】 |
-| `media_management` | `MediaModule` e `MediaAdminContext` | Usa storage abstraído, métricas e *event bus* para publicar `MediaUploaded` via `DefaultMediaEventPublisher`.【F:src/media_management/bootstrap.py†L25-L167】【F:src/media_management/application/commands/components/event_publisher.py†L1-L32】 |
+| `media_management` | `MediaModule` e `MediaAdminContext` | `MediaService` trata do CRUD; o `MediaOrchestrator` foca em eventos/admin. Componentes legados (`application.commands/components`) foram removidos após a migração dos testes.【F:src/media_management/bootstrap.py†L25-L205】【F:src/media_management/application/commands/create_media_command_handler.py†L22-L155】 |
 | `media_processing` | `MediaProcessingService` + módulos `video_processing`/`transcription` | Concentra a orquestração de extração de áudio, thumbnails e geração de transcrições, agendando tarefas Celery ao consumir `MediaUploaded`.【F:src/media_processing/application/services.py†L1-L144】【F:src/media_processing/video_processing/bootstrap.py†L1-L76】【F:src/media_processing/transcription/bootstrap.py†L21-L88】 |
 | `text_analysis` | `TextAnalysisModule` e submódulos (`text_processing`, `summarization`, `sentiment_analysis`, `topic_modeling`) | Pipeline consolidado para processar texto, sumarizar, analisar sentimento e modelar tópicos, reaproveitando o mesmo container e tarefas Celery. 【F:src/text_analysis/bootstrap.py†L1-L120】【F:src/text_analysis/text_processing/bootstrap.py†L1-L74】【F:src/text_analysis/summarization/bootstrap.py†L21-L113】 |
 | `notifications` | `NotificationModule` | Conecta-se ao *event bus* e ao `ConnectionManager`, expondo serviço e repositório; assina `NotificationRequested`.【F:src/notifications/bootstrap.py†L1-L73】【F:src/notifications/application/event_handlers.py†L11-L37】 |
@@ -95,7 +95,7 @@ As integrações por contexto ficam assim:
 
 | Contexto | Publica via event bus | Assina via event bus |
 | --- | --- | --- |
-| `media_management` | `MediaUploaded` ao concluir `CreateMediaCommandHandler` (via `DefaultMediaEventPublisher`).【F:src/media_management/application/commands/create_media_command_handler.py†L84-L145】【F:src/media_management/application/commands/components/event_publisher.py†L1-L32】 | — |
+| `media_management` | `MediaUploaded` agora é publicado pelo `MediaOrchestrator`, que delega ao `MediaService` e dispara eventos adicionais.【F:src/media_management/application/services/media_service.py†L65-L207】 | — |
 | `media_processing` | — | `MediaUploaded` para acionar extração de áudio, geração de thumbnails e transcrições via Celery.【F:src/media_processing/video_processing/application/event_handlers.py†L17-L37】【F:src/media_processing/transcription/application/event_handlers.py†L38-L125】 |
 | `text_analysis` | — | `MediaUploaded` e `TextContentReady` para pipelines de processamento textual, sumarização, sentimento e tópicos. Cada submódulo agenda tarefas Celery especializadas.【F:src/text_analysis/text_processing/application/event_handlers.py†L13-L43】【F:src/text_analysis/summarization/application/event_handlers.py†L13-L46】【F:src/text_analysis/sentiment_analysis/application/event_handlers.py†L11-L39】【F:src/text_analysis/topic_modeling/application/event_handlers.py†L11-L36】 |
 | `notifications` | — | `NotificationRequested`, convertendo o evento em tarefas Celery que enviam mensagens nos canais configurados.【F:src/notifications/application/event_handlers.py†L11-L37】 |
@@ -127,7 +127,7 @@ aplicação de rate limiting.
 ## Stage6 – Estado em 03/11/2025
 
 ### Consolidação de módulos
-- `media_management`: os serviços de upload, lifecycle e queries foram fundidos no `MediaService`, expondo uma única porta de entrada para os routers FastAPI e para a `MediaManagementFacade`. O `MediaModule` agora publica apenas `queries`, `service` e `facade`, reduzindo a lista de overrides necessários no `main.lifespan`.
+- `media_management`: os serviços de upload, lifecycle e queries foram fundidos no `MediaService`, expondo uma única porta de entrada para os routers FastAPI. O `MediaModule` agora publica apenas `queries`, `service` e o `MediaOrchestrator` (responsável por eventos/admin), reduzindo a lista de overrides necessários no `main.lifespan`.
 - `media_processing`: introduzimos o `MediaDispatchOrchestrator`, que centraliza a seleção de pipelines (texto, áudio, vídeo) e deixou `process_media_task` como um simples enfileirador de Celery. Próximas etapas da Fase 2 focam em mover o restante das regras ainda residuais para `MediaProcessingService`.
 - `admin`: a fachada continua ativa, porém ainda coexistem caminhos alternativos em módulos herdados. A limpeza final depende da conclusão das etapas acima.
 

@@ -1,4 +1,4 @@
-"""High-level facade exposing consolidated media operations."""
+"""High-level orchestrator exposing consolidated media operations."""
 from __future__ import annotations
 
 import asyncio
@@ -21,8 +21,8 @@ logger = structlog.get_logger(__name__)
 
 
 @dataclass(slots=True)
-class MediaManagementFacade:
-    """Entry point for orchestrating media operations."""
+class MediaOrchestrator:
+    """Entry point for administrative orchestration and event publication."""
 
     queries: MediaQueries
     media_service: MediaService
@@ -170,51 +170,6 @@ class MediaManagementFacade:
             await asyncio.to_thread(self._prune_empty_directories, directories, base_dir)
 
         return len(deleted)
-
-    async def list_media(
-        self,
-        *,
-        page: int = 1,
-        limit: int = 10,
-        status: Optional[MediaStatus] = None,
-        search: Optional[str] = None,
-        user_id: Optional[UUID] = None,
-    ):
-        return await self.queries.list_all(
-            page=page,
-            limit=limit,
-            status=status,
-            search=search,
-            user_id=user_id,
-        )
-
-    async def get_media(self, media_id: UUID):
-        return await self.queries.get_by_id(media_id)
-
-    async def upload_media(
-        self,
-        *,
-        user_id: UUID,
-        file_content: bytes,
-        filename: str,
-        storage_provider: str,
-        transcription_provider: Optional[str] = None,
-        summarization_provider: Optional[str] = None,
-        sentiment_provider: Optional[str] = None,
-        topic_modeling_provider: Optional[str] = None,
-        metadata: Optional[Dict[str, object]] = None,
-    ):
-        return await self.media_service.upload_media(
-            user_id=user_id,
-            file_content=file_content,
-            filename=filename,
-            storage_provider=storage_provider,
-            transcription_provider=transcription_provider,
-            summarization_provider=summarization_provider,
-            sentiment_provider=sentiment_provider,
-            topic_modeling_provider=topic_modeling_provider,
-            metadata=metadata,
-        )
 
     async def delete_media_as_admin(
         self,

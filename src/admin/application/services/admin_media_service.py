@@ -6,7 +6,7 @@ from uuid import UUID
 import structlog
 
 from src.admin.domain.interfaces import IAdminAuditService, IAdminMediaService
-from src.media_management.application.facade import MediaManagementFacade
+from src.media_management.application.facade import MediaOrchestrator
 from src.media_management.domain.enums import MediaStatus
 from src.media_management.domain.media import Media
 from src.media_management.infrastructure.media_repository import MediaRepository
@@ -29,12 +29,12 @@ class AdminMediaService(IAdminMediaService):
         media_repository: MediaRepository,
         permission_service: IUserPermissionService,
         audit_service: IAdminAuditService,
-        media_facade: MediaManagementFacade,
+        media_orchestrator: MediaOrchestrator,
     ):
         self.media_repository = media_repository
         self.permission_service = permission_service
         self.audit_service = audit_service
-        self.media_facade = media_facade
+        self.media_orchestrator = media_orchestrator
 
     async def _dispatch_admin_delete(
         self,
@@ -44,7 +44,7 @@ class AdminMediaService(IAdminMediaService):
         triggered_by: str = "admin",
     ) -> None:
         """Bridge admin deletions to the consolidated media facade."""
-        await self.media_facade.delete_media_as_admin(
+        await self.media_orchestrator.delete_media_as_admin(
             media_id=media_id,
             actor_id=actor_id,
             triggered_by=triggered_by,
@@ -58,7 +58,7 @@ class AdminMediaService(IAdminMediaService):
         triggered_by: str = "admin",
     ) -> None:
         """Bridge admin reprocess requests to the facade/event bus orchestration."""
-        await self.media_facade.reprocess_media_as_admin(
+        await self.media_orchestrator.reprocess_media_as_admin(
             media_id=media_id,
             actor_id=actor_id,
             triggered_by=triggered_by,
@@ -66,14 +66,14 @@ class AdminMediaService(IAdminMediaService):
 
     async def _dispatch_bulk_reprocess(self, failed_media: List[Media], admin_user: User) -> int:
         """Execute bulk reprocess leveraging the consolidated media facade."""
-        return await self.media_facade.bulk_reprocess_failed_media(
+        return await self.media_orchestrator.bulk_reprocess_failed_media(
             candidates=failed_media,
             actor_id=str(admin_user.id),
         )
 
     async def _dispatch_cleanup_orphans(self, admin_user: User) -> int:
         """Delegate orphan cleanup to the consolidated media facade."""
-        return await self.media_facade.cleanup_orphaned_files(actor_id=str(admin_user.id))
+        return await self.media_orchestrator.cleanup_orphaned_files(actor_id=str(admin_user.id))
 
     async def delete_media(self, media_id: UUID, admin_user: User) -> None:
         """Delete media with admin validation and audit logging.

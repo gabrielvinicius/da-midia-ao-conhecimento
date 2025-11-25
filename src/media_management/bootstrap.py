@@ -15,7 +15,7 @@ from src.media_management.application.commands.handlers import (
     DeleteMediaCommandHandler,
     ReprocessMediaCommandHandler,
 )
-from src.media_management.application.facade import MediaManagementFacade
+from src.media_management.application.facade import MediaOrchestrator
 from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.application.services import MediaService
@@ -75,7 +75,7 @@ class MediaModule:
 
     queries: MediaQueries
     service: MediaService
-    facade: MediaManagementFacade
+    orchestrator: MediaOrchestrator
     processing_service: MediaProcessingService
     transcription_service: TranscriptionService
     transcription_queries: TranscriptionQueries
@@ -87,7 +87,7 @@ class MediaAdminContext:
     """Administrative operations that can be shared with other modules."""
 
     queries: MediaQueries
-    facade: MediaManagementFacade
+    orchestrator: MediaOrchestrator
 
 
 def build_media_components(
@@ -170,7 +170,7 @@ def build_media_components(
         access_policy=media_access_policy,
     )
 
-    facade = MediaManagementFacade(
+    orchestrator = MediaOrchestrator(
         queries=media_queries,
         media_service=media_service,
         event_bus=event_bus,
@@ -180,7 +180,7 @@ def build_media_components(
     module = MediaModule(
         queries=media_queries,
         service=media_service,
-        facade=facade,
+        orchestrator=orchestrator,
         processing_service=processing_service,
         transcription_service=transcription_service,
         transcription_queries=transcription_queries,
@@ -189,7 +189,7 @@ def build_media_components(
 
     admin_context = MediaAdminContext(
         queries=media_queries,
-        facade=facade,
+        orchestrator=orchestrator,
     )
 
     return module, admin_context
@@ -201,7 +201,7 @@ def bind_media_module(app: FastAPI, module: MediaModule) -> None:
     app.dependency_overrides[get_media_dependencies] = lambda: MediaDependencies(
         queries=module.queries,
         service=module.service,
-        facade=module.facade,
+        orchestrator=module.orchestrator,
     )
 
     app.dependency_overrides[get_transcription_dependencies] = (
