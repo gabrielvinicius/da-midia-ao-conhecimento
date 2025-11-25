@@ -72,6 +72,20 @@ def _update_media_status(
     media_entity.error_message = error_message
     db.flush()
 
+
+def _record_media_error(
+    db: Session,
+    media_id: Optional[UUID],
+    message: str,
+) -> None:
+    if media_id is None:
+        return
+    media_entity: MediaEntity | None = db.get(MediaEntity, media_id)
+    if media_entity is None:
+        return
+    media_entity.error_message = message
+    db.flush()
+
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
 def process_text_task(
         self,
@@ -538,7 +552,7 @@ def _run_summarization_sync(
     except Exception as exc:
         if media_uuid is not None:
             try:
-                _update_media_status(db, media_uuid, MediaStatus.FAILED, error_message=str(exc))
+                _record_media_error(db, media_uuid, f"summarization failed: {exc}")
                 db.commit()
             except Exception:
                 try:
@@ -554,6 +568,7 @@ def process_sentiment_analysis_task(
         text: str,
         provider: str,
         model: Optional[str] = None,
+        media_id: Optional[str] = None,
         language: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     try:
@@ -564,6 +579,7 @@ def process_sentiment_analysis_task(
                 "provider": provider,
                 "model": model,
                 "language": language,
+                "media_id": media_id,
             }
         )
     except ValidationError as exc:
@@ -611,20 +627,21 @@ def _run_sentiment_analysis_sync(
         provider=payload.provider,
     )
 
-    # Get the transcription text content if not provided directly
+    from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
+    transcription_repo = TranscriptionRepository(db)
+    transcription = transcription_repo.get_by_id_sync(payload.transcription_id)
+
+    if transcription is None:
+        logger.error(
+            "sentiment_analysis.transcription_not_found",
+            transcription_id=str(payload.transcription_id),
+        )
+        raise ValueError(f"No transcription found for ID: {payload.transcription_id}")
+
     if not payload.text:
-        from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
-        transcription_repo = TranscriptionRepository(db)
-        transcription = transcription_repo.get_by_id_sync(payload.transcription_id)
-        
-        if transcription is None:
-            logger.error(
-                "sentiment_analysis.transcription_not_found",
-                transcription_id=str(payload.transcription_id),
-            )
-            raise ValueError(f"No transcription found for ID: {payload.transcription_id}")
-        
         payload.text = transcription.text or getattr(transcription, 'content', '') or ''
+
+    media_uuid = payload.media_id or getattr(transcription, "media_id", None)
 
     registry = create_registry(
         enabled=settings.sentiment_enabled_list,
@@ -668,6 +685,7 @@ def _run_sentiment_analysis_sync(
             provider=payload.provider,
             error=str(exc),
         )
+        _record_media_error(db, media_uuid, f"sentiment analysis failed: {exc}")
         raise
 
 
@@ -832,15 +850,20 @@ def _run_topic_modeling_sync(
         topic_logger=StructuredTopicModelingLogger(),
         topic_metrics=NoOpTopicModelingMetrics(),
     )
+    media_uuid = getattr(transcription, "media_id", None)
     db.commit()
-    analysis_result = service.analyze_topics_sync(
-        media_id=transcription.media_id,
-        transcription_id=transcription.id,
-        text_content=text_content,  # Use transcription text content
-        provider=payload.provider,
-        language=payload.language,
-        options=payload.options,
-    )
+    try:
+        analysis_result = service.analyze_topics_sync(
+            media_id=transcription.media_id,
+            transcription_id=transcription.id,
+            text_content=text_content,  # Use transcription text content
+            provider=payload.provider,
+            language=payload.language,
+            options=payload.options,
+        )
+    except Exception as exc:
+        _record_media_error(db, media_uuid, f"topic modeling failed: {exc}")
+        raise
 
     logger.info(
         "topic_modeling.analyze.completed",

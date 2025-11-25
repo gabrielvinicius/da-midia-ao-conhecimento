@@ -17,15 +17,9 @@ from src.shared.api.unified_schemas import (
 from src.user_management.domain.user import User
 
 from ..application.facade import MediaManagementFacade
-from ..application.services import (
-    MediaLifecycleService,
-    MediaQueryService,
-    MediaUploadService,
-)
+from ..application.services import MediaService
 from .dependencies import (
-    get_media_lifecycle_service,
-    get_media_query_service,
-    get_media_upload_service,
+    get_media_service,
     get_media_facade,
 )
 from .schemas import MediaResponse
@@ -53,11 +47,11 @@ async def create_media(
     sentiment_provider: Optional[str] = Query(None),
     topic_modeling_provider: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
-    media_upload_service: MediaUploadService = Depends(get_media_upload_service),
+    media_service: MediaService = Depends(get_media_service),
 ):
     try:
         file_content = await file.read()
-        media = await media_upload_service.create_media(
+        media = await media_service.upload_media(
             user_id=current_user.id,
             file_content=file_content,
             filename=file.filename,
@@ -74,19 +68,19 @@ async def create_media(
 @router.get("/", response_model=List[MediaResponse], summary="List all media for the current user")
 async def list_user_media(
     current_user: User = Depends(get_current_user),
-    media_query_service: MediaQueryService = Depends(get_media_query_service),
+    media_service: MediaService = Depends(get_media_service),
 ):
-    media_list = await media_query_service.list_media_for_user(user_id=current_user.id)
+    media_list = await media_service.list_media_for_user(user_id=current_user.id)
     return jsonable_encoder(media_list)
 
 @router.get("/{media_id}", response_model=MediaResponse, summary="Get a media item by its ID")
 async def get_media_by_id(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
-    media_query_service: MediaQueryService = Depends(get_media_query_service),
+    media_service: MediaService = Depends(get_media_service),
 ):
     try:
-        media = await media_query_service.get_media_for_user(
+        media = await media_service.get_media_for_user(
             media_id=media_id,
             user_id=current_user.id,
             user_role=current_user.role,
@@ -117,10 +111,10 @@ async def stream_media(
     media_id: UUID,
     request: Request,
     current_user: User = Depends(get_current_user),
-    media_query_service: MediaQueryService = Depends(get_media_query_service),
+    media_service: MediaService = Depends(get_media_service),
 ):
     try:
-        media = await media_query_service.get_media_for_user(
+        media = await media_service.get_media_for_user(
             media_id=media_id,
             user_id=current_user.id,
             user_role=current_user.role,
@@ -181,11 +175,11 @@ async def stream_media(
 async def reprocess_media(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
-    media_lifecycle_service: MediaLifecycleService = Depends(get_media_lifecycle_service),
+    media_service: MediaService = Depends(get_media_service),
 ):
     """Reprocess a media item (transcription, summarization, sentiment analysis, etc.)"""
     try:
-        await media_lifecycle_service.reprocess_media(
+        await media_service.reprocess_media(
             media_id=media_id,
             user_id=current_user.id,
             user_role=current_user.role,

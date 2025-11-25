@@ -43,12 +43,12 @@ def enable_lightweight_mode(monkeypatch) -> None:
 
     dummy_media_module = SimpleNamespace(
         queries=object(),
-        upload_service=object(),
-        lifecycle_service=object(),
-        query_service=object(),
+        service=object(),
+        facade=object(),
         transcription_service=object(),
         transcription_queries=object(),
         processing_service=DummyProcessingService(),
+        video_processing_service=object(),
     )
     dummy_media_admin = SimpleNamespace(
         queries=object(),

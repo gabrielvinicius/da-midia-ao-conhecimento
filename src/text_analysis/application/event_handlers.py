@@ -70,6 +70,7 @@ def build_text_content_ready_handler(
                     text=text,
                     provider=sentiment_provider,
                     model=sentiment_model,
+                    media_id=event.media_id,
                     language=language,
                 )
             except Exception as exc:  # pragma: no cover - defensive guard

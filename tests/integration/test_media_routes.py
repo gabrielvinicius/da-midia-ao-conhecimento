@@ -15,11 +15,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from main import app
-from src.media_management.api.dependencies import (
-    get_media_lifecycle_service,
-    get_media_query_service,
-    get_media_upload_service,
-)
+from src.media_management.api.dependencies import get_media_service
 from src.media_management.domain.enums import MediaStatus, MediaType
 from src.shared.api.dependencies import get_current_user
 from src.user_management.domain.user import User, UserRole
@@ -43,18 +39,21 @@ class InMemoryMediaStore:
         return record
 
 
-class StubMediaUploadService:
+class StubMediaService:
     def __init__(self, store: InMemoryMediaStore) -> None:
         self._store = store
 
-    async def create_media(
+    async def upload_media(
         self,
+        *,
         user_id: UUID,
         file_content: bytes,
         filename: str,
         storage_provider: str,
         transcription_provider: str | None = None,
         summarization_provider: str | None = None,
+        sentiment_provider: str | None = None,
+        topic_modeling_provider: str | None = None,
         metadata: Dict[str, object] | None = None,
     ) -> Dict[str, object]:
         media_id = uuid4()
@@ -69,27 +68,36 @@ class StubMediaUploadService:
             "storage_provider": storage_provider,
             "transcription_provider": transcription_provider,
             "summarization_provider": summarization_provider,
+            "sentiment_provider": sentiment_provider,
+            "topic_modeling_provider": topic_modeling_provider,
             "metadata": metadata or {},
         }
         return self._store.add(record)
 
-
-class StubMediaQueryService:
-    def __init__(self, store: InMemoryMediaStore) -> None:
-        self._store = store
-
-    async def list_media_for_user(self, user_id: UUID) -> List[Dict[str, object]]:
+    async def list_media_for_user(
+        self,
+        *,
+        user_id: UUID,
+        **_: object,
+    ) -> List[Dict[str, object]]:
         return self._store.list_for_user(user_id)
 
-    async def get_media_for_user(self, media_id: UUID, user_id: UUID, user_role: UserRole) -> Dict[str, object]:
+    async def get_media_for_user(
+        self,
+        *,
+        media_id: UUID,
+        user_id: UUID,
+        user_role: UserRole | None = None,
+    ) -> Dict[str, object]:
         return self._store.get(media_id, user_id)
 
-
-class StubMediaLifecycleService:
-    def __init__(self, store: InMemoryMediaStore) -> None:
-        self._store = store
-
-    async def reprocess_media(self, media_id: UUID, user_id: UUID, user_role: UserRole) -> None:
+    async def reprocess_media(
+        self,
+        *,
+        media_id: UUID,
+        user_id: UUID,
+        user_role: UserRole | None = None,
+    ) -> None:
         record = self._store.get(media_id, user_id)
         record["status"] = MediaStatus.PROCESSING
 
@@ -105,24 +113,18 @@ def override_media_dependencies():
         is_active=True,
     )
 
-    upload_service = StubMediaUploadService(store)
-    query_service = StubMediaQueryService(store)
-    lifecycle_service = StubMediaLifecycleService(store)
+    media_service = StubMediaService(store)
 
     async def _current_user():
         return user
 
     app.dependency_overrides[get_current_user] = _current_user
-    app.dependency_overrides[get_media_upload_service] = lambda: upload_service
-    app.dependency_overrides[get_media_query_service] = lambda: query_service
-    app.dependency_overrides[get_media_lifecycle_service] = lambda: lifecycle_service
+    app.dependency_overrides[get_media_service] = lambda: media_service
 
     yield
 
     app.dependency_overrides.pop(get_current_user, None)
-    app.dependency_overrides.pop(get_media_upload_service, None)
-    app.dependency_overrides.pop(get_media_query_service, None)
-    app.dependency_overrides.pop(get_media_lifecycle_service, None)
+    app.dependency_overrides.pop(get_media_service, None)
 
 
 @pytest.mark.anyio

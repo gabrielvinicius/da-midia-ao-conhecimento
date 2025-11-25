@@ -18,11 +18,7 @@ from src.media_management.application.commands.handlers import (
 from src.media_management.application.facade import MediaManagementFacade
 from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_management.application.services import (
-    MediaLifecycleService,
-    MediaQueryService,
-    MediaUploadService,
-)
+from src.media_management.application.services import MediaService
 from src.media_management.application.validators import MediaUploadValidator
 from src.media_management.config.settings import MediaSettings
 from src.media_management.infrastructure.logging import StructuredMediaLogger
@@ -78,11 +74,8 @@ class MediaModule:
     """Public surface used by the media API and other modules."""
 
     queries: MediaQueries
-    upload_service: MediaUploadService
-    lifecycle_service: MediaLifecycleService
-    query_service: MediaQueryService
+    service: MediaService
     facade: MediaManagementFacade
-    access_policy: MediaAccessPolicy
     processing_service: MediaProcessingService
     transcription_service: TranscriptionService
     transcription_queries: TranscriptionQueries
@@ -168,42 +161,26 @@ def build_media_components(
 
     media_upload_validator = MediaUploadValidator(settings=MediaSettings())
 
-    media_upload_service = MediaUploadService(
+    media_service = MediaService(
+        media_queries=media_queries,
         create_media_handler=create_media_handler,
-        upload_validator=media_upload_validator,
-    )
-
-    media_lifecycle_service = MediaLifecycleService(
-        media_repository=media_repository,
         delete_media_handler=delete_media_handler,
         reprocess_media_handler=reprocess_media_handler,
-        access_policy=media_access_policy,
-    )
-
-    media_query_service = MediaQueryService(
-        media_queries=media_queries,
+        upload_validator=media_upload_validator,
         access_policy=media_access_policy,
     )
 
     facade = MediaManagementFacade(
         queries=media_queries,
-        upload_service=media_upload_service,
-        lifecycle_service=media_lifecycle_service,
-        query_service=media_query_service,
-        access_policy=media_access_policy,
-        delete_media_handler=delete_media_handler,
-        reprocess_media_handler=reprocess_media_handler,
+        media_service=media_service,
         event_bus=event_bus,
         storage_factory=storage_service_factory,
     )
 
     module = MediaModule(
         queries=media_queries,
-        upload_service=media_upload_service,
-        lifecycle_service=media_lifecycle_service,
-        query_service=media_query_service,
+        service=media_service,
         facade=facade,
-        access_policy=media_access_policy,
         processing_service=processing_service,
         transcription_service=transcription_service,
         transcription_queries=transcription_queries,
@@ -223,9 +200,7 @@ def bind_media_module(app: FastAPI, module: MediaModule) -> None:
 
     app.dependency_overrides[get_media_dependencies] = lambda: MediaDependencies(
         queries=module.queries,
-        upload_service=module.upload_service,
-        lifecycle_service=module.lifecycle_service,
-        query_service=module.query_service,
+        service=module.service,
         facade=module.facade,
     )
 

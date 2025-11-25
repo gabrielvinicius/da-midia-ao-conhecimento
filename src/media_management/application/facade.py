@@ -9,26 +9,13 @@ from uuid import UUID
 
 import structlog
 
-from src.media_management.application.commands.commands import (
-    DeleteMediaCommand,
-    ReprocessMediaCommand,
-)
-from src.media_management.application.commands.handlers import (
-    DeleteMediaCommandHandler,
-    ReprocessMediaCommandHandler,
-)
-from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_management.application.services import (
-    MediaLifecycleService,
-    MediaQueryService,
-    MediaUploadService,
-)
+from src.media_management.application.services import MediaService
 from src.media_management.domain.enums import MediaStatus
 from src.media_management.domain.media import Media
 from src.shared.events.bus import SupportsEventBus
 from src.shared.events.domain_events import MediaDeleted, MediaReprocessRequested
-from src.user_management.domain.user import User
+from src.user_management.domain.user import User, UserRole
 
 logger = structlog.get_logger(__name__)
 
@@ -38,12 +25,7 @@ class MediaManagementFacade:
     """Entry point for orchestrating media operations."""
 
     queries: MediaQueries
-    upload_service: MediaUploadService
-    lifecycle_service: MediaLifecycleService
-    query_service: MediaQueryService
-    access_policy: MediaAccessPolicy
-    delete_media_handler: DeleteMediaCommandHandler
-    reprocess_media_handler: ReprocessMediaCommandHandler
+    media_service: MediaService
     event_bus: SupportsEventBus | None = None
     storage_factory: Any | None = None
 
@@ -222,7 +204,7 @@ class MediaManagementFacade:
         topic_modeling_provider: Optional[str] = None,
         metadata: Optional[Dict[str, object]] = None,
     ):
-        return await self.upload_service.create_media(
+        return await self.media_service.upload_media(
             user_id=user_id,
             file_content=file_content,
             filename=filename,
@@ -241,17 +223,20 @@ class MediaManagementFacade:
         actor_id: Optional[str] = None,
         triggered_by: str = "admin",
     ) -> None:
-        media = await self.queries.get_by_id(media_id)
-        await self.delete_media_handler.handle(DeleteMediaCommand(media_id=media_id))
-        if media is not None:
-            await self._publish_event(
-                MediaDeleted(
-                    media_id=str(media_id),
-                    user_id=str(media.user_id),
-                    triggered_by=triggered_by,
-                    actor_id=actor_id,
-                )
+        media = await self.media_service.delete_media(
+            media_id=media_id,
+            user_id=None,
+            user_role=UserRole.ADMIN,
+        )
+
+        await self._publish_event(
+            MediaDeleted(
+                media_id=str(media_id),
+                user_id=str(media.user_id),
+                triggered_by=triggered_by,
+                actor_id=actor_id,
             )
+        )
 
     async def reprocess_media_as_admin(
         self,
@@ -260,7 +245,11 @@ class MediaManagementFacade:
         actor_id: Optional[str] = None,
         triggered_by: str = "admin",
     ) -> None:
-        await self.reprocess_media_handler.handle(ReprocessMediaCommand(media_id=media_id))
+        await self.media_service.reprocess_media(
+            media_id=media_id,
+            user_id=None,
+            user_role=UserRole.ADMIN,
+        )
         await self._publish_event(
             MediaReprocessRequested(
                 media_id=str(media_id),
@@ -369,14 +358,17 @@ class MediaManagementFacade:
         return total_deleted
 
     async def delete_media_for_user(self, *, media_id: UUID, acting_user: User) -> None:
-        media = await self.query_service.get_media_for_user(
-            media_id,
-            acting_user.id,
-            acting_user.role,
+        media = await self.media_service.delete_media(
+            media_id=media_id,
+            user_id=acting_user.id,
+            user_role=acting_user.role,
         )
-        await self.lifecycle_service.delete_media(media_id, acting_user.id, acting_user.role)
         await self._publish_event(MediaDeleted.for_user(media, acting_user.id))
 
     async def reprocess_media_for_user(self, *, media_id: UUID, acting_user: User) -> None:
-        await self.lifecycle_service.reprocess_media(media_id, acting_user.id, acting_user.role)
+        await self.media_service.reprocess_media(
+            media_id=media_id,
+            user_id=acting_user.id,
+            user_role=acting_user.role,
+        )
         await self._publish_event(MediaReprocessRequested.for_user(media_id, acting_user.id))

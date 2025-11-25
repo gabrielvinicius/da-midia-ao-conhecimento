@@ -2,10 +2,15 @@
 from __future__ import annotations
 
 from typing import Optional
+from uuid import UUID
 
 from src.media_processing.application.schemas import (
     TranscriptionTaskPayload,
     VideoTaskPayload,
+)
+from src.media_management.domain.enums import MediaStatus
+from src.media_management.infrastructure.media_repository_sync import (
+    MediaRepositorySync,
 )
 from src.media_processing.transcription.application.transcription_service import (
     TranscriptionService,
@@ -51,13 +56,24 @@ class _NoopVideoTaskScheduler:
         return {"task_id": None}
 
 
+def _record_nonfatal_error(
+    repository: "MediaRepositorySync",
+    media_id: UUID,
+    message: str,
+) -> None:
+    try:
+        aggregate = repository.get_by_id(media_id)
+    except Exception:
+        return
+    if aggregate is None:
+        return
+    repository.update_status(media_id, aggregate.status, error_message=message)
+
+
 def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optional[str]:
     """Execute the transcription pipeline in-process for Celery."""
     from src.media_management.application.queries.media_queries_sync import (
         MediaQueriesSync,
-    )
-    from src.media_management.infrastructure.media_repository_sync import (
-        MediaRepositorySync,
     )
 
     storage_factory = StorageServiceFactory()
@@ -86,16 +102,24 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
         event_bus=event_bus,
     )
 
-    return service.process_transcription_job_sync(
-        media_id=payload.media_id,
-        file_path=payload.file_path,
-        storage_provider=payload.storage_provider,
-        transcription_provider=payload.transcription_provider,
-        language=payload.language,
-        summarization_provider=payload.summarization_provider,
-        sentiment_provider=payload.sentiment_provider,
-        topic_modeling_provider=payload.topic_modeling_provider,
-    )
+    try:
+        return service.process_transcription_job_sync(
+            media_id=payload.media_id,
+            file_path=payload.file_path,
+            storage_provider=payload.storage_provider,
+            transcription_provider=payload.transcription_provider,
+            language=payload.language,
+            summarization_provider=payload.summarization_provider,
+            sentiment_provider=payload.sentiment_provider,
+            topic_modeling_provider=payload.topic_modeling_provider,
+        )
+    except Exception as exc:
+        media_repo.update_status(
+            payload.media_id,
+            MediaStatus.FAILED,
+            error_message=str(exc),
+        )
+        raise
 
 
 def run_video_job_sync(db, payload: VideoTaskPayload) -> Optional[dict]:
@@ -109,14 +133,22 @@ def run_video_job_sync(db, payload: VideoTaskPayload) -> Optional[dict]:
         storage_factory=storage_factory,
         video_processing_metrics=PrometheusVideoProcessingMetrics(),
     )
+    media_repo = MediaRepositorySync(db=db)
 
-    result = service.process_video_job_sync(
-        media_id=payload.media_id,
-        file_path=payload.file_path,
-        storage_provider=payload.storage_provider,
-        file_size_bytes=payload.file_size_bytes,
-    )
-    return result
+    try:
+        return service.process_video_job_sync(
+            media_id=payload.media_id,
+            file_path=payload.file_path,
+            storage_provider=payload.storage_provider,
+            file_size_bytes=payload.file_size_bytes,
+        )
+    except Exception as exc:
+        _record_nonfatal_error(
+            media_repo,
+            payload.media_id,
+            f"video processing failed: {exc}",
+        )
+        raise
 
 
 __all__ = ["run_transcription_job_sync", "run_video_job_sync"]

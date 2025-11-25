@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Any, Dict, Optional
 from uuid import UUID
 
@@ -6,9 +5,9 @@ import structlog
 from celery import shared_task
 from pydantic import ValidationError
 
-from src.media_processing.application.dispatch_repository import (
-    DispatchRecord,
-    MediaDispatchRepository,
+from src.media_processing.application.dispatch_orchestrator import (
+    DispatchAction,
+    MediaDispatchOrchestrator,
 )
 from src.media_processing.application.job_runners import (
     run_transcription_job_sync,
@@ -22,81 +21,19 @@ from src.shared.infrastructure.database import get_sync_session
 
 logger = structlog.get_logger(__name__)
 
-_dispatch_repository = MediaDispatchRepository()
-
-@dataclass
-class _DispatchAction:
-    name: str
-    task: Any
-    payload: Dict[str, Any]
-    fatal: bool = False
+_dispatch_orchestrator = MediaDispatchOrchestrator()
 
 
-def _build_dispatch_actions(context: DispatchRecord) -> list[_DispatchAction]:
-    """Return the Celery tasks that should run for the given media."""
-    normalized_type = (context.media_type or "").upper()
-    actions: list[_DispatchAction] = []
+def _resolve_task_executor(action: DispatchAction):
+    if action.name == "text_document":
+        from src.text_analysis.tasks import process_text_document_task
 
-    # Text documents follow a dedicated pipeline that bypasses transcription
-    if normalized_type == "TEXT":
-        from src.text_analysis.tasks import process_text_document_task  # lazy import
-
-        actions.append(
-            _DispatchAction(
-                name="text",
-                task=process_text_document_task,
-                payload={
-                    "media_id": str(context.media_id),
-                    "file_path": context.file_path,
-                    "storage_provider": context.storage_provider,
-                    "extraction_method": "basic",
-                    "language": context.language,
-                    "summarization_provider": context.summarization_provider,
-                    "sentiment_provider": context.sentiment_provider,
-                    "topic_modeling_provider": context.topic_modeling_provider,
-                },
-                fatal=True,
-            )
-        )
-        return actions
-
-    # Default pipeline always executes transcription first
-    actions.append(
-        _DispatchAction(
-            name="transcription",
-            task=process_transcription_task,
-            payload={
-                "media_id": context.media_id,
-                "file_path": context.file_path,
-                "storage_provider": context.storage_provider,
-                "transcription_provider": context.transcription_provider,
-                "language": context.language,
-                "file_size_bytes": context.file_size_bytes,
-                "summarization_provider": context.summarization_provider,
-                "sentiment_provider": context.sentiment_provider,
-                "topic_modeling_provider": context.topic_modeling_provider,
-            },
-            fatal=True,
-        )
-    )
-
-    # Video assets run after transcription but do not mark the media as failed
-    if normalized_type == "VIDEO":
-        actions.append(
-            _DispatchAction(
-                name="video",
-                task=process_video_task,
-                payload={
-                    "media_id": context.media_id,
-                    "file_path": context.file_path,
-                    "storage_provider": context.storage_provider,
-                    "file_size_bytes": context.file_size_bytes,
-                },
-                fatal=False,
-            )
-        )
-
-    return actions
+        return process_text_document_task
+    if action.name == "transcription":
+        return process_transcription_task
+    if action.name == "video":
+        return process_video_task
+    raise KeyError(action.name)
 
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
@@ -111,29 +48,19 @@ def process_media_task(self, media_id: str) -> None:
         return
 
     try:
-        context = _dispatch_repository.mark_processing(media_uuid)
+        actions = _dispatch_orchestrator.prepare_actions(media_uuid)
     except Exception as exc:
         logger.error("media_processing.dispatch.db_error", media_id=media_id, error=str(exc), exc_info=True)
         raise
 
-    if context is None:
-        logger.warning("media_processing.dispatch.media_not_found", media_id=media_id)
-        return
-
-    if not context.file_path:
-        reason = "missing file path for media"
-        logger.error("media_processing.dispatch.missing_file_path", media_id=media_id)
-        _dispatch_repository.mark_failed(media_uuid, reason)
-        return
-
-    actions = _build_dispatch_actions(context)
     if not actions:
-        logger.info("media_processing.dispatch.no_actions", media_id=media_id)
         return
 
     for action in actions:
+        task = None
         try:
-            action.task.delay(**action.payload)
+            task = _resolve_task_executor(action)
+            task.delay(**action.payload)
             logger.info(
                 "media_processing.dispatch.action_enqueued",
                 media_id=media_id,
@@ -146,7 +73,7 @@ def process_media_task(self, media_id: str) -> None:
                 errors=exc.errors(),
             )
             if action.fatal:
-                _dispatch_repository.mark_failed(media_uuid, f"invalid {action.name} payload")
+                _dispatch_orchestrator.mark_failed(media_uuid, f"invalid {action.name} payload")
                 return
         except Exception as exc:
             logger.error(
@@ -156,7 +83,7 @@ def process_media_task(self, media_id: str) -> None:
                 exc_info=True,
             )
             if action.fatal:
-                _dispatch_repository.mark_failed(media_uuid, f"failed to enqueue {action.name} task")
+                _dispatch_orchestrator.mark_failed(media_uuid, f"failed to enqueue {action.name} task")
                 raise
 
     logger.info("media_processing.dispatch.completed", media_id=media_id)

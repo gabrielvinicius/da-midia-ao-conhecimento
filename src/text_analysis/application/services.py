@@ -197,6 +197,7 @@ class TextAnalysisService:
         text: str,
         provider: str,
         model: Optional[str] = None,
+        media_id: Optional[str] = None,
         language: Optional[str] = None,
     ) -> Dict[str, Any]:
         logger.info(
@@ -212,6 +213,7 @@ class TextAnalysisService:
             text=text,
             provider=provider,
             model=model,
+            media_id=media_id,
             language=language,
         )
         logger.info(

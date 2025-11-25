@@ -127,7 +127,8 @@ aplicação de rate limiting.
 ## Stage6 – Estado em 03/11/2025
 
 ### Consolidação de módulos
-- `media_processing`: permanece em transição; tasks continuam com lógica de domínio e precisam ser movidas para o `MediaProcessingService` durante a Fase 2.
+- `media_management`: os serviços de upload, lifecycle e queries foram fundidos no `MediaService`, expondo uma única porta de entrada para os routers FastAPI e para a `MediaManagementFacade`. O `MediaModule` agora publica apenas `queries`, `service` e `facade`, reduzindo a lista de overrides necessários no `main.lifespan`.
+- `media_processing`: introduzimos o `MediaDispatchOrchestrator`, que centraliza a seleção de pipelines (texto, áudio, vídeo) e deixou `process_media_task` como um simples enfileirador de Celery. Próximas etapas da Fase 2 focam em mover o restante das regras ainda residuais para `MediaProcessingService`.
 - `admin`: a fachada continua ativa, porém ainda coexistem caminhos alternativos em módulos herdados. A limpeza final depende da conclusão das etapas acima.
 
 ### Event bus + Celery
