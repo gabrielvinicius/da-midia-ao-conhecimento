@@ -123,7 +123,12 @@ class DefaultMediaEventPublisher:
             filename=getattr(media, "filename", None),
             storage_provider=getattr(media, "storage_provider", None),
             media_type=getattr(media.media_type, "value", str(media.media_type)),
-            file_size=metadata.file_size,
+            file_size_bytes=metadata.file_size,
+            transcription_provider=getattr(media, "transcription_provider", None),
+            summarization_provider=getattr(media, "summarization_provider", None),
+            sentiment_provider=getattr(media, "sentiment_provider", None),
+            topic_modeling_provider=getattr(media, "topic_modeling_provider", None),
+            language=getattr(media, "language", None),
         )
         await self._event_bus.publish(event)
 
