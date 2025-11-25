@@ -114,11 +114,18 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
             topic_modeling_provider=payload.topic_modeling_provider,
         )
     except Exception as exc:
-        media_repo.update_status(
-            payload.media_id,
-            MediaStatus.FAILED,
-            error_message=str(exc),
-        )
+        try:
+            media_repo.update_status(
+                payload.media_id,
+                MediaStatus.FAILED,
+                error_message=str(exc),
+            )
+        except ValueError:
+            _record_nonfatal_error(
+                media_repo,
+                payload.media_id,
+                f"transcription failed: {exc}",
+            )
         raise
 
 
