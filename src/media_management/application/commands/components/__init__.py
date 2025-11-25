@@ -51,15 +51,18 @@ class DefaultStorageUploader:
         content_type: str,
     ) -> StorageUploadResult:
         storage_client = self._resolver.resolve(command.storage_provider)
-        destination_path = f"media/{command.user_id}/{media_id}/{command.filename}"
-        await storage_client.upload(
+        destination_path = f"videos/{command.user_id}/{media_id}/{command.filename}"
+        storage_metadata = await storage_client.upload(
             destination_path=destination_path,
             content=command.file,
             filename=command.filename,
             content_type=content_type,
             metadata=command.metadata or {},
         )
-        return StorageUploadResult(destination_path=destination_path, metadata={"size": len(command.file)})
+        return StorageUploadResult(
+            destination_path=storage_metadata.get("path", destination_path),
+            metadata=storage_metadata,
+        )
 
 
 class DefaultUploadMetadataMapper:
