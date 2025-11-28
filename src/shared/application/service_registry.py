@@ -58,8 +58,8 @@ def build_domain_service_registry(
             facade=None,  # Stage C2 will populate with a MediaManagementService facade
         ),
         media_processing=ModuleBinding(
-            legacy=None,
-            facade=None,
+            legacy=getattr(media_management, "processing_service", None),
+            facade=getattr(media_management, "processing_service", None),
         ),
         text_analysis=ModuleBinding(
             legacy=text_analysis,
