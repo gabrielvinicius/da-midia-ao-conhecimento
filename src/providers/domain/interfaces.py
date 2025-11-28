@@ -15,6 +15,7 @@ class ProviderType(Enum):
     SUMMARIZATION = "summarization"
     SENTIMENT_ANALYSIS = "sentiment_analysis"
     TOPIC_MODELING = "topic_modeling"
+    EMBEDDING = "embedding"
     EMAIL = "email"
     SMS = "sms"
     PUSH_NOTIFICATION = "push_notification"
