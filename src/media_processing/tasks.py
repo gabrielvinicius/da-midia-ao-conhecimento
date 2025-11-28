@@ -93,7 +93,6 @@ def process_media_task(self, media_id: str) -> None:
 def process_transcription_task(
     self,
     media_id: str,
-    file_path: str,
     storage_provider: str,
     transcription_provider: str,
     language: str = "en",
@@ -108,7 +107,6 @@ def process_transcription_task(
         payload = TranscriptionTaskPayload.model_validate(
             {
                 "media_id": media_id,
-                "file_path": file_path,
                 "storage_provider": storage_provider,
                 "transcription_provider": transcription_provider,
                 "language": language,
@@ -147,7 +145,6 @@ def process_transcription_task(
 def process_video_task(
     self,
     media_id: str,
-    file_path: str,
     storage_provider: str,
     file_size_bytes: Optional[int] = None,
     correlation_id: Optional[str] = None,

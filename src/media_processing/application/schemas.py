@@ -11,7 +11,6 @@ class MediaTaskPayload(BaseModel):
     """Common payload data shared across media processing tasks."""
 
     media_id: UUID
-    file_path: str
     storage_provider: str = Field(default="local", min_length=1)
     file_size_bytes: Optional[int] = Field(default=None, ge=0)
 

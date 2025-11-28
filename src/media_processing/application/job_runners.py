@@ -72,8 +72,6 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
         MediaQueriesSync,
     )
 
-    storage_factory = StorageServiceFactory()
-    storage_adapter = storage_factory.create_storage_service(payload.storage_provider)
     # Each worker process builds its own event bus instance
     from src.shared.event_bus_factory import get_event_bus
     event_bus = get_event_bus()
@@ -81,10 +79,21 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
     transcription_repo = TranscriptionRepository(db)
     media_repo = MediaRepositorySync(db=db)
     media_queries = MediaQueriesSync(media_repository=media_repo)
+    storage_factory = StorageServiceFactory()
 
     from src.media_processing.application.text_analysis_dispatcher import TextAnalysisDispatcher
 
     dispatcher = TextAnalysisDispatcher(event_bus=event_bus)
+
+    media = media_repo.get_by_id(payload.media_id)
+    if media is None:
+        raise FileNotFoundError(f"Media '{payload.media_id}' not found")
+
+    storage_provider = payload.storage_provider or getattr(media, "storage_provider", None) or "local"
+    storage_adapter = storage_factory.create_storage_service(storage_provider)
+    file_path = getattr(media, "original_file_path", None)
+    if not file_path:
+        raise FileNotFoundError(f"Media '{payload.media_id}' missing original file path")
 
     service = TranscriptionService(
         transcription_repo=transcription_repo,
@@ -110,8 +119,8 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
     try:
         return service.process_transcription_job_sync(
             media_id=payload.media_id,
-            file_path=payload.file_path,
-            storage_provider=payload.storage_provider,
+            file_path=file_path,
+            storage_provider=storage_provider,
             transcription_provider=payload.transcription_provider,
             language=payload.language,
             summarization_provider=payload.summarization_provider,
@@ -137,6 +146,14 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
 def run_video_job_sync(db, payload: VideoTaskPayload) -> Optional[dict]:
     """Execute the video pipeline in-process for Celery."""
     storage_factory = StorageServiceFactory()
+    media_repo = MediaRepositorySync(db=db)
+
+    media = media_repo.get_by_id(payload.media_id)
+    if media is None:
+        raise FileNotFoundError(f"Media '{payload.media_id}' not found")
+    file_path = getattr(media, "original_file_path", None)
+    if not file_path:
+        raise FileNotFoundError(f"Media '{payload.media_id}' missing original file path")
 
     service = VideoProcessingService(
         video_audio_extractor=FFmpegVideoAudioExtractor(),
@@ -145,7 +162,6 @@ def run_video_job_sync(db, payload: VideoTaskPayload) -> Optional[dict]:
         storage_factory=storage_factory,
         video_processing_metrics=PrometheusVideoProcessingMetrics(),
     )
-    media_repo = MediaRepositorySync(db=db)
 
     media_repo.update_status(
         payload.media_id,
@@ -157,7 +173,7 @@ def run_video_job_sync(db, payload: VideoTaskPayload) -> Optional[dict]:
     try:
         return service.process_video_job_sync(
             media_id=payload.media_id,
-            file_path=payload.file_path,
+            file_path=file_path,
             storage_provider=payload.storage_provider,
             file_size_bytes=payload.file_size_bytes,
         )
