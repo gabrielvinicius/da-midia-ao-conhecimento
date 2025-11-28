@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile optimized for Video Summarizer
-FROM python:3.12-slim as base
+FROM python:3.12-slim AS base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -10,7 +10,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu124
 
 # Stage 1: Builder
-FROM base as builder
+FROM base AS builder
 
 WORKDIR /app
 
@@ -30,7 +30,7 @@ RUN pip install --upgrade pip setuptools wheel && \
     pip install --user --no-cache-dir --no-warn-script-location -r requirements.txt
 
 # Stage 2: Runtime
-FROM base as runtime
+FROM base AS runtime
 
 WORKDIR /app
 
