@@ -1,4 +1,6 @@
 # src/notifications/api/routers.py
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.notifications.domain.notification import NotificationPriority, NotificationType
@@ -33,6 +35,7 @@ async def request_notification(
         )
         return {"message": "Notification request accepted and is being processed.", "notification_id": str(notification_id)}
     except ValueError as e:
+        # Ideally catch specific domain exceptions
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
@@ -47,4 +50,16 @@ async def get_notification_by_id(
         raise HTTPException(status_code=404, detail="Notification not found")
     if str(notification.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this notification")
-    return notification
+    
+    # Explicit mapping Domain Entity -> DTO
+    return NotificationResponse(
+        id=notification.id,
+        user_id=notification.user_id,
+        type=notification.type.value,
+        content=notification.content,
+        status=notification.status.value,
+        priority=notification.priority.value,
+        created_at=notification.created_at,
+        sent_at=notification.sent_at,
+        error_message=notification.error_message
+    )

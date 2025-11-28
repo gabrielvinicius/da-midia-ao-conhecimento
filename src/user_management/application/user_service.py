@@ -7,6 +7,11 @@ from src.shared.utils.id_generator import generate_id
 from src.shared.utils.password_utils import hash_password, verify_password
 from src.user_management.config.settings import AuthSettings
 from src.user_management.domain.user import User, UserRole
+from src.user_management.domain.exceptions import (
+    UserAlreadyExistsError,
+    UserNotFoundError,
+    InvalidCredentialsError
+)
 from src.user_management.infrastructure.user_repository import UserRepository
 from src.user_management.utils.token import create_access_token
 
@@ -67,7 +72,7 @@ class UserService:
     async def authenticate_user(self, email: str, password: str) -> Dict[str, Any]:
         user = await self.user_repository.find_by_email(email)
         if user is None or not verify_password(password, user.password_hash):
-            raise ValueError("Invalid credentials")
+            raise InvalidCredentialsError()
         token = create_access_token(user.id)
         return {
             "token": token,
@@ -81,7 +86,7 @@ class UserService:
     def authenticate_user_sync(self, email: str, password: str) -> Dict[str, Any]:
         user = self.user_repository.find_by_email_sync(email)
         if user is None or not verify_password(password, user.password_hash):
-            raise ValueError("Invalid credentials")
+            raise InvalidCredentialsError()
         token = create_access_token(user.id)
         return {
             "token": token,
@@ -105,7 +110,7 @@ class UserService:
     async def delete_user(self, user_id: UUID) -> None:
         await self._get_or_raise(user_id)
         if not await self.user_repository.delete(user_id):
-            raise ValueError("User could not be deleted")
+            raise ValueError("User could not be deleted") # Keep generic for system errors
 
     def delete_user_sync(self, user_id: UUID) -> None:
         self._get_or_raise_sync(user_id)
@@ -135,7 +140,7 @@ class UserService:
     async def change_password(self, user_id: UUID, old_password: str, new_password: str) -> None:
         user = await self._get_or_raise(user_id)
         if not verify_password(old_password, user.password_hash):
-            raise ValueError("Invalid credentials")
+            raise InvalidCredentialsError()
         self._validate_password_strength(new_password)
         user.password_hash = hash_password(new_password)
         await self.user_repository.save(user)
@@ -143,7 +148,7 @@ class UserService:
     def change_password_sync(self, user_id: UUID, old_password: str, new_password: str) -> None:
         user = self._get_or_raise_sync(user_id)
         if not verify_password(old_password, user.password_hash):
-            raise ValueError("Invalid credentials")
+            raise InvalidCredentialsError()
         self._validate_password_strength(new_password)
         user.password_hash = hash_password(new_password)
         self.user_repository.save_sync(user)
@@ -235,18 +240,6 @@ class UserService:
 
         return self.user_repository.save_sync(user)
 
-    async def _get_or_raise(self, user_id: UUID) -> User:
-        user = await self.user_repository.find_by_id(user_id)
-        if user is None:
-            raise ValueError(f"User with id {user_id} not found")
-        return user
-
-    def _get_or_raise_sync(self, user_id: UUID) -> User:
-        user = self.user_repository.find_by_id_sync(user_id)
-        if user is None:
-            raise ValueError(f"User with id {user_id} not found")
-        return user
-
     async def register_user(self, email: str, password: str) -> dict[str, object]:
         user = await self.create_user(email=email, password=password, role="user")
         return {
@@ -261,7 +254,13 @@ class UserService:
     async def _get_or_raise(self, user_id: UUID) -> User:
         user = await self.user_repository.find_by_id(user_id)
         if user is None:
-            raise ValueError(f"User with id {user_id} not found")
+            raise UserNotFoundError(str(user_id))
+        return user
+
+    def _get_or_raise_sync(self, user_id: UUID) -> User:
+        user = self.user_repository.find_by_id_sync(user_id)
+        if user is None:
+            raise UserNotFoundError(str(user_id))
         return user
 
     def _validate_email_format(self, email: str) -> None:
@@ -271,7 +270,12 @@ class UserService:
     async def _ensure_email_available(self, email: str) -> None:
         existing = await self.user_repository.find_by_email(email)
         if existing is not None:
-            raise ValueError("Email already registered")
+            raise UserAlreadyExistsError(email)
+
+    def _ensure_email_available_sync(self, email: str) -> None:
+        existing = self.user_repository.find_by_email_sync(email)
+        if existing is not None:
+            raise UserAlreadyExistsError(email)
 
     def _validate_password_strength(self, password: str) -> None:
         min_length = self.settings.password_min_length

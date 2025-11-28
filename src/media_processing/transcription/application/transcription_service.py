@@ -6,12 +6,11 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 from uuid import UUID
 
 import structlog
-from sqlalchemy.orm import Session
 
+# Removed: from sqlalchemy.orm import Session
 from src.media_processing.transcription.domain.transcription import Transcription
 from src.shared.config.settings import settings
 from src.shared.event_bus import SupportsEventBus
-from src.shared.events.domain_events import TextContentReady
 
 if TYPE_CHECKING:
     from src.media_management.application.queries.media_queries import MediaQueries
@@ -34,7 +33,7 @@ class TranscriptionService:
         transcription_metrics: Any,
         storage_service: Any,
         speech_recognizer_factory: Callable[[str], Any] | None,
-        db_session: Session,  # Changed to sync session
+        # db_session: Session,  <-- Removed direct dependency
         *,
         media_queries: "MediaQueries" | None = None,
         event_bus: SupportsEventBus | None = None,
@@ -46,7 +45,7 @@ class TranscriptionService:
         self.transcription_metrics = transcription_metrics
         self.storage_service = storage_service
         self._speech_recognizer_factory = speech_recognizer_factory
-        self.db_session = db_session  # This should be a sync session for Celery
+        # self.db_session = db_session <-- Removed
         self._media_queries = media_queries
         self._event_bus = event_bus
         self._dispatcher = dispatcher
@@ -133,7 +132,7 @@ class TranscriptionService:
 
             transcription.mark_as_completed(result_payload)
             transcription = self.transcription_repo.update_sync(transcription)
-            self.db_session.commit()
+            # self.db_session.commit() <-- Removed: Repository should handle commit/flush
 
             effective_language = transcription.language or language
 
@@ -168,7 +167,7 @@ class TranscriptionService:
             if transcription is not None:
                 transcription.mark_as_failed(str(exc))
                 self.transcription_repo.update_sync(transcription)
-                self.db_session.commit()
+                # self.db_session.commit() <-- Removed
             raise
         finally:
             duration = time.monotonic() - start_time
