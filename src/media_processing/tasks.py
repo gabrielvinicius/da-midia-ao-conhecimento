@@ -119,12 +119,12 @@ def process_transcription_task(
             }
         )
     except ValidationError as exc:
-            logger.error(
-                "transcription.task_invalid_media_id",
-                media_id=media_id,
-                errors=exc.errors(),
-                correlation_id=correlation_id,
-            )
+        logger.error(
+            "transcription.task_invalid_media_id",
+            media_id=media_id,
+            errors=exc.errors(),
+            correlation_id=correlation_id,
+        )
         return None
 
     try:
