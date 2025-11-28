@@ -33,7 +33,15 @@ def bind_providers_module(app: FastAPI, module: ProvidersModule) -> None:
 
 
 def _seed_default_providers(registry: IProviderRegistry) -> None:
-    """Register built-in providers so the API returns meaningful data."""
+    """Register built-in providers so the API returns meaningful data.
+
+    Canonical provider names (usar em UI/API):
+    - storage: local, s3, minio
+    - transcription: fastwhisper, whisper, huggingface
+    - summarization: builtin, openai, huggingface
+    - sentiment: transformers, vader
+    - topic_modeling: bertopic
+    """
 
     def _with_metadata(provider: Provider) -> Provider:
         metadata = get_provider_metadata(provider.provider_type, provider.name)
