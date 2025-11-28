@@ -113,7 +113,6 @@ async def lifespan(app: FastAPI):
         notification_module = await build_notification_module(
             session=session,
             auth_queries=auth_module.auth_queries,
-            event_bus=event_bus,
         )
 
         media_module, media_admin_context = build_media_components(
