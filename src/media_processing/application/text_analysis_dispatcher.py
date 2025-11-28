@@ -49,6 +49,20 @@ class TextAnalysisDispatcher:
                     transcription_id=transcription_id,
                     correlation_id=correlation_id,
                 )
+                # If bus has no subscribers for TextContentReady, fallback to direct dispatch
+                try:
+                    has_subs = getattr(self._event_bus, "has_subscribers", None)
+                    if callable(has_subs) and not has_subs(type(event)):
+                        logger.info(
+                            "text_analysis.dispatch.event_bus_no_subscribers",
+                            media_id=media_id,
+                            transcription_id=transcription_id,
+                        )
+                        self._dispatch_direct(text, media_id, transcription_id, metadata, correlation_id)
+                        return
+                except Exception:
+                    # If check fails, we still consider publish successful and return
+                    return
                 return
             except Exception as exc:  # pragma: no cover - fallback path
                 logger.warning(
