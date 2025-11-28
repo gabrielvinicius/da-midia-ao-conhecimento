@@ -91,6 +91,7 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.BATCH_PROCESSING,
                 ProviderCapability.MULTI_LANGUAGE,
             ],
+            configuration={"adapter": "fastwhisper"},
         )),
         _with_metadata(Provider(
             name="whisper",
