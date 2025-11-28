@@ -75,6 +75,7 @@ def _run_notification_sending_sync(payload: NotificationTaskPayload, db_session,
         webhook_adapter=WebhookAdapter(),
         notification_repository=NotificationRepository(db=db_session),
         user_repository=UserRepository(db_session),
+        event_bus=get_event_bus(),
     )
 
     try:

@@ -67,12 +67,14 @@ class SendNotificationCommandHandler:
         webhook_adapter: Any,
         notification_repository: Any,
         user_repository: Any,
+        event_bus: Any = None,
     ) -> None:
         self._email_adapter = email_adapter
         self._sms_adapter = sms_adapter
         self._webhook_adapter = webhook_adapter
         self._notification_repository = notification_repository
         self._user_repository = user_repository
+        self._event_bus = event_bus
 
     async def handle(self, command: SendNotificationCommand) -> NotificationDeliveryResult:
         user = await self._user_repository.find_by_id(command.user_id)
@@ -92,6 +94,15 @@ class SendNotificationCommandHandler:
                     status=NotificationStatus.SENT,
                 )
             )
+            self._publish_event(
+                NotificationRequested(
+                    user_id=str(getattr(user, "id", command.user_id)),
+                    message=command.message,
+                    notification_type=command.notification_type.value,
+                    contact_info={"email": getattr(user, "email", None), "phone_number": getattr(user, "phone_number", None)},
+                    correlation_id=getattr(command, "correlation_id", None),
+                )
+            )
             return NotificationDeliveryResult(status=NotificationStatus.SENT)
         except Exception as exc:  # pragma: no cover - defensive safety
             await self._notification_repository.save(
@@ -107,6 +118,29 @@ class SendNotificationCommandHandler:
             return NotificationDeliveryResult(
                 status=NotificationStatus.FAILED,
                 error_message=str(exc),
+            )
+
+    def _publish_event(self, event: NotificationRequested) -> None:
+        """Best-effort publish; if bus unavailable, log and continue."""
+        if not self._event_bus:
+            logger.info(
+                "notifications.event_bus_unavailable",
+                user_id=event.user_id,
+                notification_type=event.notification_type,
+            )
+            return
+        try:
+            if hasattr(self._event_bus, "publish_sync"):
+                self._event_bus.publish_sync(event)
+            else:
+                import asyncio
+                asyncio.run(self._event_bus.publish(event))
+        except Exception as exc:  # pragma: no cover
+            logger.warning(
+                "notifications.event_bus_publish_failed",
+                user_id=event.user_id,
+                notification_type=event.notification_type,
+                error=str(exc),
             )
 
     def _resolve_adapter(
