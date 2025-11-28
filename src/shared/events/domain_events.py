@@ -16,6 +16,7 @@ class DomainEvent:
         default_factory=lambda: datetime.now(timezone.utc)
     )
     metadata: Dict[str, Any] = field(default_factory=dict)
+    correlation_id: Optional[str] = None
 
     @property
     def event_name(self) -> str:

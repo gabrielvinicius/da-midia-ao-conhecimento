@@ -100,6 +100,7 @@ def process_transcription_task(
     summarization_provider: Optional[str] = None,
     sentiment_provider: Optional[str] = None,
     topic_modeling_provider: Optional[str] = None,
+    correlation_id: Optional[str] = None,
 ) -> Optional[str]:
     try:
         payload = TranscriptionTaskPayload.model_validate(
@@ -145,6 +146,7 @@ def process_video_task(
     file_path: str,
     storage_provider: str,
     file_size_bytes: Optional[int] = None,
+    correlation_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     try:
         payload = VideoTaskPayload.model_validate(

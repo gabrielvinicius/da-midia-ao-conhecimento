@@ -74,3 +74,14 @@ class ProviderCatalogEntry(BaseModel):
     status: str
     capabilities: List[str]
     is_default: bool = False
+
+
+class ProviderHealth(BaseModel):
+    name: str
+    type: str
+    status: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ProviderHealthResponse(BaseModel):
+    providers: List[ProviderHealth]

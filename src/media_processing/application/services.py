@@ -210,6 +210,8 @@ class MediaProcessingService:
             )
             return
 
+        correlation_id = event.correlation_id or str(media_id)
+
         storage_provider = event.storage_provider or context.get("storage_provider") or "local"
         transcription_provider = self._validate_provider(
             event.transcription_provider
@@ -267,7 +269,8 @@ class MediaProcessingService:
                     file_size_bytes=file_size_bytes,
                 )
                 process_transcription_task.delay(
-                    **transcription_payload.model_dump(mode="json")
+                    **transcription_payload.model_dump(mode="json"),
+                    correlation_id=correlation_id,
                 )
                 self._logger.debug(
                     "media_uploaded.transcription_task_enqueued",

@@ -23,8 +23,12 @@ class PrometheusTextAnalysisMetrics(TextAnalysisMetrics):
     ) -> None:
         status = "success" if success else "failure"
         provider_label = provider or "unknown"
-        self._operations_total.labels(operation=operation, provider=provider_label, status=status).inc()
-        self._duration_seconds.labels(operation=operation, provider=provider_label).observe(duration)
+        media_label = getattr(self, "_media_id", None) or "unknown"
+        self._operations_total.labels(operation=operation, provider=provider_label, status=status, media_id=media_label).inc()
+        self._duration_seconds.labels(operation=operation, provider=provider_label, media_id=media_label, status=status).observe(duration)
+
+    def set_media_context(self, media_id: str | None):
+        self._media_id = media_id or "unknown"
 
 
 __all__ = ["PrometheusTextAnalysisMetrics"]

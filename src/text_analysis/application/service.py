@@ -85,6 +85,9 @@ class TextAnalysisService:
             return result
         finally:
             try:
+                # Allow metrics to carry media_id as label
+                if hasattr(self._metrics, "set_media_context"):
+                    self._metrics.set_media_context(media_id)
                 await self._metrics.record_operation(
                     operation="analyze_text_content",
                     duration=time.perf_counter() - start,

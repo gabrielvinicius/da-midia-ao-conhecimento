@@ -15,7 +15,7 @@ except Exception:  # pragma: no cover - celery optional
 
 from .application.service import TextAnalysisService
 from src.shared.infrastructure.database import get_sync_session
-from src.shared.event_bus import InMemoryEventBus
+from src.shared.event_bus_factory import get_event_bus
 from .bootstrap import build_text_analysis_module
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,10 @@ def _task_body(payload: Dict[str, Any], *, op_name: str = "analyze_task") -> Dic
     logger.info("text_analysis.task.start", extra={"payload_keys": list(payload.keys())})
     service = _get_service()
     if getattr(service, "event_bus", None) is None:
-        service.event_bus = InMemoryEventBus()
+        service.event_bus = get_event_bus()
+    # Propagate media_id into metrics labels when supported
+    if hasattr(service._metrics, "set_media_context"):
+        service._metrics.set_media_context(payload.get("media_id"))
     loop = asyncio.get_event_loop()
     start = time.perf_counter()
     success = False
@@ -117,6 +120,7 @@ def _task_body(payload: Dict[str, Any], *, op_name: str = "analyze_task") -> Dic
                     media_id=payload.get("media_id"),
                     provider=payload.get("provider"),
                     status="success" if success else "failure",
+                    correlation_id=payload.get("correlation_id"),
                 )
                 if op_name == "summarization":
                     service.event_bus.publish(SummarizationCompleted(**base))

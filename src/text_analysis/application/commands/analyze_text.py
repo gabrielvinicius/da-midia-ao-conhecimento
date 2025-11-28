@@ -114,6 +114,7 @@ class AnalyzeTextCommandHandler:
             overall_sentiment=(analysis.overall_sentiment.value if analysis.overall_sentiment else None),
             provider="text_analysis",
             status="success",
+            correlation_id=getattr(analysis, "correlation_id", None),
         )
         self.event_bus.publish(sentiment_event)
 
@@ -124,6 +125,7 @@ class AnalyzeTextCommandHandler:
             media_id=getattr(analysis, "media_id", None),
             provider="text_analysis",
             status="success",
+            correlation_id=getattr(analysis, "correlation_id", None),
         )
         self.event_bus.publish(summarization_event)
 
@@ -134,6 +136,7 @@ class AnalyzeTextCommandHandler:
             media_id=getattr(analysis, "media_id", None),
             provider="text_analysis",
             status="success",
+            correlation_id=getattr(analysis, "correlation_id", None),
         )
         self.event_bus.publish(topic_event)
 

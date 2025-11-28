@@ -28,7 +28,7 @@ from src.shared.application.service_registry import (
     attach_domain_services,
     build_domain_service_registry,
 )
-from src.shared.event_bus import InMemoryEventBus
+from src.shared.event_bus_factory import get_event_bus
 from src.shared.events.domain_events import (
     MediaUploaded,
     NotificationRequested,
@@ -58,9 +58,9 @@ except Exception:
     _celery_app = None  # Celery not required for API process to start
 
 
-def build_event_bus() -> InMemoryEventBus:
+def build_event_bus():
     """Factory for the default application event bus."""
-    return InMemoryEventBus()
+    return get_event_bus()
 
 
 def register_domain_event_handlers(
@@ -109,6 +109,7 @@ async def lifespan(app: FastAPI):
         notification_module = await build_notification_module(
             session=session,
             auth_queries=auth_module.auth_queries,
+            event_bus=event_bus,
         )
 
         media_module, media_admin_context = build_media_components(

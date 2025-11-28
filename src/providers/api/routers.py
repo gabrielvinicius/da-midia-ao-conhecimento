@@ -17,6 +17,8 @@ from .schemas import (
     ProviderDetailResponse,
     ProvidersListResponse,
     ProviderSummaryResponse,
+    ProviderHealthResponse,
+    ProviderHealth,
 )
 from src.providers.domain.provider_metadata import get_provider_metadata
 
@@ -86,6 +88,30 @@ def _serialize_provider_catalog(provider_registry: IProviderRegistry) -> dict[st
     return catalog
 
 
+async def _probe_provider(provider) -> ProviderHealth:
+    status = getattr(provider, "status", None)
+    status_value = status.value if hasattr(status, "value") else (status or "unknown")
+    details = {}
+    if hasattr(provider, "health_check"):
+        try:
+            maybe = provider.health_check()
+            # support both async and sync
+            if hasattr(maybe, "__await__"):
+                details = await maybe
+            else:
+                details = maybe or {}
+            status_value = "healthy"
+        except Exception as exc:  # pragma: no cover - defensive
+            status_value = "unhealthy"
+            details = {"error": str(exc)}
+    return ProviderHealth(
+        name=provider.get_name(),
+        type=provider.get_type().value,
+        status=status_value,
+        details=details or {},
+    )
+
+
 @router.get(
     "/",
     summary="Return provider names grouped by type",
@@ -152,6 +178,25 @@ async def list_topic_modeling_providers(
     current_user: User = Depends(get_current_user),
 ) -> list[str]:
     return _list_provider_names(provider_registry, ProviderType.TOPIC_MODELING)
+
+
+@router.get(
+    "/health",
+    summary="Health check for providers (by type)",
+    response_model=ProviderHealthResponse,
+)
+async def health_providers(
+    provider_type: Optional[ProviderType] = Query(None, description="Filter by provider type"),
+    provider_registry: Annotated[IProviderRegistry, Depends(get_provider_registry)] = Depends(),
+    current_user: User = Depends(get_current_user),
+):
+    providers = (
+        provider_registry.list_providers(provider_type)
+        if provider_type
+        else provider_registry.list_providers()
+    )
+    health_list = [await _probe_provider(p) for p in providers]
+    return ProviderHealthResponse(providers=health_list)
 
 
 @router.get("/summary", response_model=ProviderSummaryResponse, summary="Get comprehensive provider summary")
