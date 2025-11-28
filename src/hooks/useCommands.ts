@@ -47,7 +47,14 @@ export const useCreateMediaCommand = () => {
     },
     onSuccess: (data) => {
       const filename = data.original_file_path?.split('/').pop() || 'arquivo';
-      toast.success(`Arquivo "${filename}" enviado com sucesso! Pipeline: ${data.processing_pipeline?.join(' → ')}`);
+      const pipeline = data.processing_pipeline?.join(' → ');
+      const correlationId = (data as any)?.correlation_id;
+
+      const successMsg = pipeline
+        ? `Arquivo "${filename}" enviado. Pipeline: ${pipeline}`
+        : `Arquivo "${filename}" enviado.`;
+
+      toast.success(successMsg + (correlationId ? ` (correlation_id: ${correlationId})` : ''));
       setProgress(100);
       
       // Invalidar queries relacionadas
@@ -60,11 +67,16 @@ export const useCreateMediaCommand = () => {
       console.error('❌ CreateMediaCommand falhou:', error);
       setProgress(0);
       
-      let errorMessage = 'Erro ao fazer upload do arquivo';
-      if (error?.response?.data?.detail) {
-        errorMessage = error.response.data.detail;
-      } else if (error?.message) {
-        errorMessage = error.message;
+      const payload = error?.response?.data;
+      const errorMessage =
+        payload?.message ||
+        payload?.error ||
+        payload?.detail ||
+        error?.message ||
+        'Erro ao fazer upload do arquivo';
+
+      if (error?.response?.headers?.['x-correlation-id']) {
+        console.warn('correlation_id:', error.response.headers['x-correlation-id']);
       }
       
       toast.error(errorMessage);

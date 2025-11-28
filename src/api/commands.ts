@@ -29,7 +29,7 @@ type UploadOptions = {
 export const executeCreateMedia = async (
   command: CreateMediaCommand,
   options?: UploadOptions,
-): Promise<Media> => {
+): Promise<Media & { correlation_id?: string }> => {
   console.log('🎬 Executando CreateMediaCommand:', command);
   
   const { file, ...queryParams } = command;
@@ -70,7 +70,8 @@ export const executeCreateMedia = async (
   });
   
   console.log('✅ CreateMediaCommand executado:', response.data);
-  return response.data;
+  const correlationId = response.headers?.['x-correlation-id'];
+  return { ...response.data, correlation_id: correlationId };
 };
 
 export const executeReprocessMedia = async (command: ReprocessMediaCommand): Promise<{ message: string }> => {
