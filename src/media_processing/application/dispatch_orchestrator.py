@@ -78,7 +78,6 @@ class MediaDispatchOrchestrator:
                 name="transcription",
                 payload={
                     "media_id": str(context.media_id),
-                    "file_path": context.file_path,
                     "storage_provider": context.storage_provider,
                     "transcription_provider": context.transcription_provider,
                     "language": context.language,
@@ -97,7 +96,7 @@ class MediaDispatchOrchestrator:
                     name="video",
                     payload={
                         "media_id": str(context.media_id),
-                        "file_path": context.file_path,
+                        # file_path removed as it is handled by the storage provider
                         "storage_provider": context.storage_provider,
                         "file_size_bytes": context.file_size_bytes,
                     },
