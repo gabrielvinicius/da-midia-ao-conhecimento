@@ -18,10 +18,9 @@ from src.monitoring.domain.interfaces import (
     ProcessingType,
     TimeRange,
 )
-from src.text_analysis.summarization.domain.summary import SummaryStatus
-from src.text_analysis.summarization.infrastructure.orm.summary_entity import (
-    SummaryEntity,
-)
+# Legacy summarization modules removed; keep placeholders for future reinstatement
+SummaryStatus = None
+SummaryEntity = None
 
 logger = structlog.get_logger(__name__)
 
@@ -39,17 +38,13 @@ class AnalyticsRepository(IAnalyticsRepository):
                 func.avg(
                     func.extract('epoch', Transcription.processed_at - Transcription.created_at)
                 ).label("transcription_avg_seconds"),
-                func.avg(
-                    func.extract('epoch', SummaryEntity.processed_at - SummaryEntity.created_at)
-                ).label("summarization_avg_seconds"),
+                func.avg(0).label("summarization_avg_seconds"),
                 func.count(MediaEntity.id).label("total_media_analyzed")
             )
             .join(Transcription, MediaEntity.id == Transcription.media_id)
-            .join(SummaryEntity, SummaryEntity.transcription_id == Transcription.id)
             .where(
                 MediaEntity.status == MediaStatus.COMPLETED,
                 Transcription.status == TranscriptionStatus.COMPLETED,
-                SummaryEntity.status == SummaryStatus.COMPLETED
             )
         )
 
@@ -96,21 +91,13 @@ class AnalyticsRepository(IAnalyticsRepository):
                 .where(Transcription.status == TranscriptionStatus.COMPLETED)
             )
         elif processing_type == ProcessingType.SUMMARIZATION:
-            stmt = (
-                select(
-                    func.avg(
-                        func.extract('epoch', SummaryEntity.processed_at - SummaryEntity.created_at)
-                    ).label("avg_seconds"),
-                    func.min(
-                        func.extract('epoch', SummaryEntity.processed_at - SummaryEntity.created_at)
-                    ).label("min_seconds"),
-                    func.max(
-                        func.extract('epoch', SummaryEntity.processed_at - SummaryEntity.created_at)
-                    ).label("max_seconds"),
-                    func.count(SummaryEntity.id).label("total_processed")
-                )
-                .where(SummaryEntity.status == SummaryStatus.COMPLETED)
-            )
+            # Summarization entities removed; return empty stats
+            return {
+                "avg_seconds": 0.0,
+                "min_seconds": 0.0,
+                "max_seconds": 0.0,
+                "total_processed": 0,
+            }
         else:
             # For other types, return empty stats
             return {
