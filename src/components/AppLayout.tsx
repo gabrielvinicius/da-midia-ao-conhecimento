@@ -31,10 +31,10 @@ const AppLayout = () => {
     }`;
 
   return (
-    <div className={layoutClass}>
-      <div className={`hidden border-r bg-muted/40 md:block ${isSidebarCollapsed ? 'w-[72px]' : ''}`}>
+    <div className={`${layoutClass} bg-white text-slate-900`}>
+      <div className={`hidden border-r border-[#f2eadf] bg-white/80 backdrop-blur md:block ${isSidebarCollapsed ? 'w-[72px]' : ''}`}>
         <div className="flex h-full max-h-screen flex-col gap-2">
-          <div className={`flex h-14 items-center border-b ${isSidebarCollapsed ? 'justify-center px-0' : 'px-4 lg:px-6' } lg:h-[60px]`}>
+          <div className={`flex h-14 items-center border-b border-[#f2eadf] ${isSidebarCollapsed ? 'justify-center px-0' : 'px-4 lg:px-6' } lg:h-[60px]`}>
             <button
               className="inline-flex items-center justify-center rounded-md border p-2 text-sm"
               onClick={() => setIsSidebarCollapsed((prev) => !prev)}
@@ -69,7 +69,7 @@ const AppLayout = () => {
         </div>
       </div>
       <div className="flex flex-col">
-        <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
+        <header className="flex h-14 items-center gap-4 border-b border-[#f2eadf] bg-white/70 px-4 backdrop-blur lg:h-[60px] lg:px-6">
           <div className="w-full flex-1"></div>
           <div className="flex items-center gap-4">
             <ConnectionStatusIndicator /> {/* Add the indicator */}
@@ -107,7 +107,7 @@ const AppLayout = () => {
             </DropdownMenu>
           </div>
         </header>
-        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
+        <main className="flex flex-1 flex-col gap-4 bg-transparent p-4 lg:gap-6 lg:p-6">
           <Outlet />
         </main>
       </div>

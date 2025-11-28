@@ -1,9 +1,9 @@
 import { createContext, useContext, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getProvidersMap, ProviderType } from '../api';
+import { getProvidersCatalog, ProviderCatalogEntry, ProviderType } from '../api';
 import { useAuth } from '@/contexts/AuthContext';
 
-type ProviderMap = Partial<Record<ProviderType, string[]>>;
+type ProviderMap = Partial<Record<ProviderType, ProviderCatalogEntry[]>>;
 
 interface ProvidersContextValue {
   providers: Partial<ProviderMap>;
@@ -16,9 +16,9 @@ const ProvidersContext = createContext<ProvidersContextValue | undefined>(undefi
 export const ProvidersProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
   const result = useQuery({
-    queryKey: ['providers', 'map'],
+    queryKey: ['providers', 'catalog'],
     queryFn: async () => {
-      const map = await getProvidersMap();
+      const map = await getProvidersCatalog();
       return map as ProviderMap;
     },
     enabled: isAuthenticated,

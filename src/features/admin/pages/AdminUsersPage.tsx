@@ -9,6 +9,7 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,18 +50,18 @@ const UserActionsCell = ({ user }: { user: User }) => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
+                <span className="sr-only">Abrir menu</span>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuLabel>Ações</DropdownMenuLabel>
               <DialogTrigger asChild>
-                <DropdownMenuItem>Edit Role</DropdownMenuItem>
+                <DropdownMenuItem>Editar permissões</DropdownMenuItem>
               </DialogTrigger>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-red-600" onSelect={() => setIsDeleteOpen(true)} disabled={isDeleting}>
-                Delete User
+                Remover usuário
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -68,7 +69,7 @@ const UserActionsCell = ({ user }: { user: User }) => {
           {/* Edit Dialog */}
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit User: {user.email}</DialogTitle>
+              <DialogTitle>Editar usuário: {user.email}</DialogTitle>
             </DialogHeader>
             <EditUserForm user={user} onFinished={() => setIsEditOpen(false)} />
           </DialogContent>
@@ -76,15 +77,15 @@ const UserActionsCell = ({ user }: { user: User }) => {
           {/* Delete Alert Dialog */}
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogTitle>Deseja remover este usuário?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the user.
+                Essa ação não pode ser desfeita e irá remover todas as permissões associadas.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
               <AlertDialogAction onClick={() => deleteUser(user.id)} className="bg-red-600 hover:bg-red-700">
-                {isDeleting ? "Deleting..." : "Delete"}
+                {isDeleting ? "Removendo..." : "Excluir"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -98,7 +99,7 @@ const UserActionsCell = ({ user }: { user: User }) => {
 export const columns: ColumnDef<User>[] = [
   {
     accessorKey: "id",
-    header: "User ID",
+    header: "ID",
   },
   {
     accessorKey: "email",
@@ -106,7 +107,7 @@ export const columns: ColumnDef<User>[] = [
   },
   {
     accessorKey: "role",
-    header: "Role",
+    header: "Função",
     cell: ({ row }) => {
       const role = row.original.role;
       return <Badge variant={role === "ADMIN" ? "default" : "secondary"}>{role}</Badge>;
@@ -139,26 +140,37 @@ export const AdminUsersPage = () => {
   );
 
   if (isError) {
-    return <p className="text-destructive">Error loading users.</p>;
+    return <p className="text-destructive">Erro ao carregar usuários.</p>;
   }
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold tracking-tight mb-6">Users</h1>
+    <div className="space-y-6">
+      <div>
+        <p className="text-sm uppercase text-muted-foreground">Administração</p>
+        <h1 className="text-3xl font-bold tracking-tight">Usuários</h1>
+      </div>
       {isLoading && !data ? (
         <div className="space-y-4">
           <Skeleton className="h-12 w-1/3" />
           <Skeleton className="h-48 w-full" />
         </div>
       ) : (
-        <DataTable
-          columns={columns}
-          data={data?.items ?? defaultData}
-          pageCount={data?.total_pages ?? 0}
-          pagination={pagination}
-          onPaginationChange={setPagination}
-          onSearchChange={setSearch}
-        />
+        <Card className="border border-[#ede4d5] bg-white">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Lista de usuários</CardTitle>
+            <CardDescription>Gerencie papéis e revogue acessos.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              columns={columns}
+              data={data?.items ?? defaultData}
+              pageCount={data?.total_pages ?? 0}
+              pagination={pagination}
+              onPaginationChange={setPagination}
+              onSearchChange={setSearch}
+            />
+          </CardContent>
+        </Card>
       )}
     </div>
   );

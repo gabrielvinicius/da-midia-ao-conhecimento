@@ -2,10 +2,16 @@ import api from "@/lib/api";
 
 export type ProviderType = "storage" | "transcription" | "summarization" | "sentiment" | "topics";
 
-export const getProviders = async (type: ProviderType): Promise<string[]> => {
-  const response = await api.get<string[]>(`/providers/${type}`);
-  return response.data;
-};
+export interface ProviderCatalogEntry {
+  name: string;
+  label: string;
+  description: string;
+  type: string;
+  version: string;
+  status: string;
+  capabilities: string[];
+  isDefault: boolean;
+}
 
 const backendKeyToFrontend: Record<string, ProviderType> = {
   storage: "storage",
@@ -15,13 +21,13 @@ const backendKeyToFrontend: Record<string, ProviderType> = {
   topic_modeling: "topics",
 };
 
-export const getProvidersMap = async (): Promise<Partial<Record<ProviderType, string[]>>> => {
-  const response = await api.get<Record<string, string[]>>("/providers/");
-  const normalized: Partial<Record<ProviderType, string[]>> = {};
-  Object.entries(response.data ?? {}).forEach(([key, list]) => {
+export const getProvidersCatalog = async (): Promise<Partial<Record<ProviderType, ProviderCatalogEntry[]>>> => {
+  const response = await api.get<Record<string, ProviderCatalogEntry[]>>("/providers/catalog");
+  const normalized: Partial<Record<ProviderType, ProviderCatalogEntry[]>> = {};
+  Object.entries(response.data ?? {}).forEach(([key, entries]) => {
     const mappedKey = backendKeyToFrontend[key];
     if (mappedKey) {
-      normalized[mappedKey] = list;
+      normalized[mappedKey] = entries ?? [];
     }
   });
   return normalized;

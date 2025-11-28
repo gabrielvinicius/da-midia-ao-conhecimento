@@ -6,6 +6,7 @@ export const useTopicModeling = (mediaId: string) => {
     queryKey: ['topic-modeling', mediaId],
     queryFn: () => getTopicModeling(mediaId),
     enabled: !!mediaId,
-    refetchInterval: (query) => (!query.state.data ? 10000 : false),
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
   });
 };

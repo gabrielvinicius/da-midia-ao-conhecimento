@@ -12,8 +12,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
 import NumberTicker from "@/components/ui/NumberTicker";
-import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -174,18 +173,18 @@ export const AdminAllMediaPage = () => {
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mb-6">
-        <Card>
+        <Card className="border border-[#ede4d5] bg-white">
           <CardHeader>
-            <CardTitle>Mídias listadas</CardTitle>
+            <CardTitle className="text-base font-semibold">Mídias listadas</CardTitle>
             <CardDescription>Resultado atual da busca.</CardDescription>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
             <NumberTicker value={data?.total_items ?? 0} />
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border border-[#ede4d5] bg-white">
           <CardHeader>
-            <CardTitle>Em processamento</CardTitle>
+            <CardTitle className="text-base font-semibold">Em processamento</CardTitle>
             <CardDescription>Itens aguardando workers.</CardDescription>
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-sky-600">
@@ -193,9 +192,9 @@ export const AdminAllMediaPage = () => {
             <span className="text-2xl font-semibold">{data?.metrics?.processing ?? 0}</span>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border border-[#ede4d5] bg-white">
           <CardHeader>
-            <CardTitle>Concluídas</CardTitle>
+            <CardTitle className="text-base font-semibold">Concluídas</CardTitle>
             <CardDescription>Últimos 7 dias.</CardDescription>
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-emerald-600">
@@ -203,9 +202,9 @@ export const AdminAllMediaPage = () => {
             <span className="text-2xl font-semibold">{data?.metrics?.completed ?? 0}</span>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border border-[#ede4d5] bg-white">
           <CardHeader>
-            <CardTitle>Falhas</CardTitle>
+            <CardTitle className="text-base font-semibold">Falhas</CardTitle>
             <CardDescription>Prontas para revisão.</CardDescription>
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-red-600">
@@ -220,14 +219,22 @@ export const AdminAllMediaPage = () => {
           <Skeleton className="h-48 w-full" />
         </div>
       ) : (
-        <DataTable
-          columns={columns}
-          data={data?.items ?? defaultData}
-          pageCount={data?.total_pages ?? 0}
-          pagination={pagination}
-          onPaginationChange={setPagination}
-          onSearchChange={setSearch}
-        />
+        <Card className="border border-[#ede4d5] bg-white">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Inventário detalhado</CardTitle>
+            <CardDescription>Pesquise, filtre e acione ações em lote.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              columns={columns}
+              data={data?.items ?? defaultData}
+              pageCount={data?.total_pages ?? 0}
+              pagination={pagination}
+              onPaginationChange={setPagination}
+              onSearchChange={setSearch}
+            />
+          </CardContent>
+        </Card>
       )}
     </div>
   );

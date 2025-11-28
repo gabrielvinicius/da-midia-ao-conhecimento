@@ -28,12 +28,8 @@ export const useMediaByIdQuery = (mediaId: string) => {
     queryKey: ['media', mediaId],
     queryFn: () => getMediaById(mediaId),
     enabled: !!mediaId,
-    staleTime: 30000, // 30 segundos
-    refetchInterval: (query) => {
-      // Polling para media em processamento
-      const media = query.state.data;
-      return media?.status === 'PROCESSING' ? 5000 : false;
-    },
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
 };
 
@@ -61,14 +57,7 @@ export const useTranscriptionByMediaIdQuery = (mediaId: string) => {
       }
       return failureCount < 3;
     },
-    refetchInterval: (query) => {
-      // Se deu erro 404/202, tentar novamente a cada 10 segundos
-      const error = query.state.error as any;
-      if (error?.response?.status === 404 || error?.response?.status === 202) {
-        return 10000;
-      }
-      return false;
-    },
+    refetchOnWindowFocus: false,
   });
 };
 
@@ -95,13 +84,7 @@ export const useSummaryByMediaIdQuery = (mediaId: string) => {
       }
       return failureCount < 3;
     },
-    refetchInterval: (query) => {
-      const error = query.state.error as any;
-      if (error?.response?.status === 404 || error?.response?.status === 202) {
-        return 10000;
-      }
-      return false;
-    },
+    refetchOnWindowFocus: false,
   });
 };
 
@@ -122,7 +105,7 @@ export const useSentimentAnalysisByMediaIdQuery = (mediaId: string) => {
     queryKey: ['sentiment-analysis', mediaId],
     queryFn: () => getSentimentAnalysisByMediaId(mediaId),
     enabled: !!mediaId,
-    refetchInterval: (query) => (!query.state.data ? 10000 : false),
+    refetchOnWindowFocus: false,
   });
 };
 
@@ -135,7 +118,7 @@ export const useTopicModelingByMediaIdQuery = (mediaId: string) => {
     queryKey: ['topic-modeling', mediaId],
     queryFn: () => getTopicModelingByMediaId(mediaId),
     enabled: !!mediaId,
-    refetchInterval: (query) => (!query.state.data ? 10000 : false),
+    refetchOnWindowFocus: false,
   });
 };
 
@@ -176,7 +159,7 @@ export const useNotificationsQuery = () => {
   return useQuery({
     queryKey: ['notifications'],
     queryFn: getNotifications,
-    refetchInterval: 30000, // Refetch a cada 30 segundos para notificações
+    refetchOnWindowFocus: false,
   });
 };
 
@@ -188,7 +171,7 @@ export const useSystemStatsQuery = () => {
   return useQuery({
     queryKey: ['admin', 'stats'],
     queryFn: getSystemStats,
-    refetchInterval: 60000, // Refetch a cada 1 minuto para estatísticas
+    refetchOnWindowFocus: false,
   });
 };
 

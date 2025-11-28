@@ -79,35 +79,35 @@ export const AdminDashboardPage = () => {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2 mt-6">
-        <Card>
+        <Card className="border border-[#ede4d5] bg-white">
           <CardHeader>
-            <CardTitle>Saúde do sistema</CardTitle>
+            <CardTitle className="text-base font-semibold">Saúde do sistema</CardTitle>
             <CardDescription>Status consolidado dos serviços críticos.</CardDescription>
           </CardHeader>
           <CardContent>
             {isHealthLoading ? (
               <Skeleton className="h-24 w-full" />
             ) : health ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
+              <div className="space-y-4 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
                   <span className={`h-2 w-2 rounded-full ${health.status === 'healthy' ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                  <span className="text-sm font-medium capitalize">{health.status}</span>
+                  <span className="font-medium capitalize text-slate-900">{health.status}</span>
                   <span className="text-xs text-muted-foreground">Atualizado {new Date(health.timestamp).toLocaleString("pt-BR")}</span>
                 </div>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-muted-foreground">
                   Usuários ativos: {health.active_users}/{health.total_users}
                 </div>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-muted-foreground">
                   Processando: {health.processing_media} · Falhas: {health.failed_media}
                 </div>
                 {health.issues && health.issues.length > 0 ? (
-                  <ul className="text-sm list-disc pl-4 text-yellow-600">
+                  <ul className="list-disc space-y-1 pl-4 text-amber-600">
                     {health.issues.map((issue) => (
                       <li key={issue}>{issue}</li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Nenhum alerta no momento.</p>
+                  <p className="text-muted-foreground">Nenhum alerta no momento.</p>
                 )}
               </div>
             ) : (
@@ -116,9 +116,9 @@ export const AdminDashboardPage = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border border-[#ede4d5] bg-white">
           <CardHeader>
-            <CardTitle>Mix de processamento</CardTitle>
+            <CardTitle className="text-base font-semibold">Mix de processamento</CardTitle>
             <CardDescription>Distribuição das mídias por status.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -129,9 +129,7 @@ export const AdminDashboardPage = () => {
                 <ProgressBar value={mediaStats.success_rate} label="Concluídos" color="bg-emerald-500" />
                 <ProgressBar value={mediaStats.processing_rate} label="Processando" color="bg-blue-500" />
                 <ProgressBar value={mediaStats.failure_rate} label="Falhas" color="bg-red-500" />
-                <p className="text-xs text-muted-foreground">
-                  Total monitorado: {mediaStats.total_media}
-                </p>
+                <p className="text-xs text-muted-foreground">Total monitorado: {mediaStats.total_media}</p>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">Nenhuma estatística disponível.</p>

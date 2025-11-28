@@ -65,45 +65,91 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
+        const baseType: string | undefined = message.kind ?? message.type;
+        const payload = message.payload ?? message;
         
-        switch (message.type) {
+        switch (baseType) {
           case 'new_notification':
-            const newNotification = message.payload as Notification;
+            const newNotification = payload as Notification;
             setNotifications(prev => [newNotification, ...prev]);
+            queryClient.setQueryData(['notifications'], (old: Notification[] | undefined) => old ? [newNotification, ...old] : [newNotification]);
             toast.info(`New notification: ${newNotification.content}`);
             break;
-            
-          case 'entity_update':
-            const { entity, payload } = message;
-            // Update the specific entity in the query cache
-            queryClient.setQueryData([entity, payload.id], payload);
-            
-            // Invalidate related queries to trigger refetch
-            if (entity === 'media') {
+          case 'MEDIA_STATUS': {
+            const mediaId = payload.media_id || payload.mediaId;
+            if (mediaId) {
+              queryClient.setQueryData(['media', mediaId], (oldData: any) => {
+                if (!oldData) return oldData;
+                return {
+                  ...oldData,
+                  status: payload.status ?? oldData.status,
+                  error_message: payload.error ?? oldData.error_message,
+                };
+              });
+              queryClient.invalidateQueries({ queryKey: ['media', mediaId] });
               queryClient.invalidateQueries({ queryKey: ['media-list'] });
-            } else {
-              queryClient.invalidateQueries({ queryKey: [entity] });
             }
             break;
+          }
+          
+          case 'entity_update': {
+            const { entity } = message;
+            const entityPayload = message.payload;
+            if (!entity || !entityPayload) {
+              break;
+            }
+
+            const normalized = String(entity).toLowerCase();
+            const mediaId = entityPayload.media_id || entityPayload.mediaId;
+
+            if (normalized === 'topic-modeling' || normalized === 'topic_modeling') {
+              if (mediaId) {
+                queryClient.setQueryData(['topic-modeling', mediaId], entityPayload);
+              }
+              break;
+            }
+
+            if (normalized === 'summary' || normalized === 'summaries') {
+              if (mediaId) {
+                queryClient.setQueryData(['summary', mediaId], entityPayload);
+              }
+              break;
+            }
+
+            if (normalized === 'sentiment-analysis' || normalized === 'sentiment_analysis' || normalized === 'sentiment') {
+              if (mediaId) {
+                queryClient.setQueryData(['sentiment-analysis', mediaId], entityPayload);
+              }
+              break;
+            }
+
+            if (entityPayload?.id) {
+              queryClient.setQueryData([entity, entityPayload.id], entityPayload);
+            }
+
+            if (normalized === 'media') {
+              queryClient.invalidateQueries({ queryKey: ['media-list'] });
+            }
+            break;
+          }
             
           case 'transcription_update':
           case 'summary_update':
-          case 'processing_complete':
-            // Handle specific media processing updates
-            const { media_id, status, result } = message;
+          case 'processing_complete': {
+            const { media_id, status, result } = payload;
             if (media_id) {
               queryClient.setQueryData(['media', media_id], (oldData: any) => ({
                 ...oldData,
-                status: status,
-                ...(result && { result: result })
+                status: status ?? oldData?.status,
+                ...(result && { result }),
               }));
-              
               queryClient.invalidateQueries({ queryKey: ['media', media_id] });
             }
             break;
+          }
             
           default:
-            console.warn('Received unknown WebSocket message type:', message.type);
+            console.warn('Received unknown WebSocket message type:', baseType);
         }
       } catch (parseError) {
         console.error('Failed to parse WebSocket message:', parseError);

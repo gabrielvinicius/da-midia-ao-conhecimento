@@ -31,6 +31,7 @@ export enum MediaType {
 }
 
 export enum MediaStatus {
+  UPLOADED = "UPLOADED",
   PENDING = "PENDING",
   PROCESSING = "PROCESSING",
   COMPLETED = "COMPLETED",
@@ -52,6 +53,11 @@ export interface Media {
   processing_pipeline?: string[];
   file_size_mb?: number;
   error_message?: string;
+  language?: string | null;
+  filename?: string | null;
+  file_size?: number | null;
+  mime_type?: string | null;
+  duration?: number | null;
 }
 
 // Legacy Video interface for backward compatibility
@@ -110,14 +116,13 @@ export interface Summary {
   status: SummaryStatus;
   provider: string | null;
   text: string | null;
+  created_at: string;
+  processed_at: string | null;
+  error_message: string | null;
   strategy?: string | null;
   bullet_points?: string[] | null;
   key_topics?: string[] | null;
   confidence_score?: number | null;
-  processing_time?: number | null;
-  created_at: string;
-  processed_at: string | null;
-  error_message: string | null;
 }
 
 export interface SummarizationReprocessResponse {
@@ -211,6 +216,14 @@ export interface TopicModelingResult {
   processed_at?: string | null;
   error_message?: string | null;
   raw_topics?: Record<string, any>[] | null;
+  topic_summaries?: TopicSummaryDetail[] | null;
+}
+
+export interface TopicSummaryDetail {
+  id: number | string;
+  label: string;
+  keywords: string[];
+  summary_sentence?: string | null;
 }
 
 export interface TopicModelingAck {

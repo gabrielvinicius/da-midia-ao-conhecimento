@@ -1,18 +1,20 @@
+import { useMemo } from "react";
 import { useSentimentAnalysis } from "../hooks/useSentimentAnalysis";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { ThumbsUp, ThumbsDown, Meh } from "lucide-react";
-import * as React from "react";
+import { ThumbsUp, ThumbsDown, Meh, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/Badge";
 
 interface SentimentResultPanelProps {
   mediaId: string;
 }
 
-const sentimentConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
-  POSITIVE: { icon: <ThumbsUp className="h-8 w-8" />, color: "text-green-500", label: "Positivo" },
-  NEGATIVE: { icon: <ThumbsDown className="h-8 w-8" />, color: "text-red-500", label: "Negativo" },
-  NEUTRAL: { icon: <Meh className="h-8 w-8" />, color: "text-yellow-500", label: "Neutro" },
-  ERROR: { icon: <Meh className="h-8 w-8" />, color: "text-gray-500", label: "Erro na Análise" },
+const sentimentConfig: Record<string, { icon: React.ReactNode; accent: string; label: string }> = {
+  POSITIVE: { icon: <ThumbsUp className="h-8 w-8" />, accent: "text-emerald-500", label: "Positivo" },
+  NEGATIVE: { icon: <ThumbsDown className="h-8 w-8" />, accent: "text-red-500", label: "Negativo" },
+  NEUTRAL: { icon: <Meh className="h-8 w-8" />, accent: "text-amber-500", label: "Neutro" },
+  ERROR: { icon: <Meh className="h-8 w-8" />, accent: "text-slate-500", label: "Erro na Análise" },
 };
 
 export const SentimentResultPanel = ({ mediaId }: SentimentResultPanelProps) => {
@@ -34,7 +36,11 @@ export const SentimentResultPanel = ({ mediaId }: SentimentResultPanelProps) => 
     }
 
     if (!analysis) {
-      return <p className="text-muted-foreground text-center text-xs">Aguardando conteúdo de texto para iniciar análise...</p>;
+      return (
+        <div className="rounded-2xl border border-[#f2eadf] bg-[#fdfbf6] p-4 text-center text-xs text-muted-foreground">
+          Aguarde: liberamos a análise assim que a transcrição estiver concluída.
+        </div>
+      );
     }
 
     const config = sentimentConfig[analysis.label] || sentimentConfig.NEUTRAL;
@@ -46,35 +52,33 @@ export const SentimentResultPanel = ({ mediaId }: SentimentResultPanelProps) => 
     const confidencePercent = Math.round((analysis.confidence ?? 0) * 100);
 
     return (
-      <div className="space-y-4 w-full">
-        <div className={`flex flex-col items-center justify-center space-y-2 ${config.color}`}>
-          {config.icon}
-          <span className="text-xl font-bold">{config.label}</span>
-          <span className="text-sm text-muted-foreground">
-            Pontuação: {scorePercent}% {analysis.score < 0 ? "negativo" : "positivo"}
-          </span>
-          {analysis.confidence !== undefined && (
-            <span className="text-xs text-muted-foreground">
-              Confiança {confidencePercent}%
-            </span>
-          )}
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-[#f2eadf] bg-[#fdfbf6] p-4 text-center shadow-sm">
+          <div className={cn("mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white", config.accent)}>
+            {config.icon}
+          </div>
+          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">sentimento</p>
+          <p className="text-2xl font-bold text-slate-900">{config.label}</p>
+          <p className="text-sm text-muted-foreground">
+            Intensidade {scorePercent}% · Confiança {confidencePercent}%
+          </p>
         </div>
 
         {topEmotions.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <p className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500">
+              <Sparkles className="h-4 w-4" /> Emoções predominantes
+            </p>
             {topEmotions.map(([emotion, value]) => {
               const percent = Math.round(Number(value) * 100);
               return (
-                <div key={emotion}>
+                <div key={emotion} className="space-y-1">
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span className="capitalize">{emotion}</span>
                     <span>{percent}%</span>
                   </div>
                   <div className="h-2 rounded-full bg-muted">
-                    <div
-                      className="h-2 rounded-full bg-primary"
-                      style={{ width: `${percent}%` }}
-                    />
+                    <div className="h-2 rounded-full bg-gradient-to-r from-emerald-400 via-amber-300 to-pink-300" style={{ width: `${percent}%` }} />
                   </div>
                 </div>
               );
@@ -86,16 +90,22 @@ export const SentimentResultPanel = ({ mediaId }: SentimentResultPanelProps) => 
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-center">Análise de Sentimento</CardTitle>
+    <Card className="border border-[#ede4d5] bg-gradient-to-br from-purple-900/10 text-slate-900">
+      <CardHeader className="text-center space-y-1">
+        <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">Tempo real</p>
+        <CardTitle className="text-2xl">Análise de Sentimento</CardTitle>
         {analysis && (
-          <CardDescription className="text-center text-xs">
+          <CardDescription className="text-xs text-muted-foreground">
             Provider {analysis.provider}
             {analysis.full_result?.processing_time && (
               <> · {analysis.full_result.processing_time?.toFixed?.(1) ?? analysis.full_result.processing_time}s</>
             )}
           </CardDescription>
+        )}
+        {!analysis && (
+          <Badge variant="secondary" className="mx-auto w-fit rounded-full border border-[#f2eadf] bg-[#fdfbf6] text-slate-800">
+            Em preparação
+          </Badge>
         )}
       </CardHeader>
       <CardContent className="pt-4">

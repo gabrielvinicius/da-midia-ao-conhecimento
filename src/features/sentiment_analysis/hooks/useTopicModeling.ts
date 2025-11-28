@@ -7,12 +7,7 @@ export const useTopicModeling = (mediaId: string) => {
     queryKey: ['analysis', mediaId, AnalysisType.TOPIC_MODELING],
     queryFn: () => getAnalysis(mediaId, AnalysisType.TOPIC_MODELING),
     enabled: !!mediaId,
-    // Poll for updates if the analysis is not yet available.
-    refetchInterval: (query) => {
-      if (query.state.data === null) {
-        return 5000; // Refetch every 5 seconds until found
-      }
-      return false; // Stop refetching once data is available
-    },
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
   });
 };

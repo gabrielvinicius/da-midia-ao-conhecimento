@@ -3,13 +3,13 @@ import { UserRole, SummaryStatus, TopicModelingStatus } from "@/types";
 import { useParams } from "react-router-dom";
 import { useMediaDetail, useReprocessMedia } from "../features/media/hooks/useMedia";
 import { InteractiveTranscriptionPanel } from "../features/transcription/components/InteractiveTranscriptionPanel";
-import { SummaryPanel } from "../features/summarization/components/SummaryPanel";
 import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel";
 import { TopicModelingResultPanel } from "@/features/topic_modeling/components/TopicModelingResultPanel"; // Re-enable v2 Feature
 import { Skeleton } from "../components/ui/Skeleton";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { MagicSurface } from "@/components/ui/MagicSurface";
 import { useAuth } from "../contexts/AuthContext";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -21,6 +21,14 @@ import { buildApiUrl } from "@/lib/api";
 import { useSummary } from "@/features/summarization/hooks/useSummary";
 import { useSentimentAnalysis } from "@/features/sentiment_analysis/hooks/useSentimentAnalysis";
 import { useTopicModeling } from "@/features/topic_modeling/hooks/useTopicModeling";
+import { SummaryPanel } from "@/features/summarization/components/SummaryPanel";
+
+type PipelineStep = {
+  key: string;
+  label: string;
+  status?: string | null;
+  description: string;
+};
 import {
   CalendarDays,
   HardDrive,
@@ -31,6 +39,10 @@ import {
   AlertTriangle,
   Info,
   RefreshCw,
+  Languages,
+  FileText,
+  Waveform,
+  BarChart3,
 } from "lucide-react";
 
 const MediaDetailPage = () => {
@@ -97,6 +109,49 @@ const MediaDetailPage = () => {
 
   const formattedDate = format(new Date(media.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR });
   const displayName = media.original_file_path?.split("/").pop() || media.original_file_path;
+  const rawFileSize = media.file_size ?? (media as any)?.file_size_bytes ?? null;
+  const fileSizeMb = media.file_size_mb ?? (rawFileSize ? rawFileSize / (1024 * 1024) : undefined);
+  const formattedFileSize = fileSizeMb ? `${fileSizeMb.toFixed(2)} MB` : "Indisponível";
+  const derivedLanguage = media.language || (transcriptionData as any)?.language || transcriptionData?.result?.language;
+  const languageLabel = derivedLanguage ? derivedLanguage.toUpperCase() : "Indefinido";
+  const pipelineFlags = media.processing_pipeline ?? [];
+  const providerCount = pipelineFlags.length;
+  const summaryConfigured = true;
+  const sentimentConfigured = true;
+  const topicsConfigured = true;
+
+  const computeStageStatus = (primary?: string | null, configured = true): string => {
+    if (!configured) return "SKIPPED";
+    if (primary && primary !== SummaryStatus.PENDING && primary !== TranscriptionStatus.PENDING && primary !== TopicModelingStatus.PENDING) {
+      return primary;
+    }
+    if (primary === SummaryStatus.FAILED || primary === TranscriptionStatus.FAILED || primary === TopicModelingStatus.FAILED) {
+      return "FAILED";
+    }
+    if (primary === SummaryStatus.PROCESSING || primary === TranscriptionStatus.PROCESSING || primary === TopicModelingStatus.PROCESSING) {
+      return "PROCESSING";
+    }
+    if (media.status === MediaStatus.FAILED) {
+      return MediaStatus.FAILED;
+    }
+    if (media.status === MediaStatus.PROCESSING) {
+      return MediaStatus.PROCESSING;
+    }
+    if (media.status === MediaStatus.COMPLETED) {
+      return MediaStatus.COMPLETED;
+    }
+    if (media.status === MediaStatus.UPLOADED) {
+      return MediaStatus.UPLOADED;
+    }
+    return "PENDING";
+  };
+
+  const uploadStageStatus = media.status === MediaStatus.FAILED ? MediaStatus.FAILED : MediaStatus.COMPLETED;
+  const videoStageStatus = media.media_type === MediaType.VIDEO ? computeStageStatus(media.status, true) : "SKIPPED";
+  const transcriptionStageStatus = computeStageStatus(transcriptionData?.status ?? (isTextMedia ? transcriptionData?.status : undefined), true);
+  const summaryStageStatus = computeStageStatus(summaryData?.status, summaryConfigured);
+  const sentimentStageStatus = computeStageStatus(sentimentData ? "COMPLETED" : undefined, sentimentConfigured);
+  const topicStageStatus = computeStageStatus(topicData?.status, topicsConfigured);
 
   const statusToken = (status?: string | null) => {
     switch (status) {
@@ -122,83 +177,126 @@ const MediaDetailPage = () => {
       case SummaryStatus.PENDING:
       case TranscriptionStatus.PENDING:
       case TopicModelingStatus.PENDING:
+      case "UPLOADED":
+        return { label: "Aguardando", badge: "bg-muted text-muted-foreground", icon: <Loader2 className="h-4 w-4 text-muted-foreground" /> };
+      case "SKIPPED":
+        return { label: "Não configurado", badge: "bg-muted text-muted-foreground", icon: <Info className="h-4 w-4 text-muted-foreground" /> };
       default:
         return { label: "Aguardando", badge: "bg-muted text-muted-foreground", icon: <Loader2 className="h-4 w-4 text-muted-foreground" /> };
     }
   };
 
-  const sentimentStatus = sentimentData ? "COMPLETED" : media.status === MediaStatus.FAILED ? "FAILED" : media.status === MediaStatus.PROCESSING ? "PROCESSING" : "PENDING";
-  const topicStatus = topicData?.status ?? (media.status === MediaStatus.COMPLETED ? TopicModelingStatus.PENDING : media.status);
+  const pipelineSteps: PipelineStep[] = [];
 
-  const pipelineSteps = [
-    { key: "upload", label: "Upload", status: media.status, description: "Arquivo recebido e salvo" },
-    { key: "transcription", label: "Transcrição", status: transcriptionData?.status ?? TranscriptionStatus.PENDING, description: "Conversão de áudio/vídeo em texto" },
-    { key: "summary", label: "Resumo", status: summaryData?.status ?? SummaryStatus.PENDING, description: "Síntese inteligente do conteúdo" },
-    { key: "sentiment", label: "Sentimento", status: sentimentStatus, description: "Tom emocional identificado" },
-    { key: "topics", label: "Tópicos", status: topicStatus ?? TopicModelingStatus.PENDING, description: "Assuntos predominantes" },
-  ];
+  pipelineSteps.push({
+    key: "upload",
+    label: "Upload e validação",
+    status: media.status === MediaStatus.FAILED ? MediaStatus.FAILED : uploadStageStatus,
+    description: "Arquivo recebido, validado e armazenado com segurança.",
+  });
 
-  const metadataCards = [
-    {
-      label: "Armazenamento",
-      value: media.storage_provider ?? "Não informado",
-      icon: <HardDrive className="h-4 w-4" />,
-    },
-    {
-      label: "Pipeline configurado",
-      value: media.processing_pipeline?.join(" → ") ?? "Automático conforme tipo de mídia",
-      icon: <Sparkles className="h-4 w-4" />,
-    },
-    {
-      label: "ID da mídia",
-      value: media.id,
-      icon: <Info className="h-4 w-4" />,
-    },
-    {
-      label: "Tamanho",
-      value: media.file_size_mb ? `${media.file_size_mb.toFixed(2)} MB` : "—",
-      icon: <Shield className="h-4 w-4" />,
-    },
-  ];
+  if (media.media_type === MediaType.VIDEO) {
+    pipelineSteps.push({
+      key: "video",
+      label: "Processamento de vídeo",
+      status: videoStageStatus,
+      description: "Extração de áudio, frames e metadados necessários para análise.",
+    });
+  }
+
+  pipelineSteps.push({
+    key: "transcription",
+    label: isTextMedia ? "Extração do documento" : "Transcrição",
+    status: transcriptionStageStatus,
+    description: isTextMedia
+      ? "Conversão de arquivos de texto em conteúdo bruto estruturado."
+      : "Conversão do áudio/vídeo em texto sincronizado para análises.",
+  });
+
+  pipelineSteps.push({
+    key: "summary",
+    label: "Resumo inteligente",
+    status: summaryStageStatus,
+    description: summaryStageStatus === MediaStatus.COMPLETED || summaryStageStatus === SummaryStatus.COMPLETED
+      ? "Resumo concluído com insights prioritários."
+      : summaryStageStatus === MediaStatus.PROCESSING || summaryStageStatus === SummaryStatus.PROCESSING
+      ? "Gerando síntese automaticamente."
+      : "Aguardando texto para resumir.",
+  });
+
+  pipelineSteps.push({
+    key: "sentiment",
+    label: "Análise de sentimento",
+    status: sentimentStageStatus,
+    description: sentimentStageStatus === "COMPLETED"
+      ? "Sentimento detectado com sucesso."
+      : sentimentStageStatus === "PROCESSING"
+      ? "Calculando o tom predominante."
+      : "À espera da transcrição para analisar o sentimento.",
+  });
+
+  pipelineSteps.push({
+    key: "topics",
+    label: "Modelagem de tópicos",
+    status: topicStageStatus,
+    description: topicStageStatus === TopicModelingStatus.COMPLETED
+      ? "Tópicos principais descobertos."
+      : topicStageStatus === TopicModelingStatus.PROCESSING
+      ? "Clusterizando temas relacionados."
+      : "Aguardando processamento textual para classificar os tópicos.",
+  });
 
   const providerList = [
-    { label: "Transcrição", value: media.transcription_provider },
-    { label: "Resumo", value: media.summarization_provider },
-    { label: "Sentimento", value: media.sentiment_provider },
-    { label: "Tópicos", value: media.topic_modeling_provider },
+    { label: "Transcrição", value: media.transcription_provider ?? (isTextMedia ? "Extração direta" : "Automático") },
+    { label: "Resumo", value: media.summarization_provider ?? "Não configurado" },
+    { label: "Sentimento", value: media.sentiment_provider ?? "Não configurado" },
+    { label: "Tópicos", value: media.topic_modeling_provider ?? "Não configurado" },
   ];
+
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-border/60 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-6 text-white shadow-xl">
+      <MagicSurface title="Detalhes da mídia" description="Contexto completo do arquivo enviado e do pipeline de processamento.">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-wide text-white/70">Detalhes da mídia</p>
-            <h1 className="text-3xl font-semibold leading-tight">{displayName}</h1>
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-white/80">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-semibold leading-tight text-slate-900 break-words">{displayName}</h1>
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
                 <CalendarDays className="h-3.5 w-3.5" /> {formattedDate}
               </span>
-              <Badge variant="outline" className="border-white/40 text-white">
+              <Badge variant="secondary" className="bg-white text-slate-900">
                 {media.media_type}
               </Badge>
               <Badge className={statusToken(media.status).badge}>{statusToken(media.status).label}</Badge>
             </div>
+            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1">
+                <Languages className="h-3.5 w-3.5" /> {languageLabel}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Sparkles className="h-3.5 w-3.5" />
+                {providerCount > 0 ? `${providerCount} etapas configuradas` : "Pipeline automático"}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col items-end gap-2 text-sm text-white/80">
+          <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-emerald-300" />
+              <HardDrive className="h-4 w-4 text-emerald-600" />
               <span>{media.storage_provider ?? "Storage padrão"}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-amber-300" />
-              <span>{media.processing_pipeline?.length ? `${media.processing_pipeline.length} etapas configuradas` : "Pipeline automático"}</span>
+              <Shield className="h-4 w-4 text-amber-600" />
+              <span>Tamanho: {formattedFileSize}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-sky-600" />
+              <span>ID: {media.id}</span>
             </div>
             {user?.role === UserRole.ADMIN && media.status === MediaStatus.FAILED && (
               <Button
                 onClick={handleReprocess}
                 disabled={reprocessMutation.isPending}
-                variant="secondary"
+                variant="outline"
                 size="sm"
                 className="mt-2"
               >
@@ -218,42 +316,36 @@ const MediaDetailPage = () => {
           </div>
         </div>
         {media.status === MediaStatus.FAILED && media.error_message && (
-          <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm">
-            <p className="font-semibold text-red-200">Falha no processamento</p>
-            <p className="text-red-100/80">{media.error_message}</p>
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <p className="font-semibold">Falha no processamento</p>
+            <p>{media.error_message}</p>
           </div>
         )}
-      </section>
+      </MagicSurface>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {metadataCards.map((item) => (
-          <Card key={item.label} className="border border-border/60">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="text-primary">{item.icon}</span>
-                {item.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-base font-medium text-foreground">{item.value}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <section className="grid gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-4">
+          <SummaryPanel mediaId={id} />
+        </div>
+        <div className="space-y-4">
+          <SentimentResultPanel mediaId={id} />
+          <TopicModelingResultPanel mediaId={id} />
+        </div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 border border-[#ede4d5] bg-white">
           <CardHeader>
             <CardTitle className="text-lg">Status do pipeline</CardTitle>
             <CardDescription>
-              Acompanhamento das principais etapas de processamento alinhadas com o backend.
+              Acompanhamento em tempo real das etapas espelhadas do backend (upload, vídeo, texto e análises).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {pipelineSteps.map((step) => {
               const token = statusToken(step.status);
               return (
-                <div key={step.key} className="flex items-start justify-between gap-3 rounded-xl border border-border/60 p-3">
+                <div key={step.key} className="flex items-start justify-between gap-3 rounded-xl border border-[#f2eadf] bg-[#fdfbf6] p-3">
                   <div>
                     <div className="flex items-center gap-2 text-sm font-medium">
                       {token.icon}
@@ -267,14 +359,14 @@ const MediaDetailPage = () => {
             })}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border border-[#ede4d5] bg-white">
           <CardHeader>
             <CardTitle>Provedores vinculados</CardTitle>
             <CardDescription>Origem de cada etapa do pipeline.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {providerList.map((provider) => (
-              <div key={provider.label} className="rounded-xl border border-border/50 p-3 text-sm">
+              <div key={provider.label} className="rounded-xl border border-[#f2eadf] bg-[#fdfbf6] p-3 text-sm">
                 <p className="text-muted-foreground">{provider.label}</p>
                 <p className="font-medium text-foreground">{provider.value ?? "Automático"}</p>
               </div>
@@ -283,7 +375,7 @@ const MediaDetailPage = () => {
         </Card>
       </section>
 
-      <Card>
+      <Card className="border border-[#ede4d5] bg-white">
         <CardHeader>
           <CardTitle>Pré-visualização</CardTitle>
           <CardDescription className="text-sm text-muted-foreground">
@@ -318,23 +410,16 @@ const MediaDetailPage = () => {
         </CardContent>
       </Card>
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-8">
-          {isPlayable && (
-            <InteractiveTranscriptionPanel mediaId={id} currentTime={currentTime} onSeek={handleSeek} />
-          )}
-          {!isPlayable && isTextMedia && <TranscriptionPanel mediaId={id} />}
-          {!isPlayable && !isTextMedia && (
-            <p className="py-16 text-center text-muted-foreground">
-              Ainda não há transcrição disponível para este formato.
-            </p>
-          )}
-        </div>
-        <div className="lg:col-span-1 space-y-8">
-          <SentimentResultPanel mediaId={id} />
-          <TopicModelingResultPanel mediaId={id} />
-          <SummaryPanel mediaId={id} />
-        </div>
+      <div className="space-y-8">
+        {isPlayable && (
+          <InteractiveTranscriptionPanel mediaId={id} currentTime={currentTime} onSeek={handleSeek} />
+        )}
+        {!isPlayable && isTextMedia && <TranscriptionPanel mediaId={id} />}
+        {!isPlayable && !isTextMedia && (
+          <p className="py-16 text-center text-muted-foreground">
+            Ainda não há transcrição disponível para este formato.
+          </p>
+        )}
       </div>
     </div>
   );

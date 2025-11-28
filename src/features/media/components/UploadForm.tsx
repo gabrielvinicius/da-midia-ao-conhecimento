@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import {
   Select,
   SelectContent,
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/Select";
 import { useProviders } from '@/features/providers/hooks/useProviders';
 import { useStorageProviders } from '@/features/providers/hooks/useStorageProviders';
+import { useProvidersContext } from '@/features/providers/context/ProvidersContext';
 import { useCreateMediaCommand } from '@/hooks/useCommands';
 import { CreateMediaCommand } from '@/api/commands';
 
@@ -23,6 +25,14 @@ const ACCEPTED_FILE_TYPES = [
   "video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska",
   "audio/mpeg", "audio/wav", "audio/mp4", "audio/flac",
   "application/pdf", "text/plain"
+];
+
+const PROVIDER_GROUPS: { key: 'storage' | 'transcription' | 'summarization' | 'sentiment' | 'topics'; label: string }[] = [
+  { key: 'storage', label: 'Armazenamento' },
+  { key: 'transcription', label: 'Transcrição' },
+  { key: 'summarization', label: 'Sumarização' },
+  { key: 'sentiment', label: 'Sentimento' },
+  { key: 'topics', label: 'Modelagem de tópicos' },
 ];
 
 const uploadSchema = z.object({
@@ -60,6 +70,7 @@ export const UploadForm = () => {
   const { data: sentimentProviders } = useProviders("sentiment");
   const { data: topicProviders } = useProviders("topics");
   const { data: storageProviders, isLoading: isLoadingStorage } = useStorageProviders();
+  const { providers: providerMap } = useProvidersContext();
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [fileType, setFileType] = React.useState<'video' | 'audio' | 'text' | null>(null);
 
@@ -92,6 +103,14 @@ export const UploadForm = () => {
   };
 
   const watchedFile = form.watch('file');
+  const selectedTopicProvider = form.watch('topicModelingProvider');
+  const selectedSummarizationProvider = form.watch('summarizationProvider');
+  const topicProviderDetails = selectedTopicProvider
+    ? topicProviders?.find((entry) => entry.name === selectedTopicProvider)
+    : undefined;
+  const summarizationProviderDetails = selectedSummarizationProvider
+    ? summarizationProviders?.find((entry) => entry.name === selectedSummarizationProvider)
+    : undefined;
   
   React.useEffect(() => {
     if (watchedFile?.length > 0) {
@@ -203,6 +222,36 @@ export const UploadForm = () => {
             </div>
           </div>
         )}
+
+        <Card className="mt-6 border border-dashed border-gray-200 dark:border-gray-700">
+          <CardHeader>
+            <CardTitle className="text-base">Provedores disponíveis (API)</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Esta lista reflete exatamente o que o endpoint `/providers` retorna para cada etapa do pipeline.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            {PROVIDER_GROUPS.map((group) => {
+              const list = providerMap[group.key] || [];
+              return (
+                <div key={group.key} className="space-y-1">
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{group.label}</p>
+                  {list.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {list.map((provider) => (
+                        <span key={provider.name} className="rounded-full border border-[#f2eadf] bg-[#fdfbf6] px-3 py-1 text-xs text-slate-800">
+                          {provider.label || provider.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Nenhum provider registrado para este tipo.</p>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
       </div>
       
       {/* Storage Provider Section - Always visible */}
@@ -219,11 +268,17 @@ export const UploadForm = () => {
           <SelectContent>
             {storageProviders && storageProviders.length > 0 ? (
               storageProviders.map(provider => (
-                <SelectItem key={provider} value={provider}>
-                  {provider === 'local' ? '💾 Local (Servidor)' : 
-                   provider === 's3' ? '☁️ Amazon S3' : 
-                   provider === 'minio' ? '🗃️ MinIO' : 
-                   `📁 ${provider.toUpperCase()}`}
+                <SelectItem key={provider.name} value={provider.name}>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {provider.label || provider.name}
+                    </span>
+                    {provider.description && (
+                      <span className="text-xs text-muted-foreground">
+                        {provider.description}
+                      </span>
+                    )}
+                  </div>
                 </SelectItem>
               ))
             ) : (
@@ -262,14 +317,15 @@ export const UploadForm = () => {
                       <SelectValue placeholder="Selecione um provider (opcional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      {transcriptionProviders && transcriptionProviders.length > 0 ? (
-                        transcriptionProviders.map(p => (
-                          <SelectItem key={p} value={p}>
-                            {p === 'whisper' ? 'Whisper (OpenAI)' : 
-                             p === 'huggingface' ? 'HuggingFace' : 
-                             p === 'fastwhisper' ? 'Fast Whisper' : p}
-                          </SelectItem>
-                        ))
+                    {transcriptionProviders && transcriptionProviders.length > 0 ? (
+                      transcriptionProviders.map(p => (
+                        <SelectItem key={p.name} value={p.name}>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{p.label || p.name}</span>
+                            {p.description && <span className="text-xs text-muted-foreground">{p.description}</span>}
+                          </div>
+                        </SelectItem>
+                      ))
                       ) : (
                         <SelectItem value="_empty" disabled>
                           Nenhum provider disponível
@@ -295,9 +351,15 @@ export const UploadForm = () => {
                   <SelectContent>
                     {summarizationProviders && summarizationProviders.length > 0 ? (
                       summarizationProviders.map(p => (
-                        <SelectItem key={p} value={p}>
-                          {p === 'openai' ? 'OpenAI' : 
-                           p === 'huggingface' ? 'HuggingFace' : p}
+                        <SelectItem key={p.name} value={p.name}>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{p.label || p.name}</span>
+                            {p.description && (
+                              <span className="text-xs text-muted-foreground">
+                                {p.description}
+                              </span>
+                            )}
+                          </div>
                         </SelectItem>
                       ))
                     ) : (
@@ -307,6 +369,11 @@ export const UploadForm = () => {
                     )}
                   </SelectContent>
                 </Select>
+                {selectedSummarizationProvider && (
+                  <p className="text-xs text-muted-foreground">
+                    {summarizationProviderDetails?.description || 'Provider selecionado.'}
+                  </p>
+                )}
               </div>
 
               {/* Sentiment Provider */}
@@ -322,9 +389,11 @@ export const UploadForm = () => {
                   <SelectContent>
                     {sentimentProviders && sentimentProviders.length > 0 ? (
                       sentimentProviders.map(p => (
-                        <SelectItem key={p} value={p}>
-                          {p === 'transformers' ? 'Transformers (BERT/RoBERTa)' :
-                           p === 'vader' ? 'VADER (Lexicon)' : p}
+                        <SelectItem key={p.name} value={p.name}>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{p.label || p.name}</span>
+                            {p.description && <span className="text-xs text-muted-foreground">{p.description}</span>}
+                          </div>
                         </SelectItem>
                       ))
                     ) : (
@@ -349,10 +418,15 @@ export const UploadForm = () => {
                   <SelectContent>
                     {topicProviders && topicProviders.length > 0 ? (
                       topicProviders.map(p => (
-                        <SelectItem key={p} value={p}>
-                          {p === 'sklearn_lda' ? 'Scikit-Learn LDA' :
-                           p === 'bertopic' ? 'BERTopic' :
-                           p === 'keyword_frequency' ? 'Frequência de Palavras' : p}
+                        <SelectItem key={p.name} value={p.name}>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{p.label || p.name}</span>
+                            {p.description && (
+                              <span className="text-xs text-muted-foreground">
+                                {p.description}
+                              </span>
+                            )}
+                          </div>
                         </SelectItem>
                       ))
                     ) : (
@@ -362,6 +436,11 @@ export const UploadForm = () => {
                     )}
                   </SelectContent>
                 </Select>
+                {selectedTopicProvider && (
+                  <p className="text-xs text-muted-foreground">
+                    {topicProviderDetails?.description || 'Provider selecionado.'}
+                  </p>
+                )}
               </div>
             </div>
             
@@ -374,6 +453,36 @@ export const UploadForm = () => {
                 {fileType === 'text' && " Texto → Sumarização → Sentimento → Tópicos"}
               </p>
             </div>
+
+            <Card className="mt-4 border border-dashed border-gray-200 dark:border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-base">Provedores disponíveis (dados da API)</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Esta lista reflete o endpoint <code className="font-mono text-xs text-slate-600">/providers</code> em tempo real.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                {PROVIDER_GROUPS.map((group) => {
+                  const list = providerMap[group.key] || [];
+                  return (
+                    <div key={group.key} className="space-y-1">
+                      <p className="font-medium text-slate-900 dark:text-slate-100">{group.label}</p>
+                      {list.length ? (
+                        <div className="flex flex-wrap gap-2">
+                          {list.map((provider) => (
+                            <span key={provider.name} className="rounded-full border border-[#f2eadf] bg-[#fdfbf6] px-3 py-1 text-xs text-slate-800">
+                              {provider.label || provider.name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Nenhum provider registrado para este tipo.</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
           </div>
         </div>
       )}
