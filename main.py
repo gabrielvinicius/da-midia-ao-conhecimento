@@ -68,7 +68,7 @@ def build_event_bus():
 
 
 def register_domain_event_handlers(
-    event_bus: InMemoryEventBus,
+    event_bus,
     *,
     media_processing_service,
 ) -> None:
