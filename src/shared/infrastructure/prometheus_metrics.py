@@ -252,7 +252,7 @@ class SharedPrometheusMetrics:
                 self._counters[metric_name] = Counter(
                     metric_name,
                     'Total number of text analysis operations',
-                    ['operation', 'provider', 'status', 'media_id'],
+                    ['operation', 'provider', 'status', 'media_id', 'user_id'],
                 )
             except ValueError:
                 for collector in REGISTRY._collector_to_names.keys():
@@ -276,7 +276,7 @@ class SharedPrometheusMetrics:
                 self._histograms[metric_name] = Histogram(
                     metric_name,
                     'Duration of text analysis operations in seconds',
-                    ['operation', 'provider', 'media_id', 'status'],
+                    ['operation', 'provider', 'media_id', 'user_id', 'status'],
                 )
             except ValueError:
                 for collector in REGISTRY._collector_to_names.keys():

@@ -117,8 +117,10 @@ class MediaService:
                     operation="upload_media",
                     user_id=str(user_id),
                     media_type=metadata.get("media_type") if metadata else "unknown",
-                    success=success,
+                    provider=storage_provider,
+                    status="success" if success else "failure",
                     duration=time.monotonic() - start,
+                    media_id=str(command.user_id),
                     file_size_bytes=len(file_content),
                 )
             except Exception:
@@ -251,8 +253,10 @@ class MediaService:
                     operation="delete_media",
                     user_id=str(user_id) if user_id else "unknown",
                     media_type=getattr(media, "media_type", "unknown"),
-                    success=success,
+                    provider=getattr(media, "storage_provider", "unknown"),
+                    status="success" if success else "failure",
                     duration=time.monotonic() - start,
+                    media_id=str(media.id),
                     file_size_bytes=0,
                 )
             except Exception:
@@ -279,8 +283,10 @@ class MediaService:
                     operation="reprocess_media",
                     user_id=str(user_id) if user_id else "unknown",
                     media_type=getattr(media, "media_type", "unknown"),
-                    success=success,
+                    provider=getattr(media, "storage_provider", "unknown"),
+                    status="success" if success else "failure",
                     duration=time.monotonic() - start,
+                    media_id=str(media.id),
                     file_size_bytes=0,
                 )
             except Exception:

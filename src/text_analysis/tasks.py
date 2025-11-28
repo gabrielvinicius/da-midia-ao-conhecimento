@@ -45,8 +45,8 @@ def _task_body(payload: Dict[str, Any], *, op_name: str = "analyze_task") -> Dic
     if getattr(service, "event_bus", None) is None:
         service.event_bus = get_event_bus()
     # Propagate media_id into metrics labels when supported
-    if hasattr(service._metrics, "set_media_context"):
-        service._metrics.set_media_context(payload.get("media_id"))
+    if hasattr(service._metrics, "set_context"):
+        service._metrics.set_context(payload.get("media_id"), payload.get("user_id"))
     loop = asyncio.get_event_loop()
     start = time.perf_counter()
     success = False

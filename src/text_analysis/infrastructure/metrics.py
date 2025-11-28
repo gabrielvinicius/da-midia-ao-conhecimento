@@ -27,8 +27,9 @@ class PrometheusTextAnalysisMetrics(TextAnalysisMetrics):
         self._operations_total.labels(operation=operation, provider=provider_label, status=status, media_id=media_label).inc()
         self._duration_seconds.labels(operation=operation, provider=provider_label, media_id=media_label, status=status).observe(duration)
 
-    def set_media_context(self, media_id: str | None):
+    def set_context(self, media_id: str | None, user_id: str | None = None):
         self._media_id = media_id or "unknown"
+        self._user_id = user_id or "unknown"
 
 
 __all__ = ["PrometheusTextAnalysisMetrics"]
