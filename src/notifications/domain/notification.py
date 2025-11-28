@@ -1,27 +1,17 @@
+"""Domain entities for the notifications module."""
+from __future__ import annotations
+
 import uuid
-from datetime import timedelta
-from enum import Enum as PyEnum
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
 from typing import Any, Dict, Optional
+from uuid import UUID
 
-from sqlalchemy import (
-    JSON,
-    Boolean,
-    Column,
-    DateTime,
-    Enum,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    Time,
-)
-from sqlalchemy.dialects.postgresql import UUID
-
-from src.shared.infrastructure.database import Base
 from src.shared.utils.time_utils import utcnow
 
 
-class NotificationType(PyEnum):
+class NotificationType(str, Enum):
     EMAIL = "EMAIL"
     SMS = "SMS"
     WEBHOOK = "WEBHOOK"
@@ -29,7 +19,7 @@ class NotificationType(PyEnum):
     WEBSOCKET = "WEBSOCKET"
 
 
-class NotificationStatus(PyEnum):
+class NotificationStatus(str, Enum):
     PENDING = "PENDING"
     QUEUED = "QUEUED"
     PROCESSING = "PROCESSING"
@@ -39,52 +29,41 @@ class NotificationStatus(PyEnum):
     CANCELLED = "CANCELLED"
 
 
-class NotificationPriority(PyEnum):
+class NotificationPriority(str, Enum):
     LOW = "LOW"
     NORMAL = "NORMAL"
     HIGH = "HIGH"
     URGENT = "URGENT"
 
 
-class Notification(Base):
-    """Notification entity following domain-driven design principles.
+@dataclass
+class Notification:
+    """Notification entity following domain-driven design principles."""
     
-    Represents a notification that can be sent through various channels.
-    """
-
-    __tablename__ = "notifications"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    type = Column(Enum(NotificationType), nullable=False)
-    content = Column(Text, nullable=False)
-    subject = Column(String(255), nullable=True)  # For email notifications
-    status = Column(Enum(NotificationStatus), default=NotificationStatus.PENDING)
-    priority = Column(Enum(NotificationPriority), default=NotificationPriority.NORMAL)
-
+    user_id: UUID
+    type: NotificationType
+    content: str
+    id: UUID = field(default_factory=uuid.uuid4)
+    subject: Optional[str] = None
+    status: NotificationStatus = NotificationStatus.PENDING
+    priority: NotificationPriority = NotificationPriority.NORMAL
+    
     # Metadata and tracking
-    created_at = Column(DateTime, default=utcnow)
-    scheduled_at = Column(DateTime, nullable=True)  # For scheduled notifications
-    sent_at = Column(DateTime, nullable=True)
-    delivered_at = Column(DateTime, nullable=True)
-    opened_at = Column(DateTime, nullable=True)  # For tracking opens/reads
-
+    created_at: datetime = field(default_factory=utcnow)
+    scheduled_at: Optional[datetime] = None
+    sent_at: Optional[datetime] = None
+    delivered_at: Optional[datetime] = None
+    opened_at: Optional[datetime] = None
+    
     # Retry and error handling
-    retries = Column(Integer, default=0)
-    max_retries = Column(Integer, default=3)
-    error_message = Column(Text, nullable=True)
-
+    retries: int = 0
+    max_retries: int = 3
+    error_message: Optional[str] = None
+    
     # Additional data
-    extra_data = Column(JSON, nullable=True)  # For storing additional context
-    template_name = Column(String(100), nullable=True)  # Template used
-    variables = Column(JSON, nullable=True)  # Template variables
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if not self.extra_data:
-            self.extra_data = {}
-        if not self.variables:
-            self.variables = {}
+    extra_data: Dict[str, Any] = field(default_factory=dict)
+    template_name: Optional[str] = None
+    variables: Dict[str, Any] = field(default_factory=dict)
 
     def mark_as_sent(self) -> None:
         """Mark notification as sent."""
@@ -118,69 +97,39 @@ class Notification(Base):
         expiry_time = self.created_at + timedelta(hours=expiry_hours)
         return utcnow() > expiry_time
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert notification to dictionary."""
-        return {
-            "id": str(self.id),
-            "user_id": str(self.user_id),
-            "type": self.type.value,
-            "content": self.content,
-            "subject": self.subject,
-            "status": self.status.value,
-            "priority": self.priority.value,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "scheduled_at": self.scheduled_at.isoformat() if self.scheduled_at else None,
-            "sent_at": self.sent_at.isoformat() if self.sent_at else None,
-            "delivered_at": self.delivered_at.isoformat() if self.delivered_at else None,
-            "opened_at": self.opened_at.isoformat() if self.opened_at else None,
-            "retries": self.retries,
-            "max_retries": self.max_retries,
-            "error_message": self.error_message,
-            "extra_data": self.extra_data,
-            "template_name": self.template_name,
-            "variables": self.variables
-        }
 
-
-class NotificationPreference(Base):
-    """User notification preferences entity.
-    """
-
-    __tablename__ = "notification_preferences"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
-
+@dataclass
+class NotificationPreference:
+    """User notification preferences entity."""
+    
+    user_id: UUID
+    id: UUID = field(default_factory=uuid.uuid4)
+    
     # Channel preferences
-    email_enabled = Column(Boolean, default=True)
-    sms_enabled = Column(Boolean, default=False)
-    push_enabled = Column(Boolean, default=True)
-    websocket_enabled = Column(Boolean, default=True)
-
+    email_enabled: bool = True
+    sms_enabled: bool = False
+    push_enabled: bool = True
+    websocket_enabled: bool = True
+    
     # Contact information
-    phone_number = Column(String(20), nullable=True)
-    push_token = Column(String(255), nullable=True)
-
+    phone_number: Optional[str] = None
+    push_token: Optional[str] = None
+    
     # Timing preferences
-    timezone = Column(String(50), default="UTC")
-    quiet_hours_start = Column(Time, nullable=True)  # e.g., 22:00
-    quiet_hours_end = Column(Time, nullable=True)    # e.g., 08:00
-
+    timezone: str = "UTC"
+    quiet_hours_start: Optional[datetime] = None # Note: Time in DB, datetime in domain for simpler handling or specific Time type wrapper
+    quiet_hours_end: Optional[datetime] = None
+    
     # Content preferences
-    preferences = Column(JSON, nullable=True)  # Flexible preferences storage
-
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if not self.preferences:
-            self.preferences = {
-                "marketing": True,
-                "system_alerts": True,
-                "processing_updates": True,
-                "security_alerts": True
-            }
+    preferences: Dict[str, bool] = field(default_factory=lambda: {
+        "marketing": True,
+        "system_alerts": True,
+        "processing_updates": True,
+        "security_alerts": True
+    })
+    
+    created_at: datetime = field(default_factory=utcnow)
+    updated_at: datetime = field(default_factory=utcnow)
 
     def is_channel_enabled(self, channel: str) -> bool:
         """Check if specific channel is enabled."""
@@ -192,54 +141,31 @@ class NotificationPreference(Base):
         }
         return channel_map.get(channel, False)
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert preferences to dictionary."""
-        return {
-            "user_id": str(self.user_id),
-            "email_enabled": self.email_enabled,
-            "sms_enabled": self.sms_enabled,
-            "push_enabled": self.push_enabled,
-            "websocket_enabled": self.websocket_enabled,
-            "phone_number": self.phone_number,
-            "push_token": self.push_token,
-            "timezone": self.timezone,
-            "quiet_hours_start": self.quiet_hours_start.isoformat() if self.quiet_hours_start else None,
-            "quiet_hours_end": self.quiet_hours_end.isoformat() if self.quiet_hours_end else None,
-            "preferences": self.preferences
-        }
 
-
-class NotificationTemplate(Base):
-    """Notification template entity for reusable notification content.
-    """
-
-    __tablename__ = "notification_templates"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(100), nullable=False, unique=True)
-    description = Column(Text, nullable=True)
-
-    # Template content for different channels
-    email_subject = Column(String(255), nullable=True)
-    email_body = Column(Text, nullable=True)
-    email_html_body = Column(Text, nullable=True)
-    sms_content = Column(Text, nullable=True)
-    push_title = Column(String(100), nullable=True)
-    push_body = Column(Text, nullable=True)
-    websocket_content = Column(Text, nullable=True)
-
-    # Template metadata
-    variables = Column(JSON, nullable=True)  # Required variables
-    category = Column(String(50), nullable=True)  # Template category
-    is_active = Column(Boolean, default=True)
-
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if not self.variables:
-            self.variables = []
+@dataclass
+class NotificationTemplate:
+    """Notification template entity."""
+    
+    name: str
+    id: UUID = field(default_factory=uuid.uuid4)
+    description: Optional[str] = None
+    
+    # Template content
+    email_subject: Optional[str] = None
+    email_body: Optional[str] = None
+    email_html_body: Optional[str] = None
+    sms_content: Optional[str] = None
+    push_title: Optional[str] = None
+    push_body: Optional[str] = None
+    websocket_content: Optional[str] = None
+    
+    # Metadata
+    variables: list[str] = field(default_factory=list)
+    category: Optional[str] = None
+    is_active: bool = True
+    
+    created_at: datetime = field(default_factory=utcnow)
+    updated_at: datetime = field(default_factory=utcnow)
 
     def get_content_for_channel(self, channel: str) -> Optional[str]:
         """Get template content for specific channel."""
@@ -250,23 +176,3 @@ class NotificationTemplate(Base):
             "websocket": self.websocket_content
         }
         return channel_map.get(channel)
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert template to dictionary."""
-        return {
-            "id": str(self.id),
-            "name": self.name,
-            "description": self.description,
-            "email_subject": self.email_subject,
-            "email_body": self.email_body,
-            "email_html_body": self.email_html_body,
-            "sms_content": self.sms_content,
-            "push_title": self.push_title,
-            "push_body": self.push_body,
-            "websocket_content": self.websocket_content,
-            "variables": self.variables,
-            "category": self.category,
-            "is_active": self.is_active,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
-        }

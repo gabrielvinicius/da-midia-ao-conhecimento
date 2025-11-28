@@ -1,47 +1,39 @@
-# src/transcription/domain/transcription.py
-import enum
-import uuid
+"""Domain entity for Transcription."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List
-
-from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Text
-from sqlalchemy import Enum as SqlEnum
-from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.ext.hybrid import hybrid_property
-
-from src.shared.infrastructure.database import Base
+from enum import Enum
+from typing import Any, Dict, List, Optional
+from uuid import UUID, uuid4
 
 
-class TranscriptionStatus(str, enum.Enum):
+class TranscriptionStatus(str, Enum):
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
 
-class Transcription(Base):
-    __tablename__ = "transcriptions"
+@dataclass
+class Transcription:
+    media_id: UUID
+    id: UUID = field(default_factory=uuid4)
+    content: str = ""
+    language: Optional[str] = None
+    confidence_score: Optional[float] = None
+    speaker_labels: Optional[List[Dict[str, Any]]] = None
+    segments: Optional[List[Dict[str, Any]]] = None
+    status: TranscriptionStatus = TranscriptionStatus.PENDING
+    provider: Optional[str] = None
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = None
+    processed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+    result: Optional[Dict[str, Any]] = None
+    speaker_aliases: Dict[str, str] = field(default_factory=dict)
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    media_id = Column(UUID(as_uuid=True), ForeignKey("media.id"), nullable=False, unique=True)
-    content = Column(Text, nullable=False, default="")
-    language = Column(String, nullable=True)
-    confidence_score = Column(Float, nullable=True)
-    speaker_labels = Column(JSONB, nullable=True)
-    segments = Column(JSONB, nullable=True)
-    status = Column(SqlEnum(TranscriptionStatus), default=TranscriptionStatus.PENDING, nullable=False)
-    provider = Column(String, nullable=True)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True), nullable=True)
-    processed_at = Column(DateTime(timezone=True), nullable=True)
-    error_message = Column(String, nullable=True)
-
-    # Store the full, structured result from the AI provider
-    result = Column(JSONB, nullable=True)
-    # Store the user-defined speaker names
-    speaker_aliases = Column(JSONB, nullable=True, default=lambda: {})
-
-    @hybrid_property
+    @property
     def text(self) -> str:
         """Returns the stored transcription text or falls back to the raw result payload."""
         if self.content:

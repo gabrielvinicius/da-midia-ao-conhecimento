@@ -4,9 +4,9 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 
 from src.media_processing.transcription.domain.transcription import Transcription
+from src.media_processing.transcription.infrastructure.transcription_model import TranscriptionModel
 
 
 class TranscriptionRepository:
@@ -17,61 +17,71 @@ class TranscriptionRepository:
 
     async def get_by_id(self, transcription_id: UUID) -> Optional[Transcription]:
         if isinstance(self.db, AsyncSession):
-            result = await self.db.execute(select(Transcription).where(Transcription.id == transcription_id))
-            return result.scalar_one_or_none()
+            result = await self.db.execute(select(TranscriptionModel).where(TranscriptionModel.id == transcription_id))
+            model = result.scalar_one_or_none()
+            return model.to_domain() if model else None
         else:  # It's a sync session
             return self.get_by_id_sync(transcription_id)
 
     def get_by_id_sync(self, transcription_id: UUID) -> Optional[Transcription]:
-        stmt = select(Transcription).where(Transcription.id == transcription_id)
+        stmt = select(TranscriptionModel).where(TranscriptionModel.id == transcription_id)
         result = self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        model = result.scalar_one_or_none()
+        return model.to_domain() if model else None
 
     async def add(self, transcription: Transcription) -> None:
+        model = TranscriptionModel.from_domain(transcription)
         if isinstance(self.db, AsyncSession):
-            self.db.add(transcription)
+            self.db.add(model)
             await self.db.flush()
+            await self.db.refresh(model)
+            # Update domain object with potentially new ID or defaults
+            transcription.id = model.id
         else:  # It's a sync session
             self.add_sync(transcription)
 
     def add_sync(self, transcription: Transcription) -> Transcription:
-        self.db.add(transcription)
+        model = TranscriptionModel.from_domain(transcription)
+        self.db.add(model)
         self.db.flush()
         # Refresh to get the newly assigned ID
-        self.db.refresh(transcription)
+        self.db.refresh(model)
+        transcription.id = model.id
         return transcription
 
     async def update(self, transcription: Transcription) -> None:
+        # For update, we typically merge or query-then-update.
+        # Merging is safest for detached objects.
+        model = TranscriptionModel.from_domain(transcription)
         if isinstance(self.db, AsyncSession):
-            # For SQLAlchemy, just adding to session and flushing is usually enough for updates
-            # if the object is already tracked or has a primary key.
+            await self.db.merge(model)
             await self.db.flush()
         else:  # It's a sync session
             self.update_sync(transcription)
 
     def update_sync(self, transcription: Transcription) -> Transcription:
-        # For SQLAlchemy, just adding to session and flushing is usually enough for updates
-        # if the object is already tracked or has a primary key.
+        model = TranscriptionModel.from_domain(transcription)
+        self.db.merge(model)
         self.db.flush()
-        # Refresh to get the latest state from DB
-        self.db.refresh(transcription)
         return transcription
 
     async def get_by_media_id(self, media_id: UUID) -> Optional[Transcription]:
         if isinstance(self.db, AsyncSession):
-            result = await self.db.execute(select(Transcription).where(Transcription.media_id == media_id))
-            return result.scalar_one_or_none()
+            result = await self.db.execute(select(TranscriptionModel).where(TranscriptionModel.media_id == media_id))
+            model = result.scalar_one_or_none()
+            return model.to_domain() if model else None
         else:  # It's a sync session
             return self.get_by_media_id_sync(media_id)
 
     def get_by_media_id_sync(self, media_id: UUID) -> Optional[Transcription]:
-        stmt = select(Transcription).where(Transcription.media_id == media_id)
+        stmt = select(TranscriptionModel).where(TranscriptionModel.media_id == media_id)
         result = self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        model = result.scalar_one_or_none()
+        return model.to_domain() if model else None
 
     async def delete_by_media_id(self, media_id: UUID) -> None:
         if isinstance(self.db, AsyncSession):
-            stmt = select(Transcription).where(Transcription.media_id == media_id)
+            stmt = select(TranscriptionModel).where(TranscriptionModel.media_id == media_id)
             result = await self.db.execute(stmt)
             for entity in result.scalars().all():
                 await self.db.delete(entity)
@@ -80,7 +90,7 @@ class TranscriptionRepository:
             self.delete_by_media_id_sync(media_id)
 
     def delete_by_media_id_sync(self, media_id: UUID) -> None:
-        stmt = select(Transcription).where(Transcription.media_id == media_id)
+        stmt = select(TranscriptionModel).where(TranscriptionModel.media_id == media_id)
         result = self.db.execute(stmt)
         for entity in result.scalars().all():
             self.db.delete(entity)

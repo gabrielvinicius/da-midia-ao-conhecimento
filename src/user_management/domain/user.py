@@ -1,15 +1,10 @@
-import uuid
+"""Domain entities for user management."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
 from enum import Enum
-
-# from typing import List
-from sqlalchemy import Boolean, Column, String
-from sqlalchemy import Enum as SQLAEnum
-from sqlalchemy.dialects.postgresql import UUID
-
-# from sqlalchemy.orm import Mapped, relationship
-from src.shared.infrastructure.database import Base
-
-# from src.video_management.domain.video import Video
+from typing import Optional
+from uuid import UUID, uuid4
 
 
 class UserRole(str, Enum):
@@ -17,12 +12,27 @@ class UserRole(str, Enum):
     ADMIN = "ADMIN"
 
 
-class User(Base):
-    __tablename__ = "users"
+@dataclass(slots=True)
+class User:
+    id: UUID
+    email: str
+    password_hash: str
+    is_active: bool = True
+    role: UserRole = UserRole.USER
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email = Column(String, unique=True, nullable=False, index=True)
-    password_hash = Column(String, nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False)
-    role = Column(SQLAEnum(UserRole, name="userrole"), default=UserRole.USER, nullable=False)
-    # videos: Mapped[List["Video"]] = relationship(back_populates="user")
+    @classmethod
+    def create(
+        cls, 
+        email: str, 
+        password_hash: str, 
+        role: UserRole = UserRole.USER,
+        is_active: bool = True
+    ) -> "User":
+        """Factory method to create a new user with a fresh ID."""
+        return cls(
+            id=uuid4(),
+            email=email,
+            password_hash=password_hash,
+            role=role,
+            is_active=is_active
+        )
