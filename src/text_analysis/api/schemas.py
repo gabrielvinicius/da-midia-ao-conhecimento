@@ -33,7 +33,7 @@ class AnalyzeRequest(BaseModel):
             values["text"] = values["text"].strip()
         return values
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def ensure_source_present(cls, values: dict[str, Any]) -> dict[str, Any]:
         has_text = bool(values.get("text"))
         has_ids = bool(values.get("media_id") or values.get("transcription_id"))
