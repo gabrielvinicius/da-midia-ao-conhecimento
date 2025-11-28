@@ -111,16 +111,13 @@ class CreateMediaCommandHandler:
         """Execute the command returning the persisted media entity."""
         self.file_validator.validate(command.file, command.filename)
 
-        command.storage_provider = self._validate_provider(command.storage_provider, ProviderType.STORAGE)
-        command.transcription_provider = self._validate_provider(command.transcription_provider, ProviderType.TRANSCRIPTION)
-        command.summarization_provider = self._validate_provider(command.summarization_provider, ProviderType.SUMMARIZATION)
-        command.sentiment_provider = self._validate_provider(command.sentiment_provider, ProviderType.SENTIMENT_ANALYSIS)
-        command.topic_modeling_provider = self._validate_provider(command.topic_modeling_provider, ProviderType.TOPIC_MODELING)
-        command.storage_provider = self._validate_provider(command.storage_provider, ProviderType.STORAGE)
-        command.transcription_provider = self._validate_provider(command.transcription_provider, ProviderType.TRANSCRIPTION)
-        command.summarization_provider = self._validate_provider(command.summarization_provider, ProviderType.SUMMARIZATION)
-        command.sentiment_provider = self._validate_provider(command.sentiment_provider, ProviderType.SENTIMENT_ANALYSIS)
-        command.topic_modeling_provider = self._validate_provider(command.topic_modeling_provider, ProviderType.TOPIC_MODELING)
+        command = command.copy(update={
+            "storage_provider": self._validate_provider(command.storage_provider, ProviderType.STORAGE),
+            "transcription_provider": self._validate_provider(command.transcription_provider, ProviderType.TRANSCRIPTION),
+            "summarization_provider": self._validate_provider(command.summarization_provider, ProviderType.SUMMARIZATION),
+            "sentiment_provider": self._validate_provider(command.sentiment_provider, ProviderType.SENTIMENT_ANALYSIS),
+            "topic_modeling_provider": self._validate_provider(command.topic_modeling_provider, ProviderType.TOPIC_MODELING),
+        })
         media_type = self._detect_media_type(command.filename)
         content_type = self._guess_mime_type(command.filename)
 
