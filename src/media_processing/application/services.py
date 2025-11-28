@@ -192,17 +192,8 @@ class MediaProcessingService:
             media_id = UUID(event.media_id)
 
             file_path = (
-                context.get("file_path")
-                or getattr(event, "file_path", None)
-                or event.filename
+                getattr(event, "file_path", None)
             )
-            if not file_path:
-                self._logger.warning(
-                    "media_uploaded.missing_file_path",
-                    media_id=str(media_id),
-                )
-                return
-
             correlation_id = event.correlation_id or str(media_id)
 
             storage_provider = event.storage_provider or context.get("storage_provider") or "local"
@@ -252,7 +243,6 @@ class MediaProcessingService:
                 try:
                     transcription_payload = TranscriptionTaskPayload(
                         media_id=media_id,
-                        file_path=file_path,
                         storage_provider=storage_provider,
                         transcription_provider=transcription_provider,
                         language=language,
@@ -289,7 +279,6 @@ class MediaProcessingService:
                 try:
                     video_payload = VideoTaskPayload(
                         media_id=media_id,
-                        file_path=file_path,
                         storage_provider=storage_provider,
                         file_size_bytes=file_size_bytes,
                     )
