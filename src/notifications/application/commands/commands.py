@@ -27,6 +27,7 @@ class SendNotificationCommand:
     notification_type: NotificationType
     subject: Optional[str] = None
     priority: NotificationPriority = NotificationPriority.NORMAL
+    correlation_id: Optional[str] = None
 
 
 __all__ = ["RequestNotificationCommand", "SendNotificationCommand"]
