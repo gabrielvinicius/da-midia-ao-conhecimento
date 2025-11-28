@@ -6,7 +6,8 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
+    # Prefer CUDA-enabled wheels (host provides NVIDIA driver); see https://download.pytorch.org/whl/cu124
+    PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu124
 
 # Stage 1: Builder
 FROM base as builder
