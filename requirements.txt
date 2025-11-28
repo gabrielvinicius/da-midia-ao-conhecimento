@@ -23,10 +23,12 @@ redis>=5.2.0
 aiocache>=0.12.2
 aiofiles>=24.2.0
 
-# AI / Machine Learning
-torch>=2.5.0
+# AI / Machine Learning (CUDA enabled)
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch==2.5.0+cu121
 transformers>=4.46.0
 faster-whisper>=1.1.0
+ctranslate2>=3.24.0
 numpy>=2.1.0
 scikit-learn>=1.6.0
 bertopic>=0.15.0
