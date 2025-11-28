@@ -30,3 +30,6 @@ class Provider:
 
     def get_capabilities(self) -> List[ProviderCapability]:
         return self.capabilities
+
+    def get_configuration(self) -> Dict[str, Any]:
+        return self.configuration or {}
