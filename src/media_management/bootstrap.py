@@ -104,7 +104,8 @@ def build_media_components(
     media_repository = MediaRepository(db=session)
     media_queries = MediaQueries(media_repository=media_repository)
     media_logger = StructuredMediaLogger()
-    media_metrics = PrometheusMediaMetrics()
+    # Media metrics now sourced from shared.prometheus_metrics via PrometheusMediaMetrics removed.
+    media_metrics = None
     media_access_policy = MediaAccessPolicy()
 
     # Consolidated processing dependencies

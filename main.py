@@ -14,6 +14,8 @@ from src.media_management.bootstrap import build_media_components
 from src.monitoring.bootstrap import build_monitoring_module
 from src.notifications.bootstrap import build_notification_module
 from src.providers.bootstrap import build_providers_module
+from src.providers.api.routers import router as providers_router
+from src.shared.api.health import router as health_router
 from src.shared.application.lifecycle import (
     ApplicationResources,
     start_application_resources,
@@ -35,6 +37,7 @@ from src.shared.events.domain_events import (
     TextContentReady,
 )
 from src.shared.api.dependencies import get_current_user_websocket
+from src.shared.api.health import router as health_router
 from src.shared.exceptions.api_errors import register_exception_handlers
 
 # from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled: psutil dep
@@ -43,6 +46,7 @@ from src.shared.infrastructure.database import AsyncSessionLocal, Base, engine
 from src.shared.infrastructure.logging_config import configure_logging, get_logger
 from src.shared.infrastructure.tracing import configure_tracer
 from src.shared.middleware.performance_middleware import register_performance_middleware
+from src.shared.middleware.error_middleware import unified_error_middleware
 from src.shared.middleware.validation_middleware import register_validation_middleware
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.text_analysis.bootstrap import build_text_analysis_module
@@ -239,6 +243,9 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    # Error middleware
+    app.middleware("http")(unified_error_middleware)
+
     # Instrumentação OpenTelemetry
     FastAPIInstrumentor.instrument_app(app)
 
@@ -278,6 +285,8 @@ def create_app() -> FastAPI:
 
     # --- Route Registration ---
     include_module_routers(app, specs=DEFAULT_MODULE_SPECS)
+    app.include_router(providers_router)
+    app.include_router(health_router)
 
     # Add WebSocket endpoints for real-time notifications
     @app.websocket("/ws/notifications")
