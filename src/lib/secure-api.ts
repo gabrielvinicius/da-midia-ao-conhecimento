@@ -8,12 +8,13 @@ import axios, { AxiosError, AxiosResponse } from 'axios';
 import { toast } from 'react-toastify';
 import { getApiBaseUrl } from './api';
 
-// Interface para resposta de erro padronizada
+// Interface para resposta de erro padronizada (BaseResponseSchema)
 interface ApiError {
   error: string;
   message: string;
-  details: Record<string, any>;
-  timestamp: string;
+  details?: Record<string, any>;
+  timestamp?: string;
+  correlation_id?: string;
 }
 
 // Interface para resposta de login
@@ -78,8 +79,8 @@ class SecureApiClient {
         
         // Se erro 401 e não é request de login/refresh, tentar refresh
         if (
-          error.response?.status === 401 && 
-          originalRequest && 
+          error.response?.status === 401 &&
+          originalRequest &&
           !originalRequest.url?.includes('/auth/token') &&
           !originalRequest.url?.includes('/auth/refresh') &&
           !this.isRefreshing
@@ -168,6 +169,11 @@ class SecureApiClient {
           break;
         default:
           toast.error(message);
+      }
+
+      // Exibir correlation_id em console para suporte/debug
+      if (apiError.correlation_id) {
+        console.warn('correlation_id:', apiError.correlation_id);
       }
     } else {
       // Erro de rede ou outro erro
