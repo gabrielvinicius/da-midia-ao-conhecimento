@@ -187,7 +187,7 @@ async def list_topic_modeling_providers(
 )
 async def health_providers(
     provider_type: Optional[ProviderType] = Query(None, description="Filter by provider type"),
-    provider_registry: Annotated[IProviderRegistry, Depends(get_provider_registry)] = Depends(),
+    provider_registry: Annotated[IProviderRegistry, Depends(get_provider_registry)] = Depends(get_provider_registry),
     current_user: User = Depends(get_current_user),
 ):
     providers = (
