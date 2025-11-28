@@ -16,6 +16,10 @@ from src.notifications.domain.notification import (
     NotificationType,
 )
 from src.shared.events.domain_events import NotificationRequested
+from src.shared.infrastructure.logging_config import get_logger
+import structlog
+
+logger = get_logger("notification_handlers")
 
 
 async def _await_call(func: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
