@@ -19,7 +19,7 @@ async def unified_error_middleware(request: Request, call_next):
         )
         return JSONResponse(
             status_code=500,
-            content=err.model_dump(),
+            content=err.model_dump(mode="json"),
         )
 
 
