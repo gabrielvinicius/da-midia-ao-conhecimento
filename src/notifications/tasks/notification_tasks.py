@@ -21,6 +21,7 @@ from src.notifications.infrastructure.sms_adapter import SmsAdapter
 from src.notifications.infrastructure.smtp_adapter import SMTPAdapter
 from src.notifications.infrastructure.webhook_adapter import WebhookAdapter
 from src.shared.infrastructure.database import get_sync_session
+from src.shared.event_bus_factory import get_event_bus
 from src.user_management.infrastructure.user_repository import UserRepository
 
 logger = structlog.get_logger(__name__)
@@ -46,15 +47,22 @@ def send_notification_task(self, user_id: str, message: str, notification_type: 
         )
         return None
 
+    correlation_id = contact_info.get("correlation_id") if isinstance(contact_info, dict) else None
     try:
         with get_sync_session() as db_session:
-            return _run_notification_sending_sync(payload, db_session)
+            return _run_notification_sending_sync(payload, db_session, correlation_id)
     except Exception as e:
-        logger.error(f"Error in notification task for user {user_id}: {str(e)}", exc_info=True)
+        logger.error(
+            "notifications.task_failed",
+            user_id=user_id,
+            error=str(e),
+            correlation_id=correlation_id,
+            exc_info=True,
+        )
         return None
 
 
-def _run_notification_sending_sync(payload: NotificationTaskPayload, db_session):
+def _run_notification_sending_sync(payload: NotificationTaskPayload, db_session, correlation_id=None):
     smtp_settings = SmtpSettings()
     handler = SendNotificationCommandHandler(
         email_adapter=SMTPAdapter(
@@ -84,6 +92,7 @@ def _run_notification_sending_sync(payload: NotificationTaskPayload, db_session)
         user_id=payload.user_id,
         message=payload.message,
         notification_type=notification_type,
+        correlation_id=correlation_id,
     )
 
     try:

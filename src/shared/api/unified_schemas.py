@@ -37,6 +37,9 @@ class BaseResponseSchema(BaseModel, Generic[T]):
     error: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
 class BaseEntitySchema(BaseModel):
     """Base schema for all entities"""
 
