@@ -74,6 +74,9 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
 
     storage_factory = StorageServiceFactory()
     storage_adapter = storage_factory.create_storage_service(payload.storage_provider)
+    # Each worker process builds its own event bus instance
+    from src.shared.event_bus_factory import get_event_bus
+    event_bus = get_event_bus()
 
     transcription_repo = TranscriptionRepository(db)
     media_repo = MediaRepositorySync(db=db)
