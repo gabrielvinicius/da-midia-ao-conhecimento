@@ -7,7 +7,6 @@ from uuid import UUID
 
 from fastapi import FastAPI
 
-from src.media_processing import MediaProcessingService
 from src.text_analysis import TextAnalysisService
 
 if TYPE_CHECKING:  # pragma: no cover - apenas para hints
@@ -38,62 +37,6 @@ class DomainServiceRegistry:
     media_processing: ModuleBinding[Optional[object]]
     text_analysis: ModuleBinding[Optional[object]]
 
-def _build_media_processing_placeholder() -> MediaProcessingService:
-    """Create a MediaProcessingService with lightweight no-op dependencies.
-
-    During the lightweight bootstrap used in smoke tests we do not have the full
-    processing stack wired. Providing a stub keeps the service registry backwards
-    compatible without pulling heavy infrastructure.
-    """
-
-    class _NoOpTranscriptionService:
-        async def request_transcription_generation(
-            self,
-            *,
-            media_id: UUID | str,
-            file_path: str,
-            storage_provider: str,
-            transcription_provider: str,
-            language: str,
-        ) -> Dict[str, Any]:  # type: ignore[type-var]
-            return {
-                "media_id": str(media_id),
-                "file_path": file_path,
-                "storage_provider": storage_provider,
-                "provider": transcription_provider,
-                "language": language,
-                "status": "noop",
-            }
-
-        async def get_transcription_by_media_id(self, media_id: UUID | str):  # pragma: no cover - stub
-            return None
-
-    class _NoOpTranscriptionQueries:
-        async def get_by_id(self, transcription_id: UUID | str):  # pragma: no cover - stub
-            return None
-
-    class _NoOpVideoService:
-        async def request_video_processing(
-            self,
-            *,
-            media_id: UUID | str,
-            file_path: str,
-            storage_provider: str,
-        ) -> Dict[str, Any]:  # type: ignore[type-var]
-            return {
-                "media_id": str(media_id),
-                "file_path": file_path,
-                "storage_provider": storage_provider,
-                "status": "noop",
-            }
-
-    return MediaProcessingService(
-        transcription_service=_NoOpTranscriptionService(),  # type: ignore[arg-type]
-        transcription_queries=_NoOpTranscriptionQueries(),  # type: ignore[arg-type]
-        video_service=_NoOpVideoService(),  # type: ignore[arg-type]
-    )
-
-
 def build_domain_service_registry(
     *,
     user_management: UserManagementModule,
@@ -116,7 +59,7 @@ def build_domain_service_registry(
         ),
         media_processing=ModuleBinding(
             legacy=None,
-            facade=_build_media_processing_placeholder(),
+            facade=None,
         ),
         text_analysis=ModuleBinding(
             legacy=text_analysis,
