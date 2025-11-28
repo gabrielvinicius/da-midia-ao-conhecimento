@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 from uuid import UUID
+import time
 
 from src.media_management.application.commands.commands import (
     DeleteMediaCommand,
@@ -31,6 +32,8 @@ from src.media_management.application.validators import MediaUploadValidator
 from src.media_management.domain.enums import MediaStatus
 from src.media_management.domain.media import Media
 from src.user_management.domain.user import UserRole
+from src.providers.domain.interfaces import IProviderRegistry, ProviderType
+from src.media_management.infrastructure.metrics import NoOpMediaMetrics
 
 
 class MediaService:
@@ -45,6 +48,8 @@ class MediaService:
         reprocess_media_handler: ReprocessMediaCommandHandler,
         upload_validator: MediaUploadValidator,
         access_policy: MediaAccessPolicy,
+        provider_registry: IProviderRegistry | None = None,
+        media_metrics: Any = None,
     ) -> None:
         self._media_queries = media_queries
         self._create_media_handler = create_media_handler
@@ -52,6 +57,8 @@ class MediaService:
         self._reprocess_media_handler = reprocess_media_handler
         self._upload_validator = upload_validator
         self._access_policy = access_policy
+        self._provider_registry = provider_registry
+        self._media_metrics = media_metrics or NoOpMediaMetrics()
 
     # ------------------------------------------------------------------
     # Creation flows
@@ -73,6 +80,20 @@ class MediaService:
 
         self._upload_validator.validate(file_content, filename)
 
+        storage_provider = self._validate_provider(storage_provider, ProviderType.STORAGE)
+        transcription_provider = self._validate_provider(
+            transcription_provider, ProviderType.TRANSCRIPTION
+        )
+        summarization_provider = self._validate_provider(
+            summarization_provider, ProviderType.SUMMARIZATION
+        )
+        sentiment_provider = self._validate_provider(
+            sentiment_provider, ProviderType.SENTIMENT_ANALYSIS
+        )
+        topic_modeling_provider = self._validate_provider(
+            topic_modeling_provider, ProviderType.TOPIC_MODELING
+        )
+
         command = CreateMediaCommand(
             user_id=str(user_id),
             file=file_content,
@@ -84,8 +105,24 @@ class MediaService:
             topic_modeling_provider=topic_modeling_provider,
             metadata=metadata,
         )
-
-        return await self._create_media_handler.handle(command)
+        start = time.monotonic()
+        success = False
+        try:
+            result = await self._create_media_handler.handle(command)
+            success = True
+            return result
+        finally:
+            try:
+                await self._media_metrics.record_operation(
+                    operation="upload_media",
+                    user_id=str(user_id),
+                    media_type=metadata.get("media_type") if metadata else "unknown",
+                    success=success,
+                    duration=time.monotonic() - start,
+                    file_size_bytes=len(file_content),
+                )
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # Query helpers
@@ -160,6 +197,20 @@ class MediaService:
         self._ensure_access(media, user_id, user_role)
         return media
 
+    # ------------------------------------------------------------------
+    # Provider validation
+    # ------------------------------------------------------------------
+    def _validate_provider(self, name: Optional[str], provider_type: ProviderType) -> Optional[str]:
+        if not name or self._provider_registry is None:
+            return name
+        active = {
+            getattr(p, "name", None) or getattr(p, "get_name", lambda: None)()
+            for p in self._provider_registry.get_active_providers(provider_type)
+        }
+        if name not in active:
+            raise ValueError(f"Provider '{name}' not registered/active for {provider_type.value}")
+        return name
+
     async def get_media_statistics(self, user_id: Optional[UUID] = None) -> Dict[str, Any]:
         if user_id:
             total = await self._media_queries.count_by_user(user_id)
@@ -188,8 +239,24 @@ class MediaService:
     ) -> Media:
         media = await self._require_media(media_id)
         self._ensure_access(media, user_id, user_role)
-        await self._delete_media_handler.handle(DeleteMediaCommand(media_id=media_id))
-        return media
+        start = time.monotonic()
+        success = False
+        try:
+            await self._delete_media_handler.handle(DeleteMediaCommand(media_id=media_id))
+            success = True
+            return media
+        finally:
+            try:
+                await self._media_metrics.record_operation(
+                    operation="delete_media",
+                    user_id=str(user_id) if user_id else "unknown",
+                    media_type=getattr(media, "media_type", "unknown"),
+                    success=success,
+                    duration=time.monotonic() - start,
+                    file_size_bytes=0,
+                )
+            except Exception:
+                pass
 
     async def reprocess_media(
         self,
@@ -200,8 +267,24 @@ class MediaService:
     ) -> Media:
         media = await self._require_media(media_id)
         self._ensure_access(media, user_id, user_role)
-        await self._reprocess_media_handler.handle(ReprocessMediaCommand(media_id=media_id))
-        return media
+        start = time.monotonic()
+        success = False
+        try:
+            await self._reprocess_media_handler.handle(ReprocessMediaCommand(media_id=media_id))
+            success = True
+            return media
+        finally:
+            try:
+                await self._media_metrics.record_operation(
+                    operation="reprocess_media",
+                    user_id=str(user_id) if user_id else "unknown",
+                    media_type=getattr(media, "media_type", "unknown"),
+                    success=success,
+                    duration=time.monotonic() - start,
+                    file_size_bytes=0,
+                )
+            except Exception:
+                pass
 
 
 __all__ = ["MediaService"]

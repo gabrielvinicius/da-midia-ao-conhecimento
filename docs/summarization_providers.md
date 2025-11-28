@@ -1,0 +1,33 @@
+# Providers de Sumarização
+
+| Provider                 | Descrição                                                                 | Dependências                                   | Situação padrão |
+|--------------------------|-----------------------------------------------------------------------------|------------------------------------------------|-----------------|
+| `heuristic_interpretive` | Heurística com TextRank + narrativa interpretativa (timeline + quartis).  | Nenhuma                                        | ✅ habilitado   |
+| `keyword_highlighter`    | Seleciona sentenças com maior densidade de palavras-chave.                 | Nenhuma                                        | ✅ habilitado   |
+| `huggingface`            | Alias padrão (T5-base).                                                    | `transformers`, PyTorch                        | Opcional        |
+| `huggingface_t5_base`    | T5-base focado em PT/EN curtos.                                            | `transformers`, PyTorch                        | Opcional        |
+| `huggingface_bart_large` | BART-Large CNN (resumos longos em EN).                                     | `transformers`, PyTorch                        | Opcional        |
+| `huggingface_pegasus`    | Pegasus Multi-News, bom para conteúdos extensos.                           | `transformers`, PyTorch                        | Opcional        |
+| `openai`                 | Invoca modelos ChatCompletion (GPT) para resumo abstrativo.                | `openai`, chave de API válida                  | Opcional        |
+
+## Como habilitar
+
+Configurar via variáveis de ambiente:
+
+```bash
+export SUMMARIZATION_ENABLED_PROVIDERS="heuristic_interpretive,keyword_highlighter,huggingface"
+export SUMMARIZATION_DEFAULT_PROVIDER="heuristic_interpretive"
+export SUMMARIZATION_PROVIDER_OVERRIDES='{"huggingface": {"model_name": "google-t5/t5-large"}}'
+```
+
+* **OpenAI**: definir `SUMMARIZATION_PROVIDER_OVERRIDES` com `{"openai": {"api_key": "sk-...", "model": "gpt-4"}}`.
+* **HuggingFace**: aceitar `model_name`, `device` e limites de tokens.
+
+## Registry Global
+- O `provider_registry` agora lista os providers acima em `/providers/summarization`.
+- Workers Celery carregam apenas os providers presentes em `SUMMARIZATION_ENABLED_PROVIDERS`.
+
+## Plano de Validação
+1. Reprocessar um conjunto fixo de mídias (>=5 por idioma) com cada provider.
+2. Gravar métricas de coerência/diversidade e tempo total.
+3. Monitorar logs `summarization.domain.completed` com `provider`/`strategy` para telemetria.

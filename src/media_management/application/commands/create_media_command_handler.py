@@ -14,6 +14,7 @@ import structlog
 from src.media_management.domain.enums import MediaStatus, MediaType
 from src.media_management.domain.media import Media
 from src.shared.exceptions.domain_exceptions import ValidationError
+from src.providers.domain.interfaces import IProviderRegistry, ProviderType
 
 from .components import (
     DefaultMediaEventPublisher,
@@ -65,12 +66,14 @@ class CreateMediaCommandHandler:
         metadata_mapper: UploadMetadataMapper,
         side_effect_publisher: MediaUploadSideEffectPublisher,
         file_validator: MediaFileValidator,
+        provider_registry: IProviderRegistry | None = None,
     ) -> None:
         self.media_repository = media_repository
         self.storage_uploader = storage_uploader
         self.metadata_mapper = metadata_mapper
         self.side_effect_publisher = side_effect_publisher
         self.file_validator = file_validator
+        self.provider_registry = provider_registry
 
     @classmethod
     def with_default_components(
@@ -81,6 +84,7 @@ class CreateMediaCommandHandler:
         *,
         event_bus: Any = None,
         emit_legacy_task: bool = True,
+        provider_registry: IProviderRegistry | None = None,
     ) -> "CreateMediaCommandHandler":
         """Build a handler with the default component implementations."""
         return cls(
@@ -100,11 +104,23 @@ class CreateMediaCommandHandler:
                 min_size_bytes=cls.MIN_FILE_SIZE_BYTES,
                 max_size_bytes=cls.MAX_FILE_SIZE_BYTES,
             ),
+            provider_registry=provider_registry,
         )
 
     async def handle(self, command: CreateMediaCommand) -> Media:
         """Execute the command returning the persisted media entity."""
         self.file_validator.validate(command.file, command.filename)
+
+        command.storage_provider = self._validate_provider(command.storage_provider, ProviderType.STORAGE)
+        command.transcription_provider = self._validate_provider(command.transcription_provider, ProviderType.TRANSCRIPTION)
+        command.summarization_provider = self._validate_provider(command.summarization_provider, ProviderType.SUMMARIZATION)
+        command.sentiment_provider = self._validate_provider(command.sentiment_provider, ProviderType.SENTIMENT_ANALYSIS)
+        command.topic_modeling_provider = self._validate_provider(command.topic_modeling_provider, ProviderType.TOPIC_MODELING)
+        command.storage_provider = self._validate_provider(command.storage_provider, ProviderType.STORAGE)
+        command.transcription_provider = self._validate_provider(command.transcription_provider, ProviderType.TRANSCRIPTION)
+        command.summarization_provider = self._validate_provider(command.summarization_provider, ProviderType.SUMMARIZATION)
+        command.sentiment_provider = self._validate_provider(command.sentiment_provider, ProviderType.SENTIMENT_ANALYSIS)
+        command.topic_modeling_provider = self._validate_provider(command.topic_modeling_provider, ProviderType.TOPIC_MODELING)
         media_type = self._detect_media_type(command.filename)
         content_type = self._guess_mime_type(command.filename)
 
@@ -177,4 +193,15 @@ class CreateMediaCommandHandler:
     def _guess_mime_type(self, filename: str) -> str:
         mime_type, _ = mimetypes.guess_type(filename)
         return mime_type or "application/octet-stream"
+
+    def _validate_provider(self, name: str | None, provider_type: ProviderType) -> str | None:
+        if not name or self.provider_registry is None:
+            return name
+        active = {
+            getattr(p, "name", None) or getattr(p, "get_name", lambda: None)()
+            for p in self.provider_registry.get_active_providers(provider_type)
+        }
+        if name not in active:
+            raise ValidationError("provider", name, f"Provider not active for {provider_type.value}")
+        return name
 

@@ -9,6 +9,7 @@ import structlog
 from sqlalchemy.orm import Session
 
 from src.media_processing.transcription.domain.transcription import Transcription
+from src.shared.config.settings import settings
 from src.shared.event_bus import SupportsEventBus
 from src.shared.events.domain_events import TextContentReady
 
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-DEFAULT_SUMMARIZATION_PROVIDER = "builtin"
+DEFAULT_SUMMARIZATION_PROVIDER = settings.SUMMARIZATION_DEFAULT_PROVIDER
 DEFAULT_SENTIMENT_PROVIDER = "builtin"
 DEFAULT_TOPIC_PROVIDER = "sklearn_lda"
 

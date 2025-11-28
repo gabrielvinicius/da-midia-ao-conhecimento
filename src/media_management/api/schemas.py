@@ -70,6 +70,14 @@ class MediaResponse(BaseModel):
         default=None,
         description="Topic modeling provider selected for text analysis.",
     )
+    language: Optional[str] = Field(
+        default=None,
+        description="Idioma detectado ou configurado para a mídia.",
+    )
+    error_message: Optional[str] = Field(
+        default=None,
+        description="Mensagem de erro associada ao processamento, quando houver.",
+    )
 
     @computed_field(return_type=List[str])
     @property

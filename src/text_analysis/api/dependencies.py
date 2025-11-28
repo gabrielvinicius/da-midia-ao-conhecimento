@@ -1,17 +1,13 @@
-from typing import Annotated, TYPE_CHECKING
+"""FastAPI dependency helpers for text analysis."""
 
-from fastapi import Depends
+from __future__ import annotations
 
-if TYPE_CHECKING:
-    from src.text_analysis.bootstrap import TextAnalysisModule
-else:
-    TextAnalysisModule = object
+from .schemas import AnalyzeRequest
+from ..application import TextAnalysisService
 
 
-def get_text_analysis_dependencies() -> "TextAnalysisModule":
-    ...
+def get_text_analysis_service() -> TextAnalysisService:
+    raise RuntimeError("TextAnalysisService dependency not bound")
 
 
-T_TextAnalysisDeps = Annotated[
-    TextAnalysisModule, Depends(get_text_analysis_dependencies)
-]
+__all__ = ["get_text_analysis_service", "AnalyzeRequest"]

@@ -12,6 +12,12 @@ from src.media_processing.application.schemas import (
     TranscriptionTaskPayload,
     VideoTaskPayload,
 )
+from src.media_processing.application.commands import (
+    RequestTranscriptionCommand,
+    RequestTranscriptionHandler,
+    RequestVideoProcessingCommand,
+    RequestVideoProcessingHandler,
+)
 from src.media_processing.transcription.application.queries.transcription_queries import (
     TranscriptionQueries,
 )
@@ -21,6 +27,7 @@ from src.media_processing.transcription.application.transcription_service import
 from src.media_processing.video_processing.application.video_processing_service import (
     VideoProcessingService,
 )
+from src.providers.domain.interfaces import IProviderRegistry, ProviderType
 from src.shared.events.domain_events import MediaUploaded, TextContentReady
 
 
@@ -35,6 +42,9 @@ class MediaProcessingService:
         video_service: VideoProcessingService,
         transcription_metrics: Any | None = None,
         video_metrics: Any | None = None,
+        request_transcription_handler=None,
+        request_video_handler=None,
+        provider_registry: IProviderRegistry | None = None,
     ) -> None:
         self._transcription_service = transcription_service
         self._transcription_queries = transcription_queries
@@ -42,6 +52,9 @@ class MediaProcessingService:
         self._logger = structlog.get_logger(__name__).bind(component="media_processing.service")
         self._transcription_metrics = transcription_metrics
         self._video_metrics = video_metrics
+        self._request_transcription_handler = request_transcription_handler
+        self._request_video_handler = request_video_handler
+        self._provider_registry = provider_registry
 
     # ------------------------------------------------------------------ #
     # Transcription helpers
@@ -57,6 +70,21 @@ class MediaProcessingService:
         metrics_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Schedule transcription generation using the consolidated service."""
+        transcription_provider = self._validate_provider(
+            transcription_provider,
+            ProviderType.TRANSCRIPTION,
+        )
+        if self._request_transcription_handler is not None:
+            return await self._request_transcription_handler(
+                RequestTranscriptionCommand(
+                    media_id=media_id,
+                    file_path=file_path,
+                    storage_provider=storage_provider,
+                    transcription_provider=transcription_provider,
+                    language=language,
+                    metrics_payload=metrics_payload,
+                )
+            )
         start_time = time.monotonic()
         success = False
         try:
@@ -107,6 +135,15 @@ class MediaProcessingService:
         metrics_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Schedule asynchronous video processing for the uploaded media."""
+        if self._request_video_handler is not None:
+            return await self._request_video_handler(
+                RequestVideoProcessingCommand(
+                    media_id=media_id,
+                    file_path=file_path,
+                    storage_provider=storage_provider,
+                    metrics_payload=metrics_payload,
+                )
+            )
         start_time = time.monotonic()
         success = False
         try:
@@ -174,16 +211,26 @@ class MediaProcessingService:
             return
 
         storage_provider = event.storage_provider or context.get("storage_provider") or "local"
-        transcription_provider = (
+        transcription_provider = self._validate_provider(
             event.transcription_provider
             or context.get("transcription_provider")
             or context.get("provider")
-            or "fastwhisper"
+            or "fastwhisper",
+            ProviderType.TRANSCRIPTION,
         )
-        summarization_provider = event.summarization_provider or context.get("summarization_provider")
-        sentiment_provider = event.sentiment_provider or context.get("sentiment_provider")
-        topic_provider = event.topic_modeling_provider or context.get("topic_modeling_provider")
-        language = event.language or context.get("language") or "en"
+        summarization_provider = self._validate_provider(
+            event.summarization_provider or context.get("summarization_provider"),
+            ProviderType.SUMMARIZATION,
+        )
+        sentiment_provider = self._validate_provider(
+            event.sentiment_provider or context.get("sentiment_provider"),
+            ProviderType.SENTIMENT_ANALYSIS,
+        )
+        topic_provider = self._validate_provider(
+            event.topic_modeling_provider or context.get("topic_modeling_provider"),
+            ProviderType.TOPIC_MODELING,
+        )
+        language = event.language or context.get("language") or "auto"
         file_size_bytes = event.file_size_bytes or context.get("file_size_bytes") or 0
         media_type_value = event.media_type or context.get("media_type")
         media_type = None
@@ -283,12 +330,96 @@ class MediaProcessingService:
         *,
         context: Optional[dict[str, Any]] = None,
     ) -> None:
-        """Placeholder hook for when derived textual content becomes available."""
+        """Trigger downstream text analysis once transcription finishes."""
         context = context or {}
-        self._logger.info(
-            "text_content_ready.received",
-            media_id=event.media_id,
-            transcription_id=event.transcription_id,
-            summary_id=event.summary_id,
-            context_keys=list(context.keys()),
-        )
+
+        text = (event.text_content or "").strip()
+        if not text:
+            self._logger.info(
+                "text_content_ready.skipped",
+                media_id=event.media_id,
+                reason="empty_text",
+            )
+            return
+
+        # Lazily import to avoid circular deps at startup
+        try:
+            from src.text_analysis.tasks import (
+                summarize_task,
+                sentiment_task,
+                topic_modeling_task,
+            )
+        except Exception as exc:  # pragma: no cover - defensive guard
+            self._logger.warning(
+                "text_content_ready.analysis_task_unavailable",
+                media_id=event.media_id,
+                error=str(exc),
+            )
+            return
+
+        metadata = event.metadata or {}
+        base_payload: Dict[str, Any] = {
+            "text": text,
+            "media_id": event.media_id,
+            "transcription_id": event.transcription_id,
+            "language": metadata.get("language") or context.get("language"),
+        }
+
+        jobs = [
+            (
+                summarize_task,
+                {
+                    **base_payload,
+                    "provider": metadata.get("summarization_provider"),
+                },
+                "summarization",
+            ),
+            (
+                sentiment_task,
+                {
+                    **base_payload,
+                    "provider": metadata.get("sentiment_provider"),
+                },
+                "sentiment",
+            ),
+            (
+                topic_modeling_task,
+                {
+                    **base_payload,
+                    "provider": metadata.get("topic_provider"),
+                },
+                "topic_modeling",
+            ),
+        ]
+
+        for task_fn, payload, name in jobs:
+            try:
+                if hasattr(task_fn, "delay"):
+                    task_fn.delay(payload)
+                else:
+                    task_fn(payload)
+                self._logger.info(
+                    "text_content_ready.analysis_enqueued",
+                    media_id=event.media_id,
+                    transcription_id=event.transcription_id,
+                    task=name,
+                )
+            except Exception as exc:  # pragma: no cover - defensive guard
+                self._logger.error(
+                    "text_content_ready.analysis_failed",
+                    media_id=event.media_id,
+                    transcription_id=event.transcription_id,
+                    task=name,
+                    error=str(exc),
+                )
+
+    def _validate_provider(self, name: str | None, provider_type: ProviderType) -> str | None:
+        if not name or self._provider_registry is None:
+            return name
+        active = {
+            getattr(p, "name", None) or getattr(p, "get_name", lambda: None)()
+            for p in self._provider_registry.get_active_providers(provider_type)
+        }
+        if name not in active:
+            raise ValueError(f"Provider '{name}' not registered/active for {provider_type.value}")
+        return name

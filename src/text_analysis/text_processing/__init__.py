@@ -1,1 +1,2 @@
-"""Text Processing module."""
+"""Text processing task package (compatibility)."""
+

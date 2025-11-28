@@ -244,6 +244,55 @@ class SharedPrometheusMetrics:
                     self._histograms[metric_name] = NoOpMetrics()
         return self._histograms[metric_name]
 
+    # Text analysis metrics
+    def get_text_analysis_operations_total(self):
+        metric_name = 'text_analysis_operations_total'
+        if metric_name not in self._counters:
+            try:
+                self._counters[metric_name] = Counter(
+                    metric_name,
+                    'Total number of text analysis operations',
+                    ['operation', 'provider', 'status'],
+                )
+            except ValueError:
+                for collector in REGISTRY._collector_to_names.keys():
+                    if getattr(collector, '_name', None) == metric_name:
+                        self._counters[metric_name] = collector
+                        break
+                else:
+                    class NoOp:
+                        def labels(self, **_labels):
+                            class _M:
+                                def inc(self):
+                                    pass
+                            return _M()
+                    self._counters[metric_name] = NoOp()
+        return self._counters[metric_name]
+
+    def get_text_analysis_duration_seconds(self):
+        metric_name = 'text_analysis_operation_duration_seconds'
+        if metric_name not in self._histograms:
+            try:
+                self._histograms[metric_name] = Histogram(
+                    metric_name,
+                    'Duration of text analysis operations in seconds',
+                    ['operation', 'provider'],
+                )
+            except ValueError:
+                for collector in REGISTRY._collector_to_names.keys():
+                    if getattr(collector, '_name', None) == metric_name:
+                        self._histograms[metric_name] = collector
+                        break
+                else:
+                    class NoOp:
+                        def labels(self, **_labels):
+                            class _M:
+                                def observe(self, _v):
+                                    pass
+                            return _M()
+                    self._histograms[metric_name] = NoOp()
+        return self._histograms[metric_name]
+
     def get_video_processing_input_file_size_bytes(self):
         """Obtém ou cria o histograma de tamanho de arquivos de entrada de processamento de vídeo."""
         metric_name = 'video_processing_input_file_size_bytes'

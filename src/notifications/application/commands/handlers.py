@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, Optional
+from uuid import UUID
 
 from src.notifications.application.commands.commands import (
     RequestNotificationCommand,
     SendNotificationCommand,
 )
-from src.notifications.domain.notification import NotificationStatus, NotificationType
+from src.notifications.domain.notification import (
+    Notification,
+    NotificationStatus,
+    NotificationType,
+)
 from src.shared.events.domain_events import NotificationRequested
 
 
@@ -78,23 +83,25 @@ class SendNotificationCommandHandler:
         try:
             await adapter(user, command)
             await self._notification_repository.save(
-                {
-                    "user_id": command.user_id,
-                    "message": command.message,
-                    "notification_type": command.notification_type.value,
-                    "status": NotificationStatus.SENT.value,
-                }
+                Notification(
+                    user_id=UUID(command.user_id),
+                    type=command.notification_type,
+                    content=command.message,
+                    subject=command.subject or "Notification",
+                    status=NotificationStatus.SENT,
+                )
             )
             return NotificationDeliveryResult(status=NotificationStatus.SENT)
         except Exception as exc:  # pragma: no cover - defensive safety
             await self._notification_repository.save(
-                {
-                    "user_id": command.user_id,
-                    "message": command.message,
-                    "notification_type": command.notification_type.value,
-                    "status": NotificationStatus.FAILED.value,
-                    "error": str(exc),
-                }
+                Notification(
+                    user_id=UUID(command.user_id),
+                    type=command.notification_type,
+                    content=command.message,
+                    subject=command.subject or "Notification",
+                    status=NotificationStatus.FAILED,
+                    error_message=str(exc),
+                )
             )
             return NotificationDeliveryResult(
                 status=NotificationStatus.FAILED,

@@ -36,6 +36,7 @@ class MediaRepositorySync:
         status: MediaStatus,
         *,
         error_message: Optional[str] = None,
+        force_notify: bool = False,
     ) -> Optional[MediaAggregate]:
         stmt = select(MediaEntity).where(MediaEntity.id == media_id)
         entity = self.db.execute(stmt).scalar_one_or_none()
@@ -52,7 +53,7 @@ class MediaRepositorySync:
         aggregate = self._mapper.to_domain(entity)
         updated = aggregate.update(error_message=error_message)
 
-        should_notify = previous_status != status or (
+        should_notify = force_notify or previous_status != status or (
             error_message and error_message != previous_error
         )
         if should_notify:

@@ -32,6 +32,7 @@ scikit-learn>=1.6.0
 bertopic>=0.15.0
 vaderSentiment>=3.3.2
 openai-whisper
+accelerate
 
 # Authentication & Security
 passlib[bcrypt]>=1.7.4

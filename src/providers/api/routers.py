@@ -13,10 +13,12 @@ from src.user_management.domain.user import User
 
 from .dependencies import get_provider_registry
 from .schemas import (
+    ProviderCatalogEntry,
     ProviderDetailResponse,
     ProvidersListResponse,
     ProviderSummaryResponse,
 )
+from src.providers.domain.provider_metadata import get_provider_metadata
 
 router = APIRouter(
     prefix="/providers",
@@ -52,6 +54,38 @@ def _serialize_provider_map(provider_registry: IProviderRegistry) -> dict[str, l
     }
 
 
+def _serialize_provider_catalog(provider_registry: IProviderRegistry) -> dict[str, list[ProviderCatalogEntry]]:
+    relevant_types = (
+        ProviderType.STORAGE,
+        ProviderType.TRANSCRIPTION,
+        ProviderType.SUMMARIZATION,
+        ProviderType.SENTIMENT_ANALYSIS,
+        ProviderType.TOPIC_MODELING,
+    )
+
+    catalog: dict[str, list[ProviderCatalogEntry]] = {}
+    for provider_type in relevant_types:
+        providers = provider_registry.list_providers(provider_type)
+        entries: list[ProviderCatalogEntry] = []
+        for provider in providers:
+            metadata = get_provider_metadata(provider_type, provider.get_name())
+            config = provider.get_configuration()
+            entries.append(
+                ProviderCatalogEntry(
+                    name=provider.get_name(),
+                    label=metadata.label if metadata else provider.get_name(),
+                    description=metadata.description if metadata else "",
+                    type=provider_type.value,
+                    version=provider.get_version(),
+                    status=provider.status.value,
+                    capabilities=[cap.value for cap in provider.get_capabilities()],
+                    is_default=bool(config.get("default")),
+                )
+            )
+        catalog[provider_type.value] = entries
+    return catalog
+
+
 @router.get(
     "/",
     summary="Return provider names grouped by type",
@@ -64,6 +98,20 @@ async def get_provider_name_map(
     """Expose a minimal provider catalogue for upload forms."""
 
     return _serialize_provider_map(provider_registry)
+
+
+@router.get(
+    "/catalog",
+    summary="Return provider metadata grouped by type",
+    response_model=Dict[str, List[ProviderCatalogEntry]],
+)
+async def get_provider_catalog(
+    provider_registry: Annotated[IProviderRegistry, Depends(get_provider_registry)],
+    current_user: User = Depends(get_current_user),
+) -> dict[str, list[ProviderCatalogEntry]]:
+    """Expose enriched provider catalog for UI usage."""
+
+    return _serialize_provider_catalog(provider_registry)
 
 
 @router.get("/storage", summary="List storage providers", response_model=List[str])

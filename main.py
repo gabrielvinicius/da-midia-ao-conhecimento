@@ -37,7 +37,7 @@ from src.shared.events.domain_events import (
 from src.shared.api.dependencies import get_current_user_websocket
 from src.shared.exceptions.api_errors import register_exception_handlers
 
-# from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled due to psutil dependency
+# from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled: psutil dep
 from src.shared.infrastructure.cache import cache
 from src.shared.infrastructure.database import AsyncSessionLocal, Base, engine
 from src.shared.infrastructure.logging_config import configure_logging, get_logger
@@ -45,9 +45,6 @@ from src.shared.infrastructure.tracing import configure_tracer
 from src.shared.middleware.performance_middleware import register_performance_middleware
 from src.shared.middleware.validation_middleware import register_validation_middleware
 from src.storage.infrastructure.dependencies import StorageServiceFactory
-from src.text_analysis.application.event_handlers import (
-    build_text_content_ready_handler,
-)
 from src.text_analysis.bootstrap import build_text_analysis_module
 
 from src.notifications.application.event_handlers import handle_notification_requested
@@ -70,16 +67,10 @@ def register_domain_event_handlers(
     event_bus: InMemoryEventBus,
     *,
     media_processing_service,
-    text_analysis_service=None,
 ) -> None:
     """Attach domain event handlers to the bus."""
     event_bus.subscribe(MediaUploaded, media_processing_service.handle_media_uploaded)
     event_bus.subscribe(TextContentReady, media_processing_service.handle_text_content_ready)
-    if text_analysis_service is not None:
-        event_bus.subscribe(
-            TextContentReady,
-            build_text_content_ready_handler(text_analysis_service),
-        )
     event_bus.subscribe(NotificationRequested, handle_notification_requested)
 
 
@@ -126,15 +117,14 @@ async def lifespan(app: FastAPI):
             metrics_service=monitoring_module.metrics_service,
             event_bus=event_bus,
             emit_legacy_media_task=not lightweight_mode,
+            provider_registry=providers_module.provider_registry,
         )
 
         if not lightweight_mode:
             text_analysis_module = await build_text_analysis_module(
-                session,
-                media_module=media_module,
-                notification_module=notification_module,
-                monitoring_module=monitoring_module,
+                session=session,
                 provider_registry=providers_module.provider_registry,
+                event_bus=event_bus,
             )
 
             if getattr(text_analysis_module, "topic_modeling", None) is None:
@@ -189,12 +179,13 @@ async def lifespan(app: FastAPI):
         register_domain_event_handlers(
             event_bus,
             media_processing_service=media_module.processing_service,
-            text_analysis_service=getattr(text_analysis_module, "service", None),
         )
 
         default_admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "user@example.com").strip()
         default_admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "Admin123!")
-        force_admin_password = os.getenv("DEFAULT_ADMIN_FORCE_PASSWORD", "0").lower() in {"1", "true", "yes"}
+        force_admin_password = (
+            os.getenv("DEFAULT_ADMIN_FORCE_PASSWORD", "0").lower() in {"1", "true", "yes"}
+        )
 
         if default_admin_email and default_admin_password:
             try:
@@ -238,7 +229,9 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Media Processing API",
-        description="API for uploading, transcribing, and summarizing media files (video, audio, text)",
+        description=(
+            "API for uploading, transcribing, and summarizing media files (video, audio, text)"
+        ),
         version="2.0.0",
         lifespan=lifespan,
         docs_url="/docs",

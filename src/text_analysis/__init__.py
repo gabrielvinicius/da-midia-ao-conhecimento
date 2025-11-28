@@ -1,5 +1,8 @@
-"""Text analysis module (summarization, sentiment, topics)."""
+"""Public API for text_analysis bounded context."""
 
-from .application import TextAnalysisService
+from .application import TextAnalysisService, build_text_content_ready_handler
 
-__all__ = ["TextAnalysisService"]
+__all__ = [
+    "TextAnalysisService",
+    "build_text_content_ready_handler",
+]

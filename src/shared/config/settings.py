@@ -63,7 +63,7 @@ class Settings:
     # Topic Modeling Providers
     TOPIC_MODELING_ENABLED_PROVIDERS: str = os.getenv(
         "TOPIC_MODELING_ENABLED_PROVIDERS",
-        "sklearn_lda,keyword_frequency,bertopic",
+        "sklearn_lda,sklearn_lsa,sklearn_nmf,keyword_frequency,bertopic",
     )
     TOPIC_MODELING_DEFAULT_PROVIDER: str = os.getenv(
         "TOPIC_MODELING_DEFAULT_PROVIDER",
@@ -75,6 +75,24 @@ class Settings:
     )
     TOPIC_MODELING_PROVIDER_OVERRIDES: str = os.getenv(
         "TOPIC_MODELING_PROVIDER_OVERRIDES",
+        "{}",
+    )
+
+    # Summarization Providers
+    SUMMARIZATION_ENABLED_PROVIDERS: str = os.getenv(
+        "SUMMARIZATION_ENABLED_PROVIDERS",
+        "all",
+    )
+    SUMMARIZATION_DEFAULT_PROVIDER: str = os.getenv(
+        "SUMMARIZATION_DEFAULT_PROVIDER",
+        "heuristic_interpretive",
+    )
+    SUMMARIZATION_PLUGIN_MODULES: str = os.getenv(
+        "SUMMARIZATION_PLUGIN_MODULES",
+        "",
+    )
+    SUMMARIZATION_PROVIDER_OVERRIDES: str = os.getenv(
+        "SUMMARIZATION_PROVIDER_OVERRIDES",
         "{}",
     )
 
@@ -116,6 +134,27 @@ class Settings:
     def topic_modeling_provider_overrides(self) -> Dict[str, Dict[str, Any]]:
         try:
             parsed = json.loads(self.TOPIC_MODELING_PROVIDER_OVERRIDES)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+        return {}
+
+    @property
+    def summarization_enabled_list(self) -> List[str]:
+        values = [p.strip() for p in self.SUMMARIZATION_ENABLED_PROVIDERS.split(",") if p.strip()]
+        if not values or any(v.lower() == "all" for v in values):
+            return []
+        return values
+
+    @property
+    def summarization_plugin_modules(self) -> List[str]:
+        return [p.strip() for p in self.SUMMARIZATION_PLUGIN_MODULES.split(",") if p.strip()]
+
+    @property
+    def summarization_provider_overrides(self) -> Dict[str, Dict[str, Any]]:
+        try:
+            parsed = json.loads(self.SUMMARIZATION_PROVIDER_OVERRIDES)
             if isinstance(parsed, dict):
                 return parsed
         except json.JSONDecodeError:

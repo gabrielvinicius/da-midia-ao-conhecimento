@@ -82,6 +82,30 @@ class SentimentAnalysisCompleted(DomainEvent):
     sentiment_score: float = 0.0
     overall_sentiment: Optional[str] = None
     provider: Optional[str] = None
+    media_id: Optional[str] = None
+    status: str = "success"
+
+
+@dataclass(frozen=True, slots=True)
+class SummarizationCompleted(DomainEvent):
+    """Event emitted when summarization concludes."""
+
+    analysis_id: str = ""
+    transcription_id: Optional[str] = None
+    media_id: Optional[str] = None
+    provider: Optional[str] = None
+    status: str = "success"
+
+
+@dataclass(frozen=True, slots=True)
+class TopicModelingCompleted(DomainEvent):
+    """Event emitted when topic modeling concludes."""
+
+    analysis_id: str = ""
+    transcription_id: Optional[str] = None
+    media_id: Optional[str] = None
+    provider: Optional[str] = None
+    status: str = "success"
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +176,8 @@ __all__ = [
     "TextContentReady",
     "NotificationRequested",
     "SentimentAnalysisCompleted",
+    "SummarizationCompleted",
+    "TopicModelingCompleted",
     "VideoUploaded",
     "AudioExtracted",
     "MediaDeleted",

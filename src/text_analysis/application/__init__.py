@@ -1,5 +1,25 @@
-"""Application layer scaffolding for the text analysis module."""
+"""Application layer wiring for text analysis."""
 
-from .services import TextAnalysisService
+from .config import AnalysisConfig
+from .dto import AnalysisResultDTO
+from .commands.analyze_text import AnalyzeTextCommand, AnalyzeTextCommandHandler
+from .queries.get_analysis import GetAnalysisQuery, GetAnalysisQueryHandler
+from .queries.list_topics import ListTopicsQuery, ListTopicsQueryHandler
+from .service import TextAnalysisService
+from .metrics import TextAnalysisMetrics, NoOpTextAnalysisMetrics
+from .event_handlers import build_text_content_ready_handler
 
-__all__ = ["TextAnalysisService"]
+__all__ = [
+    "AnalysisConfig",
+    "AnalysisResultDTO",
+    "AnalyzeTextCommand",
+    "AnalyzeTextCommandHandler",
+    "GetAnalysisQuery",
+    "GetAnalysisQueryHandler",
+    "ListTopicsQuery",
+    "ListTopicsQueryHandler",
+    "TextAnalysisService",
+    "TextAnalysisMetrics",
+    "NoOpTextAnalysisMetrics",
+    "build_text_content_ready_handler",
+]

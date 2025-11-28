@@ -11,6 +11,7 @@ from src.providers.domain.interfaces import (
     ProviderType,
 )
 from src.providers.domain.provider import Provider
+from src.providers.domain.provider_metadata import get_provider_metadata
 from src.providers.infrastructure.provider_registry import InMemoryProviderRegistry
 
 
@@ -33,8 +34,16 @@ def bind_providers_module(app: FastAPI, module: ProvidersModule) -> None:
 
 def _seed_default_providers(registry: IProviderRegistry) -> None:
     """Register built-in providers so the API returns meaningful data."""
+
+    def _with_metadata(provider: Provider) -> Provider:
+        metadata = get_provider_metadata(provider.provider_type, provider.name)
+        if metadata:
+            provider.display_name = metadata.label
+            provider.description = metadata.description
+        return provider
+
     defaults = [
-        Provider(
+        _with_metadata(Provider(
             name="local",
             provider_type=ProviderType.STORAGE,
             status=ProviderStatus.ACTIVE,
@@ -45,8 +54,8 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.LIST,
             ],
             configuration={"type": "local"},
-        ),
-        Provider(
+        )),
+        _with_metadata(Provider(
             name="s3",
             provider_type=ProviderType.STORAGE,
             status=ProviderStatus.ACTIVE,
@@ -59,8 +68,8 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.ENCRYPTION,
             ],
             configuration={"type": "s3"},
-        ),
-        Provider(
+        )),
+        _with_metadata(Provider(
             name="minio",
             provider_type=ProviderType.STORAGE,
             status=ProviderStatus.ACTIVE,
@@ -72,8 +81,8 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.ENCRYPTION,
             ],
             configuration={"type": "minio"},
-        ),
-        Provider(
+        )),
+        _with_metadata(Provider(
             name="fastwhisper",
             provider_type=ProviderType.TRANSCRIPTION,
             status=ProviderStatus.ACTIVE,
@@ -82,8 +91,8 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.BATCH_PROCESSING,
                 ProviderCapability.MULTI_LANGUAGE,
             ],
-        ),
-        Provider(
+        )),
+        _with_metadata(Provider(
             name="whisper",
             provider_type=ProviderType.TRANSCRIPTION,
             status=ProviderStatus.ACTIVE,
@@ -91,8 +100,8 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.BATCH_PROCESSING,
                 ProviderCapability.MULTI_LANGUAGE,
             ],
-        ),
-        Provider(
+        )),
+        _with_metadata(Provider(
             name="huggingface",
             provider_type=ProviderType.TRANSCRIPTION,
             status=ProviderStatus.ACTIVE,
@@ -101,8 +110,8 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.MULTI_LANGUAGE,
                 ProviderCapability.CUSTOM_MODELS,
             ],
-        ),
-        Provider(
+        )),
+        _with_metadata(Provider(
             name="builtin",
             provider_type=ProviderType.SUMMARIZATION,
             status=ProviderStatus.ACTIVE,
@@ -110,8 +119,8 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.BATCH_PROCESSING,
                 ProviderCapability.MULTI_LANGUAGE,
             ],
-        ),
-        Provider(
+        )),
+        _with_metadata(Provider(
             name="openai",
             provider_type=ProviderType.SUMMARIZATION,
             status=ProviderStatus.ACTIVE,
@@ -119,8 +128,8 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.BATCH_PROCESSING,
                 ProviderCapability.MULTI_LANGUAGE,
             ],
-        ),
-        Provider(
+        )),
+        _with_metadata(Provider(
             name="huggingface",
             provider_type=ProviderType.SUMMARIZATION,
             status=ProviderStatus.ACTIVE,
@@ -129,8 +138,8 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.MULTI_LANGUAGE,
                 ProviderCapability.CUSTOM_MODELS,
             ],
-        ),
-        Provider(
+        )),
+        _with_metadata(Provider(
             name="transformers",
             provider_type=ProviderType.SENTIMENT_ANALYSIS,
             status=ProviderStatus.ACTIVE,
@@ -138,15 +147,15 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.BATCH_PROCESSING,
                 ProviderCapability.MULTI_LANGUAGE,
             ],
-        ),
-        Provider(
+        )),
+        _with_metadata(Provider(
             name="vader",
             provider_type=ProviderType.SENTIMENT_ANALYSIS,
             status=ProviderStatus.ACTIVE,
             capabilities=[
                 ProviderCapability.BATCH_PROCESSING,
             ],
-        ),
+        )),
     ]
 
     for provider in defaults:

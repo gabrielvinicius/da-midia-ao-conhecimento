@@ -61,3 +61,16 @@ class ProviderDetailResponse(BaseModel):
     configuration: Dict[str, Any]
     health_status: Optional[Dict[str, Any]] = None
     # metadata: Optional[Dict[str, Any]] = None # Removido, pois ProviderMetadata foi removido
+
+
+class ProviderCatalogEntry(BaseModel):
+    """Detailed provider metadata entry."""
+
+    name: str
+    label: str
+    description: str
+    type: str
+    version: str
+    status: str
+    capabilities: List[str]
+    is_default: bool = False

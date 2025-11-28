@@ -41,6 +41,7 @@ class PrometheusMetricsProvider(IMetricsProvider):
             'Total transcriptions processed',
             ['status']
         )
+        # Kept for backwards compatibility; still valid for summarization events
         self.SUMMARIZATIONS_TOTAL = Counter(
             'summarizations_total',
             'Total summaries generated',

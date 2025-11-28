@@ -1,134 +1,152 @@
-# src/text_analysis/bootstrap.py
-"""Bootstrap module for the consolidated text analysis service.
-"""
-from types import SimpleNamespace
+"""Bootstrap and binding helpers for the text_analysis module."""
 
-import structlog
-from dependency_injector import providers
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
 from fastapi import FastAPI
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.text_analysis.api.dependencies import get_text_analysis_dependencies
-from src.text_analysis.application.services import TextAnalysisService
-from src.text_analysis.sentiment_analysis.api.dependencies import (
-    SentimentDependencies,
-    get_sentiment_dependencies,
+from .application import (
+    TextAnalysisService,
+    AnalysisConfig,
+    AnalyzeTextCommandHandler,
+    GetAnalysisQueryHandler,
+    ListTopicsQueryHandler,
+    NoOpTextAnalysisMetrics,
 )
-from src.text_analysis.sentiment_analysis.bootstrap import (
-    build_sentiment_analysis_module,
+from .infrastructure.metrics import PrometheusTextAnalysisMetrics
+from src.providers.domain.interfaces import IProviderRegistry, ProviderCapability, ProviderStatus, ProviderType
+from src.providers.domain.provider import Provider
+from .infrastructure import (
+    BERTopicAdapter,
+    InMemoryAnalysisRepository,
+    OllamaTextGenerationAdapter,
+    SentenceTransformerEmbeddingAdapter,
+    SimpleChunker,
+    TransformersSentimentAdapter,
 )
-from src.text_analysis.summarization.api.dependencies import (
-    SummarizationDependencies,
-    get_summarization_dependencies,
-)
-from src.text_analysis.summarization.bootstrap import (
-    SummarizationContainer,
-    build_summarization_module,
-)
-from src.text_analysis.topic_modeling.api.dependencies import (
-    configure_topic_modeling_dependencies,
-)
-from src.text_analysis.topic_modeling.bootstrap import (
-    build_topic_modeling_module,
-)
-
-logger = structlog.get_logger(__name__)
+from .infrastructure.metrics import PrometheusTextAnalysisMetrics
 
 
-class TextAnalysisModule(SimpleNamespace):
-    """Container for the text analysis module's components."""
+def _prom_available() -> bool:
+    try:
+        import prometheus_client  # noqa: F401
+        return True
+    except Exception:
+        return False
 
+
+@dataclass
+class TextAnalysisModule:
     service: TextAnalysisService
-    summarization: SimpleNamespace
-    sentiment: SimpleNamespace
-    topic_modeling: SimpleNamespace
+    analyze_handler: AnalyzeTextCommandHandler
+    get_handler: GetAnalysisQueryHandler
+    list_topics_handler: ListTopicsQueryHandler
+    repository: InMemoryAnalysisRepository
+    config: AnalysisConfig
 
 
 async def build_text_analysis_module(
-    session: AsyncSession,
-    *,
-    media_module,
-    notification_module,
-    monitoring_module,
-    provider_registry=None,
+    session: Any,
+    provider_registry: IProviderRegistry | None = None,
+    repository: Any | None = None,
+    event_bus: Any | None = None,
+    **_kwargs: Any,
 ) -> TextAnalysisModule:
-    """Builds and configures the text analysis module and its dependencies.
-    """
-    logger.info("text_analysis.bootstrap.started")
+    _seed_text_analysis_providers(provider_registry)
+    if repository is not None:
+        repo = repository
+    else:
+        from .infrastructure.repository_sqlalchemy import SqlAlchemyAnalysisRepository
 
-    text_analysis_service = TextAnalysisService()
+        if session is None:
+            raise RuntimeError("TextAnalysis requires a database session for persistence")
 
-    summarization_container = SummarizationContainer(
-        text_analysis_service=providers.Object(text_analysis_service),
+        repo = SqlAlchemyAnalysisRepository(session)
+    config = AnalysisConfig()
+
+    sentiment = TransformersSentimentAdapter(config.sentiment_model)
+    embeddings = SentenceTransformerEmbeddingAdapter(config.embedding_model)
+    topic_modeling = BERTopicAdapter(
+        config.topic_model,
+        use_transformer_representation=config.use_transformer_topic_representation,
+        transformer_model_name=config.transformer_representation_model,
     )
-    summarization_container.db.override(providers.Object(session))
-    summarization_module = await build_summarization_module(summarization_container)
+    text_generation = OllamaTextGenerationAdapter(config.llm_model)
+    chunker = SimpleChunker()
 
-    connection_manager = getattr(notification_module.service, "connection_manager", None)
-    sentiment_module = await build_sentiment_analysis_module(
-        session=session,
-        transcription_queries=media_module.transcription_queries,
-        connection_manager=connection_manager,
-        metrics_service=getattr(monitoring_module, "metrics_service", None),
-        text_analysis_service=text_analysis_service,
+    analyze_handler = AnalyzeTextCommandHandler(
+        sentiment_service=sentiment,
+        embedding_service=embeddings,
+        topic_modeling=topic_modeling,
+        text_generation=text_generation,
+        chunker=chunker,
+        repository=repo,
+        config=config,
+        event_bus=event_bus,
     )
+    get_handler = GetAnalysisQueryHandler(repo)
+    list_topics_handler = ListTopicsQueryHandler(repo)
 
-    topic_module = await build_topic_modeling_module(
-        session=session,
-        text_analysis_service=text_analysis_service,
+    metrics = PrometheusTextAnalysisMetrics() if _prom_available() else NoOpTextAnalysisMetrics()
+
+    service = TextAnalysisService(
         provider_registry=provider_registry,
+        analyze_handler=analyze_handler,
+        get_handler=get_handler,
+        list_topics_handler=list_topics_handler,
+        metrics=metrics,
     )
-
-    logger.info("text_analysis.bootstrap.completed")
 
     return TextAnalysisModule(
-        service=text_analysis_service,
-        summarization=summarization_module,
-        sentiment=sentiment_module,
-        topic_modeling=topic_module,
+        service=service,
+        analyze_handler=analyze_handler,
+        get_handler=get_handler,
+        list_topics_handler=list_topics_handler,
+        repository=repo,
+        config=config,
     )
 
 
-def bind_text_analysis_module(
-    app: FastAPI, module: TextAnalysisModule | None
-) -> None:
-    """Expose text analysis stack dependencies when available."""
+def bind_text_analysis_module(app: FastAPI, module: TextAnalysisModule) -> None:
+    from .api.dependencies import get_text_analysis_service
 
-    if module is None:
+    app.dependency_overrides[get_text_analysis_service] = lambda: module.service
+
+
+def _seed_text_analysis_providers(registry: IProviderRegistry | None) -> None:
+    if registry is None:
         return
+    providers = [
+        Provider(
+            name="transformers",
+            provider_type=ProviderType.SENTIMENT_ANALYSIS,
+            status=ProviderStatus.ACTIVE,
+            capabilities=[ProviderCapability.BATCH_PROCESSING, ProviderCapability.MULTI_LANGUAGE],
+        ),
+        Provider(
+            name="sentence_transformers",
+            provider_type=ProviderType.EMBEDDING,
+            status=ProviderStatus.ACTIVE,
+            capabilities=[ProviderCapability.BATCH_PROCESSING, ProviderCapability.MULTI_LANGUAGE],
+        ),
+        Provider(
+            name="bertopic",
+            provider_type=ProviderType.TOPIC_MODELING,
+            status=ProviderStatus.ACTIVE,
+            capabilities=[ProviderCapability.BATCH_PROCESSING],
+        ),
+        Provider(
+            name="ollama",
+            provider_type=ProviderType.SUMMARIZATION,
+            status=ProviderStatus.ACTIVE,
+            capabilities=[ProviderCapability.BATCH_PROCESSING, ProviderCapability.MULTI_LANGUAGE, ProviderCapability.CUSTOM_MODELS],
+        ),
+    ]
 
-    app.dependency_overrides[get_text_analysis_dependencies] = lambda: module
-
-    if getattr(module, "summarization", None) is not None:
-        summarization = module.summarization
-
-        app.dependency_overrides[get_summarization_dependencies] = (
-            lambda: SummarizationDependencies(
-                service=summarization.service,
-                repository=summarization.repository,
-            )
-        )
-
-    if getattr(module, "sentiment", None) is not None:
-        sentiment = module.sentiment
-
-        app.dependency_overrides[get_sentiment_dependencies] = (
-            lambda: SentimentDependencies(
-                service=sentiment.service,
-                repository=sentiment.repository,
-            )
-        )
-
-    if getattr(module, "topic_modeling", None) is not None:
-        topic = module.topic_modeling
-        configure_topic_modeling_dependencies(
-            service=topic.service,
-            repository=topic.repository,
-        )
-
-
-__all__ = [
-    "TextAnalysisModule",
-    "bind_text_analysis_module",
-    "build_text_analysis_module",
-]
+    for provider in providers:
+        try:
+            registry.register_provider(provider)
+        except Exception:
+            continue

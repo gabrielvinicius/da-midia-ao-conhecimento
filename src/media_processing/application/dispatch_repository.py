@@ -6,6 +6,9 @@ from typing import Optional
 from uuid import UUID
 
 from src.shared.infrastructure.database import get_sync_session
+from src.media_management.infrastructure.media_repository_sync import (
+    MediaRepositorySync,
+)
 
 
 @dataclass(slots=True)
@@ -34,9 +37,12 @@ class MediaDispatchRepository:
             if media is None:
                 return None
 
-            media.status = MediaStatus.PROCESSING
-            media.error_message = None
-            session.flush()
+            MediaRepositorySync(session).update_status(
+                media_id,
+                MediaStatus.PROCESSING,
+                error_message=None,
+                force_notify=True,
+            )
 
             media_type_value = getattr(media, "media_type", None)
             if media_type_value is not None:
@@ -47,7 +53,7 @@ class MediaDispatchRepository:
                 file_path=media.original_file_path or "",
                 storage_provider=media.storage_provider or "local",
                 transcription_provider=media.transcription_provider or "fastwhisper",
-                language=media.language or "en",
+                language=media.language or "auto",
                 media_type=media_type_value,
                 file_size_bytes=getattr(media, "file_size", None),
                 summarization_provider=getattr(media, "summarization_provider", None),
@@ -64,9 +70,13 @@ class MediaDispatchRepository:
             media: MediaEntity | None = session.get(MediaEntity, media_id)
             if media is None:
                 return
-            media.status = MediaStatus.FAILED
-            media.error_message = truncated
-            session.flush()
+
+            MediaRepositorySync(session).update_status(
+                media_id,
+                MediaStatus.FAILED,
+                error_message=truncated,
+                force_notify=True,
+            )
 
 
 __all__ = ["DispatchRecord", "MediaDispatchRepository"]

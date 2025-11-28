@@ -127,10 +127,32 @@ async def test_handle_media_uploaded_swallows_task_errors(processing_service, mo
 
 
 @pytest.mark.asyncio
-async def test_handle_text_content_ready_is_noop(processing_service):
+async def test_handle_text_content_ready_triggers_analysis(monkeypatch, processing_service):
     service, *_ = processing_service
 
-    event = TextContentReady(media_id=str(uuid4()))
+    calls = {}
+
+    class DummyTask:
+        def __call__(self, payload):
+            calls["called"] = payload
+            return payload
+
+        def delay(self, payload):
+            calls["delayed"] = payload
+            return payload
+
+    dummy = DummyTask()
+    monkeypatch.setattr("src.text_analysis.tasks.analyze_task", dummy)
+
+    event = TextContentReady(
+        media_id=str(uuid4()),
+        transcription_id=str(uuid4()),
+        text_content="hello world",
+    )
 
     await service.handle_text_content_ready(event)
-    # No exception thrown and current implementation only logs.
+
+    assert "delayed" in calls or "called" in calls
+    payload = calls.get("delayed") or calls.get("called")
+    assert payload["media_id"] == event.media_id
+    assert payload["transcription_id"] == event.transcription_id

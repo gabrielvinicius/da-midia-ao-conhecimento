@@ -1,7 +1,2 @@
-"""Unified API entrypoint for text analysis."""
+"""API package for text_analysis."""
 
-from . import routers
-
-router = routers.router
-
-__all__ = ["router"]

@@ -35,6 +35,7 @@ from src.media_processing.transcription.api.dependencies import (
     TranscriptionDependencies,
     get_transcription_dependencies,
 )
+from src.providers.domain.interfaces import IProviderRegistry
 from src.media_processing.transcription.infrastructure.logging import (
     StructuredTranscriptionLogger,
 )
@@ -97,6 +98,7 @@ def build_media_components(
     metrics_service: Any,
     event_bus: Optional[SupportsEventBus] = None,
     emit_legacy_media_task: bool = True,
+    provider_registry: Optional[IProviderRegistry] = None,
 ) -> Tuple[MediaModule, MediaAdminContext]:
     """Compose the media module without relying on dependency-injector."""
     media_repository = MediaRepository(db=session)
@@ -130,12 +132,21 @@ def build_media_components(
     )
 
     video_metrics = PrometheusVideoProcessingMetrics()
+    # CQRS handlers for media processing
+    from src.media_processing.application.commands import (
+        RequestTranscriptionHandler,
+        RequestVideoProcessingHandler,
+    )
+
     processing_service = MediaProcessingService(
         transcription_service=transcription_service,
         transcription_queries=transcription_queries,
         video_service=video_processing_service,
         transcription_metrics=transcription_metrics,
         video_metrics=video_metrics,
+        request_transcription_handler=RequestTranscriptionHandler(transcription_service),
+        request_video_handler=RequestVideoProcessingHandler(video_processing_service),
+        provider_registry=provider_registry,
     )
 
     create_media_handler = CreateMediaCommandHandler.with_default_components(
@@ -144,6 +155,7 @@ def build_media_components(
         metrics_service=metrics_service,
         event_bus=event_bus,
         emit_legacy_task=emit_legacy_media_task,
+        provider_registry=provider_registry,
     )
 
     delete_media_handler = DeleteMediaCommandHandler(
@@ -168,6 +180,8 @@ def build_media_components(
         reprocess_media_handler=reprocess_media_handler,
         upload_validator=media_upload_validator,
         access_policy=media_access_policy,
+        provider_registry=provider_registry,
+        media_metrics=media_metrics,
     )
 
     orchestrator = MediaOrchestrator(

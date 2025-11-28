@@ -102,6 +102,14 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
         event_bus=event_bus,
     )
 
+    # Ensure the UI receives progress notifications for each stage.
+    media_repo.update_status(
+        payload.media_id,
+        MediaStatus.PROCESSING,
+        error_message=None,
+        force_notify=True,
+    )
+
     try:
         return service.process_transcription_job_sync(
             media_id=payload.media_id,
@@ -141,6 +149,13 @@ def run_video_job_sync(db, payload: VideoTaskPayload) -> Optional[dict]:
         video_processing_metrics=PrometheusVideoProcessingMetrics(),
     )
     media_repo = MediaRepositorySync(db=db)
+
+    media_repo.update_status(
+        payload.media_id,
+        MediaStatus.PROCESSING,
+        error_message=None,
+        force_notify=True,
+    )
 
     try:
         return service.process_video_job_sync(
