@@ -84,6 +84,12 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
     from src.media_processing.application.text_analysis_dispatcher import TextAnalysisDispatcher
 
     dispatcher = TextAnalysisDispatcher(event_bus=event_bus)
+    # Ensure text analysis handler is subscribed in the worker context
+    try:
+        media_processing_service = MediaProcessingServiceSingleton.get_instance()
+        event_bus.subscribe(TextContentReady, media_processing_service.handle_text_content_ready)
+    except Exception:
+        pass
 
     media = media_repo.get_by_id(payload.media_id)
     if media is None:
