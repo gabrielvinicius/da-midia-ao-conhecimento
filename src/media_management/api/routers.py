@@ -14,6 +14,7 @@ from src.shared.api.unified_schemas import (
     create_error_response,
     create_success_response,
 )
+from src.shared.exceptions.domain_exceptions import DomainException
 from src.user_management.domain.user import User
 
 from ..application.facade import MediaOrchestrator
@@ -62,6 +63,9 @@ async def create_media(
             topic_modeling_provider=topic_modeling_provider,
         )
         return jsonable_encoder(media)
+    except DomainException as e:
+        # Tratamento padronizado de erros de domínio
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
