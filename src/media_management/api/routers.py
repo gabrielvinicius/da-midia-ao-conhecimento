@@ -65,7 +65,16 @@ async def create_media(
             sentiment_provider=sentiment_provider,
             topic_modeling_provider=topic_modeling_provider,
         )
-        return jsonable_encoder(media)
+        
+        # Explicit mapping Domain -> DTO
+        return MediaResponse(
+            id=media.id,
+            filename=media.filename,
+            content_type=media.content_type,
+            size=media.file_size,
+            created_at=media.created_at,
+            status=media.status.value
+        )
     except DomainException as e:
         # Tratamento padronizado de erros de domínio
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
@@ -88,7 +97,17 @@ async def list_user_media(
     media_service: MediaService = Depends(get_media_service),
 ):
     media_list = await media_service.list_media_for_user(user_id=current_user.id)
-    return jsonable_encoder(media_list)
+    # Explicit mapping Domain -> DTO List
+    return [
+        MediaResponse(
+            id=media.id,
+            filename=media.filename,
+            content_type=media.content_type,
+            size=media.file_size,
+            created_at=media.created_at,
+            status=media.status.value
+        ) for media in media_list
+    ]
 
 @router.get("/{media_id}", response_model=MediaResponse, summary="Get a media item by its ID")
 async def get_media_by_id(
@@ -102,10 +121,17 @@ async def get_media_by_id(
             user_id=current_user.id,
             user_role=current_user.role,
         )
+        # Explicit mapping Domain -> DTO
+        return MediaResponse(
+            id=media.id,
+            filename=media.filename,
+            content_type=media.content_type,
+            size=media.file_size,
+            created_at=media.created_at,
+            status=media.status.value
+        )
     except (ValueError, PermissionError):
         raise HTTPException(status_code=404, detail="Media not found or not authorized")
-
-    return jsonable_encoder(media)
 
 
 @router.delete("/{media_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a media item")

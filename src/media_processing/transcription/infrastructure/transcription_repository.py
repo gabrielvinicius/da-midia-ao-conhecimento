@@ -33,9 +33,8 @@ class TranscriptionRepository:
         model = TranscriptionModel.from_domain(transcription)
         if isinstance(self.db, AsyncSession):
             self.db.add(model)
-            await self.db.flush()
+            await self.db.commit() # Flush + Commit
             await self.db.refresh(model)
-            # Update domain object with potentially new ID or defaults
             transcription.id = model.id
         else:  # It's a sync session
             self.add_sync(transcription)
@@ -43,26 +42,23 @@ class TranscriptionRepository:
     def add_sync(self, transcription: Transcription) -> Transcription:
         model = TranscriptionModel.from_domain(transcription)
         self.db.add(model)
-        self.db.flush()
-        # Refresh to get the newly assigned ID
+        self.db.commit() # Flush + Commit
         self.db.refresh(model)
         transcription.id = model.id
         return transcription
 
     async def update(self, transcription: Transcription) -> None:
-        # For update, we typically merge or query-then-update.
-        # Merging is safest for detached objects.
         model = TranscriptionModel.from_domain(transcription)
         if isinstance(self.db, AsyncSession):
             await self.db.merge(model)
-            await self.db.flush()
+            await self.db.commit() # Flush + Commit
         else:  # It's a sync session
             self.update_sync(transcription)
 
     def update_sync(self, transcription: Transcription) -> Transcription:
         model = TranscriptionModel.from_domain(transcription)
         self.db.merge(model)
-        self.db.flush()
+        self.db.commit() # Flush + Commit
         return transcription
 
     async def get_by_media_id(self, media_id: UUID) -> Optional[Transcription]:
@@ -85,7 +81,7 @@ class TranscriptionRepository:
             result = await self.db.execute(stmt)
             for entity in result.scalars().all():
                 await self.db.delete(entity)
-            await self.db.flush()
+            await self.db.commit()
         else:
             self.delete_by_media_id_sync(media_id)
 
@@ -94,4 +90,4 @@ class TranscriptionRepository:
         result = self.db.execute(stmt)
         for entity in result.scalars().all():
             self.db.delete(entity)
-        self.db.flush()
+        self.db.commit()

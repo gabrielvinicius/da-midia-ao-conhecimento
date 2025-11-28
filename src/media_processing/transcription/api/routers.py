@@ -52,7 +52,21 @@ async def get_transcription_by_media_id(
     transcription = await transcription_queries.get_by_media_id(media_id)
     if not transcription:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcription not found for the given media ID")
-    return transcription
+    
+    # Explicit mapping
+    return TranscriptionResponse(
+        id=transcription.id,
+        media_id=transcription.media_id,
+        content=transcription.content,
+        language=transcription.language,
+        status=transcription.status.value,
+        confidence_score=transcription.confidence_score,
+        created_at=transcription.created_at,
+        processed_at=transcription.processed_at,
+        speaker_labels=transcription.speaker_labels,
+        segments=transcription.segments,
+        error_message=transcription.error_message
+    )
 
 
 @router.get("/{transcription_id}", response_model=TranscriptionResponse, summary="Get a transcription by its ID")
@@ -64,7 +78,21 @@ async def get_transcription_by_id(
     transcription = await transcription_queries.get_by_id(transcription_id)
     if not transcription:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcription not found")
-    return transcription
+    
+    # Explicit mapping
+    return TranscriptionResponse(
+        id=transcription.id,
+        media_id=transcription.media_id,
+        content=transcription.content,
+        language=transcription.language,
+        status=transcription.status.value,
+        confidence_score=transcription.confidence_score,
+        created_at=transcription.created_at,
+        processed_at=transcription.processed_at,
+        speaker_labels=transcription.speaker_labels,
+        segments=transcription.segments,
+        error_message=transcription.error_message
+    )
 
 
 @router.post("/reprocess", response_model=BaseResponseSchema, summary="Reprocess transcription")
