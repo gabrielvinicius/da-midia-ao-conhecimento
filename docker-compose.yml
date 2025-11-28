@@ -1,4 +1,4 @@
-version: '3.8'
+# Compose specification (v2), version field no longer required
 
 services:
   postgres:
