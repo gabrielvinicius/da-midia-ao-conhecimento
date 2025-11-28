@@ -79,7 +79,8 @@ async def create_media(
             filename=file.filename if file else None,
             user_id=str(current_user.id),
         )
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Upload failed")
+        # Retorna a mensagem do erro para facilitar diagnóstico do 500 em ambiente de dev
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
 
 @router.get("/", response_model=List[MediaResponse], summary="List all media for the current user")
 async def list_user_media(
