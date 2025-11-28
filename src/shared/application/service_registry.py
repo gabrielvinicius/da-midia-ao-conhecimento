@@ -101,6 +101,10 @@ def build_domain_service_registry(
     text_analysis: object | None = None,
 ) -> DomainServiceRegistry:
     """Instantiate the registry with legacy modules and placeholder facades."""
+    text_analysis_facade = None
+    if text_analysis is not None and getattr(text_analysis, "service", None):
+        text_analysis_facade = text_analysis.service
+
     return DomainServiceRegistry(
         user_management=ModuleBinding(
             legacy=user_management,
@@ -116,7 +120,7 @@ def build_domain_service_registry(
         ),
         text_analysis=ModuleBinding(
             legacy=text_analysis,
-            facade=TextAnalysisService(),
+            facade=text_analysis_facade,
         ),
     )
 
