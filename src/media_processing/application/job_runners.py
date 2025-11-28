@@ -39,11 +39,7 @@ from src.media_processing.video_processing.infrastructure.video_audio_extractor 
 from src.media_processing.video_processing.infrastructure.video_thumbnail_generator import (
     FFmpegVideoThumbnailGenerator,
 )
-from src.shared.event_bus_factory import get_event_bus
-from src.shared.events.domain_events import TextContentReady
 from src.storage.infrastructure.dependencies import StorageServiceFactory
-from src.text_analysis.application.event_handlers import build_text_content_ready_handler
-from src.text_analysis.application.services import TextAnalysisService
 
 
 class _NoopTranscriptionTaskScheduler:
@@ -82,13 +78,6 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
     transcription_repo = TranscriptionRepository(db)
     media_repo = MediaRepositorySync(db=db)
     media_queries = MediaQueriesSync(media_repository=media_repo)
-
-    event_bus = get_event_bus()
-    text_analysis_service = TextAnalysisService()
-    event_bus.subscribe(
-        TextContentReady,
-        build_text_content_ready_handler(text_analysis_service),
-    )
 
     service = TranscriptionService(
         transcription_repo=transcription_repo,
