@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Upgrade pip and install Python dependencies
 COPY requirements.txt .
 RUN pip install --upgrade pip setuptools wheel && \
-    pip install --user --no-cache-dir --no-warn-script-location -r requirements.txt
+    pip install --user --no-warn-script-location -r requirements.txt
 
 # Stage 2: Runtime
 FROM base AS runtime
