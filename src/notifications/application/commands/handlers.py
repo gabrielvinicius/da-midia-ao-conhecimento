@@ -45,6 +45,7 @@ class RequestNotificationCommandHandler:
             message=command.message,
             notification_type=command.notification_type.value,
             contact_info=contact_info,
+            correlation_id=command.correlation_id if hasattr(command, "correlation_id") else None,
         )
         await self._event_bus.publish(event)
 

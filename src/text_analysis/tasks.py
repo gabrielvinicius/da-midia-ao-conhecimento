@@ -47,6 +47,7 @@ def _task_body(payload: Dict[str, Any], *, op_name: str = "analyze_task") -> Dic
     # Propagate media_id into metrics labels when supported
     if hasattr(service._metrics, "set_context"):
         service._metrics.set_context(payload.get("media_id"), payload.get("user_id"))
+    correlation_id = payload.get("correlation_id") or payload.get("media_id") or "n/a"
     loop = asyncio.get_event_loop()
     start = time.perf_counter()
     success = False

@@ -39,7 +39,7 @@ def _resolve_task_executor(action: DispatchAction):
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
 def process_media_task(self, media_id: str) -> None:
     """Entry point that dispatches concrete processing tasks for a media item."""
-    logger.info("media_processing.dispatch.started", media_id=media_id)
+    logger.info("media_processing.dispatch.started", media_id=media_id, correlation_id=media_id)
 
     try:
         media_uuid = UUID(str(media_id))
@@ -65,6 +65,7 @@ def process_media_task(self, media_id: str) -> None:
                 "media_processing.dispatch.action_enqueued",
                 media_id=media_id,
                 action=action.name,
+                correlation_id=media_id,
             )
         except ValidationError as exc:
             logger.error(
@@ -86,7 +87,7 @@ def process_media_task(self, media_id: str) -> None:
                 _dispatch_orchestrator.mark_failed(media_uuid, f"failed to enqueue {action.name} task")
                 raise
 
-    logger.info("media_processing.dispatch.completed", media_id=media_id)
+    logger.info("media_processing.dispatch.completed", media_id=media_id, correlation_id=media_id)
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
 def process_transcription_task(
@@ -102,6 +103,7 @@ def process_transcription_task(
     topic_modeling_provider: Optional[str] = None,
     correlation_id: Optional[str] = None,
 ) -> Optional[str]:
+    correlation_id = correlation_id or media_id
     try:
         payload = TranscriptionTaskPayload.model_validate(
             {
@@ -117,11 +119,12 @@ def process_transcription_task(
             }
         )
     except ValidationError as exc:
-        logger.error(
-            "transcription.task_invalid_media_id",
-            media_id=media_id,
-            errors=exc.errors(),
-        )
+            logger.error(
+                "transcription.task_invalid_media_id",
+                media_id=media_id,
+                errors=exc.errors(),
+                correlation_id=correlation_id,
+            )
         return None
 
     try:
@@ -133,6 +136,7 @@ def process_transcription_task(
             extra={
                 "media_id": media_id,
                 "error": str(e),
+                "correlation_id": correlation_id,
             },
             exc_info=True,
         )
@@ -148,6 +152,7 @@ def process_video_task(
     file_size_bytes: Optional[int] = None,
     correlation_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
+    correlation_id = correlation_id or media_id
     try:
         payload = VideoTaskPayload.model_validate(
             {
@@ -162,6 +167,7 @@ def process_video_task(
             "video_processing.task_invalid_payload",
             media_id=media_id,
             errors=exc.errors(),
+            correlation_id=correlation_id,
         )
         return None
 
@@ -174,6 +180,7 @@ def process_video_task(
             extra={
                 "media_id": media_id,
                 "error": str(e),
+                "correlation_id": correlation_id,
             },
             exc_info=True,
         )
