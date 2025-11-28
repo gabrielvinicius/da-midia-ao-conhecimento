@@ -190,142 +190,143 @@ class MediaProcessingService:
 
         try:
             media_id = UUID(event.media_id)
-        except (ValueError, TypeError) as exc:
-            self._logger.warning(
-                "media_uploaded.invalid_media_id",
-                media_id=event.media_id,
-                error=str(exc),
+
+            file_path = (
+                context.get("file_path")
+                or getattr(event, "file_path", None)
+                or event.filename
             )
-            return
+            if not file_path:
+                self._logger.warning(
+                    "media_uploaded.missing_file_path",
+                    media_id=str(media_id),
+                )
+                return
 
-        file_path = (
-            context.get("file_path")
-            or getattr(event, "file_path", None)
-            or event.filename
-        )
-        if not file_path:
-            self._logger.warning(
-                "media_uploaded.missing_file_path",
-                media_id=str(media_id),
+            correlation_id = event.correlation_id or str(media_id)
+
+            storage_provider = event.storage_provider or context.get("storage_provider") or "local"
+            transcription_provider = self._validate_provider(
+                event.transcription_provider
+                or context.get("transcription_provider")
+                or context.get("provider")
+                or "fastwhisper",
+                ProviderType.TRANSCRIPTION,
             )
-            return
-
-        correlation_id = event.correlation_id or str(media_id)
-
-        storage_provider = event.storage_provider or context.get("storage_provider") or "local"
-        transcription_provider = self._validate_provider(
-            event.transcription_provider
-            or context.get("transcription_provider")
-            or context.get("provider")
-            or "fastwhisper",
-            ProviderType.TRANSCRIPTION,
-        )
-        summarization_provider = self._validate_provider(
-            event.summarization_provider or context.get("summarization_provider"),
-            ProviderType.SUMMARIZATION,
-        )
-        sentiment_provider = self._validate_provider(
-            event.sentiment_provider or context.get("sentiment_provider"),
-            ProviderType.SENTIMENT_ANALYSIS,
-        )
-        topic_provider = self._validate_provider(
-            event.topic_modeling_provider or context.get("topic_modeling_provider"),
-            ProviderType.TOPIC_MODELING,
-        )
-        language = event.language or context.get("language") or "auto"
-        file_size_bytes = event.file_size_bytes or context.get("file_size_bytes") or 0
-        media_type_value = event.media_type or context.get("media_type")
-        media_type = None
-        media_enum = None
-        try:
-            from src.media_management.domain.enums import MediaType as _MediaType
-
-            media_enum = _MediaType
-            if isinstance(media_type_value, _MediaType):
-                media_type = media_type_value
-            elif media_type_value is not None:
-                candidate = str(media_type_value).upper()
-                media_type = _MediaType(candidate)
-        except Exception:
+            summarization_provider = self._validate_provider(
+                event.summarization_provider or context.get("summarization_provider"),
+                ProviderType.SUMMARIZATION,
+            )
+            sentiment_provider = self._validate_provider(
+                event.sentiment_provider or context.get("sentiment_provider"),
+                ProviderType.SENTIMENT_ANALYSIS,
+            )
+            topic_provider = self._validate_provider(
+                event.topic_modeling_provider or context.get("topic_modeling_provider"),
+                ProviderType.TOPIC_MODELING,
+            )
+            language = event.language or context.get("language") or "auto"
+            file_size_bytes = event.file_size_bytes or context.get("file_size_bytes") or 0
+            media_type_value = event.media_type or context.get("media_type")
             media_type = None
-
-        if media_enum and media_type == media_enum.TEXT:
-            self._logger.debug(
-                "media_uploaded.transcription_task_skipped",
-                media_id=str(media_id),
-                reason="text_document",
-            )
-        else:
+            media_enum = None
             try:
-                transcription_payload = TranscriptionTaskPayload(
-                    media_id=media_id,
-                    file_path=file_path,
-                    storage_provider=storage_provider,
-                    transcription_provider=transcription_provider,
-                    language=language,
-                    summarization_provider=summarization_provider,
-                    sentiment_provider=sentiment_provider,
-                    topic_modeling_provider=topic_provider,
-                    file_size_bytes=file_size_bytes,
-                )
-                process_transcription_task.delay(
-                    **transcription_payload.model_dump(mode="json"),
-                    correlation_id=correlation_id,
-                )
-                self._logger.debug(
-                    "media_uploaded.transcription_task_enqueued",
-                    media_id=str(media_id),
-                    storage_provider=storage_provider,
-                    transcription_provider=transcription_provider,
-                    language=language,
-                )
-            except ValidationError as exc:
-                self._logger.error(
-                    "media_uploaded.transcription_payload_invalid",
-                    media_id=str(media_id),
-                    errors=exc.errors(),
-                )
-            except Exception as exc:  # pragma: no cover - defensive logging
-                self._logger.error(
-                    "media_uploaded.transcription_enqueue_failed",
-                    media_id=str(media_id),
-                    error=str(exc),
-                )
+                from src.media_management.domain.enums import MediaType as _MediaType
 
-        if media_enum and media_type == media_enum.VIDEO:
-            try:
-                video_payload = VideoTaskPayload(
-                    media_id=media_id,
-                    file_path=file_path,
-                    storage_provider=storage_provider,
-                    file_size_bytes=file_size_bytes,
-                )
-                process_video_task.delay(**video_payload.model_dump(mode="json"))
+                media_enum = _MediaType
+                if isinstance(media_type_value, _MediaType):
+                    media_type = media_type_value
+                elif media_type_value is not None:
+                    candidate = str(media_type_value).upper()
+                    media_type = _MediaType(candidate)
+            except Exception:
+                media_type = None
+
+            if media_enum and media_type == media_enum.TEXT:
                 self._logger.debug(
-                    "media_uploaded.video_task_enqueued",
+                    "media_uploaded.transcription_task_skipped",
                     media_id=str(media_id),
-                    storage_provider=storage_provider,
-                    file_size_bytes=file_size_bytes,
+                    reason="text_document",
                 )
-            except ValidationError as exc:
-                self._logger.error(
-                    "media_uploaded.video_payload_invalid",
+            else:
+                try:
+                    transcription_payload = TranscriptionTaskPayload(
+                        media_id=media_id,
+                        file_path=file_path,
+                        storage_provider=storage_provider,
+                        transcription_provider=transcription_provider,
+                        language=language,
+                        summarization_provider=summarization_provider,
+                        sentiment_provider=sentiment_provider,
+                        topic_modeling_provider=topic_provider,
+                        file_size_bytes=file_size_bytes,
+                    )
+                    process_transcription_task.delay(
+                        **transcription_payload.model_dump(mode="json"),
+                        correlation_id=correlation_id,
+                    )
+                    self._logger.debug(
+                        "media_uploaded.transcription_task_enqueued",
+                        media_id=str(media_id),
+                        storage_provider=storage_provider,
+                        transcription_provider=transcription_provider,
+                        language=language,
+                    )
+                except ValidationError as exc:
+                    self._logger.error(
+                        "media_uploaded.transcription_payload_invalid",
+                        media_id=str(media_id),
+                        errors=exc.errors(),
+                    )
+                except Exception as exc:  # pragma: no cover - defensive logging
+                    self._logger.error(
+                        "media_uploaded.transcription_enqueue_failed",
+                        media_id=str(media_id),
+                        error=str(exc),
+                    )
+
+            if media_enum and media_type == media_enum.VIDEO:
+                try:
+                    video_payload = VideoTaskPayload(
+                        media_id=media_id,
+                        file_path=file_path,
+                        storage_provider=storage_provider,
+                        file_size_bytes=file_size_bytes,
+                    )
+                    process_video_task.delay(**video_payload.model_dump(mode="json"))
+                    self._logger.debug(
+                        "media_uploaded.video_task_enqueued",
+                        media_id=str(media_id),
+                        storage_provider=storage_provider,
+                        file_size_bytes=file_size_bytes,
+                    )
+                except ValidationError as exc:
+                    self._logger.error(
+                        "media_uploaded.video_payload_invalid",
+                        media_id=str(media_id),
+                        errors=exc.errors(),
+                    )
+                except Exception as exc:  # pragma: no cover - defensive logging
+                    self._logger.error(
+                        "media_uploaded.video_enqueue_failed",
+                        media_id=str(media_id),
+                        error=str(exc),
+                    )
+            else:
+                self._logger.debug(
+                    "media_uploaded.video_task_skipped",
                     media_id=str(media_id),
-                    errors=exc.errors(),
+                    reason="non_video_media",
+                    media_type=str(media_type) if media_type else str(media_type_value),
                 )
-            except Exception as exc:  # pragma: no cover - defensive logging
-                self._logger.error(
-                    "media_uploaded.video_enqueue_failed",
-                    media_id=str(media_id),
-                    error=str(exc),
-                )
-        else:
-            self._logger.debug(
-                "media_uploaded.video_task_skipped",
-                media_id=str(media_id),
-                reason="non_video_media",
-                media_type=str(media_type) if media_type else str(media_type_value),
+        except Exception as exc:  # pragma: no cover - defensive catch
+            self._logger.error(
+                "media_uploaded.handler_failed",
+                media_id=getattr(event, "media_id", None),
+                error=str(exc),
+                correlation_id=getattr(event, "correlation_id", None),
             )
+            return
 
     async def handle_text_content_ready(
         self,
