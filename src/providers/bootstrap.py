@@ -156,6 +156,14 @@ def _seed_default_providers(registry: IProviderRegistry) -> None:
                 ProviderCapability.BATCH_PROCESSING,
             ],
         )),
+        _with_metadata(Provider(
+            name="bertopic",
+            provider_type=ProviderType.TOPIC_MODELING,
+            status=ProviderStatus.ACTIVE,
+            capabilities=[
+                ProviderCapability.BATCH_PROCESSING,
+            ],
+        )),
     ]
 
     for provider in defaults:
