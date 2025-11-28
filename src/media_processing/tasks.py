@@ -18,21 +18,24 @@ from src.media_processing.application.schemas import (
     VideoTaskPayload,
 )
 from src.shared.infrastructure.database import get_sync_session
+from src.shared.events.integration_events import (
+    TASK_MEDIA_TRANSCRIPTION,
+    TASK_MEDIA_VIDEO_PROCESSING,
+    TASK_TEXT_ANALYSIS_ANALYZE,
+)
 
 logger = structlog.get_logger(__name__)
 
 _dispatch_orchestrator = MediaDispatchOrchestrator()
 
 
-def _resolve_task_executor(action: DispatchAction):
+def _resolve_task_name(action: DispatchAction) -> str:
     if action.name == "text_document":
-        from src.text_analysis.tasks import process_text_document_task
-
-        return process_text_document_task
+        return TASK_TEXT_ANALYSIS_ANALYZE
     if action.name == "transcription":
-        return process_transcription_task
+        return TASK_MEDIA_TRANSCRIPTION
     if action.name == "video":
-        return process_video_task
+        return TASK_MEDIA_VIDEO_PROCESSING
     raise KeyError(action.name)
 
 
@@ -57,14 +60,15 @@ def process_media_task(self, media_id: str) -> None:
         return
 
     for action in actions:
-        task = None
         try:
-            task = _resolve_task_executor(action)
-            task.delay(**action.payload)
+            task_name = _resolve_task_name(action)
+            # Use send_task for loose coupling (no direct imports of other modules)
+            self.app.send_task(task_name, kwargs=action.payload)
             logger.info(
                 "media_processing.dispatch.action_enqueued",
                 media_id=media_id,
                 action=action.name,
+                target_task=task_name,
                 correlation_id=media_id,
             )
         except ValidationError as exc:
@@ -89,7 +93,13 @@ def process_media_task(self, media_id: str) -> None:
 
     logger.info("media_processing.dispatch.completed", media_id=media_id, correlation_id=media_id)
 
-@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
+@shared_task(
+    bind=True, 
+    name=TASK_MEDIA_TRANSCRIPTION, 
+    autoretry_for=(Exception,), 
+    retry_backoff=True, 
+    max_retries=5
+)
 def process_transcription_task(
     self,
     media_id: str,
@@ -101,6 +111,7 @@ def process_transcription_task(
     sentiment_provider: Optional[str] = None,
     topic_modeling_provider: Optional[str] = None,
     correlation_id: Optional[str] = None,
+    **kwargs, 
 ) -> Optional[str]:
     correlation_id = correlation_id or media_id
     try:
@@ -127,7 +138,28 @@ def process_transcription_task(
 
     try:
         with get_sync_session() as db:
-            return run_transcription_job_sync(db, payload)
+            transcription_text = run_transcription_job_sync(db, payload)
+            
+        # CHAINING: Automatically trigger text analysis if successful
+        if transcription_text:
+            logger.info("transcription.task.completed_triggering_analysis", media_id=media_id)
+            
+            analysis_payload = {
+                "media_id": media_id,
+                # We do not pass the huge text payload to avoid Broker limits.
+                # The Text Analysis service should fetch it via Storage/DB using media_id.
+                "language": language,
+                "summarization_provider": summarization_provider,
+                "sentiment_provider": sentiment_provider,
+                "topic_modeling_provider": topic_modeling_provider,
+                "provider": summarization_provider, 
+                "correlation_id": correlation_id
+            }
+            
+            self.app.send_task(TASK_TEXT_ANALYSIS_ANALYZE, kwargs=analysis_payload)
+            
+        return transcription_text
+
     except Exception as e:
         logger.error(
             "transcription.task_failed",
@@ -141,20 +173,27 @@ def process_transcription_task(
         raise
 
 
-@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=5)
+@shared_task(
+    bind=True, 
+    name=TASK_MEDIA_VIDEO_PROCESSING, 
+    autoretry_for=(Exception,), 
+    retry_backoff=True, 
+    max_retries=5
+)
 def process_video_task(
     self,
     media_id: str,
+    # file_path removed
     storage_provider: str,
     file_size_bytes: Optional[int] = None,
     correlation_id: Optional[str] = None,
+    **kwargs,
 ) -> Optional[Dict[str, Any]]:
     correlation_id = correlation_id or media_id
     try:
         payload = VideoTaskPayload.model_validate(
             {
                 "media_id": media_id,
-                "file_path": file_path,
                 "storage_provider": storage_provider,
                 "file_size_bytes": file_size_bytes,
             }

@@ -17,6 +17,12 @@ from .application.service import TextAnalysisService
 from src.shared.infrastructure.database import get_sync_session
 from src.shared.event_bus_factory import get_event_bus
 from .bootstrap import build_text_analysis_module
+from src.shared.events.integration_events import (
+    TASK_TEXT_ANALYSIS_ANALYZE,
+    TASK_TEXT_ANALYSIS_SUMMARIZE,
+    TASK_TEXT_ANALYSIS_SENTIMENT,
+    TASK_TEXT_ANALYSIS_TOPIC_MODELING,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +142,7 @@ def _task_body(payload: Dict[str, Any], *, op_name: str = "analyze_task") -> Dic
 if shared_task:
 
     @shared_task(
-        name="text_analysis.analyze",
+        name=TASK_TEXT_ANALYSIS_ANALYZE,
         autoretry_for=(Exception,),
         retry_backoff=True,
         max_retries=3,
@@ -145,7 +151,7 @@ if shared_task:
         return _task_body(payload, op_name="analyze_task")
 
     @shared_task(
-        name="text_analysis.summarize",
+        name=TASK_TEXT_ANALYSIS_SUMMARIZE,
         autoretry_for=(Exception,),
         retry_backoff=True,
         max_retries=3,
@@ -154,7 +160,7 @@ if shared_task:
         return _task_body(payload, op_name="summarization")
 
     @shared_task(
-        name="text_analysis.sentiment",
+        name=TASK_TEXT_ANALYSIS_SENTIMENT,
         autoretry_for=(Exception,),
         retry_backoff=True,
         max_retries=3,
@@ -163,7 +169,7 @@ if shared_task:
         return _task_body(payload, op_name="sentiment")
 
     @shared_task(
-        name="text_analysis.topic_modeling",
+        name=TASK_TEXT_ANALYSIS_TOPIC_MODELING,
         autoretry_for=(Exception,),
         retry_backoff=True,
         max_retries=3,

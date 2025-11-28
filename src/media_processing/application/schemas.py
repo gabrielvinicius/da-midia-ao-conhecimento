@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 class MediaTaskPayload(BaseModel):
@@ -28,12 +28,7 @@ class TranscriptionTaskPayload(MediaTaskPayload):
 
 class VideoTaskPayload(MediaTaskPayload):
     """Payload specific for video processing tasks."""
-
-    @model_validator(mode="after")
-    def ensure_extension(self) -> "VideoTaskPayload":
-        if not self.file_path:
-            raise ValueError("file_path must be provided for video processing")
-        return self
+    pass
 
 
 __all__ = [
