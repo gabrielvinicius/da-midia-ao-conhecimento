@@ -16,6 +16,7 @@ from src.shared.api.unified_schemas import (
 )
 from src.shared.exceptions.domain_exceptions import DomainException
 from src.user_management.domain.user import User
+from src.shared.infrastructure.logging_config import get_logger
 
 from ..application.facade import MediaOrchestrator
 from ..application.services import MediaService
@@ -33,6 +34,8 @@ router = APIRouter(
     prefix="/media",
     tags=["Media"],
 )
+
+logger = get_logger("media_api")
 
 @router.post(
     "/",
@@ -68,6 +71,15 @@ async def create_media(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as exc:  # pragma: no cover - defensive catch-all
+        logger.error(
+            "media_api.upload_failed",
+            error=str(exc),
+            exc_info=True,
+            filename=file.filename if file else None,
+            user_id=str(current_user.id),
+        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Upload failed")
 
 @router.get("/", response_model=List[MediaResponse], summary="List all media for the current user")
 async def list_user_media(
