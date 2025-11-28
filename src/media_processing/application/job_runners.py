@@ -82,6 +82,10 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
     media_repo = MediaRepositorySync(db=db)
     media_queries = MediaQueriesSync(media_repository=media_repo)
 
+    from src.media_processing.application.text_analysis_dispatcher import TextAnalysisDispatcher
+
+    dispatcher = TextAnalysisDispatcher(event_bus=event_bus)
+
     service = TranscriptionService(
         transcription_repo=transcription_repo,
         task_scheduler=_NoopTranscriptionTaskScheduler(),
@@ -92,6 +96,7 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
         db_session=db,
         media_queries=media_queries,
         event_bus=event_bus,
+        dispatcher=dispatcher,
     )
 
     # Ensure the UI receives progress notifications for each stage.

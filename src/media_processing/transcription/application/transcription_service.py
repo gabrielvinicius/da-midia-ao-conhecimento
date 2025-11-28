@@ -38,6 +38,7 @@ class TranscriptionService:
         *,
         media_queries: "MediaQueries" | None = None,
         event_bus: SupportsEventBus | None = None,
+        dispatcher: Any | None = None,
     ):
         self.transcription_repo = transcription_repo
         self.task_scheduler = task_scheduler
@@ -48,6 +49,7 @@ class TranscriptionService:
         self.db_session = db_session  # This should be a sync session for Celery
         self._media_queries = media_queries
         self._event_bus = event_bus
+        self._dispatcher = dispatcher
 
     def process_transcription_job_sync(
         self,
@@ -224,9 +226,6 @@ class TranscriptionService:
         topic_modeling_provider: Optional[str] = None,
     ) -> None:
         """Synchronous version of publishing text content ready event."""
-        if self._event_bus is None:
-            return
-
         text_content = (transcription.text or "").strip()
         if not text_content:
             logger.info(
@@ -246,84 +245,20 @@ class TranscriptionService:
             sentiment_provider=sentiment_provider,
             topic_provider=topic_modeling_provider,
         )
-        event = TextContentReady(
-            media_id=str(transcription.media_id),
-            transcription_id=str(transcription.id),
-            text_content=text_content,
-            metadata=metadata,
-        )
-
         try:
-            # Use sync publishing if available, otherwise use async in new thread
-            if hasattr(self._event_bus, 'publish_sync'):
-                self._event_bus.publish_sync(event)
-            else:
-                import concurrent.futures
-                def run_async():
-                    import asyncio
-                    return asyncio.run(self._event_bus.publish(event))
-
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(run_async)
-                    future.result()  # Wait for the event to be published
-            # Fire downstream text analysis tasks even if no subscribers are attached in this process
-            self._enqueue_text_analysis_tasks(transcription, metadata)
+            self._dispatcher.dispatch(
+                transcription_id=str(transcription.id),
+                media_id=str(transcription.media_id),
+                text=text_content,
+                metadata=metadata,
+                correlation_id=None,
+            )
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.warning(
-                "transcription_service.text_event_failed_sync",
+                "transcription_service.text_dispatch_failed",
                 media_id=str(transcription.media_id),
                 error=str(exc),
             )
-
-    def _enqueue_text_analysis_tasks(self, transcription: Transcription, metadata: Dict[str, Any]) -> None:
-        """Enqueue summarization/sentiment/topic tasks directly from worker."""
-        try:
-            from src.text_analysis.tasks import (
-                summarize_task,
-                sentiment_task,
-                topic_modeling_task,
-            )
-        except Exception as exc:  # pragma: no cover
-            logger.warning(
-                "transcription_service.text_tasks_unavailable",
-                transcription_id=str(transcription.id),
-                error=str(exc),
-            )
-            return
-
-        base_payload: Dict[str, Any] = {
-            "text": transcription.text,
-            "media_id": str(transcription.media_id),
-            "transcription_id": str(transcription.id),
-            "language": metadata.get("language"),
-        }
-
-        jobs = [
-            (summarize_task, {**base_payload, "provider": metadata.get("summarization_provider")}, "summarization"),
-            (sentiment_task, {**base_payload, "provider": metadata.get("sentiment_provider")}, "sentiment"),
-            (topic_modeling_task, {**base_payload, "provider": metadata.get("topic_provider")}, "topic_modeling"),
-        ]
-
-        for task_fn, payload, name in jobs:
-            try:
-                if hasattr(task_fn, "delay"):
-                    task_fn.delay(payload)
-                else:
-                    task_fn(payload)
-                logger.info(
-                    "transcription_service.text_task_enqueued",
-                    transcription_id=str(transcription.id),
-                    media_id=str(transcription.media_id),
-                    task=name,
-                )
-            except Exception as exc:  # pragma: no cover
-                logger.error(
-                    "transcription_service.text_task_failed",
-                    transcription_id=str(transcription.id),
-                    media_id=str(transcription.media_id),
-                    task=name,
-                    error=str(exc),
-                )
 
     def _build_text_ready_metadata(
         self,
