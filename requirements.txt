@@ -24,8 +24,8 @@ aiocache>=0.12.2
 aiofiles>=24.2.0
 
 # AI / Machine Learning (CUDA enabled)
---extra-index-url https://download.pytorch.org/whl/cu121
-torch==2.5.0+cu121
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.5.0+cu130
 transformers>=4.46.0
 faster-whisper>=1.1.0
 ctranslate2>=3.24.0
