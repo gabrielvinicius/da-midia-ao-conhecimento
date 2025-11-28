@@ -16,9 +16,7 @@ from src.shared.config.settings import settings
 from src.user_management.domain.user import User
 from src.media_management.infrastructure.orm.media_entity import MediaEntity
 from src.media_processing.transcription.domain.transcription import Transcription
-from src.text_analysis.summarization.infrastructure.orm.summary_entity import SummaryEntity
-from src.text_analysis.sentiment_analysis.domain.sentiment_analysis import SentimentAnalysis
-from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult
+# Legacy text_analysis submodules removed; current analyses live in consolidated tables
 
 # ---------------------------------------------------
 
