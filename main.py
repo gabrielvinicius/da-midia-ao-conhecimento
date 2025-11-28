@@ -130,21 +130,6 @@ async def lifespan(app: FastAPI):
                 provider_registry=providers_module.provider_registry,
                 event_bus=event_bus,
             )
-
-            if getattr(text_analysis_module, "topic_modeling", None) is None:
-                try:
-                    from src.text_analysis.topic_modeling.bootstrap import (
-                        build_topic_modeling_module,
-                    )
-
-                    topic_module = await build_topic_modeling_module(
-                        session=session,
-                        text_analysis_service=text_analysis_module.service,
-                        provider_registry=providers_module.provider_registry,
-                    )
-                    text_analysis_module.topic_modeling = topic_module
-                except Exception as exc:  # pragma: no cover
-                    logger.warning("topic_modeling.bootstrap_failed", error=str(exc))
         else:
             logger.warning("text_analysis.bootstrap_skipped", reason="lightweight_mode")
             text_analysis_module = SimpleNamespace(service=None)
