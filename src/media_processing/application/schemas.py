@@ -24,6 +24,7 @@ class TranscriptionTaskPayload(MediaTaskPayload):
     summarization_provider: Optional[str] = Field(default=None)
     sentiment_provider: Optional[str] = Field(default=None)
     topic_modeling_provider: Optional[str] = Field(default=None)
+    correlation_id: Optional[str] = None
 
 
 class VideoTaskPayload(MediaTaskPayload):

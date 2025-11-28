@@ -30,31 +30,28 @@ class StorageClientAdapter:
         content_type: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        await self.backend.upload(destination_path, content)
+        # Ensure deterministic, non-legacy path layout
+        normalized_path = str(Path(destination_path))
+        await self.backend.upload(normalized_path, content)
         return {
-            "path": destination_path,
+            "path": normalized_path,
             "provider": self.backend.provider_name,
             "content_type": content_type or "application/octet-stream",
             "metadata": metadata or {},
         }
 
     async def download(self, file_path: str):
-        result = await self.backend.download(file_path)
-        if result is None:
-            legacy = self._legacy_lookup(file_path)
-            if legacy is not None:
-                return legacy, Path(file_path).name
+        normalized_path = str(Path(file_path))
+        result = await self.backend.download(normalized_path)
         return result
 
     async def download_file(self, file_path: str) -> bytes:
-        result = await self.backend.download(file_path)
+        normalized_path = str(Path(file_path))
+        result = await self.backend.download(normalized_path)
         if result is None:
-            legacy_bytes = self._legacy_lookup(file_path)
-            if legacy_bytes is None:
-                raise FileNotFoundError(
-                    f"File '{file_path}' not found in storage provider '{self.backend.provider_name}'"
-                )
-            return legacy_bytes
+            raise FileNotFoundError(
+                f"File '{normalized_path}' not found in storage provider '{self.backend.provider_name}'"
+            )
         payload, _ = result
         return payload
 
@@ -62,7 +59,8 @@ class StorageClientAdapter:
         """Synchronous version of download_file for use in Celery tasks."""
         # Check if the backend has a synchronous method available
         if hasattr(self.backend, 'download_sync'):
-            result = self.backend.download_sync(file_path)
+            normalized_path = str(Path(file_path))
+            result = self.backend.download_sync(normalized_path)
         else:
             # Fallback to running the async method in a new event loop in a separate thread
             import asyncio
@@ -70,7 +68,8 @@ class StorageClientAdapter:
             
             def run_async_download():
                 async def async_download():
-                    return await self.backend.download(file_path)
+                    normalized_path = str(Path(file_path))
+                    return await self.backend.download(normalized_path)
                 
                 # Create a new event loop for this thread
                 loop = asyncio.new_event_loop()
@@ -85,46 +84,15 @@ class StorageClientAdapter:
                 result = future.result()
         
         if result is None:
-            legacy_bytes = self._legacy_lookup(file_path)
-            if legacy_bytes is None:
-                raise FileNotFoundError(
-                    f"File '{file_path}' not found in storage provider '{self.backend.provider_name}'"
-                )
-            return legacy_bytes
+            normalized_path = str(Path(file_path))
+            raise FileNotFoundError(
+                f"File '{normalized_path}' not found in storage provider '{self.backend.provider_name}'"
+            )
         if isinstance(result, tuple):
             payload, _ = result
         else:
             payload = result
         return payload
-
-    def _legacy_lookup(self, file_path: str) -> Optional[bytes]:
-        """Fallback para registros legados que armazenavam apenas o nome do arquivo."""
-        candidate = Path(file_path)
-        if candidate.is_absolute() or candidate.parent != Path("."):
-            return None
-        backend_root = Path(getattr(self.backend, "_root", ""))
-        if not backend_root.exists():
-            return None
-        matches = list(backend_root.rglob(candidate.name))
-        if not matches:
-            return None
-        match = matches[0]
-        try:
-            logger.warning(
-                "storage.legacy_lookup_hit",
-                original=file_path,
-                resolved=str(match),
-                provider=self.backend.provider_name,
-            )
-            return match.read_bytes()
-        except Exception as exc:  # pragma: no cover - filesystem failures
-            logger.error(
-                "storage.legacy_lookup_failed",
-                original=file_path,
-                resolved=str(match),
-                error=str(exc),
-            )
-            return None
 
     async def delete(self, file_path: str) -> bool:
         return await self.backend.delete(file_path)

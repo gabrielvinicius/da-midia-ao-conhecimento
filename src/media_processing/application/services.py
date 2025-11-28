@@ -259,11 +259,11 @@ class MediaProcessingService:
                         summarization_provider=summarization_provider,
                         sentiment_provider=sentiment_provider,
                         topic_modeling_provider=topic_provider,
+                        correlation_id=correlation_id,
                         file_size_bytes=file_size_bytes,
                     )
                     process_transcription_task.delay(
                         **transcription_payload.model_dump(mode="json"),
-                        correlation_id=correlation_id,
                     )
                     self._logger.debug(
                         "media_uploaded.transcription_task_enqueued",
