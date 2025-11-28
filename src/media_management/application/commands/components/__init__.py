@@ -124,6 +124,7 @@ class DefaultMediaEventPublisher:
             media_id=str(media.id),
             user_id=str(media.user_id),
             filename=getattr(media, "filename", None),
+            file_path=metadata.stored_path,
             storage_provider=getattr(media, "storage_provider", None),
             media_type=getattr(media.media_type, "value", str(media.media_type)),
             file_size_bytes=metadata.file_size,
