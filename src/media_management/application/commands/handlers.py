@@ -12,15 +12,6 @@ from src.media_management.infrastructure.logging import StructuredMediaLogger
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
 from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
-from src.text_analysis.summarization.infrastructure.summarization_repository import (
-    SummarizationRepository,
-)
-from src.text_analysis.sentiment_analysis.infrastructure.sentiment_analysis_repository import (
-    SentimentAnalysisRepository,
-)
-from src.text_analysis.topic_modeling.infrastructure.topic_modeling_repository import (
-    TopicModelingRepository,
-)
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 logger = structlog.get_logger(__name__)
@@ -113,24 +104,6 @@ class DeleteMediaCommandHandler:
             return
 
         transcription_repo = TranscriptionRepository(db)
-        summarization_repo = SummarizationRepository(db)
-        sentiment_repo = SentimentAnalysisRepository(db)
-        topic_repo = TopicModelingRepository(db)
-
-        try:
-            await summarization_repo.delete_by_media_id(media_id)
-        except Exception as exc:
-            logger.warning("media.delete.summaries_failed", media_id=str(media_id), error=str(exc))
-
-        try:
-            await sentiment_repo.delete_by_media_id(str(media_id))
-        except Exception as exc:
-            logger.warning("media.delete.sentiment_failed", media_id=str(media_id), error=str(exc))
-
-        try:
-            await topic_repo.delete_by_media_id(media_id)
-        except Exception as exc:
-            logger.warning("media.delete.topic_failed", media_id=str(media_id), error=str(exc))
 
         try:
             await transcription_repo.delete_by_media_id(media_id)
