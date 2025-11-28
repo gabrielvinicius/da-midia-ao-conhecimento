@@ -13,12 +13,13 @@ async def unified_error_middleware(request: Request, call_next):
         return await call_next(request)
     except Exception as exc:  # pragma: no cover - catch-all
         # Later we can enrich with correlation_id if present in headers/context
+        err = create_error_response(
+            error=str(exc),
+            message="Internal server error",
+        )
         return JSONResponse(
             status_code=500,
-            content=create_error_response(
-                error=str(exc),
-                message="Internal server error",
-            ),
+            content=err.model_dump(),
         )
 
 
