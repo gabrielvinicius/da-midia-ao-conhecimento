@@ -8,11 +8,14 @@ from src.media_management.application.commands.commands import (
     DeleteMediaCommand,
     ReprocessMediaCommand,
 )
+from src.media_management.application.commands.components import DefaultMediaEventPublisher
 from src.media_management.infrastructure.logging import StructuredMediaLogger
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
 from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
 from src.storage.infrastructure.dependencies import StorageServiceFactory
+from src.shared.event_bus_factory import get_event_bus
+from src.shared.events.domain_events import MediaUploaded
 
 logger = structlog.get_logger(__name__)
 
@@ -52,8 +55,7 @@ class DeleteMediaCommandHandler:
 
             user_id_str = str(media.user_id)
             media_type_str = media.media_type.value
-            # TODO: Obter o tamanho real do arquivo para file_size_bytes
-            file_size_bytes = 1024 * 1024 
+            file_size_bytes = media.file_size or 0
 
             # Delete associated records (TranscriptionRepo handles its own commit)
             await self._delete_associated_records(media.id)
@@ -63,8 +65,6 @@ class DeleteMediaCommandHandler:
             
             # Delete media record (MediaRepo handles its own commit now)
             await self.media_repo.delete(media.id)
-
-            # Removed manual session commit here as Repositories now handle it
             
             success = True
             logger.info(
@@ -137,6 +137,7 @@ class ReprocessMediaCommandHandler:
         self.media_repo = media_repo
         self.media_logger = media_logger
         self.media_metrics = media_metrics
+        self._event_bus = get_event_bus()
 
     async def handle(self, command: ReprocessMediaCommand) -> None:
         start_time = time.monotonic()
@@ -158,22 +159,29 @@ class ReprocessMediaCommandHandler:
 
             user_id_str = str(media.user_id)
             media_type_str = media.media_type.value
-            file_size_bytes = 1024 * 1024 
+            file_size_bytes = media.file_size or 0
 
-            media.process() # Marcar como processando
-            # MediaRepo handles commit
+            media.process() # Mark as processing
             await self.media_repo.update(media)
             
-            # Disparar reprocessamento via Celery
-            try:
-                from src.media_processing.tasks import process_media_task
-                process_media_task.delay(media_id=str(command.media_id))
-            except Exception as dispatch_exc:  # best-effort scheduling
-                logger.warning(
-                    "media_management.reprocess_media.schedule_failed",
-                    media_id=str(command.media_id),
-                    error=str(dispatch_exc),
-                )
+            # Dispatch reprocessing via Event Bus (Standardized flow)
+            # Reusing MediaUploaded logic via MediaProcessingService
+            event = MediaUploaded(
+                media_id=str(media.id),
+                user_id=str(media.user_id),
+                filename=media.filename,
+                storage_provider=media.storage_provider,
+                media_type=media.media_type.value,
+                file_size_bytes=media.file_size,
+                transcription_provider=media.transcription_provider,
+                summarization_provider=media.summarization_provider,
+                sentiment_provider=media.sentiment_provider,
+                topic_modeling_provider=media.topic_modeling_provider,
+                language=media.language,
+                correlation_id=f"reprocess-{uuid.uuid4()}" # Traceable reprocess ID
+            )
+            await self._event_bus.publish(event)
+
             success = True
             logger.info(
                 f"media_management.{operation_name}.completed",
