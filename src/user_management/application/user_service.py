@@ -5,7 +5,7 @@ from uuid import UUID
 
 from src.shared.utils.id_generator import generate_id
 from src.shared.utils.password_utils import hash_password, verify_password
-from src.user_management.config.settings import AuthSettings
+from src.shared.config.settings import Settings, settings
 from src.user_management.domain.user import User, UserRole
 from src.user_management.domain.exceptions import (
     UserAlreadyExistsError,
@@ -19,9 +19,9 @@ from src.user_management.utils.token import create_access_token
 class UserService:
     """Unified user service (create, fetch)."""
 
-    def __init__(self, user_repository: UserRepository, settings: Optional[AuthSettings] = None) -> None:
+    def __init__(self, user_repository: UserRepository, settings: Optional[Settings] = None) -> None:
         self.user_repository = user_repository
-        self.settings = settings or AuthSettings()
+        self.settings = settings or Settings()
 
     async def create_user(self, email: str, password: str, role: str = "user") -> User:
         self._validate_email_format(email)
@@ -278,7 +278,7 @@ class UserService:
             raise UserAlreadyExistsError(email)
 
     def _validate_password_strength(self, password: str) -> None:
-        min_length = self.settings.password_min_length
+        min_length = self.settings.AUTH_PASSWORD_MIN_LENGTH
         if len(password) < min_length:
             raise ValueError(f"Password must be at least {min_length} characters long")
         if not any(c.isupper() for c in password):
