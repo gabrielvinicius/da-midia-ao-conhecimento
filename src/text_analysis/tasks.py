@@ -147,8 +147,9 @@ if shared_task:
         retry_backoff=True,
         max_retries=3,
     )
-    def analyze_task(payload: Dict[str, Any]) -> Dict[str, Any]:
-        return _task_body(payload, op_name="analyze_task")
+    def analyze_task(**kwargs) -> Dict[str, Any]:
+        # kwargs represents the payload from send_task(kwargs=...)
+        return _task_body(kwargs, op_name="analyze_task")
 
     @shared_task(
         name=TASK_TEXT_ANALYSIS_SUMMARIZE,
@@ -156,8 +157,8 @@ if shared_task:
         retry_backoff=True,
         max_retries=3,
     )
-    def summarize_task(payload: Dict[str, Any]) -> Dict[str, Any]:
-        return _task_body(payload, op_name="summarization")
+    def summarize_task(**kwargs) -> Dict[str, Any]:
+        return _task_body(kwargs, op_name="summarization")
 
     @shared_task(
         name=TASK_TEXT_ANALYSIS_SENTIMENT,
@@ -165,8 +166,8 @@ if shared_task:
         retry_backoff=True,
         max_retries=3,
     )
-    def sentiment_task(payload: Dict[str, Any]) -> Dict[str, Any]:
-        return _task_body(payload, op_name="sentiment")
+    def sentiment_task(**kwargs) -> Dict[str, Any]:
+        return _task_body(kwargs, op_name="sentiment")
 
     @shared_task(
         name=TASK_TEXT_ANALYSIS_TOPIC_MODELING,
@@ -174,22 +175,22 @@ if shared_task:
         retry_backoff=True,
         max_retries=3,
     )
-    def topic_modeling_task(payload: Dict[str, Any]) -> Dict[str, Any]:
-        return _task_body(payload, op_name="topic_modeling")
+    def topic_modeling_task(**kwargs) -> Dict[str, Any]:
+        return _task_body(kwargs, op_name="topic_modeling")
 
 else:
     # Fallback for environments without Celery
-    def analyze_task(payload: Dict[str, Any]) -> Dict[str, Any]:
-        return _task_body(payload, op_name="analyze_task")
+    def analyze_task(**kwargs) -> Dict[str, Any]:
+        return _task_body(kwargs, op_name="analyze_task")
 
-    def summarize_task(payload: Dict[str, Any]) -> Dict[str, Any]:
-        return _task_body(payload, op_name="summarization")
+    def summarize_task(**kwargs) -> Dict[str, Any]:
+        return _task_body(kwargs, op_name="summarization")
 
-    def sentiment_task(payload: Dict[str, Any]) -> Dict[str, Any]:
-        return _task_body(payload, op_name="sentiment")
+    def sentiment_task(**kwargs) -> Dict[str, Any]:
+        return _task_body(kwargs, op_name="sentiment")
 
-    def topic_modeling_task(payload: Dict[str, Any]) -> Dict[str, Any]:
-        return _task_body(payload, op_name="topic_modeling")
+    def topic_modeling_task(**kwargs) -> Dict[str, Any]:
+        return _task_body(kwargs, op_name="topic_modeling")
 
 
 __all__ = [
