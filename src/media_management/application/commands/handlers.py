@@ -1,5 +1,5 @@
 # src/media_management/application/commands/handlers.py
-import time  # Adicionar para calcular duração
+import time
 
 import structlog
 from uuid import UUID
@@ -37,9 +37,9 @@ class DeleteMediaCommandHandler:
         operation_name = "delete_media_command"
         success = False
         error = None
-        user_id_str = "N/A" # Placeholder
-        media_type_str = "N/A" # Placeholder
-        file_size_bytes = 0 # Placeholder
+        user_id_str = "N/A"
+        media_type_str = "N/A"
+        file_size_bytes = 0
 
         logger.info(
             f"media_management.{operation_name}.started",
@@ -53,19 +53,19 @@ class DeleteMediaCommandHandler:
             user_id_str = str(media.user_id)
             media_type_str = media.media_type.value
             # TODO: Obter o tamanho real do arquivo para file_size_bytes
-            file_size_bytes = 1024 * 1024 # Placeholder
+            file_size_bytes = 1024 * 1024 
 
+            # Delete associated records (TranscriptionRepo handles its own commit)
             await self._delete_associated_records(media.id)
+            
+            # Delete file from storage (No transaction needed)
             await self._delete_original_file(media)
+            
+            # Delete media record (MediaRepo handles its own commit now)
             await self.media_repo.delete(media.id)
 
-            session = getattr(self.media_repo, "db", None)
-            if session is not None and hasattr(session, "commit"):
-                try:
-                    await session.commit()
-                except Exception:
-                    await session.rollback()
-                    raise
+            # Removed manual session commit here as Repositories now handle it
+            
             success = True
             logger.info(
                 f"media_management.{operation_name}.completed",
@@ -143,9 +143,9 @@ class ReprocessMediaCommandHandler:
         operation_name = "reprocess_media_command"
         success = False
         error = None
-        user_id_str = "N/A" # Placeholder
-        media_type_str = "N/A" # Placeholder
-        file_size_bytes = 0 # Placeholder
+        user_id_str = "N/A"
+        media_type_str = "N/A"
+        file_size_bytes = 0
 
         logger.info(
             f"media_management.{operation_name}.started",
@@ -158,11 +158,12 @@ class ReprocessMediaCommandHandler:
 
             user_id_str = str(media.user_id)
             media_type_str = media.media_type.value
-            # TODO: Obter o tamanho real do arquivo para file_size_bytes
-            file_size_bytes = 1024 * 1024 # Placeholder
+            file_size_bytes = 1024 * 1024 
 
             media.process() # Marcar como processando
+            # MediaRepo handles commit
             await self.media_repo.update(media)
+            
             # Disparar reprocessamento via Celery
             try:
                 from src.media_processing.tasks import process_media_task

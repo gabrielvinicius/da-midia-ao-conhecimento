@@ -36,14 +36,16 @@ class MediaRepository:
     async def add(self, media: MediaAggregate) -> MediaAggregate:
         entity = self._mapper.to_entity(media)
         self.db.add(entity)
-        await self.db.flush()
+        await self.db.commit()
+        await self.db.refresh(entity)
         persisted = self._mapper.to_domain(entity)
         return self._mapper.merge_transient_data(persisted, media)
 
     async def save(self, media: MediaAggregate) -> MediaAggregate:
         entity = self._mapper.to_entity(media)
         merged = await self.db.merge(entity)
-        await self.db.flush()
+        await self.db.commit()
+        await self.db.refresh(merged)
         persisted = self._mapper.to_domain(merged)
         return self._mapper.merge_transient_data(persisted, media)
 
@@ -55,7 +57,7 @@ class MediaRepository:
         entity = result.scalar_one_or_none()
         if entity is not None:
             await self.db.delete(entity)
-            await self.db.flush()
+            await self.db.commit()
 
     async def update_status(
         self,
@@ -70,7 +72,8 @@ class MediaRepository:
         DEFAULT_MEDIA_STATE_MACHINE.assert_transition(previous_status, status)
         entity.status = status
         entity.error_message = error_message
-        await self.db.flush()
+        await self.db.commit()
+        await self.db.refresh(entity)
         aggregate = self._mapper.to_domain(entity)
         updated = aggregate.update(error_message=error_message)
         return updated
