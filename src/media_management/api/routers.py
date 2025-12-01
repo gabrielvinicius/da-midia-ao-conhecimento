@@ -72,8 +72,12 @@ async def create_media(
             filename=media.filename,
             content_type=media.content_type,
             size=media.file_size,
+            media_type=media.media_type,
             created_at=media.created_at,
-            status=media.status.value
+            status=media.status,
+            error_message=media.error_message,
+            language=media.language,
+            duration=media.duration
         )
     except DomainException as e:
         # Tratamento padronizado de erros de domínio
@@ -104,8 +108,12 @@ async def list_user_media(
             filename=media.filename,
             content_type=media.content_type,
             size=media.file_size,
+            media_type=media.media_type,
             created_at=media.created_at,
-            status=media.status.value
+            status=media.status,
+            error_message=media.error_message,
+            language=media.language,
+            duration=media.duration
         ) for media in media_list
     ]
 
@@ -127,8 +135,12 @@ async def get_media_by_id(
             filename=media.filename,
             content_type=media.content_type,
             size=media.file_size,
+            media_type=media.media_type,
             created_at=media.created_at,
-            status=media.status.value
+            status=media.status,
+            error_message=media.error_message,
+            language=media.language,
+            duration=media.duration
         )
     except (ValueError, PermissionError):
         raise HTTPException(status_code=404, detail="Media not found or not authorized")
