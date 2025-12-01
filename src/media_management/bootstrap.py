@@ -20,7 +20,7 @@ from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.application.services import MediaService
 from src.media_management.application.validators import MediaUploadValidator
-from src.media_management.config.settings import MediaSettings
+from src.shared.config.settings import settings
 from src.media_management.infrastructure.logging import StructuredMediaLogger
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
@@ -119,7 +119,7 @@ def build_media_components(
         transcription_metrics=transcription_metrics,
         storage_service=transcription_storage_service,
         speech_recognizer_factory=create_speech_recognition_service,
-        db_session=session,
+        # db_session=session,  <-- Removed in previous refactoring, ensuring consistency
         media_queries=media_queries,
         event_bus=event_bus,
     )
@@ -172,7 +172,7 @@ def build_media_components(
         media_metrics=media_metrics,
     )
 
-    media_upload_validator = MediaUploadValidator(settings=MediaSettings())
+    media_upload_validator = MediaUploadValidator(settings=settings)
 
     media_service = MediaService(
         media_queries=media_queries,
