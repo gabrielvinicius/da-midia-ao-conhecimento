@@ -5,13 +5,13 @@ from fastapi import FastAPI
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.shared.config.settings import Settings, settings
 from src.user_management.api.dependencies import (
     AuthDependencies,
     get_auth_dependencies,
 )
 from src.user_management.application import AuthQueries, AuthService
 from src.user_management.application.user_service import UserService
-from src.user_management.config.settings import AuthSettings
 from src.user_management.infrastructure.user_repository import UserRepository
 
 
@@ -20,13 +20,13 @@ class UserManagementModule:
     auth_service: AuthService
     auth_queries: AuthQueries
     user_service: UserService
-    settings: AuthSettings
+    settings: Settings
 
 
 def build_user_management_module(session: AsyncSession) -> UserManagementModule:
     """Compose User and Auth services with a shared repository."""
     user_repo = UserRepository(db=session)
-    settings = AuthSettings()
+    # Use global settings
     user_service = UserService(user_repository=user_repo, settings=settings)
     auth_service = AuthService(user_service=user_service, settings=settings)
     auth_queries = AuthQueries(user_repository=user_repo)
