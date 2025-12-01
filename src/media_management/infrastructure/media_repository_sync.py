@@ -7,7 +7,6 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from src.media_management.application.notifications import enqueue_media_status_notification
 from src.media_management.domain.enums import MediaStatus
 from src.media_management.domain.media_state import DEFAULT_MEDIA_STATE_MACHINE
 from src.media_management.domain.model import MediaAggregate
@@ -45,7 +44,6 @@ class MediaRepositorySync:
 
         previous_status = entity.status
         DEFAULT_MEDIA_STATE_MACHINE.assert_transition(previous_status, status)
-        previous_error = entity.error_message
         entity.status = status
         entity.error_message = error_message
         self.db.flush()
@@ -53,16 +51,8 @@ class MediaRepositorySync:
         aggregate = self._mapper.to_domain(entity)
         updated = aggregate.update(error_message=error_message)
 
-        should_notify = force_notify or previous_status != status or (
-            error_message and error_message != previous_error
-        )
-        if should_notify:
-            enqueue_media_status_notification(
-                user_id=entity.user_id,
-                media_id=entity.id,
-                status=status,
-                error_message=error_message,
-            )
+        # Notification logic removed from repository to adhere to Clean Architecture.
+        # The caller (Service/Handler/Job) is responsible for dispatching events/notifications.
 
         return updated
 

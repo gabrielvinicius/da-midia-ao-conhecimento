@@ -45,6 +45,7 @@ from src.shared.infrastructure.cache import cache
 from src.shared.infrastructure.database import AsyncSessionLocal, Base, engine
 from src.shared.infrastructure.logging_config import configure_logging, get_logger
 from src.shared.infrastructure.tracing import configure_tracer
+from src.shared.middleware.correlation_middleware import CorrelationIdMiddleware
 from src.shared.middleware.performance_middleware import register_performance_middleware
 from src.shared.middleware.error_middleware import unified_error_middleware
 from src.shared.middleware.validation_middleware import register_validation_middleware
@@ -227,6 +228,9 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    # Correlation ID middleware (First to run)
+    app.add_middleware(CorrelationIdMiddleware)
+
     # Error middleware
     app.middleware("http")(unified_error_middleware)
 
@@ -262,9 +266,10 @@ def create_app() -> FastAPI:
             "Content-Type",
             "Authorization",
             "X-CSRF-Token",  # Permitir header CSRF
-            "X-Requested-With"
+            "X-Requested-With",
+            "X-Correlation-ID", # Permitir header de correlação
         ],
-        expose_headers=["X-CSRF-Token"],  # Expor CSRF token para frontend
+        expose_headers=["X-CSRF-Token", "X-Correlation-ID"],  # Expor CSRF e Correlation ID
     )
 
     # --- Route Registration ---
