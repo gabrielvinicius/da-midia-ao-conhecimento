@@ -53,6 +53,7 @@ pymupdf>=1.25.0
 structlog>=25.1.0
 prometheus-client>=0.22.0
 pybreaker>=1.1.1
+tenacity>=9.1.2
 psutil>=6.1.0
 dependency-injector>=4.45.0
 
