@@ -2,6 +2,7 @@
 from typing import Annotated, Optional
 
 from fastapi import Depends, HTTPException, Request, WebSocket, WebSocketException, status
+from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 
 from src.user_management.api.dependencies import get_auth_queries, get_auth_settings
@@ -11,17 +12,32 @@ from src.user_management.domain.user import User, UserRole
 
 ACCESS_TOKEN_COOKIE_NAME = "access_token_cookie"
 
+# Define OAuth2 scheme for Swagger UI support and standard Authorization header support
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
 
-async def get_token_from_cookie(request: Request) -> str:
-    """Dependency to extract the token from the access_token_cookie."""
-    token = request.cookies.get(ACCESS_TOKEN_COOKIE_NAME)
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return token
+
+async def get_token(
+    request: Request,
+    token_from_header: Optional[str] = Depends(oauth2_scheme)
+) -> str:
+    """
+    Dependency to extract the token.
+    Prioritizes Authorization header (Bearer), then cookie.
+    """
+    # 1. Try OAuth2/Bearer header first (standard for APIs)
+    if token_from_header:
+        return token_from_header
+    
+    # 2. Fallback to cookie (for browser-based clients)
+    token_from_cookie = request.cookies.get(ACCESS_TOKEN_COOKIE_NAME)
+    if token_from_cookie:
+        return token_from_cookie
+        
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 def _extract_bearer_token(header_value: Optional[str]) -> Optional[str]:
@@ -60,11 +76,12 @@ async def _resolve_user_from_token(
     except JWTError:
         return None
 
+    # TODO: Add caching here to avoid hitting DB on every request
     return await queries.get_by_id(user_id)
 
 
 async def get_current_user(
-    token: Annotated[str, Depends(get_token_from_cookie)],
+    token: Annotated[str, Depends(get_token)],
     settings: Annotated[AuthSettings, Depends(get_auth_settings)],
     queries: Annotated[AuthQueries, Depends(get_auth_queries)],
 ) -> User:
@@ -77,6 +94,9 @@ async def get_current_user(
     user = await _resolve_user_from_token(token, settings, queries)
     if user is None:
         raise credentials_exception
+    
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
 
     return user
 
@@ -92,6 +112,11 @@ async def get_current_user_websocket(
         raise WebSocketException(
             code=status.WS_1008_POLICY_VIOLATION,
             reason="Could not validate credentials",
+        )
+    if not user.is_active:
+        raise WebSocketException(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason="Inactive user",
         )
     return user
 

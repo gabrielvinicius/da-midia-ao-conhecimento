@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.media_management.domain.enums import MediaStatus
 from src.media_management.domain.media_state import DEFAULT_MEDIA_STATE_MACHINE
 from src.media_management.domain.model import MediaAggregate
-from src.media_management.application.notifications import enqueue_media_status_notification
 import structlog
 
 from .media_entity import MediaEntity
@@ -69,32 +68,11 @@ class MediaRepository:
         entity = result.scalar_one()
         previous_status = entity.status
         DEFAULT_MEDIA_STATE_MACHINE.assert_transition(previous_status, status)
-        previous_error = entity.error_message
         entity.status = status
         entity.error_message = error_message
         await self.db.flush()
         aggregate = self._mapper.to_domain(entity)
         updated = aggregate.update(error_message=error_message)
-
-        # Notify user when status actually changes or when we have a new error
-        should_notify = previous_status != status or (error_message and error_message != previous_error)
-        if should_notify:
-            try:
-                enqueue_media_status_notification(
-                    user_id=entity.user_id,
-                    media_id=entity.id,
-                    status=status,
-                    error_message=error_message,
-                )
-            except Exception as exc:  # pragma: no cover - defensive guard
-                logger.warning(
-                    "media.notifications.enqueue_failed",
-                    media_id=str(entity.id),
-                    user_id=str(entity.user_id),
-                    status=status.value if isinstance(status, MediaStatus) else str(status),
-                    error=str(exc),
-                )
-
         return updated
 
     async def list_paginated(
