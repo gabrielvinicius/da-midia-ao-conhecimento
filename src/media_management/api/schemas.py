@@ -24,80 +24,34 @@ class MediaCreate(BaseModel):
 
 
 class MediaResponse(BaseModel):
-    id: UUID = Field(
-        ...,
-        description="The unique identifier for the media item.",
-        json_schema_extra={"example": "f47ac10b-58cc-4372-a567-0e02b2c3d479"},
-    )
-    user_id: UUID = Field(
-        ...,
-        description="The ID of the user who uploaded the media.",
-        json_schema_extra={"example": "f47ac10b-58cc-4372-a567-0e02b2c3d479"},
-    )
-    original_file_path: str = Field(
-        ...,
-        description="The path to the original file in storage.",
-        json_schema_extra={"example": "media/user1/f47ac10b.../video.mp4"},
-    )
-    media_type: MediaType = Field(
-        ...,
-        description="The type of the media file.",
-        json_schema_extra={"example": "VIDEO"},
-    )
-    status: MediaStatus = Field(
-        ...,
-        description="The current processing status of the media.",
-        json_schema_extra={"example": "PROCESSING"},
-    )
+    """
+    DTO for Media responses.
+    Decoupled from Domain Entities and Internal Database columns.
+    """
+    id: UUID = Field(..., description="The unique identifier for the media item.")
+    filename: Optional[str] = Field(None, description="Original filename.")
+    content_type: Optional[str] = Field(None, description="MIME type of the file.")
+    size: Optional[int] = Field(None, description="File size in bytes.")
+    media_type: MediaType = Field(..., description="The type of the media file.")
+    status: MediaStatus = Field(..., description="The current processing status.")
     created_at: datetime = Field(..., description="The timestamp when the media was uploaded.")
-    storage_provider: Optional[str] = Field(
-        default=None,
-        description="Storage provider used for the media file.",
-    )
-    transcription_provider: Optional[str] = Field(
-        default=None,
-        description="Transcription provider requested for this media.",
-    )
-    summarization_provider: Optional[str] = Field(
-        default=None,
-        description="Summarization provider selected for downstream tasks.",
-    )
-    sentiment_provider: Optional[str] = Field(
-        default=None,
-        description="Sentiment analysis provider selected for text analysis.",
-    )
-    topic_modeling_provider: Optional[str] = Field(
-        default=None,
-        description="Topic modeling provider selected for text analysis.",
-    )
-    language: Optional[str] = Field(
-        default=None,
-        description="Idioma detectado ou configurado para a mídia.",
-    )
-    error_message: Optional[str] = Field(
-        default=None,
-        description="Mensagem de erro associada ao processamento, quando houver.",
-    )
+    
+    # Optional metadata
+    error_message: Optional[str] = None
+    language: Optional[str] = None
+    duration: Optional[float] = None
 
     @computed_field(return_type=List[str])
     @property
     def processing_pipeline(self) -> List[str]:
         pipeline: List[str] = ["upload"]
-
+        
         if self.media_type == MediaType.VIDEO:
             pipeline.append("video_processing")
-
-        if self.media_type == MediaType.TEXT:
-            pipeline.append("extract_text")
-        else:
+        elif self.media_type == MediaType.AUDIO:
             pipeline.append("transcription")
-
-        if self.summarization_provider:
-            pipeline.append("summarization")
-        if self.sentiment_provider:
-            pipeline.append("sentiment")
-        if self.topic_modeling_provider:
-            pipeline.append("topic_modeling")
+        elif self.media_type == MediaType.TEXT:
+            pipeline.append("extract_text")
 
         return pipeline
 
