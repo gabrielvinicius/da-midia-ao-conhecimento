@@ -5,9 +5,9 @@ from fastapi import Depends, HTTPException, Request, WebSocket, WebSocketExcepti
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 
+from src.shared.config.settings import Settings
 from src.user_management.api.dependencies import get_auth_queries, get_auth_settings
 from src.user_management.application.queries.auth_queries import AuthQueries
-from src.user_management.config.settings import AuthSettings
 from src.user_management.domain.user import User, UserRole
 
 ACCESS_TOKEN_COOKIE_NAME = "access_token_cookie"
@@ -65,11 +65,11 @@ async def get_token_from_websocket(websocket: WebSocket) -> str:
 
 async def _resolve_user_from_token(
     token: str,
-    settings: AuthSettings,
+    settings: Settings,
     queries: AuthQueries,
 ) -> Optional[User]:
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             return None
@@ -82,7 +82,7 @@ async def _resolve_user_from_token(
 
 async def get_current_user(
     token: Annotated[str, Depends(get_token)],
-    settings: Annotated[AuthSettings, Depends(get_auth_settings)],
+    settings: Annotated[Settings, Depends(get_auth_settings)],
     queries: Annotated[AuthQueries, Depends(get_auth_queries)],
 ) -> User:
     """Dependency to get the current user from a token."""
@@ -103,7 +103,7 @@ async def get_current_user(
 
 async def get_current_user_websocket(
     token: Annotated[str, Depends(get_token_from_websocket)],
-    settings: Annotated[AuthSettings, Depends(get_auth_settings)],
+    settings: Annotated[Settings, Depends(get_auth_settings)],
     queries: Annotated[AuthQueries, Depends(get_auth_queries)],
 ) -> User:
     """Dependency to authenticate websocket connections using JWT."""

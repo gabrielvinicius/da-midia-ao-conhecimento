@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import main
-from src.user_management.config.settings import AuthSettings
+from src.shared.config.settings import Settings
 
 
 @pytest.fixture(autouse=True)
@@ -64,7 +64,7 @@ def enable_lightweight_mode(monkeypatch) -> None:
     dummy_user_module.auth_service = object()
     dummy_user_module.auth_queries = object()
     dummy_user_module.user_service = object()
-    dummy_user_module.settings = AuthSettings()
+    dummy_user_module.settings = Settings()
     monkeypatch.setattr(
         main,
         "build_user_management_module",
