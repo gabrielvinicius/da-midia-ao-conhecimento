@@ -70,7 +70,7 @@ async def create_media(
         return MediaResponse(
             id=media.id,
             filename=media.filename,
-            content_type=media.content_type,
+            content_type=media.mime_type, # Corrected from media.content_type
             size=media.file_size,
             media_type=media.media_type,
             created_at=media.created_at,
@@ -106,7 +106,7 @@ async def list_user_media(
         MediaResponse(
             id=media.id,
             filename=media.filename,
-            content_type=media.content_type,
+            content_type=media.mime_type, # Corrected from media.content_type
             size=media.file_size,
             media_type=media.media_type,
             created_at=media.created_at,
@@ -133,7 +133,7 @@ async def get_media_by_id(
         return MediaResponse(
             id=media.id,
             filename=media.filename,
-            content_type=media.content_type,
+            content_type=media.mime_type, # Corrected from media.content_type
             size=media.file_size,
             media_type=media.media_type,
             created_at=media.created_at,
