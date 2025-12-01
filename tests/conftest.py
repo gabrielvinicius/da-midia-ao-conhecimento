@@ -41,3 +41,14 @@ def mock_event_bus() -> InMemoryEventBus:
 def mock_storage_service() -> InMemoryStorageService:
     """Provides an in-memory storage service for testing file operations."""
     return InMemoryStorageService()
+
+@pytest.fixture
+def mock_user_repository() -> AsyncMock:
+    """Mock user repository for auth module testing."""
+    repo = AsyncMock()
+    repo.save = AsyncMock()
+    repo.find_by_id = AsyncMock()
+    repo.find_by_email = AsyncMock()
+    repo.update = AsyncMock()
+    repo.delete = AsyncMock()
+    return repo

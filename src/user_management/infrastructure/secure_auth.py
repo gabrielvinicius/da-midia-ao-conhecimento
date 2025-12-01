@@ -16,11 +16,10 @@ from src.shared.exceptions.domain_exceptions import (
     AuthorizationError,
 )
 from src.shared.infrastructure.logging_config import get_logger
-from src.user_management.config.settings import AuthSettings
+from src.shared.config.settings import settings
 from src.user_management.domain.user import User
 
 logger = get_logger("secure_auth")
-settings = AuthSettings()
 
 # Storage seguro para tokens CSRF
 csrf_tokens: Dict[str, Dict[str, Any]] = {}
@@ -33,9 +32,9 @@ class SecureTokenManager:
     REFRESH_COOKIE_NAME = "refresh_token"
 
     def __init__(self):
-        self.secret_key = settings.secret_key
-        self.algorithm = settings.algorithm
-        self.access_token_expire_minutes = settings.access_token_expire_minutes
+        self.secret_key = settings.SECRET_KEY
+        self.algorithm = settings.ALGORITHM
+        self.access_token_expire_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
         self.refresh_token_expire_days = 7  # Refresh token válido por 7 dias
 
     def create_access_token(self, user_id: str, additional_claims: Dict[str, Any] = None) -> str:

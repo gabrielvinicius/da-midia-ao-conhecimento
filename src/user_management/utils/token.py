@@ -4,23 +4,24 @@ from uuid import UUID
 
 from jose import JWTError, jwt
 
-from src.user_management.config.settings import AuthSettings  # Importação corrigida
-
-settings = AuthSettings()
+from src.shared.config.settings import settings
 
 
 def create_access_token(user_id: UUID) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
+    # Use utcnow from shared utils if available, or datetime.utcnow()
+    # Using datetime.utcnow() for now to match existing logic pattern but cleanly
+    # Ideally we should use the shared time_utils
+    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "sub": str(user_id),
         "exp": expire
     }
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def verify_token(token: str) -> dict | None:
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
     except JWTError:
         return None
