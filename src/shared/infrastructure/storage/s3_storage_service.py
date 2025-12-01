@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional, Tuple, Union
 
 from src.storage.application.storage_service import StorageException, StorageService
+from src.shared.resilience.policies import create_retry_policy
 
 
 class S3StorageService(StorageService):
@@ -22,6 +23,7 @@ class S3StorageService(StorageService):
     def provider_name(self) -> str:
         return "s3"
 
+    @create_retry_policy(exceptions=(StorageException, OSError))
     async def upload(self, file_path: Union[str, Path], file: bytes) -> bool:
         destination = self._resolve_path(file_path)
         try:
@@ -30,6 +32,7 @@ class S3StorageService(StorageService):
             raise StorageException("Failed to store file on S3 stub", exc) from exc
         return True
 
+    @create_retry_policy(exceptions=(StorageException, OSError))
     async def download(self, file_path: Union[str, Path]) -> Optional[Tuple[bytes, str]]:
         source = self._resolve_path(file_path)
         if not source.exists():
@@ -40,6 +43,7 @@ class S3StorageService(StorageService):
         except Exception as exc:  # pragma: no cover - defensive branch
             raise StorageException("Failed to download file from S3 stub", exc) from exc
 
+    @create_retry_policy(exceptions=(StorageException, OSError))
     async def delete(self, file_path: Union[str, Path]) -> bool:
         target = self._resolve_path(file_path)
         if not target.exists():

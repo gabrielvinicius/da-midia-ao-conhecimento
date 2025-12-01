@@ -1,13 +1,13 @@
-# src/auth/api/dependencies.py
+# src/user_management/api/dependencies.py
 from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends
 
+from src.shared.config.settings import Settings, settings
 from src.user_management.application.auth_service import AuthService
 from src.user_management.application.queries.auth_queries import AuthQueries
 from src.user_management.application.user_service import UserService
-from src.user_management.config.settings import AuthSettings
 
 
 class AuthDependenciesNotConfigured(RuntimeError):
@@ -21,7 +21,7 @@ class AuthDependencies:
     user_service: UserService
     auth_service: AuthService
     auth_queries: AuthQueries
-    settings: AuthSettings
+    settings: Settings
 
 
 def get_auth_dependencies() -> AuthDependencies:
@@ -46,7 +46,9 @@ def get_auth_queries(deps: AuthDeps) -> AuthQueries:
     return deps.auth_queries
 
 
-def get_auth_settings(deps: AuthDeps) -> AuthSettings:
+def get_auth_settings(deps: AuthDeps) -> Settings:
+    # Return the global settings object from the dependency injection container or global import
+    # Ideally, 'deps.settings' should be populated with the global 'settings' object during bootstrap.
     return deps.settings
 
 

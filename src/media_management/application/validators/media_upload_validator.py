@@ -1,12 +1,12 @@
 """Reusable validator for upload constraints in media management."""
 
-from src.media_management.config.settings import MediaSettings
+from src.shared.config.settings import Settings
 
 
 class MediaUploadValidator:
     """Validates upload payloads according to configured constraints."""
 
-    def __init__(self, settings: MediaSettings):
+    def __init__(self, settings: Settings):
         self._settings = settings
 
     def validate(self, file_content: bytes, filename: str) -> None:
@@ -15,10 +15,10 @@ class MediaUploadValidator:
             raise ValueError("File content is empty")
 
         content_length = len(file_content)
-        if content_length < self._settings.min_file_size_bytes:
+        if content_length < self._settings.MEDIA_MIN_FILE_SIZE_BYTES:
             raise ValueError("File size is too small")
 
-        if content_length > self._settings.max_file_size_bytes:
+        if content_length > self._settings.MEDIA_MAX_FILE_SIZE_BYTES:
             raise ValueError("File size exceeds maximum limit")
 
         if not filename:
@@ -30,9 +30,9 @@ class MediaUploadValidator:
 
         ext = extension[1]
         allowed_extensions = (
-            set(self._settings.allowed_audio_extensions)
-            | set(self._settings.allowed_video_extensions)
-            | set(self._settings.allowed_text_extensions)
+            set(self._settings.MEDIA_ALLOWED_AUDIO_EXTENSIONS)
+            | set(self._settings.MEDIA_ALLOWED_VIDEO_EXTENSIONS)
+            | set(self._settings.MEDIA_ALLOWED_TEXT_EXTENSIONS)
         )
 
         if ext not in allowed_extensions:

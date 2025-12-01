@@ -1,7 +1,7 @@
 import json
 import os
+from typing import Any, Dict, List, Optional, Tuple
 from dotenv import load_dotenv
-from typing import Any, Dict, List, Optional
 
 # Load environment variables from .env file
 load_dotenv(override=True)
@@ -15,10 +15,19 @@ class Settings:
     DB_PORT: int = int(os.getenv("DB_PORT", 5432))
     DB_NAME: str = os.getenv("DB_NAME", "video_summarizer")
 
-    # Authentication (JWT)
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "a_very_strong_and_long_secret_key_should_be_placed_here")
-    ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
+    # Authentication (JWT & Security)
+    SECRET_KEY: str = os.getenv("SECRET_KEY", os.getenv("AUTH_SECRET_KEY", "a_very_strong_and_long_secret_key_should_be_placed_here"))
+    ALGORITHM: str = os.getenv("ALGORITHM", os.getenv("AUTH_JWT_ALGORITHM", "HS256"))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", os.getenv("AUTH_ACCESS_TOKEN_EXPIRE_MINUTES", "60")))
+    
+    AUTH_PASSWORD_MIN_LENGTH: int = int(os.getenv("AUTH_PASSWORD_MIN_LENGTH", "8"))
+    AUTH_COOKIE_SECURE: bool = os.getenv("AUTH_COOKIE_SECURE", "0").lower() in {"1", "true", "yes"}
+    AUTH_COOKIE_SAMESITE: str = os.getenv("AUTH_COOKIE_SAMESITE", "lax").lower()
+    AUTH_ALLOWED_ORIGINS: Tuple[str, ...] = tuple(
+        origin.strip()
+        for origin in os.getenv("AUTH_ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    )
 
     # Storage Provider
     STORAGE_PROVIDER: str = os.getenv("STORAGE_PROVIDER", "local")
@@ -28,6 +37,27 @@ class Settings:
     ENDPOINT_URL: str = os.getenv("ENDPOINT_URL", "http://localhost:9000")
     ACCESS_KEY: str = os.getenv("ACCESS_KEY", "minio")
     SECRET_KEY_S3: str = os.getenv("SECRET_KEY_S3", "minio123")
+
+    # Media Processing Limits
+    # Default: 500MB (aligned with previous MediaSettings)
+    MEDIA_MAX_FILE_SIZE_BYTES: int = int(os.getenv("MEDIA_MAX_FILE_SIZE_BYTES", 500 * 1024 * 1024))
+    MEDIA_MIN_FILE_SIZE_BYTES: int = 1
+    
+    # Legacy support for MB env var
+    _legacy_mb_limit = os.getenv("VIDEO_MAX_FILE_SIZE_MB")
+    if _legacy_mb_limit:
+        MEDIA_MAX_FILE_SIZE_BYTES = int(_legacy_mb_limit) * 1024 * 1024
+
+    # Allowed Extensions
+    MEDIA_ALLOWED_VIDEO_EXTENSIONS: Tuple[str, ...] = tuple(
+        ext.strip() for ext in os.getenv("MEDIA_ALLOWED_VIDEO_EXTENSIONS", "mp4,avi,mov,mkv,webm,flv").split(",")
+    )
+    MEDIA_ALLOWED_AUDIO_EXTENSIONS: Tuple[str, ...] = tuple(
+        ext.strip() for ext in os.getenv("MEDIA_ALLOWED_AUDIO_EXTENSIONS", "mp3,wav,flac,aac,ogg,m4a").split(",")
+    )
+    MEDIA_ALLOWED_TEXT_EXTENSIONS: Tuple[str, ...] = tuple(
+        ext.strip() for ext in os.getenv("MEDIA_ALLOWED_TEXT_EXTENSIONS", "txt,pdf,doc,docx").split(",")
+    )
 
     # LLM Providers
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "huggingface")
@@ -40,10 +70,6 @@ class Settings:
     REDIS_DB: int = int(os.getenv("REDIS_DB", 0))
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-
-    # Video Upload Settings
-    VIDEO_ALLOWED_EXTENSIONS: Optional[str] = os.getenv("VIDEO_ALLOWED_EXTENSIONS", ".mp4,.mov,.avi,.mkv,.webm")
-    VIDEO_MAX_FILE_SIZE_MB: Optional[int] = int(os.getenv("VIDEO_MAX_FILE_SIZE_MB", 200))
 
     # Analytics Settings
     ANALYTICS_DEFAULT_TRANSCRIPTION_FACTOR: Optional[float] = float(os.getenv("ANALYTICS_DEFAULT_TRANSCRIPTION_FACTOR", 1.0))
@@ -178,5 +204,34 @@ class Settings:
         except json.JSONDecodeError:
             pass
         return {}
+
+    # Compatibility Properties for AuthSettings migration
+    @property
+    def secret_key(self) -> str:
+        return self.SECRET_KEY
+
+    @property
+    def algorithm(self) -> str:
+        return self.ALGORITHM
+
+    @property
+    def access_token_expire_minutes(self) -> int:
+        return self.ACCESS_TOKEN_EXPIRE_MINUTES
+
+    @property
+    def password_min_length(self) -> int:
+        return self.AUTH_PASSWORD_MIN_LENGTH
+
+    @property
+    def allowed_cors_origins(self) -> Tuple[str, ...]:
+        return self.AUTH_ALLOWED_ORIGINS
+
+    @property
+    def cookie_secure(self) -> bool:
+        return self.AUTH_COOKIE_SECURE
+
+    @property
+    def cookie_samesite(self) -> str:
+        return self.AUTH_COOKIE_SAMESITE
 
 settings = Settings()
