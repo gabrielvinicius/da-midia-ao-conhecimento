@@ -9,6 +9,17 @@ import os
 
 from celery import Celery
 
+# Import models to ensure they are registered with SQLAlchemy Base
+# This prevents NoReferencedTableError for ForeignKeys when running workers
+try:
+    import src.user_management.infrastructure.user_model
+    import src.notifications.infrastructure.models
+    import src.media_management.infrastructure.orm.media_entity
+    import src.media_processing.transcription.infrastructure.transcription_model
+except ImportError:
+    # Fallback if models aren't fully set up yet during scaffolding
+    pass
+
 
 def _default_broker() -> str:
     return os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
