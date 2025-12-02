@@ -4,6 +4,7 @@ from .config import AnalysisConfig
 from .dto import AnalysisResultDTO
 from .commands.analyze_text import AnalyzeTextCommand, AnalyzeTextCommandHandler
 from .queries.get_analysis import GetAnalysisQuery, GetAnalysisQueryHandler
+from .queries.get_analysis_by_media import GetAnalysisByMediaQuery, GetAnalysisByMediaQueryHandler
 from .queries.list_topics import ListTopicsQuery, ListTopicsQueryHandler
 from .service import TextAnalysisService
 from .metrics import TextAnalysisMetrics, NoOpTextAnalysisMetrics
@@ -16,6 +17,8 @@ __all__ = [
     "AnalyzeTextCommandHandler",
     "GetAnalysisQuery",
     "GetAnalysisQueryHandler",
+    "GetAnalysisByMediaQuery",
+    "GetAnalysisByMediaQueryHandler",
     "ListTopicsQuery",
     "ListTopicsQueryHandler",
     "TextAnalysisService",
