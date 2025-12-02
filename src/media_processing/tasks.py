@@ -76,8 +76,9 @@ def process_transcription_task(
             
             analysis_payload = {
                 "media_id": media_id,
-                # We do not pass the huge text payload to avoid Broker limits.
-                # The Text Analysis service should fetch it via Storage/DB using media_id.
+                # We pass the text directly to avoid cross-module DB dependencies in the worker.
+                # If payloads become massive (>4MB), we should switch to S3-based passing.
+                "text": transcription_text,
                 "language": language,
                 "summarization_provider": summarization_provider,
                 "sentiment_provider": sentiment_provider,
