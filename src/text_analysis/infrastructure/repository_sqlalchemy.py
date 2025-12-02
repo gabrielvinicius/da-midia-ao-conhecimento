@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import List, Optional
 
-from sqlalchemy import Column, String, JSON, cast
+from sqlalchemy import Column, String, JSON, ForeignKey, Uuid
 from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import JSONB
@@ -19,7 +20,13 @@ class AnalysisORM(Base):
 
     id = Column(String, primary_key=True)
     document_id = Column(String, nullable=False)
-    # Using JSONB for better query performance on Postgres
+    
+    # Indexed Foreign Keys for performance and integrity
+    media_id = Column(Uuid(as_uuid=True), ForeignKey("media.id"), nullable=True, index=True)
+    user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    transcription_id = Column(Uuid(as_uuid=True), ForeignKey("transcriptions.id"), nullable=True, index=True)
+    
+    # Using JSONB for complex nested data (sentiments, topics, diagnostics)
     payload = Column(JSONB, nullable=False)
 
 
@@ -28,6 +35,11 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         self.session = session
 
     def save(self, analysis: Analysis) -> str:
+        # Convert string IDs to UUIDs for FK columns if present
+        media_uuid = uuid.UUID(analysis.media_id) if analysis.media_id else None
+        user_uuid = uuid.UUID(analysis.user_id) if analysis.user_id else None
+        transcription_uuid = uuid.UUID(analysis.transcription_id) if analysis.transcription_id else None
+
         data = {
             "analysis_id": analysis.id,
             "document_id": analysis.document.id,
@@ -35,11 +47,20 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
             "sentiment_items": [s.__dict__ for s in analysis.sentiments],
             "topics": [t.__dict__ for t in analysis.topics],
             "diagnostics": analysis.diagnostics,
+            # Redundant but kept for backward compatibility or JSON dumps
             "media_id": analysis.media_id,
             "transcription_id": analysis.transcription_id,
             "user_id": analysis.user_id,
         }
-        record = AnalysisORM(id=analysis.id, document_id=analysis.document.id, payload=data)
+        
+        record = AnalysisORM(
+            id=analysis.id, 
+            document_id=analysis.document.id, 
+            media_id=media_uuid,
+            user_id=user_uuid,
+            transcription_id=transcription_uuid,
+            payload=data
+        )
         self.session.merge(record)
         try:
             self.session.commit()
@@ -57,17 +78,16 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         return self._payload_to_analysis(payload)
 
     def get_by_media_id(self, media_id: str) -> Optional[Analysis]:
-        # Query into the JSONB payload
-        # Note: We cast media_id to string to ensure type matching in JSON
-        stmt = select(AnalysisORM).where(
-            AnalysisORM.payload["media_id"].astext == str(media_id)
-        )
-        # Order by something? Maybe implicit insertion order or create a created_at column?
-        # For now, take the first one found (assuming one analysis per media usually)
+        # Query using the indexed column
+        try:
+            media_uuid = uuid.UUID(media_id)
+        except ValueError:
+            return None
+
+        stmt = select(AnalysisORM).where(AnalysisORM.media_id == media_uuid)
         record = self.session.execute(stmt).first()
         if not record:
             return None
-        # record is a Row (AnalysisORM,), so record[0] is the entity
         return self._payload_to_analysis(record[0].payload)
 
     def list_topics(self, analysis_id: str) -> List[Topic]:
