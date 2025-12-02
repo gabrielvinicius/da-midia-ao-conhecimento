@@ -12,6 +12,7 @@ from .application import (
     AnalysisConfig,
     AnalyzeTextCommandHandler,
     GetAnalysisQueryHandler,
+    GetAnalysisByMediaQueryHandler,
     ListTopicsQueryHandler,
     NoOpTextAnalysisMetrics,
 )
@@ -42,6 +43,7 @@ class TextAnalysisModule:
     service: TextAnalysisService
     analyze_handler: AnalyzeTextCommandHandler
     get_handler: GetAnalysisQueryHandler
+    get_by_media_handler: GetAnalysisByMediaQueryHandler
     list_topics_handler: ListTopicsQueryHandler
     repository: InMemoryAnalysisRepository
     config: AnalysisConfig
@@ -87,6 +89,7 @@ async def build_text_analysis_module(
         event_bus=event_bus,
     )
     get_handler = GetAnalysisQueryHandler(repo)
+    get_by_media_handler = GetAnalysisByMediaQueryHandler(repo)
     list_topics_handler = ListTopicsQueryHandler(repo)
 
     metrics = PrometheusTextAnalysisMetrics() if _prom_available() else NoOpTextAnalysisMetrics()
@@ -95,6 +98,7 @@ async def build_text_analysis_module(
         provider_registry=provider_registry,
         analyze_handler=analyze_handler,
         get_handler=get_handler,
+        get_by_media_handler=get_by_media_handler,
         list_topics_handler=list_topics_handler,
         metrics=metrics,
     )
@@ -103,6 +107,7 @@ async def build_text_analysis_module(
         service=service,
         analyze_handler=analyze_handler,
         get_handler=get_handler,
+        get_by_media_handler=get_by_media_handler,
         list_topics_handler=list_topics_handler,
         repository=repo,
         config=config,
