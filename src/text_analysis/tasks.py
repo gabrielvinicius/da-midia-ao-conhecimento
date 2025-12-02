@@ -30,36 +30,36 @@ logger = logging.getLogger(__name__)
 module_cache = None
 
 
-def _build_service_with_session() -> TextAnalysisService:
-    with get_sync_session() as session:
-        module = asyncio.get_event_loop().run_until_complete(
-            build_text_analysis_module(session=session)
-        )
-    return module.service
-
-
-def _get_service() -> TextAnalysisService:
+async def _get_service_async() -> TextAnalysisService:
     global module_cache
     if module_cache is None:
-        module_cache = SimpleNamespace(service=_build_service_with_session())
+        # Use sync session for initialization logic that requires DB access
+        with get_sync_session() as session:
+            module = await build_text_analysis_module(session=session)
+            module_cache = SimpleNamespace(service=module.service)
     return module_cache.service
 
 
-def _task_body(payload: Dict[str, Any], *, op_name: str = "analyze_task") -> Dict[str, Any]:
+async def _async_task_body(payload: Dict[str, Any], op_name: str) -> Dict[str, Any]:
     logger.info("text_analysis.task.start", extra={"payload_keys": list(payload.keys())})
-    service = _get_service()
+    
+    # Get service (awaiting async bootstrap if needed)
+    service = await _get_service_async()
+    
     if getattr(service, "event_bus", None) is None:
         service.event_bus = get_event_bus()
+        
     # Propagate media_id into metrics labels when supported
     if hasattr(service._metrics, "set_context"):
         service._metrics.set_context(payload.get("media_id"), payload.get("user_id"))
+        
     correlation_id = payload.get("correlation_id") or payload.get("media_id") or "n/a"
-    loop = asyncio.get_event_loop()
     start = time.perf_counter()
     success = False
+    
     try:
         if op_name == "summarization":
-            coro = service.schedule_summarization_task(
+            result = await service.schedule_summarization_task(
                 media_id=payload.get("media_id"),
                 transcription_id=payload.get("transcription_id"),
                 text_content=payload.get("text") or payload.get("text_content", ""),
@@ -69,7 +69,7 @@ def _task_body(payload: Dict[str, Any], *, op_name: str = "analyze_task") -> Dic
                 options=payload,
             )
         elif op_name == "sentiment":
-            coro = service.schedule_sentiment_analysis_task(
+            result = await service.schedule_sentiment_analysis_task(
                 media_id=payload.get("media_id"),
                 transcription_id=payload.get("transcription_id"),
                 text=payload.get("text") or payload.get("text_content", ""),
@@ -79,7 +79,7 @@ def _task_body(payload: Dict[str, Any], *, op_name: str = "analyze_task") -> Dic
                 options=payload,
             )
         elif op_name == "topic_modeling":
-            coro = service.schedule_topic_modeling_task(
+            result = await service.schedule_topic_modeling_task(
                 media_id=payload.get("media_id"),
                 text_content=payload.get("text") or payload.get("text_content", ""),
                 segments=payload.get("segments"),
@@ -88,7 +88,7 @@ def _task_body(payload: Dict[str, Any], *, op_name: str = "analyze_task") -> Dic
                 options=payload,
             )
         else:
-            coro = service.analyze_text_content(
+            result = await service.analyze_text_content(
                 text_content=payload.get("text", ""),
                 segments=payload.get("segments"),
                 language=payload.get("language"),
@@ -98,21 +98,20 @@ def _task_body(payload: Dict[str, Any], *, op_name: str = "analyze_task") -> Dic
                 transcription_id=payload.get("transcription_id"),
                 user_id=payload.get("user_id"),
             )
-
-        result = loop.run_until_complete(coro)
+        
         success = True
         return result
     finally:
         duration = time.perf_counter() - start
         try:
-            loop.run_until_complete(
-                service._metrics.record_operation(
-                    operation=op_name,
-                    duration=duration,
-                    success=success,
-                    provider=payload.get("provider"),
-                )
+            # Record metrics
+            await service._metrics.record_operation(
+                operation=op_name,
+                duration=duration,
+                success=success,
+                provider=payload.get("provider"),
             )
+            
             # Emit completion events per operation
             if hasattr(service, "event_bus") and service.event_bus is not None:
                 from src.shared.events.domain_events import (
@@ -130,13 +129,18 @@ def _task_body(payload: Dict[str, Any], *, op_name: str = "analyze_task") -> Dic
                     correlation_id=payload.get("correlation_id"),
                 )
                 if op_name == "summarization":
-                    service.event_bus.publish(SummarizationCompleted(**base))
+                    await service.event_bus.publish(SummarizationCompleted(**base))
                 elif op_name == "sentiment":
-                    service.event_bus.publish(SentimentAnalysisCompleted(**base))
+                    await service.event_bus.publish(SentimentAnalysisCompleted(**base))
                 elif op_name == "topic_modeling":
-                    service.event_bus.publish(TopicModelingCompleted(**base))
+                    await service.event_bus.publish(TopicModelingCompleted(**base))
         except Exception:
             pass
+
+
+def _task_body(payload: Dict[str, Any], *, op_name: str = "analyze_task") -> Dict[str, Any]:
+    # Use asyncio.run to manage the event loop lifecycle for this task execution
+    return asyncio.run(_async_task_body(payload, op_name))
 
 
 if shared_task:
