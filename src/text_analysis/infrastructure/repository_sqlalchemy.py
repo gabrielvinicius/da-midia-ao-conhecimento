@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from typing import List, Optional
 
-from sqlalchemy import Column, String, JSON
+from sqlalchemy import Column, String, JSON, cast
 from sqlalchemy.future import select
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import JSONB
 
 from src.shared.infrastructure.database import Base
 from ..application.ports import AnalysisRepositoryPort
@@ -19,7 +19,8 @@ class AnalysisORM(Base):
 
     id = Column(String, primary_key=True)
     document_id = Column(String, nullable=False)
-    payload = Column(JSON, nullable=False)
+    # Using JSONB for better query performance on Postgres
+    payload = Column(JSONB, nullable=False)
 
 
 class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
@@ -54,6 +55,20 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
             return None
         payload = record.payload or {}
         return self._payload_to_analysis(payload)
+
+    def get_by_media_id(self, media_id: str) -> Optional[Analysis]:
+        # Query into the JSONB payload
+        # Note: We cast media_id to string to ensure type matching in JSON
+        stmt = select(AnalysisORM).where(
+            AnalysisORM.payload["media_id"].astext == str(media_id)
+        )
+        # Order by something? Maybe implicit insertion order or create a created_at column?
+        # For now, take the first one found (assuming one analysis per media usually)
+        record = self.session.execute(stmt).first()
+        if not record:
+            return None
+        # record is a Row (AnalysisORM,), so record[0] is the entity
+        return self._payload_to_analysis(record[0].payload)
 
     def list_topics(self, analysis_id: str) -> List[Topic]:
         analysis = self.get(analysis_id)

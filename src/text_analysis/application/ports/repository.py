@@ -18,6 +18,9 @@ class AnalysisRepositoryPort(ABC):
         ...
 
     @abstractmethod
-    def list_topics(self, analysis_id: str) -> List[Topic]:
+    def get_by_media_id(self, media_id: str) -> Optional[Analysis]:
         ...
 
+    @abstractmethod
+    def list_topics(self, analysis_id: str) -> List[Topic]:
+        ...

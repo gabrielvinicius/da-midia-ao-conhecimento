@@ -8,9 +8,11 @@ from typing import Any, Dict, Optional
 from src.providers.domain.interfaces import IProviderRegistry
 from .commands.analyze_text import AnalyzeTextCommand
 from .queries.get_analysis import GetAnalysisQuery
+from .queries.get_analysis_by_media import GetAnalysisByMediaQuery
 from .queries.list_topics import ListTopicsQuery
 from .commands.analyze_text import AnalyzeTextCommandHandler
 from .queries.get_analysis import GetAnalysisQueryHandler
+from .queries.get_analysis_by_media import GetAnalysisByMediaQueryHandler
 from .queries.list_topics import ListTopicsQueryHandler
 from .metrics import TextAnalysisMetrics, NoOpTextAnalysisMetrics
 
@@ -26,12 +28,14 @@ class TextAnalysisService:
         provider_registry: IProviderRegistry | None = None,
         analyze_handler: AnalyzeTextCommandHandler,
         get_handler: GetAnalysisQueryHandler,
+        get_by_media_handler: GetAnalysisByMediaQueryHandler,
         list_topics_handler: ListTopicsQueryHandler,
         metrics: TextAnalysisMetrics | None = None,
     ) -> None:
         self.provider_registry = provider_registry
         self._analyze_handler = analyze_handler
         self._get_handler = get_handler
+        self._get_by_media_handler = get_by_media_handler
         self._list_topics_handler = list_topics_handler
         self._metrics = metrics or NoOpTextAnalysisMetrics()
 
@@ -135,6 +139,26 @@ class TextAnalysisService:
     def get_analysis(self, analysis_id: str) -> Dict[str, Any]:
         dto = self._get_handler(GetAnalysisQuery(analysis_id))
         return dto.to_dict()
+
+    def get_analysis_by_media_id(self, media_id: str) -> Optional[Dict[str, Any]]:
+        # New method exposed
+        analysis = self._get_by_media_handler(GetAnalysisByMediaQuery(media_id))
+        if not analysis:
+            return None
+        # Convert domain to dict/DTO manually or via mapper.
+        # Assuming similar to to_dict() logic used in get_analysis/AnalyzeTextCommand
+        # Since 'analysis' is a Domain Entity (from handler return), we need to map it.
+        # Let's reuse the DTO logic if possible, or map manually.
+        # Ideally we use a mapper. For now, quick manual mapping based on Analysis entity structure.
+        # Actually, GetAnalysisQueryHandler returns a DTO (AnalyzeResponse).
+        # My new GetAnalysisByMediaQueryHandler returns Optional[Analysis] (Domain Entity).
+        # I should make the handler return DTO or map here.
+        # I'll map here for simplicity.
+        from .dto import AnalyzeResponse
+        from .mappers import AnalysisMapper
+        
+        # Reusing existing mapper if available
+        return AnalysisMapper.to_dto(analysis).to_dict()
 
     def list_topics(self, analysis_id: str) -> list:
         topics = self._list_topics_handler(ListTopicsQuery(analysis_id))
