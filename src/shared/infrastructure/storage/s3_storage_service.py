@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from src.storage.application.storage_service import StorageException, StorageService
 from src.shared.resilience.policies import create_retry_policy
+from src.providers.domain.interfaces import ProviderCapability, ProviderType
 
 
 class S3StorageService(StorageService):
@@ -18,10 +19,48 @@ class S3StorageService(StorageService):
     def __init__(self, root_directory: Union[str, Path] = "storage") -> None:
         self._root = Path(root_directory)
         self._root.mkdir(parents=True, exist_ok=True)
+        self._config = {"root_directory": str(root_directory)}
 
     @property
     def provider_name(self) -> str:
         return "s3"
+
+    # --- IProvider Implementation ---
+
+    def get_name(self) -> str:
+        return "s3-stub"
+
+    def get_type(self) -> ProviderType:
+        return ProviderType.STORAGE
+
+    def get_version(self) -> str:
+        return "0.1.0"
+
+    def get_capabilities(self) -> List[ProviderCapability]:
+        return [
+            ProviderCapability.READ,
+            ProviderCapability.WRITE,
+            ProviderCapability.DELETE,
+            ProviderCapability.LIST
+        ]
+
+    async def health_check(self) -> Dict[str, Any]:
+        return {"status": "ok", "root": str(self._root), "exists": self._root.exists()}
+
+    def get_configuration(self) -> Dict[str, Any]:
+        return self._config
+
+    async def initialize(self, config: Dict[str, Any]) -> bool:
+        if "root_directory" in config:
+            self._root = Path(config["root_directory"])
+            self._root.mkdir(parents=True, exist_ok=True)
+            self._config = config
+        return True
+
+    async def cleanup(self) -> None:
+        pass
+
+    # --- StorageService Implementation ---
 
     @create_retry_policy(exceptions=(StorageException, OSError))
     async def upload(self, file_path: Union[str, Path], file: bytes) -> bool:
