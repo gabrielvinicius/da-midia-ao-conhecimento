@@ -12,11 +12,13 @@ from alembic import context
 from src.shared.infrastructure.database import Base  # Importar a Base
 from src.shared.config.settings import settings
 
-# Import all entity modules to ensure they are registered with the Base metadata
-from src.user_management.domain.user import User
-from src.media_management.infrastructure.orm.media_entity import MediaEntity
-from src.media_processing.transcription.domain.transcription import Transcription
-# Legacy text_analysis submodules removed; current analyses live in consolidated tables
+# Import all INFRASTRUCTURE MODELS to ensure they are registered with the Base metadata
+# Note: Do NOT import Domain Entities here; they are not SQLAlchemy models.
+import src.user_management.infrastructure.user_model
+import src.media_management.infrastructure.orm.media_entity
+import src.media_processing.transcription.infrastructure.transcription_model
+import src.notifications.infrastructure.models
+import src.text_analysis.infrastructure.repository_sqlalchemy
 
 # ---------------------------------------------------
 

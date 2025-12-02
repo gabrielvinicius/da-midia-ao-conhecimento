@@ -19,13 +19,13 @@ class TranscriptionModel(Base):
     __tablename__ = "transcriptions"
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    media_id = Column(Uuid(as_uuid=True), ForeignKey("media.id"), nullable=False, unique=True)
+    media_id = Column(Uuid(as_uuid=True), ForeignKey("media.id"), nullable=False, unique=True, index=True)
     content = Column(Text, nullable=False, default="")
     language = Column(String, nullable=True)
     confidence_score = Column(Float, nullable=True)
     speaker_labels = Column(JSON, nullable=True)
     segments = Column(JSON, nullable=True)
-    status = Column(SqlEnum(TranscriptionStatus), default=TranscriptionStatus.PENDING, nullable=False)
+    status = Column(SqlEnum(TranscriptionStatus), default=TranscriptionStatus.PENDING, nullable=False, index=True)
     provider = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), nullable=True)

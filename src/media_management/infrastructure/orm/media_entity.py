@@ -14,10 +14,10 @@ class MediaEntity(Base):
     __tablename__ = "media"
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     original_file_path = Column(String, nullable=False)
     media_type = Column(SqlEnum(MediaType), nullable=False)
-    status = Column(SqlEnum(MediaStatus), default=MediaStatus.UPLOADED, nullable=False)
+    status = Column(SqlEnum(MediaStatus), default=MediaStatus.UPLOADED, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     error_message = Column(String, nullable=True)
 

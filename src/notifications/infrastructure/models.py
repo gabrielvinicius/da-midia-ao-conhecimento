@@ -36,11 +36,11 @@ class NotificationModel(Base):
     __tablename__ = "notifications"
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     type = Column(Enum(NotificationType), nullable=False)
     content = Column(Text, nullable=False)
     subject = Column(String(255), nullable=True)
-    status = Column(Enum(NotificationStatus), default=NotificationStatus.PENDING)
+    status = Column(Enum(NotificationStatus), default=NotificationStatus.PENDING, index=True)
     priority = Column(Enum(NotificationPriority), default=NotificationPriority.NORMAL)
 
     created_at = Column(DateTime, default=utcnow)
@@ -109,7 +109,7 @@ class NotificationPreferenceModel(Base):
     __tablename__ = "notification_preferences"
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
+    user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True, index=True)
 
     email_enabled = Column(Boolean, default=True)
     sms_enabled = Column(Boolean, default=False)
