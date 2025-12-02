@@ -3,9 +3,12 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
+from src.providers.domain.interfaces import IProvider
 
-class StorageService(ABC):
+
+class StorageService(IProvider, ABC):
     """Abstract base class defining the interface for storage services.
+    Inherits from IProvider to ensure integration with the Provider Registry.
     """
 
     @property
