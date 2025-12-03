@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 from uuid import UUID
 
-from src.media_management.domain.enums import MediaStatus
+from src.shared.domain.enums import MediaStatus
 from src.media_processing.transcription.application.commands.commands import (
     ProcessTranscriptionCommand,
 )

@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from src.media_management.domain.enums import MediaStatus, MediaType
+from src.shared.domain.enums import MediaStatus, MediaType
 from src.media_management.infrastructure.orm.media_entity import MediaEntity
 from src.media_processing.transcription.domain.transcription import (
     Transcription,

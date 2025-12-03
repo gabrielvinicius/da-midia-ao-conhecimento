@@ -7,7 +7,7 @@ import structlog
 
 from src.admin.domain.interfaces import IAdminAuditService, IAdminMediaService
 from src.media_management.application.facade import MediaOrchestrator
-from src.media_management.domain.enums import MediaStatus
+from src.shared.domain.enums import MediaStatus
 from src.media_management.domain.media import Media
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.user_management.domain.interfaces import IUserPermissionService

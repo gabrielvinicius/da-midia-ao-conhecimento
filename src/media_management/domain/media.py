@@ -1,6 +1,6 @@
 """Backwards compatible exports for the media aggregate."""
 
-from src.media_management.domain.enums import MediaStatus, MediaType
+from src.shared.domain.enums import MediaStatus, MediaType
 from src.media_management.domain.model import MediaAggregate
 
 # Historical imports referenced Media as the SQLAlchemy entity. We now expose the
