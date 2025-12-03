@@ -16,6 +16,8 @@ try:
     import src.notifications.infrastructure.models
     import src.media_management.infrastructure.orm.media_entity
     import src.media_processing.transcription.infrastructure.transcription_model
+    # text_analysis uses repository_sqlalchemy which defines AnalysisORM
+    import src.text_analysis.infrastructure.repository_sqlalchemy 
 except ImportError:
     # Fallback if models aren't fully set up yet during scaffolding
     pass
@@ -58,9 +60,7 @@ def create_celery() -> Celery:
             # Existing task packages
             "src.notifications.tasks",
             "src.media_processing.transcription.tasks",
-            "src.text_analysis.text_processing.tasks",
-            "src.text_analysis.topic_modeling.tasks",
-            "src.text_analysis.sentiment_analysis.tasks",
+            # Removed legacy text_analysis submodules
             "src.media_processing.video_processing.tasks",
         ]
     )
