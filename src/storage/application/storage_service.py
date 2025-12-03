@@ -1,7 +1,7 @@
 # src/storage/application/storage_service.py
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from src.providers.domain.interfaces import IProvider
 
@@ -35,6 +35,11 @@ class StorageService(IProvider, ABC):
     @abstractmethod
     async def exists(self, file_path: Union[str, Path]) -> bool:
         """Checks if a file exists in the storage system."""
+        pass
+
+    @abstractmethod
+    async def list_files(self, prefix: str = "") -> List[str]:
+        """Lists all files in the storage system matching the prefix."""
         pass
 
 

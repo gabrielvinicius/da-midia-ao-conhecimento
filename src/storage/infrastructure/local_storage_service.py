@@ -92,6 +92,28 @@ class LocalStorageService(StorageService):
     async def exists(self, file_path: Union[str, Path]) -> bool:
         return self._resolve_path(file_path).exists()
 
+    async def list_files(self, prefix: str = "") -> List[str]:
+        """Lists files in the local storage."""
+        base_dir = self._root
+        if prefix:
+            base_dir = base_dir / prefix
+        
+        if not base_dir.exists():
+            return []
+
+        def _gather() -> List[str]:
+            files = []
+            for path in base_dir.rglob("*"):
+                if path.is_file():
+                    rel_path = path.relative_to(self._root).as_posix()
+                    files.append(rel_path)
+            return files
+
+        try:
+            return await asyncio.to_thread(_gather)
+        except Exception as exc:
+            raise StorageException("Failed to list files", exc) from exc
+
     def _resolve_path(self, file_path: Union[str, Path]) -> Path:
         path = Path(file_path)
         if path.is_absolute():
