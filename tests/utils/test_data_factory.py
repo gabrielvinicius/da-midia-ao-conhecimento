@@ -13,11 +13,6 @@ from src.media_processing.transcription.domain.transcription import (
     Transcription,
     TranscriptionStatus,
 )
-from src.text_analysis.sentiment_analysis.domain.sentiment_analysis import (
-    SentimentAnalysisResult,
-)
-from src.text_analysis.summarization.domain.summary import Summary
-from src.text_analysis.topic_modeling.domain.topic_modeling import TopicModelingResult
 from src.user_management.domain.user import User, UserRole
 
 
@@ -202,135 +197,6 @@ class TestDataFactory:
         }
 
     # ============================================================================
-    # SUMMARIZATION DOMAIN
-    # ============================================================================
-
-    def create_summary(
-        self,
-        media_id: Optional[str] = None,
-        text_content: Optional[str] = None,
-        **kwargs
-    ) -> Summary:
-        """Create a test Summary entity."""
-        sample_summaries = [
-            "This is a brief summary of the main topics discussed.",
-            "Key points: technology trends, market analysis, and future predictions.",
-            "The conversation covered multiple aspects of software development and best practices."
-        ]
-
-        if text_content is None:
-            text_content = random.choice(sample_summaries)
-
-        return Summary(
-            id=self._unique_id(),
-            media_id=media_id or self._unique_id(),
-            text=text_content,
-            strategy="extractive",
-            provider="huggingface",
-            bullet_points=[
-                "First key point from the summary",
-                "Second important insight",
-                "Third notable conclusion"
-            ],
-            key_topics=["technology", "development", "innovation"],
-            confidence_score=round(random.uniform(0.7, 0.95), 2),
-            processing_time=round(random.uniform(2.0, 15.0), 2),
-            created_at=datetime.utcnow(),
-            **kwargs
-        )
-
-    # ============================================================================
-    # SENTIMENT ANALYSIS DOMAIN
-    # ============================================================================
-
-    def create_sentiment_analysis(
-        self,
-        media_id: Optional[str] = None,
-        **kwargs
-    ) -> SentimentAnalysisResult:
-        """Create a test SentimentAnalysis entity."""
-        sentiments = ["positive", "negative", "neutral"]
-        emotions = ["joy", "sadness", "anger", "fear", "surprise", "neutral"]
-
-        overall = kwargs.pop("overall_sentiment", random.choice(sentiments))
-        score = kwargs.pop("sentiment_score", round(random.uniform(-1.0, 1.0), 2))
-        confidence = kwargs.pop("confidence", round(random.uniform(0.6, 0.95), 2))
-        emotion_map = kwargs.pop(
-            "emotions",
-            {
-                emotion: round(random.uniform(0.0, 1.0), 2)
-                for emotion in random.sample(emotions, 3)
-            },
-        )
-        sentence_sentiments = kwargs.pop(
-            "sentence_sentiments",
-            [
-                {
-                    "text": "This is a positive statement.",
-                    "sentiment": "positive",
-                    "score": 0.8,
-                },
-                {
-                    "text": "This is a neutral observation.",
-                    "sentiment": "neutral",
-                    "score": 0.1,
-                },
-            ],
-        )
-
-        return SentimentAnalysisResult(
-            id=self._unique_id(),
-            media_id=media_id or self._unique_id(),
-            overall_sentiment=overall,
-            sentiment_score=score,
-            confidence=confidence,
-            emotions=emotion_map,
-            sentence_sentiments=sentence_sentiments,
-            provider="transformers",
-            model="distilbert-base-uncased",
-            created_at=datetime.utcnow(),
-            **kwargs,
-        )
-
-    # ============================================================================
-    # TOPIC MODELING DOMAIN
-    # ============================================================================
-
-    def create_topic_modeling(
-        self,
-        media_id: Optional[str] = None,
-        **kwargs
-    ) -> TopicModelingResult:
-        """Create a test TopicModeling entity."""
-        sample_topics = [
-            {
-                "topic_id": 0,
-                "words": ["technology", "software", "development", "programming"],
-                "weights": [0.3, 0.25, 0.2, 0.15],
-                "coherence": 0.65
-            },
-            {
-                "topic_id": 1,
-                "words": ["business", "market", "strategy", "growth"],
-                "weights": [0.35, 0.3, 0.2, 0.1],
-                "coherence": 0.72
-            }
-        ]
-
-        return TopicModelingResult(
-            id=self._unique_id(),
-            media_id=media_id or self._unique_id(),
-            topics=random.sample(sample_topics, random.randint(1, 2)),
-            keywords=["technology", "innovation", "development", "strategy"],
-            num_topics=random.randint(2, 5),
-            algorithm="lda",
-            coherence_score=round(random.uniform(0.4, 0.8), 2),
-            perplexity=round(random.uniform(50.0, 200.0), 1),
-            created_at=datetime.utcnow(),
-            **kwargs
-        )
-
-    # ============================================================================
     # DOMAIN EVENTS DATA
     # ============================================================================
 
@@ -365,21 +231,3 @@ class TestDataFactory:
     def create_multiple_media(self, count: int = 5, user_id: Optional[str] = None) -> List[Media]:
         """Create multiple test media objects."""
         return [self.create_media(user_id=user_id) for _ in range(count)]
-
-    def create_complete_media_pipeline_data(self) -> Dict[str, Any]:
-        """Create complete data for testing the full media processing pipeline."""
-        user = self.create_user()
-        media = self.create_audio_media(user_id=user.id)
-        transcription = self.create_transcription(media_id=media.id)
-        summary = self.create_summary(media_id=media.id)
-        sentiment = self.create_sentiment_analysis(media_id=media.id)
-        topics = self.create_topic_modeling(media_id=media.id)
-
-        return {
-            "user": user,
-            "media": media,
-            "transcription": transcription,
-            "summary": summary,
-            "sentiment_analysis": sentiment,
-            "topic_modeling": topics
-        }
