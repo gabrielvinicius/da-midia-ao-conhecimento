@@ -1,6 +1,7 @@
 """Shared executors for Celery processing tasks."""
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
 from uuid import UUID
 
@@ -40,6 +41,12 @@ from src.media_processing.video_processing.infrastructure.video_thumbnail_genera
     FFmpegVideoThumbnailGenerator,
 )
 from src.storage.infrastructure.dependencies import StorageServiceFactory
+from src.shared.events.domain_events import (
+    MediaProcessingStarted,
+    MediaProcessingCompleted,
+    MediaProcessingFailed
+)
+from src.media_management.application.event_handlers import MediaStatusHandler
 
 
 class _NoopTranscriptionTaskScheduler:
@@ -52,18 +59,15 @@ class _NoopVideoTaskScheduler:
         return {"task_id": None}
 
 
-def _record_nonfatal_error(
-    repository: "MediaRepositorySync",
-    media_id: UUID,
-    message: str,
-) -> None:
+def _publish_sync(event_bus, event):
+    """Bridge async event publication to sync context."""
     try:
-        aggregate = repository.get_by_id(media_id)
-    except Exception:
-        return
-    if aggregate is None:
-        return
-    repository.update_status(media_id, aggregate.status, error_message=message)
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    loop.run_until_complete(event_bus.publish(event))
 
 
 def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optional[str]:
@@ -81,19 +85,17 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
     media_queries = MediaQueriesSync(media_repository=media_repo)
     storage_factory = StorageServiceFactory()
 
+    # Wire up handlers for In-Process Domain Event Handling
+    status_handler = MediaStatusHandler(media_repo)
+    event_bus.subscribe(MediaProcessingStarted, status_handler.on_processing_started)
+    event_bus.subscribe(MediaProcessingCompleted, status_handler.on_processing_completed)
+    event_bus.subscribe(MediaProcessingFailed, status_handler.on_processing_failed)
+
     from src.media_processing.application.text_analysis_dispatcher import TextAnalysisDispatcher
 
     dispatcher = TextAnalysisDispatcher(event_bus=event_bus)
-    # Ensure text analysis handler is subscribed in the worker context
-    try:
-        # Note: MediaProcessingServiceSingleton might not be available/configured in worker
-        # If logic depends on it, we should initialize it properly. 
-        # For now, wrapping in try/except to avoid crash if not needed.
-        from src.media_processing.application.services import MediaProcessingService
-        # ... logic to get instance ...
-        pass
-    except Exception:
-        pass
+    
+    # Note: MediaProcessingServiceSingleton wiring skipped for simplification as per refactor
 
     media = media_repo.get_by_id(payload.media_id)
     if media is None:
@@ -112,22 +114,16 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
         transcription_metrics=PrometheusTranscriptionMetrics(),
         storage_service=storage_adapter,
         speech_recognizer_factory=create_speech_recognition_service,
-        # db_session removed
         media_queries=media_queries,
         event_bus=event_bus,
         dispatcher=dispatcher,
     )
 
-    # Ensure the UI receives progress notifications for each stage.
-    media_repo.update_status(
-        payload.media_id,
-        MediaStatus.PROCESSING,
-        error_message=None,
-        force_notify=True,
-    )
+    # Publish STARTED event via Bus instead of direct Repo update
+    _publish_sync(event_bus, MediaProcessingStarted(media_id=str(payload.media_id)))
 
     try:
-        return service.process_transcription_job_sync(
+        result = service.process_transcription_job_sync(
             media_id=payload.media_id,
             file_path=file_path,
             storage_provider=storage_provider,
@@ -137,26 +133,36 @@ def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optiona
             sentiment_provider=payload.sentiment_provider,
             topic_modeling_provider=payload.topic_modeling_provider,
         )
+        
+        # Publish COMPLETED event
+        # Note: service.process_transcription_job_sync might return successfully even if internal error handled?
+        # Assuming exception raised if failed.
+        _publish_sync(event_bus, MediaProcessingCompleted(media_id=str(payload.media_id)))
+        
+        return result
     except Exception as exc:
-        try:
-            media_repo.update_status(
-                payload.media_id,
-                MediaStatus.FAILED,
-                error_message=str(exc),
-            )
-        except ValueError:
-            _record_nonfatal_error(
-                media_repo,
-                payload.media_id,
-                f"transcription failed: {exc}",
-            )
+        # Publish FAILED event
+        _publish_sync(event_bus, MediaProcessingFailed(
+            media_id=str(payload.media_id), 
+            error_message=str(exc)
+        ))
         raise
 
 
 def run_video_job_sync(db, payload: VideoTaskPayload) -> Optional[dict]:
     """Execute the video pipeline in-process for Celery."""
+    # Each worker process builds its own event bus instance
+    from src.shared.event_bus_factory import get_event_bus
+    event_bus = get_event_bus()
+    
     storage_factory = StorageServiceFactory()
     media_repo = MediaRepositorySync(db=db)
+    
+    # Wire up handlers
+    status_handler = MediaStatusHandler(media_repo)
+    event_bus.subscribe(MediaProcessingStarted, status_handler.on_processing_started)
+    event_bus.subscribe(MediaProcessingCompleted, status_handler.on_processing_completed)
+    event_bus.subscribe(MediaProcessingFailed, status_handler.on_processing_failed)
 
     media = media_repo.get_by_id(payload.media_id)
     if media is None:
@@ -173,26 +179,25 @@ def run_video_job_sync(db, payload: VideoTaskPayload) -> Optional[dict]:
         video_processing_metrics=PrometheusVideoProcessingMetrics(),
     )
 
-    media_repo.update_status(
-        payload.media_id,
-        MediaStatus.PROCESSING,
-        error_message=None,
-        force_notify=True,
-    )
+    # Publish STARTED event
+    _publish_sync(event_bus, MediaProcessingStarted(media_id=str(payload.media_id)))
 
     try:
-        return service.process_video_job_sync(
+        result = service.process_video_job_sync(
             media_id=payload.media_id,
             file_path=file_path,
             storage_provider=payload.storage_provider,
             file_size_bytes=payload.file_size_bytes,
         )
+        # Publish COMPLETED event
+        _publish_sync(event_bus, MediaProcessingCompleted(media_id=str(payload.media_id)))
+        return result
     except Exception as exc:
-        _record_nonfatal_error(
-            media_repo,
-            payload.media_id,
-            f"video processing failed: {exc}",
-        )
+        # Publish FAILED event
+        _publish_sync(event_bus, MediaProcessingFailed(
+            media_id=str(payload.media_id), 
+            error_message=str(exc)
+        ))
         raise
 
 

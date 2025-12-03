@@ -128,6 +128,25 @@ class AudioExtracted(DomainEvent):
     storage_provider: Optional[str] = None
 
 
+@dataclass(frozen=True, slots=True)
+class MediaProcessingStarted(DomainEvent):
+    """Event emitted when media processing begins."""
+    media_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class MediaProcessingCompleted(DomainEvent):
+    """Event emitted when media processing successfully completes."""
+    media_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class MediaProcessingFailed(DomainEvent):
+    """Event emitted when media processing fails."""
+    media_id: str = ""
+    error_message: str = ""
+
+
 if TYPE_CHECKING:
     from src.media_management.domain.media import Media
 
@@ -182,4 +201,7 @@ __all__ = [
     "AudioExtracted",
     "MediaDeleted",
     "MediaReprocessRequested",
+    "MediaProcessingStarted",
+    "MediaProcessingCompleted",
+    "MediaProcessingFailed",
 ]
