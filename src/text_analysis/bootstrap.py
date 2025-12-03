@@ -54,6 +54,7 @@ async def build_text_analysis_module(
     provider_registry: IProviderRegistry | None = None,
     repository: Any | None = None,
     event_bus: Any | None = None,
+    transcription_queries: Any | None = None,
     **_kwargs: Any,
 ) -> TextAnalysisModule:
     _seed_text_analysis_providers(provider_registry)
@@ -101,6 +102,7 @@ async def build_text_analysis_module(
         get_by_media_handler=get_by_media_handler,
         list_topics_handler=list_topics_handler,
         metrics=metrics,
+        transcription_queries=transcription_queries,
     )
 
     return TextAnalysisModule(

@@ -35,7 +35,17 @@ async def _get_service_async() -> TextAnalysisService:
     if module_cache is None:
         # Use sync session for initialization logic that requires DB access
         with get_sync_session() as session:
-            module = await build_text_analysis_module(session=session)
+            # Manually instantiate dependencies required for cross-module access in worker context
+            from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
+            from src.media_processing.transcription.application.queries import TranscriptionQueries
+            
+            transcription_repo = TranscriptionRepository(session)
+            transcription_queries = TranscriptionQueries(transcription_repo)
+
+            module = await build_text_analysis_module(
+                session=session,
+                transcription_queries=transcription_queries
+            )
             module_cache = SimpleNamespace(service=module.service)
     return module_cache.service
 
@@ -62,7 +72,7 @@ async def _async_task_body(payload: Dict[str, Any], op_name: str) -> Dict[str, A
             result = await service.schedule_summarization_task(
                 media_id=payload.get("media_id"),
                 transcription_id=payload.get("transcription_id"),
-                text_content=payload.get("text") or payload.get("text_content", ""),
+                text_content=payload.get("text") or payload.get("text_content"),
                 segments=payload.get("segments"),
                 language=payload.get("language"),
                 provider=payload.get("provider"),
@@ -72,7 +82,7 @@ async def _async_task_body(payload: Dict[str, Any], op_name: str) -> Dict[str, A
             result = await service.schedule_sentiment_analysis_task(
                 media_id=payload.get("media_id"),
                 transcription_id=payload.get("transcription_id"),
-                text=payload.get("text") or payload.get("text_content", ""),
+                text=payload.get("text") or payload.get("text_content"),
                 segments=payload.get("segments"),
                 language=payload.get("language"),
                 provider=payload.get("provider"),
@@ -81,7 +91,7 @@ async def _async_task_body(payload: Dict[str, Any], op_name: str) -> Dict[str, A
         elif op_name == "topic_modeling":
             result = await service.schedule_topic_modeling_task(
                 media_id=payload.get("media_id"),
-                text_content=payload.get("text") or payload.get("text_content", ""),
+                text_content=payload.get("text") or payload.get("text_content"),
                 segments=payload.get("segments"),
                 language=payload.get("language"),
                 provider=payload.get("provider"),
@@ -89,7 +99,7 @@ async def _async_task_body(payload: Dict[str, Any], op_name: str) -> Dict[str, A
             )
         else:
             result = await service.analyze_text_content(
-                text_content=payload.get("text", ""),
+                text_content=payload.get("text"),
                 segments=payload.get("segments"),
                 language=payload.get("language"),
                 provider=payload.get("provider"),

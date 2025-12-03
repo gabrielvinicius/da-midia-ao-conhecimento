@@ -31,6 +31,7 @@ class TextAnalysisService:
         get_by_media_handler: GetAnalysisByMediaQueryHandler,
         list_topics_handler: ListTopicsQueryHandler,
         metrics: TextAnalysisMetrics | None = None,
+        transcription_queries: Any | None = None,
     ) -> None:
         self.provider_registry = provider_registry
         self._analyze_handler = analyze_handler
@@ -38,6 +39,7 @@ class TextAnalysisService:
         self._get_by_media_handler = get_by_media_handler
         self._list_topics_handler = list_topics_handler
         self._metrics = metrics or NoOpTextAnalysisMetrics()
+        self._transcription_queries = transcription_queries
 
     def _validate_provider(self, provider: Optional[str]) -> Optional[str]:
         if provider and self.provider_registry:
@@ -61,6 +63,23 @@ class TextAnalysisService:
         import time
 
         resolved_provider = self._validate_provider(provider)
+        
+        # Fallback: Fetch text from database if not provided but media_id is available
+        if not text_content and media_id and self._transcription_queries:
+            try:
+                transcription = await self._transcription_queries.get_by_media_id(media_id)
+                if transcription:
+                    text_content = getattr(transcription, "text", "") or getattr(transcription, "content", "")
+                    # Also enrich missing metadata if available
+                    if not transcription_id:
+                        transcription_id = str(transcription.id)
+                    if not language:
+                        language = transcription.language
+                    if not segments:
+                        segments = transcription.segments
+            except Exception as exc:
+                logger.warning("text_analysis.fetch_text_failed", media_id=media_id, error=str(exc))
+
         start = time.perf_counter()
         success = False
         try:
@@ -145,15 +164,6 @@ class TextAnalysisService:
         analysis = self._get_by_media_handler(GetAnalysisByMediaQuery(media_id))
         if not analysis:
             return None
-        # Convert domain to dict/DTO manually or via mapper.
-        # Assuming similar to to_dict() logic used in get_analysis/AnalyzeTextCommand
-        # Since 'analysis' is a Domain Entity (from handler return), we need to map it.
-        # Let's reuse the DTO logic if possible, or map manually.
-        # Ideally we use a mapper. For now, quick manual mapping based on Analysis entity structure.
-        # Actually, GetAnalysisQueryHandler returns a DTO (AnalyzeResponse).
-        # My new GetAnalysisByMediaQueryHandler returns Optional[Analysis] (Domain Entity).
-        # I should make the handler return DTO or map here.
-        # I'll map here for simplicity.
         from .dto import AnalyzeResponse
         from .mappers import AnalysisMapper
         

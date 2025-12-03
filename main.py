@@ -130,6 +130,7 @@ async def lifespan(app: FastAPI):
                 session=session,
                 provider_registry=providers_module.provider_registry,
                 event_bus=event_bus,
+                transcription_queries=media_module.transcription_queries, # Injected dependency
             )
         else:
             logger.warning("text_analysis.bootstrap_skipped", reason="lightweight_mode")
