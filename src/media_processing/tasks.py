@@ -76,9 +76,7 @@ def process_transcription_task(
             
             analysis_payload = {
                 "media_id": media_id,
-                # We pass the text directly to avoid cross-module DB dependencies in the worker.
-                # If payloads become massive (>4MB), we should switch to S3-based passing.
-                "text": transcription_text,
+                # We pass ID reference only. Text is fetched from DB by TextAnalysisService.
                 "language": language,
                 "summarization_provider": summarization_provider,
                 "sentiment_provider": sentiment_provider,
