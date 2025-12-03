@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from src.media_management.domain.media import Media, MediaStatus, MediaType
+from src.shared.domain.enums import MediaStatus, MediaType
 from src.media_processing.transcription.domain.transcription import (
     Transcription,
     TranscriptionStatus,

@@ -6,7 +6,7 @@ from uuid import UUID
 
 import structlog
 
-from src.media_management.domain.enums import MediaStatus
+from src.shared.domain.enums import MediaStatus
 from src.notifications.domain.notification import NotificationType
 from src.notifications.tasks.notification_tasks import send_notification_task
 

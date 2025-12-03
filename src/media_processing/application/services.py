@@ -181,7 +181,7 @@ class MediaProcessingService:
             media_type_value = event.media_type or context.get("media_type")
             media_type = self._resolve_media_type(media_type_value)
 
-            from src.media_management.domain.enums import MediaType as _MediaType
+            from src.shared.domain.enums import MediaType as _MediaType
 
             if media_type == _MediaType.TEXT:
                 self._logger.debug(
@@ -288,7 +288,7 @@ class MediaProcessingService:
 
     def _resolve_media_type(self, media_type_value):
         try:
-            from src.media_management.domain.enums import MediaType as _MediaType
+            from src.shared.domain.enums import MediaType as _MediaType
             if isinstance(media_type_value, _MediaType):
                 return media_type_value
             elif media_type_value is not None:

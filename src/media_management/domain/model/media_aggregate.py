@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Optional, Union
 from uuid import UUID, uuid4
 
-from src.media_management.domain.enums import MediaStatus, MediaType
+from src.shared.domain.enums import MediaStatus, MediaType
 
 UUIDLike = Union[UUID, str]
 _MISSING = object()

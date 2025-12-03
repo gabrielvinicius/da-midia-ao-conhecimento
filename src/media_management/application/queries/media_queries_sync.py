@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import List, Optional
 from uuid import UUID
 
-from src.media_management.domain.enums import MediaStatus
+from src.shared.domain.enums import MediaStatus
 from src.media_management.domain.media import Media
 from src.media_management.infrastructure.media_repository_sync import (
     MediaRepositorySync,

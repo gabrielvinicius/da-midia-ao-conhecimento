@@ -16,7 +16,7 @@ from httpx import ASGITransport, AsyncClient
 
 from main import app
 from src.media_management.api.dependencies import get_media_service
-from src.media_management.domain.enums import MediaStatus, MediaType
+from src.shared.domain.enums import MediaStatus, MediaType
 from src.shared.api.dependencies import get_current_user
 from src.user_management.domain.user import User, UserRole
 

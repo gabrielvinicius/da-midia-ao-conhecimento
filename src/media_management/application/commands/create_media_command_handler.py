@@ -11,7 +11,7 @@ from typing import Any, Dict
 
 import structlog
 
-from src.media_management.domain.enums import MediaStatus, MediaType
+from src.shared.domain.enums import MediaStatus, MediaType
 from src.media_management.domain.media import Media
 from src.shared.exceptions.domain_exceptions import ValidationError
 from src.providers.domain.interfaces import IProviderRegistry, ProviderType

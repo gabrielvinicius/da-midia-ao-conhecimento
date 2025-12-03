@@ -9,7 +9,7 @@ import structlog
 
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.application.services import MediaService
-from src.media_management.domain.enums import MediaStatus
+from src.shared.domain.enums import MediaStatus
 from src.media_management.domain.media import Media
 from src.shared.events.bus import SupportsEventBus
 from src.shared.events.domain_events import MediaDeleted, MediaReprocessRequested

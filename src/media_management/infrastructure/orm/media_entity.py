@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import Column, DateTime, ForeignKey, String, Uuid
 from sqlalchemy import Enum as SqlEnum
 
-from src.media_management.domain.enums import MediaStatus, MediaType
+from src.shared.domain.enums import MediaStatus, MediaType
 from src.shared.infrastructure.database import Base
 
 

@@ -8,7 +8,7 @@ from src.media_processing.application.schemas import (
     TranscriptionTaskPayload,
     VideoTaskPayload,
 )
-from src.media_management.domain.enums import MediaStatus
+from src.shared.domain.enums import MediaStatus
 from src.media_management.infrastructure.media_repository_sync import (
     MediaRepositorySync,
 )

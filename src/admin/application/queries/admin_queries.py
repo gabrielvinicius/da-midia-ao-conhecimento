@@ -5,7 +5,7 @@ from typing import Any, Dict
 from uuid import UUID
 
 from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_management.domain.enums import MediaStatus
+from src.shared.domain.enums import MediaStatus
 from src.user_management.application.queries.auth_queries import AuthQueries
 
 

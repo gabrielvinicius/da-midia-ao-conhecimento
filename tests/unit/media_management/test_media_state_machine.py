@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.media_management.domain.enums import MediaStatus
+from src.shared.domain.enums import MediaStatus
 from src.media_management.domain.media_state import DEFAULT_MEDIA_STATE_MACHINE
 
 
