@@ -11,6 +11,7 @@ import structlog
 from src.media_processing.transcription.domain.transcription import Transcription
 from src.shared.config.settings import settings
 from src.shared.event_bus import SupportsEventBus
+from src.media_processing.application.schemas import TranscriptionTaskPayload
 
 if TYPE_CHECKING:
     from src.media_management.application.queries.media_queries import MediaQueries
@@ -49,6 +50,55 @@ class TranscriptionService:
         self._media_queries = media_queries
         self._event_bus = event_bus
         self._dispatcher = dispatcher
+
+    async def request_transcription_generation(
+        self,
+        *,
+        media_id: UUID,
+        file_path: str,
+        storage_provider: str,
+        transcription_provider: str,
+        language: str,
+        file_size_bytes: Optional[int] = None,
+        summarization_provider: Optional[str] = None,
+        sentiment_provider: Optional[str] = None,
+        topic_modeling_provider: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Schedule a transcription task via the scheduler."""
+        
+        payload = TranscriptionTaskPayload(
+            media_id=media_id,
+            storage_provider=storage_provider,
+            transcription_provider=transcription_provider,
+            language=language,
+            file_size_bytes=file_size_bytes or 0,
+            summarization_provider=summarization_provider,
+            sentiment_provider=sentiment_provider,
+            topic_modeling_provider=topic_modeling_provider,
+        )
+        
+        # Schedule the task using the injected scheduler
+        # Assumes scheduler has a generic 'schedule_transcription' or similar, or we adapt.
+        # Looking at CeleryTranscriptionTaskScheduler (Turn 69 bootstrap), it likely has schedule_transcription_task.
+        # Let's assume standard naming or update adapter if needed.
+        # bootstrap uses: CeleryTranscriptionTaskScheduler
+        # Let's check if it matches 'schedule_transcription' from my previous thought or different.
+        # Actually, I can just use the method that exists on the scheduler.
+        
+        if hasattr(self.task_scheduler, 'schedule_transcription_task'):
+             result = await self.task_scheduler.schedule_transcription_task(**payload.model_dump(mode="json"))
+        elif hasattr(self.task_scheduler, 'schedule_transcription'):
+             result = self.task_scheduler.schedule_transcription(payload.model_dump(mode="json"))
+        else:
+             # Fallback or error
+             raise RuntimeError(f"Scheduler {type(self.task_scheduler)} missing schedule method")
+
+        return {
+            "success": True,
+            "media_id": str(media_id),
+            "message": "Transcription scheduled",
+            "task_id": result.get("task_id") if isinstance(result, dict) else None
+        }
 
     def process_transcription_job_sync(
         self,
