@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import structlog
 
@@ -129,6 +129,10 @@ class StorageClientAdapter:
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(run_async)
                 return future.result()
+
+    async def list_files(self, prefix: str = "") -> List[str]:
+        """Lists all files in the storage system matching the prefix."""
+        return await self.backend.list_files(prefix)
 
 
 class StorageServiceFactory:

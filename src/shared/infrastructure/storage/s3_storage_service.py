@@ -96,6 +96,29 @@ class S3StorageService(StorageService):
     async def exists(self, file_path: Union[str, Path]) -> bool:
         return self._resolve_path(file_path).exists()
 
+    async def list_files(self, prefix: str = "") -> List[str]:
+        """Lists files in the stub storage (local filesystem)."""
+        base_dir = self._root
+        if prefix:
+            base_dir = base_dir / prefix
+        
+        if not base_dir.exists():
+            return []
+
+        def _gather() -> List[str]:
+            files = []
+            for path in base_dir.rglob("*"):
+                if path.is_file():
+                    # Return relative path from root to mimic S3 keys
+                    rel_path = path.relative_to(self._root).as_posix()
+                    files.append(rel_path)
+            return files
+
+        try:
+            return await asyncio.to_thread(_gather)
+        except Exception as exc:
+            raise StorageException("Failed to list files from S3 stub", exc) from exc
+
     async def download_file(self, file_path: Union[str, Path]) -> bytes:
         """Compat helper para consumidores que esperam apenas os bytes."""
         result = await self.download(file_path)
