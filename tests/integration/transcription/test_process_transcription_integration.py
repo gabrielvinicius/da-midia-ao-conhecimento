@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.domain.media import Media, MediaStatus, MediaType
 from src.media_management.infrastructure.media_repository import MediaRepository
-from src.media_management.infrastructure.orm.media_entity import MediaEntity
+from src.media_management.infrastructure.persistence import MediaEntity
 from src.media_processing.transcription.application.commands.process_transcription_command import (
     ProcessTranscriptionCommand,
 )

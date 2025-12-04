@@ -14,7 +14,7 @@ from src.media_management.domain.model import MediaAggregate
 import structlog
 
 from .media_entity import MediaEntity
-from .media_mapper import MediaMapper
+from .mappers import MediaMapper
 
 logger = structlog.get_logger(__name__)
 

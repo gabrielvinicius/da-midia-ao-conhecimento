@@ -15,7 +15,7 @@ from src.shared.config.settings import settings
 # Import all INFRASTRUCTURE MODELS to ensure they are registered with the Base metadata
 # Note: Do NOT import Domain Entities here; they are not SQLAlchemy models.
 import src.user_management.infrastructure.user_model
-import src.media_management.infrastructure.orm.media_entity
+import src.media_management.infrastructure.persistence
 import src.media_processing.transcription.infrastructure.transcription_model
 import src.notifications.infrastructure.models
 import src.text_analysis.infrastructure.repository_sqlalchemy

@@ -7,7 +7,7 @@ from typing import Optional
 
 from src.media_management.domain.model import MediaAggregate
 
-from .media_entity import MediaEntity
+from .persistence import MediaEntity
 
 
 def _to_naive(dt: datetime | None) -> datetime | None:
