@@ -1,50 +1,44 @@
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Any
 
-from fastapi import Depends
+from src.media_management.application.commands.use_cases import (
+    CreateMedia,
+    DeleteMedia,
+    ReprocessMedia,
+    CleanupOrphanedFiles,
+)
+from src.media_management.application.queries.use_cases import (
+    GetMedia,
+    ListMedia,
+    GetMediaStatistics,
+)
 
-from src.media_management.application.facade import MediaOrchestrator
-from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_management.application.services import MediaService
+
+# Placeholder dependencies for FastAPI overrides
+def get_create_media() -> CreateMedia:
+    raise NotImplementedError
+
+def get_delete_media() -> DeleteMedia:
+    raise NotImplementedError
+
+def get_reprocess_media() -> ReprocessMedia:
+    raise NotImplementedError
+
+def get_cleanup_media() -> CleanupOrphanedFiles:
+    raise NotImplementedError
+
+def get_get_media() -> GetMedia:
+    raise NotImplementedError
+
+def get_list_media() -> ListMedia:
+    raise NotImplementedError
+
+def get_get_media_statistics() -> GetMediaStatistics:
+    raise NotImplementedError
 
 
-class MediaDependenciesNotConfigured(RuntimeError):
-    pass
-
-
-@dataclass(frozen=True)
+@dataclass
 class MediaDependencies:
-    queries: MediaQueries
-    service: MediaService
-    orchestrator: MediaOrchestrator
-
-
-def get_media_dependencies() -> MediaDependencies:
-    raise MediaDependenciesNotConfigured(
-        "Media dependencies are not configured. Register providers in the lifespan handler."
-    )
-
-
-MediaDeps = Annotated[MediaDependencies, Depends(get_media_dependencies)]
-
-
-def get_media_service(deps: MediaDeps) -> MediaService:
-    return deps.service
-
-
-def get_media_queries(deps: MediaDeps) -> MediaQueries:
-    return deps.queries
-
-
-def get_media_orchestrator(deps: MediaDeps) -> MediaOrchestrator:
-    return deps.orchestrator
-
-
-__all__ = [
-    "MediaDependencies",
-    "MediaDependenciesNotConfigured",
-    "get_media_dependencies",
-    "get_media_queries",
-    "get_media_service",
-    "get_media_orchestrator",
-]
+    # Kept for backward compatibility if any external module imports it, 
+    # but ideally should be removed.
+    pass

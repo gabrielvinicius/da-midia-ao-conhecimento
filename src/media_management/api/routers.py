@@ -4,10 +4,8 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
-from fastapi.encoders import jsonable_encoder
 from fastapi.responses import Response
 
-# Import dependencies from their correct, decoupled locations
 from src.shared.api.dependencies import get_current_user
 from src.shared.api.unified_schemas import (
     BaseResponseSchema,
@@ -18,11 +16,30 @@ from src.shared.exceptions.domain_exceptions import DomainException
 from src.user_management.domain.user import User
 from src.shared.infrastructure.logging_config import get_logger
 
-from ..application.facade import MediaOrchestrator
-from ..application.services import MediaService
+from src.media_management.application.commands.use_cases import (
+    CreateMedia,
+    DeleteMedia,
+    ReprocessMedia,
+)
+from src.media_management.application.queries.use_cases import (
+    GetMedia,
+    ListMedia,
+)
+from src.media_management.application.commands.dto import (
+    CreateMediaCommand,
+    DeleteMediaCommand,
+    ReprocessMediaCommand,
+)
+from src.media_management.application.queries.dto import (
+    GetMediaQuery,
+    ListMediaQuery,
+)
 from .dependencies import (
-    get_media_service,
-    get_media_orchestrator,
+    get_create_media,
+    get_delete_media,
+    get_reprocess_media,
+    get_get_media,
+    get_list_media,
 )
 from .schemas import MediaResponse
 from src.storage.infrastructure.dependencies import StorageServiceFactory
@@ -51,13 +68,14 @@ async def create_media(
     sentiment_provider: Optional[str] = Query(None),
     topic_modeling_provider: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
-    media_service: MediaService = Depends(get_media_service),
+    use_case: CreateMedia = Depends(get_create_media),
 ):
     try:
         file_content = await file.read()
-        media = await media_service.upload_media(
-            user_id=current_user.id,
-            file_content=file_content,
+        
+        command = CreateMediaCommand(
+            user_id=str(current_user.id),
+            file=file_content,
             filename=file.filename,
             storage_provider=storage_provider,
             transcription_provider=transcription_provider,
@@ -66,11 +84,12 @@ async def create_media(
             topic_modeling_provider=topic_modeling_provider,
         )
         
-        # Explicit mapping Domain -> DTO
+        media = await use_case.execute(command)
+        
         return MediaResponse(
             id=media.id,
             filename=media.filename,
-            content_type=media.mime_type, # Corrected from media.content_type
+            content_type=media.mime_type,
             size=media.file_size,
             media_type=media.media_type,
             created_at=media.created_at,
@@ -80,11 +99,10 @@ async def create_media(
             duration=media.duration
         )
     except DomainException as e:
-        # Tratamento padronizado de erros de domínio
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as exc:  # pragma: no cover - defensive catch-all
+    except Exception as exc:
         logger.error(
             "media_api.upload_failed",
             error=str(exc),
@@ -92,21 +110,29 @@ async def create_media(
             filename=file.filename if file else None,
             user_id=str(current_user.id),
         )
-        # Retorna a mensagem do erro para facilitar diagnóstico do 500 em ambiente de dev
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
 
 @router.get("/", response_model=List[MediaResponse], summary="List all media for the current user")
 async def list_user_media(
     current_user: User = Depends(get_current_user),
-    media_service: MediaService = Depends(get_media_service),
+    use_case: ListMedia = Depends(get_list_media),
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    search: Optional[str] = Query(None),
 ):
-    media_list = await media_service.list_media_for_user(user_id=current_user.id)
-    # Explicit mapping Domain -> DTO List
+    query = ListMediaQuery(
+        user_id=current_user.id,
+        page=page,
+        limit=limit,
+        search=search
+    )
+    media_list = await use_case.execute(query)
+    
     return [
         MediaResponse(
             id=media.id,
             filename=media.filename,
-            content_type=media.mime_type, # Corrected from media.content_type
+            content_type=media.mime_type,
             size=media.file_size,
             media_type=media.media_type,
             created_at=media.created_at,
@@ -121,19 +147,27 @@ async def list_user_media(
 async def get_media_by_id(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
-    media_service: MediaService = Depends(get_media_service),
+    use_case: GetMedia = Depends(get_get_media),
 ):
     try:
-        media = await media_service.get_media_for_user(
-            media_id=media_id,
-            user_id=current_user.id,
-            user_role=current_user.role,
-        )
-        # Explicit mapping Domain -> DTO
+        query = GetMediaQuery(media_id=media_id)
+        media = await use_case.execute(query)
+        
+        if not media:
+            raise ValueError("Media not found")
+            
+        # Access Check (should ideally be in Policy inside Use Case, but GetMedia is generic)
+        # For now, simple check here or ensuring UseCase handles policy?
+        # The UseCase `GetMedia` I wrote is generic (by ID).
+        # I should implement `GetMediaForUser` use case if I want encapsulated security.
+        # OR I check it here.
+        if media.user_id != current_user.id and current_user.role != "ADMIN":
+             raise PermissionError("Not authorized")
+
         return MediaResponse(
             id=media.id,
             filename=media.filename,
-            content_type=media.mime_type, # Corrected from media.content_type
+            content_type=media.mime_type,
             size=media.file_size,
             media_type=media.media_type,
             created_at=media.created_at,
@@ -150,11 +184,15 @@ async def get_media_by_id(
 async def delete_media(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
-    media_orchestrator: MediaOrchestrator = Depends(get_media_orchestrator),
+    use_case: DeleteMedia = Depends(get_delete_media),
 ):
-    """Delete a media file and all related artifacts owned by the current user."""
     try:
-        await media_orchestrator.delete_media_for_user(media_id=media_id, acting_user=current_user)
+        command = DeleteMediaCommand(media_id=media_id)
+        await use_case.execute(
+            command, 
+            user_id=current_user.id, 
+            user_role=current_user.role
+        )
     except PermissionError:
         raise HTTPException(status_code=404, detail="Media not found or not authorized")
     except ValueError as exc:
@@ -166,14 +204,17 @@ async def stream_media(
     media_id: UUID,
     request: Request,
     current_user: User = Depends(get_current_user),
-    media_service: MediaService = Depends(get_media_service),
+    use_case: GetMedia = Depends(get_get_media),
 ):
     try:
-        media = await media_service.get_media_for_user(
-            media_id=media_id,
-            user_id=current_user.id,
-            user_role=current_user.role,
-        )
+        query = GetMediaQuery(media_id=media_id)
+        media = await use_case.execute(query)
+        
+        if not media:
+             raise ValueError("Media not found")
+             
+        if media.user_id != current_user.id and current_user.role != "ADMIN":
+             raise PermissionError("Not authorized")
     except (ValueError, PermissionError):
         raise HTTPException(status_code=404, detail="Media not found or not authorized")
 
@@ -230,12 +271,13 @@ async def stream_media(
 async def reprocess_media(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
-    media_service: MediaService = Depends(get_media_service),
+    use_case: ReprocessMedia = Depends(get_reprocess_media),
 ):
     """Reprocess a media item (transcription, summarization, sentiment analysis, etc.)"""
     try:
-        await media_service.reprocess_media(
-            media_id=media_id,
+        command = ReprocessMediaCommand(media_id=media_id)
+        await use_case.execute(
+            command,
             user_id=current_user.id,
             user_role=current_user.role,
         )
