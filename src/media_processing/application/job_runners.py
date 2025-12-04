@@ -72,17 +72,9 @@ def _publish_sync(event_bus, event):
 
 def run_transcription_job_sync(db, payload: TranscriptionTaskPayload) -> Optional[str]:
     """Execute the transcription pipeline in-process for Celery."""
-    from src.media_management.application.queries.media_queries_sync import (
-        MediaQueriesSync,
-    )
-
-    # Each worker process builds its own event bus instance
-    from src.shared.event_bus_factory import get_event_bus
-    event_bus = get_event_bus()
-
-    transcription_repo = TranscriptionRepository(db)
-    media_repo = MediaRepositorySync(db=db)
-    media_queries = MediaQueriesSync(media_repository=media_repo)
+    # media_queries = MediaQueriesSync(media_repository=media_repo) <- Removed
+    # Passing repository directly as it satisfies the interface required by TranscriptionService (get_by_id)
+    media_queries = media_repo
     storage_factory = StorageServiceFactory()
 
     # Wire up handlers for In-Process Domain Event Handling

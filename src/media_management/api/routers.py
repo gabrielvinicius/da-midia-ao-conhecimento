@@ -16,15 +16,7 @@ from src.shared.exceptions.domain_exceptions import DomainException
 from src.user_management.domain.user import User
 from src.shared.infrastructure.logging_config import get_logger
 
-from src.media_management.application.commands.use_cases import (
-    CreateMedia,
-    DeleteMedia,
-    ReprocessMedia,
-)
-from src.media_management.application.queries.use_cases import (
-    GetMedia,
-    ListMedia,
-)
+from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.commands.dto import (
     CreateMediaCommand,
     DeleteMediaCommand,
@@ -34,13 +26,7 @@ from src.media_management.application.queries.dto import (
     GetMediaQuery,
     ListMediaQuery,
 )
-from .dependencies import (
-    get_create_media,
-    get_delete_media,
-    get_reprocess_media,
-    get_get_media,
-    get_list_media,
-)
+from .dependencies import get_media_service
 from .schemas import MediaResponse
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 
@@ -68,7 +54,7 @@ async def create_media(
     sentiment_provider: Optional[str] = Query(None),
     topic_modeling_provider: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
-    use_case: CreateMedia = Depends(get_create_media),
+    service: MediaService = Depends(get_media_service),
 ):
     try:
         file_content = await file.read()
@@ -84,7 +70,7 @@ async def create_media(
             topic_modeling_provider=topic_modeling_provider,
         )
         
-        media = await use_case.execute(command)
+        media = await service.create_media(command)
         
         return MediaResponse(
             id=media.id,
@@ -115,7 +101,7 @@ async def create_media(
 @router.get("/", response_model=List[MediaResponse], summary="List all media for the current user")
 async def list_user_media(
     current_user: User = Depends(get_current_user),
-    use_case: ListMedia = Depends(get_list_media),
+    service: MediaService = Depends(get_media_service),
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
@@ -126,7 +112,7 @@ async def list_user_media(
         limit=limit,
         search=search
     )
-    media_list = await use_case.execute(query)
+    media_list = await service.list_media(query)
     
     return [
         MediaResponse(
@@ -147,20 +133,15 @@ async def list_user_media(
 async def get_media_by_id(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
-    use_case: GetMedia = Depends(get_get_media),
+    service: MediaService = Depends(get_media_service),
 ):
     try:
         query = GetMediaQuery(media_id=media_id)
-        media = await use_case.execute(query)
+        media = await service.get_media(query)
         
         if not media:
             raise ValueError("Media not found")
             
-        # Access Check (should ideally be in Policy inside Use Case, but GetMedia is generic)
-        # For now, simple check here or ensuring UseCase handles policy?
-        # The UseCase `GetMedia` I wrote is generic (by ID).
-        # I should implement `GetMediaForUser` use case if I want encapsulated security.
-        # OR I check it here.
         if media.user_id != current_user.id and current_user.role != "ADMIN":
              raise PermissionError("Not authorized")
 
@@ -184,11 +165,11 @@ async def get_media_by_id(
 async def delete_media(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
-    use_case: DeleteMedia = Depends(get_delete_media),
+    service: MediaService = Depends(get_media_service),
 ):
     try:
         command = DeleteMediaCommand(media_id=media_id)
-        await use_case.execute(
+        await service.delete_media(
             command, 
             user_id=current_user.id, 
             user_role=current_user.role
@@ -204,11 +185,11 @@ async def stream_media(
     media_id: UUID,
     request: Request,
     current_user: User = Depends(get_current_user),
-    use_case: GetMedia = Depends(get_get_media),
+    service: MediaService = Depends(get_media_service),
 ):
     try:
         query = GetMediaQuery(media_id=media_id)
-        media = await use_case.execute(query)
+        media = await service.get_media(query)
         
         if not media:
              raise ValueError("Media not found")
@@ -271,12 +252,12 @@ async def stream_media(
 async def reprocess_media(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
-    use_case: ReprocessMedia = Depends(get_reprocess_media),
+    service: MediaService = Depends(get_media_service),
 ):
     """Reprocess a media item (transcription, summarization, sentiment analysis, etc.)"""
     try:
         command = ReprocessMediaCommand(media_id=media_id)
-        await use_case.execute(
+        await service.reprocess_media(
             command,
             user_id=current_user.id,
             user_role=current_user.role,

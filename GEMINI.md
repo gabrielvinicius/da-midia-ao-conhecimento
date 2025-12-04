@@ -85,8 +85,10 @@ When structuring or refactoring, use these boundaries if they fit the repo:
 - Entities, Value Objects, domain rules, domain events (if already used).
 - Must not import: DB/ORM, HTTP, UI frameworks, cloud SDKs.
 
-#### 4.2 Application Layer (Use Cases)
-- Orchestrates the domain to fulfill a user goal.
+#### 4.2 Application Layer (Services)
+- **Services**: Encapsulate business logic and orchestrate the domain. Group by entity (e.g., `MediaService`).
+- **Dependencies**: Inject repositories, external services (via interfaces), and event bus.
+- **No "Use Case" Classes**: Avoid single-method classes like `CreateMedia`. Use methods on a Service class instead.
 - Defines ports/interfaces needed from outside (e.g., repository, clock, email).
 - Contains transaction boundaries where applicable.
 
@@ -136,7 +138,7 @@ src/
 ├── admin/                  # Admin Bounded Context
 ├── media_management/       # CORE DOMAIN
 │   ├── api/                # REST Controllers
-│   ├── application/        # Command Handlers, Facades, Event Handlers
+│   ├── application/        # Services (MediaService)
 │   ├── domain/             # Media Entity, Rules
 │   └── infrastructure/     # SQLAlchemy Repositories
 ├── media_processing/       # WORKER DOMAIN
