@@ -11,12 +11,12 @@ from src.media_management.application.commands.create_media_command_handler impo
 )
 from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_management.application.services.media_service import MediaService
+from src.media_management.application.services import MediaService
 from src.media_management.application.validators import MediaUploadValidator
 from src.media_management.config.settings import MediaSettings
 from src.media_management.domain.media import MediaType
 from src.media_management.infrastructure.media_repository import MediaRepository
-from src.media_management.infrastructure.orm.media_entity import MediaEntity
+from src.media_management.infrastructure.persistence import MediaEntity
 
 # This test requires a running database, managed by the fixtures in tests/integration/conftest.py
 pytestmark = pytest.mark.integration

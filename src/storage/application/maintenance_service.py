@@ -51,7 +51,7 @@ class StorageMaintenanceService:
             orphans = []
             for file_path in stored_files:
                 # Normalize paths for comparison (generic handling)
-                norm_path = file_path.replace("\", "/")
+                norm_path = file_path.replace("\\", "/")
                 if norm_path not in valid_files:
                     orphans.append(file_path)
 

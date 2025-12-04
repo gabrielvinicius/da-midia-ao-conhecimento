@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from src.shared.domain.enums import MediaStatus
 from src.media_management.domain.media_state import DEFAULT_MEDIA_STATE_MACHINE
 from src.media_management.domain.model import MediaAggregate
-from src.media_management.infrastructure.orm.media_entity import MediaEntity
-from src.media_management.infrastructure.orm.media_mapper import MediaMapper
+from src.media_management.infrastructure.persistence import MediaEntity
+from src.media_management.infrastructure.mappers import MediaMapper
 
 
 class MediaRepositorySync:

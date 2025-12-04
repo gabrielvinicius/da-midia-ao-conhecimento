@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.domain.media import MediaStatus
-from src.media_management.infrastructure.orm.media_entity import MediaEntity
+from src.media_management.infrastructure.persistence import MediaEntity
 from src.media_processing.transcription.domain.transcription import (
     Transcription,
     TranscriptionStatus,

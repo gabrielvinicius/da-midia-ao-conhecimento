@@ -14,7 +14,7 @@ from celery import Celery
 try:
     import src.user_management.infrastructure.user_model
     import src.notifications.infrastructure.models
-    import src.media_management.infrastructure.orm.media_entity
+    import src.media_management.infrastructure.persistence
     import src.media_processing.transcription.infrastructure.transcription_model
     # text_analysis uses repository_sqlalchemy which defines AnalysisORM
     import src.text_analysis.infrastructure.repository_sqlalchemy 

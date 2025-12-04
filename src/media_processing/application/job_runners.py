@@ -46,7 +46,7 @@ from src.shared.events.domain_events import (
     MediaProcessingCompleted,
     MediaProcessingFailed
 )
-from src.media_management.application.event_handlers import MediaStatusHandler
+from src.media_management.application.events import MediaStatusHandler
 
 
 class _NoopTranscriptionTaskScheduler:

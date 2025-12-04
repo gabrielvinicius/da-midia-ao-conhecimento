@@ -10,7 +10,7 @@ from src.notifications.infrastructure.notification_repository import Notificatio
 from src.notifications.domain.notification import Notification, NotificationType
 from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
 from src.media_processing.transcription.domain.transcription import Transcription
-from src.media_management.infrastructure.orm.media_entity import MediaEntity
+from src.media_management.infrastructure.persistence import MediaEntity
 from src.shared.domain.enums import MediaType
 
 # Configure in-memory SQLite for integration tests with StaticPool to avoid threading issues

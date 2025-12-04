@@ -4,7 +4,7 @@ from __future__ import annotations
 import structlog
 from uuid import UUID
 
-from src.media_management.domain.enums import MediaStatus
+from src.shared.domain.enums import MediaStatus
 from src.shared.events.domain_events import (
     MediaProcessingCompleted,
     MediaProcessingFailed,

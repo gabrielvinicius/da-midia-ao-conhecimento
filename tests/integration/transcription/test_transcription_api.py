@@ -5,7 +5,7 @@ import pytest
 from httpx import AsyncClient
 
 from src.shared.domain.enums import MediaStatus, MediaType
-from src.media_management.infrastructure.orm.media_entity import MediaEntity
+from src.media_management.infrastructure.persistence import MediaEntity
 from src.media_processing.transcription.domain.transcription import (
     Transcription,
     TranscriptionStatus,
