@@ -3,10 +3,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../contexts/AuthContext';
 import api from '@/lib/api';
-import { buildApiUrl } from '@/lib/api';
 import { toast } from 'react-toastify';
 import { jsPDF } from 'jspdf';
 import { saveAs } from 'file-saver';
+import { getVideoById, subscribeToVideoEvents } from '@/services/video.service';
 
 export default function SummaryView() {
     const { videoId } = useParams();
@@ -14,12 +14,11 @@ export default function SummaryView() {
     const navigate = useNavigate();
     const [summary, setSummary] = useState('');
     const [isLoading, setIsLoading] = useState(true);
-    const [videoInfo, setVideoInfo] = useState<{
+    const [videoInfo, setVideoInfo] = useState({
         status: string;
         title: string;
         createdAt: string;
     } | null>(null);
-    // Novo estado para progresso
     const [progress, setProgress] = useState<number>(0);
     const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
     const [currentStage, setCurrentStage] = useState<string>('Processando...');
@@ -31,23 +30,47 @@ export default function SummaryView() {
         const fetchData = async () => {
             try {
                 setIsLoading(true);
-                // Busca o resumo
-                const summaryResponse = await api.get(`/summaries/${videoId}`);
-                setSummary(summaryResponse.data.content);
-                // Busca informações do vídeo (opcional)
-                const videoResponse = await api.get(`/videos/${videoId}`);
+                
+                // Busca informações do vídeo
+                const videoResponse = await getVideoById(videoId);
                 setVideoInfo({
-                    status: "",
-                    title: videoResponse.data.file_name || `Vídeo ${videoId.slice(0, 8)}`,
-                    createdAt: videoResponse.data.created_at
+                    status: videoResponse.status,
+                    title: videoResponse.filename || `Vídeo ${videoId.slice(0, 8)}`,
+                    createdAt: videoResponse.created_at
                 });
-                // Se o vídeo já está completo, seta progresso para 100%
-                if (videoResponse.data.status === 'COMPLETED') {
+
+                // Tenta buscar a análise (resumo)
+                try {
+                    const analysisResponse = await api.get(`/text-analysis/media/${videoId}`);
+                    // A estrutura do AnalyzeResponse contém 'summary' ou está dentro de 'topics'?
+                    // Pelo código do backend, analysis.summary_md existe nos tópicos, ou overall_sentiment.
+                    // Vamos assumir que o frontend espera um campo 'summary' ou 'content'.
+                    // Se o AnalyzeResponse retornar o objeto Analysis completo, precisamos extrair.
+                    // Por enquanto, vamos exibir o JSON ou um campo específico.
+                    // O código anterior usava summaryResponse.data.content.
+                    // Vamos adaptar para o novo formato.
+                    
+                    // Se houver tópicos com resumo, pegamos o primeiro ou concatenamos.
+                    const topics = analysisResponse.data.topics || [];
+                    if (topics.length > 0) {
+                        setSummary(topics.map((t: any) => t.summary_md).join('\n\n'));
+                    } else if (analysisResponse.data.diagnostics?.summary) {
+                         setSummary(analysisResponse.data.diagnostics.summary);
+                    } else {
+                        setSummary(JSON.stringify(analysisResponse.data, null, 2));
+                    }
+
+                } catch (err) {
+                    // Se der 404, significa que ainda não foi processado ou falhou
+                    console.log("Análise ainda não disponível");
+                }
+
+                if (videoResponse.status === 'COMPLETED') {
                     setProgress(100);
                     setCurrentStage('Concluído');
                 }
             } catch (error) {
-                toast.error('Falha ao carregar resumo');
+                toast.error('Falha ao carregar informações do vídeo');
                 navigate('/user');
             } finally {
                 setIsLoading(false);
@@ -56,53 +79,41 @@ export default function SummaryView() {
         fetchData();
     }, [videoId, navigate]);
 
-    // Efeito para configurar o SSE e escutar eventos de progresso
+    // Efeito para WebSocket
     useEffect(() => {
         if (!videoId || videoInfo?.status === 'COMPLETED') return;
 
-        const eventSource = new EventSource(buildApiUrl('/videos/events'));
-
-        eventSource.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.type === 'UPDATE' && data.video.id === videoId) {
-                // Atualiza as informações do vídeo
-                setVideoInfo(prev => ({
-                    ...prev!,
-                    status: data.video.status
-                }));
-                // Se o status mudou para COMPLETED, atualiza o progresso
-                if (data.video.status === 'COMPLETED') {
-                    setProgress(100);
-                    setCurrentStage('Concluído');
+        const ws = subscribeToVideoEvents(
+            (data) => {
+                // Lógica de atualização baseada nos eventos do WebSocket
+                // O backend envia notificações. O formato exato depende do NotificationTaskPayload.
+                // Se for um evento de progresso:
+                if (data.media_id === videoId) {
+                     if (data.status === 'COMPLETED') {
+                        setVideoInfo(prev => prev ? { ...prev, status: 'COMPLETED' } : null);
+                        setProgress(100);
+                        setCurrentStage('Concluído');
+                        // Recarrega o resumo
+                        api.get(`/text-analysis/media/${videoId}`).then(res => {
+                             const topics = res.data.topics || [];
+                             if (topics.length > 0) {
+                                setSummary(topics.map((t: any) => t.summary_md).join('\n\n'));
+                             }
+                        });
+                     } else if (data.type === 'progress') {
+                        // Se o backend enviar progresso detalhado
+                        setProgress(data.progress || 0);
+                        setCurrentStage(data.stage || 'Processando...');
+                     }
                 }
+            },
+            (error) => {
+                console.error('Erro no WebSocket:', error);
             }
+        );
 
-            // Escuta eventos específicos de progresso
-            if (data.video_id === videoId && data.type === 'transcription_progress') {
-                setProgress(data.progress);
-                setCurrentStage('Transcrevendo...');
-                if (data.estimated_total_seconds) {
-                    setEstimatedTime(data.estimated_total_seconds);
-                }
-            }
-
-            if (data.video_id === videoId && data.type === 'summarization_progress') {
-                setProgress(data.progress);
-                setCurrentStage('Gerando Resumo...');
-                if (data.estimated_total_seconds) {
-                    setEstimatedTime(data.estimated_total_seconds);
-                }
-            }
-        };
-
-        eventSource.onerror = (error) => {
-            console.error('Erro na conexão SSE:', error);
-            // Opcional: Tentar reconectar ou mostrar notificação ao usuário
-        };
-
-        // Cleanup ao desmontar o componente
         return () => {
-            eventSource.close();
+            ws.close();
         };
     }, [videoId, videoInfo?.status]);
 
@@ -115,25 +126,21 @@ export default function SummaryView() {
     // Exportar como PDF
     const exportAsPdf = () => {
         const doc = new jsPDF();
-        // Cabeçalho com informações do vídeo
         doc.setFontSize(12);
         doc.text(`Resumo do Vídeo: ${videoInfo?.title || videoId}`, 10, 10);
         doc.text(`Data: ${videoInfo?.createdAt ? new Date(videoInfo.createdAt).toLocaleDateString() : ''}`, 10, 16);
-        // Conteúdo do resumo (com quebra de linhas)
         const splitText = doc.splitTextToSize(summary, 180);
         doc.setFontSize(10);
         doc.text(splitText, 10, 26);
         doc.save(`resumo-${videoId}.pdf`);
     };
 
-    // Voltar para a lista de vídeos
     const handleBack = () => {
         navigate('/user');
     };
 
     return (
         <div className="p-8 max-w-4xl mx-auto dark:bg-gray-900 min-h-screen">
-            {/* Cabeçalho */}
             <div className="flex justify-between items-center mb-6">
                 <button
                     onClick={handleBack}
@@ -144,15 +151,13 @@ export default function SummaryView() {
                 <h1 className="text-2xl font-bold dark:text-white">
                     Resumo do Vídeo: {videoInfo?.title || videoId}
                 </h1>
-                <div className="w-8"></div> {/* Espaçamento */}
+                <div className="w-8"></div>
             </div>
-            {/* Data de criação */}
             {videoInfo?.createdAt && (
                 <p className="text-gray-500 dark:text-gray-400 mb-6">
                     Criado em: {new Date(videoInfo.createdAt).toLocaleString()}
                 </p>
             )}
-            {/* Barra de Progresso (aparece apenas se estiver processando) */}
             {videoInfo?.status !== 'COMPLETED' && (
                 <div className="mb-6">
                     <div className="flex justify-between mb-2">
@@ -165,14 +170,8 @@ export default function SummaryView() {
                             style={{ width: `${progress}%` }}
                         ></div>
                     </div>
-                    {estimatedTime && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            Tempo estimado: {Math.ceil(estimatedTime / 60)} minutos
-                        </p>
-                    )}
                 </div>
             )}
-            {/* Botões de Exportação */}
             <div className="flex flex-wrap gap-3 mb-6">
                 <button
                     onClick={exportAsTxt}
@@ -187,7 +186,6 @@ export default function SummaryView() {
                     <span className="mr-2">📑</span> Exportar como PDF
                 </button>
             </div>
-            {/* Conteúdo do Resumo */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
                 {isLoading ? (
                     <div className="flex justify-center items-center h-40">
@@ -195,11 +193,10 @@ export default function SummaryView() {
                     </div>
                 ) : (
                     <pre className="whitespace-pre-wrap font-sans text-gray-800 dark:text-gray-200">
-            {summary}
+            {summary || "Resumo não disponível."} 
           </pre>
                 )}
             </div>
-            {/* Rodapé com informações do usuário */}
             <div className="mt-6 text-sm text-gray-500 dark:text-gray-400">
                 <p>Gerado para: {user?.email}</p>
                 <p>ID do Vídeo: {videoId}</p>

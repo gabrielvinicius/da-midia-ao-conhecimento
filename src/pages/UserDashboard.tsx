@@ -6,9 +6,8 @@ import { toast } from 'react-toastify';
 import VideoCard from '../components/VideoCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import VideoUpload from '../components/VideoUpload';
-import { getVideosByUser, uploadVideo } from '@/services/video.service';
+import { getVideosByUser, uploadVideo, subscribeToVideoEvents } from '@/services/video.service';
 import { Video } from '@/types';
-import { buildApiUrl } from '@/lib/api';
 
 export default function UserDashboard() {
     const navigate = useNavigate();
@@ -42,40 +41,27 @@ export default function UserDashboard() {
         uploadMutation.mutate(file);
     };
 
-    // Efeito para carregar vídeos iniciais e configurar SSE
+    // Efeito para carregar vídeos iniciais e configurar WebSocket
     useEffect(() => {
-        // Carrega os vídeos iniciais (já feito pelo useQuery acima)
-
-        // Configura a conexão SSE
-        const eventSource = new EventSource(buildApiUrl('/videos/events'));
-
-        eventSource.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.type === 'INITIAL' || data.type === 'UPDATE') {
-                // Atualiza ou adiciona o vídeo na lista
-                queryClient.setQueryData(['userVideos'], (oldVideos: Video[] = []) => {
-                    const existingIndex = oldVideos.findIndex(v => v.id === data.video.id);
-                    if (existingIndex >= 0) {
-                        // Atualiza o vídeo existente
-                        const newVideos = [...oldVideos];
-                        newVideos[existingIndex] = data.video;
-                        return newVideos;
-                    } else {
-                        // Adiciona novo vídeo
-                        return [...oldVideos, data.video];
-                    }
-                });
+        // Configura a conexão WebSocket para atualizações em tempo real
+        const ws = subscribeToVideoEvents(
+            (data) => {
+                // Se o evento for relevante (ex: conclusão de processamento), atualiza a lista
+                // O payload exato depende da notificação do backend.
+                // Assumindo que recebemos um objeto com type ou status
+                
+                // Simplesmente invalidamos a query para garantir dados frescos
+                // (Poderíamos otimizar atualizando o cache localmente se o payload for completo)
+                queryClient.invalidateQueries({ queryKey: ['userVideos'] });
+            },
+            (error) => {
+                console.error('Erro na conexão WebSocket:', error);
             }
-        };
-
-        eventSource.onerror = (error) => {
-            console.error('Erro na conexão SSE:', error);
-            // Opcional: Tentar reconectar ou mostrar notificação ao usuário
-        };
+        );
 
         // Cleanup ao desmontar o componente
         return () => {
-            eventSource.close();
+            ws.close();
         };
     }, [queryClient]);
 

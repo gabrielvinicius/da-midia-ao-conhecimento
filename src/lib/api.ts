@@ -79,15 +79,18 @@ api.interceptors.request.use(
 // Response interceptor for global error handling and token refresh
 api.interceptors.response.use(
   (response) => {
+    const correlationId = response.headers['x-correlation-id'];
     console.log('✅ Response recebido:', {
       url: response.config.url,
       status: response.status,
-      method: response.config.method
+      method: response.config.method,
+      correlationId: correlationId
     });
     return response;
   },
   async (error) => {
     const originalRequest = error.config;
+    const correlationId = error.response?.headers['x-correlation-id'];
     const message = error.response?.data?.message || error.response?.data?.detail || error.message || 'Erro desconhecido';
     
     console.error('❌ Erro na API:', {
@@ -95,7 +98,8 @@ api.interceptors.response.use(
       method: error.config?.method,
       status: error.response?.status,
       data: error.response?.data,
-      message: message
+      message: message,
+      correlationId: correlationId
     });
     
     // Se erro 401 e não é uma requisição de auth, tentar refresh
@@ -140,6 +144,11 @@ api.interceptors.response.use(
       toast.error(`Dados inválidos: ${message}`);
     } else if (error.response?.status === 403) {
       toast.error('Acesso negado. Verifique suas permissões.');
+    } else if (error.response?.status === 404) {
+        // 404 specific handling might be needed, but general toast is often enough
+        toast.error(`Não encontrado: ${message}`);
+    } else if (error.response?.status === 409) {
+        toast.error(`Conflito: ${message}`);
     } else if (error.response?.status === 500) {
       toast.error('Erro interno do servidor. Tente novamente.');
     } else if (error.code === 'NETWORK_ERROR' || !error.response) {

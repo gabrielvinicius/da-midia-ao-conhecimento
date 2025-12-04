@@ -1,5 +1,6 @@
 // src/services/auth.service.ts
 import api from "../lib/api";
+import { User, UserRole } from "../types";
 
 export interface LoginData {
     username: string;
@@ -15,15 +16,6 @@ export interface TokenResponse {
     message: string;
     access_token: string;
     token_type: string;
-}
-
-import { UserRole } from "../types";
-
-export interface User {
-    id: string;
-    email: string;
-    role: UserRole;
-    csrf_token?: string;
 }
 
 export interface ChangePasswordData {
@@ -77,6 +69,7 @@ class AuthService {
      * Registrar novo usuário
      */
     async register(data: RegisterData): Promise<User> {
+        // Backend returns UserResponse, which matches our User type
         const response = await api.post<User>("/auth/register", data);
         return response.data;
     }

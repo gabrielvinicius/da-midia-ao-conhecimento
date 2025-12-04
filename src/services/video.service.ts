@@ -1,69 +1,77 @@
 // src/services/video.service.ts
-import api, { buildApiUrl } from "@/lib/api";
-import { Video } from "@/types";
+import api, { buildWsUrl } from "@/lib/api";
+import { Media } from "@/types";
 
-export const getVideosByUser = async (): Promise<Video[]> => {
-    const response = await api.get("/videos/me");
+// Using 'Media' type as the canonical type. 'Video' legacy type is alias to Media in types.ts
+
+export const getVideosByUser = async (): Promise<Media[]> => {
+    const response = await api.get("/media/");
     return response.data;
 };
 
-export const getVideoById = async (id: string): Promise<Video> => {
-    const response = await api.get(`/videos/${id}`);
+export const getVideoById = async (id: string): Promise<Media> => {
+    const response = await api.get(`/media/${id}`);
     return response.data;
 };
 
-export const uploadVideo = async (file: File): Promise<Video> => {
+export const uploadVideo = async (file: File): Promise<Media> => {
     const formData = new FormData();
     formData.append("file", file);
 
     try {
-        const response = await api.post("/videos/upload", formData, {
+        // Using default 'local' storage provider. 
+        // In the future, this service could accept provider options.
+        const response = await api.post("/media/?storage_provider=local", formData, {
             headers: {
                 "Content-Type": "multipart/form-data",
             },
-            // Opcional: para monitorar progresso
             onUploadProgress: (progressEvent) => {
-                const percentCompleted = Math.round(
-                    (progressEvent.loaded * 100) / progressEvent.total!
-                );
-                console.log(`Progresso do upload: ${percentCompleted}%`);
-                // Aqui você poderia atualizar um estado para mostrar barra de progresso
+                if (progressEvent.total) {
+                    const percentCompleted = Math.round(
+                        (progressEvent.loaded * 100) / progressEvent.total
+                    );
+                    console.log(`Progresso do upload: ${percentCompleted}%`);
+                }
             },
         });
         return response.data;
     } catch (error: any) {
-        // Tratamento de erro mais específico
         if (error.response?.data?.detail) {
             throw new Error(error.response.data.detail);
         }
-        throw new Error("Falha ao enviar vídeo. Tente novamente mais tarde.");
+        throw new Error("Falha ao enviar mídia. Tente novamente mais tarde.");
     }
 };
 
 export const deleteVideo = async (id: string): Promise<boolean> => {
-    const response = await api.delete(`/videos/${id}`);
+    const response = await api.delete(`/media/${id}`);
     return response.status === 204;
 };
 
-// Nova função para conectar ao SSE e escutar atualizações
+// WebSocket implementation replacing legacy SSE
 export const subscribeToVideoEvents = (
-    onVideoUpdate: (video: Video) => void,
+    onUpdate: (data: any) => void,
     onError: (error: Event) => void
-): EventSource => {
-    const eventSource = new EventSource(buildApiUrl('/videos/events'), {
-        withCredentials: true,
-    });
+): WebSocket => {
+    const wsUrl = buildWsUrl('/ws/notifications');
+    const ws = new WebSocket(wsUrl);
 
-    // Escuta eventos de atualização
-    eventSource.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'INITIAL' || data.type === 'UPDATE') {
-            onVideoUpdate(data.video);
+    ws.onmessage = (event) => {
+        try {
+            // The backend sends simple text or JSON. Assuming JSON for structured updates.
+            // Currently backend sends: "Server received: ..." or could send notification JSON.
+            // This is a placeholder for the real notification logic.
+            const data = JSON.parse(event.data);
+            onUpdate(data);
+        } catch (e) {
+            // If not JSON, pass raw data
+            onUpdate(event.data);
         }
     };
 
-    // Escuta erros de conexão
-    eventSource.onerror = onError;
-
-    return eventSource;
+    ws.onerror = onError;
+    
+    // Handle auth if needed (cookies are sent automatically by browser)
+    
+    return ws;
 };

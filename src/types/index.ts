@@ -7,6 +7,8 @@ export interface User {
   id: string;
   email: string;
   role: UserRole;
+  is_active: boolean;
+  created_at?: string;
 }
 
 export interface UserRegistration {
@@ -38,25 +40,19 @@ export enum MediaStatus {
   FAILED = "FAILED",
 }
 
+// Aligned with Backend DTO (MediaResponse)
 export interface Media {
   id: string;
-  user_id: string;
-  original_file_path: string;
+  filename: string | null;
+  content_type: string | null;
+  size: number | null;
   media_type: MediaType;
   status: MediaStatus;
   created_at: string;
-  storage_provider?: string;
-  transcription_provider?: string;
-  summarization_provider?: string;
-  sentiment_provider?: string;
-  topic_modeling_provider?: string;
-  processing_pipeline?: string[];
-  file_size_mb?: number;
+  
+  // Optional fields that might be present depending on context
   error_message?: string;
   language?: string | null;
-  filename?: string | null;
-  file_size?: number | null;
-  mime_type?: string | null;
   duration?: number | null;
 }
 
@@ -85,22 +81,22 @@ export interface TranscriptionResult {
   text: string;
   segments: TranscriptionSegment[];
   diarized?: boolean;
-  [key: string]: any; // Para campos adicionais do provider
+  [key: string]: any;
 }
 
+// Aligned with Backend DTO (TranscriptionResponse)
 export interface Transcription {
   id: string;
   media_id: string;
   status: TranscriptionStatus;
-  provider: string | null;
+  content: string; // Main text content
+  language: string | null;
+  confidence_score: number | null;
   created_at: string;
   processed_at: string | null;
   error_message: string | null;
-  result: TranscriptionResult | null;
-  speaker_aliases?: Record<string, string>;
-  
-  // Legacy support - para compatibilidade com código antigo
-  text?: string; // Deprecated: usar result.text
+  speaker_labels: any | null;
+  segments: any | null;
 }
 
 export enum SummaryStatus {
@@ -138,9 +134,13 @@ export interface SummarizationReprocessResponse {
 export interface Notification {
   id: string;
   user_id: string;
+  type: string;
   content: string;
-  read: boolean;
+  status: string;
+  priority: string;
   created_at: string;
+  sent_at: string | null;
+  error_message: string | null;
 }
 
 export interface PaginatedResponse<T> {
@@ -255,9 +255,11 @@ export interface UserResponse {
   id: string;
   email: string;
   role: UserRole;
-  created_at: string;
+  is_active: boolean;
+  created_at?: string;
 }
 
 export interface UserUpdateRequest {
   role?: UserRole;
+  is_active?: boolean;
 }
