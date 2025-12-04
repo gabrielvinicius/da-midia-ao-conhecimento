@@ -68,6 +68,11 @@ Use DDD concepts only when they clarify business logic:
 #### 2.7 Do Not Revert Unprompted
 - Do not revert changes unless asked, or unless your changes caused an error and reverting is the safest fix.
 
+#### 2.8 No Placeholders
+- **NEVER** leave placeholder functions (e.g., `raise NotImplementedError`) or "TODO" stubs in production files (`src/`).
+- If a dependency is complex, implement the simplest working version or inject it.
+- **Files must be importable and executable** at all times.
+
 ### 3) Output Style (Didactic + Academic, Still CLI)
 - Concise, professional, **academically clear** language.
 - When explaining, prioritize: 1) **Concept** (what/why), 2) **Rule** (decision criterion), 3) **Example** (small, concrete).
