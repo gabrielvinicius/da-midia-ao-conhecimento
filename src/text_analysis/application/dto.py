@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import List, Optional
 
 
@@ -44,8 +44,8 @@ class AnalysisResultDTO:
             "analysis_id": self.analysis_id,
             "document_id": self.document_id,
             "overall_sentiment": self.overall_sentiment,
-            "sentiment_items": [item.__dict__ for item in self.sentiment_items],
-            "topics": [topic.__dict__ for topic in self.topics],
+            "sentiment_items": [asdict(item) for item in self.sentiment_items],
+            "topics": [asdict(topic) for topic in self.topics],
             "diagnostics": self.diagnostics,
             "media_id": self.media_id,
             "transcription_id": self.transcription_id,

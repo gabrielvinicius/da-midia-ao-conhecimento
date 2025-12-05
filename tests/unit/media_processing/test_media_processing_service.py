@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.media_processing.application.services import MediaProcessingService
+from src.media_processing.application.media_processing_service import MediaProcessingService
 from src.shared.events.domain_events import MediaUploaded, TextContentReady
 
 

@@ -3,19 +3,20 @@
 from .config import AnalysisConfig
 from .dto import (
     AnalysisResultDTO,
-    SentimentResultDTO,
+    SentimentItemDTO,
     TopicDTO,
 )
 from .service import TextAnalysisService
-from .metrics import TextAnalysisMetrics, NoOpTextAnalysisMetrics, PrometheusTextAnalysisMetrics
+from .event_handlers import build_text_content_ready_handler
+from .metrics import TextAnalysisMetrics, NoOpTextAnalysisMetrics
 
 __all__ = [
     "TextAnalysisService",
+    "build_text_content_ready_handler",
     "AnalysisConfig",
     "AnalysisResultDTO",
-    "SentimentResultDTO",
+    "SentimentItemDTO",
     "TopicDTO",
     "TextAnalysisMetrics",
     "NoOpTextAnalysisMetrics",
-    "PrometheusTextAnalysisMetrics",
 ]

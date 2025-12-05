@@ -1,4 +1,4 @@
-"""Factory e helpers para resolver serviços de storage usados em uploads e downloads."""
+"""Factory and helpers to resolve storage services."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,18 +8,21 @@ from typing import Any, Dict, List, Optional
 import structlog
 
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
-from src.storage.application.storage_service import StorageService
+from src.storage.application.services.storage_service import StorageService
 from src.storage.infrastructure.local_storage_service import LocalStorageService
-
+from src.storage.domain.repositories.storage_repository import StorageRepository
 
 logger = structlog.get_logger(__name__)
 
 
 @dataclass
 class StorageClientAdapter:
-    """Adapter que expõe uma interface uniforme para upload/download usada pelos módulos."""
+    """Adapter exposing a uniform interface for upload/download used by other modules.
+    Wraps the Application Service to maintain backward compatibility.
+    """
 
-    backend: StorageService
+    service: StorageService
+    provider_name: str
 
     async def upload(
         self,
@@ -32,140 +35,144 @@ class StorageClientAdapter:
     ) -> Dict[str, Any]:
         # Ensure deterministic, non-legacy path layout
         normalized_path = str(Path(destination_path))
-        await self.backend.upload(normalized_path, content)
+        
+        # Use new Service API
+        file_meta = await self.service.store_file(normalized_path, content)
+        
         return {
-            "path": normalized_path,
-            "provider": self.backend.provider_name,
-            "content_type": content_type or "application/octet-stream",
+            "path": str(file_meta.file_path),
+            "provider": self.provider_name,
+            "content_type": file_meta.content_type,
             "metadata": metadata or {},
+            "size": file_meta.size.bytes
         }
 
     async def download(self, file_path: str):
+        # Legacy expects tuple (bytes, filename) or similar?
+        # Old LocalStorageService returned (bytes, filename).
+        # S3Stub returned (bytes, filename).
+        # New Service returns bytes or None.
+        
         normalized_path = str(Path(file_path))
-        result = await self.backend.download(normalized_path)
-        return result
+        data = await self.service.retrieve_file(normalized_path)
+        if data is None:
+            return None
+        
+        # Reconstruct filename from path
+        filename = Path(normalized_path).name
+        return data, filename
 
     async def download_file(self, file_path: str) -> bytes:
         normalized_path = str(Path(file_path))
-        result = await self.backend.download(normalized_path)
-        if result is None:
+        data = await self.service.retrieve_file(normalized_path)
+        if data is None:
             raise FileNotFoundError(
-                f"File '{normalized_path}' not found in storage provider '{self.backend.provider_name}'"
+                f"File '{normalized_path}' not found in storage provider '{self.provider_name}'"
             )
-        payload, _ = result
-        return payload
+        return data
 
     def download_file_sync(self, file_path: str) -> bytes:
         """Synchronous version of download_file for use in Celery tasks."""
-        # Check if the backend has a synchronous method available
-        if hasattr(self.backend, 'download_sync'):
-            normalized_path = str(Path(file_path))
-            result = self.backend.download_sync(normalized_path)
-        else:
-            # Fallback to running the async method in a new event loop in a separate thread
-            import asyncio
-            import concurrent.futures
-            
-            def run_async_download():
-                async def async_download():
-                    normalized_path = str(Path(file_path))
-                    return await self.backend.download(normalized_path)
-                
-                # Create a new event loop for this thread
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    return loop.run_until_complete(async_download())
-                finally:
-                    loop.close()
-            
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_async_download)
-                result = future.result()
+        import asyncio
+        import concurrent.futures
         
+        def run_async_download():
+            async def async_download():
+                normalized_path = str(Path(file_path))
+                return await self.service.retrieve_file(normalized_path)
+            
+            # Create a new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(async_download())
+            finally:
+                loop.close()
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_async_download)
+            result = future.result()
+    
         if result is None:
             normalized_path = str(Path(file_path))
             raise FileNotFoundError(
-                f"File '{normalized_path}' not found in storage provider '{self.backend.provider_name}'"
+                f"File '{normalized_path}' not found in storage provider '{self.provider_name}'"
             )
-        if isinstance(result, tuple):
-            payload, _ = result
-        else:
-            payload = result
-        return payload
+        return result
 
     async def delete(self, file_path: str) -> bool:
-        return await self.backend.delete(file_path)
+        return await self.service.delete_file(file_path)
 
     def delete_sync(self, file_path: str) -> bool:
-        """Synchronous version of delete for use in Celery tasks."""
-        if hasattr(self.backend, 'delete_sync'):
-            return self.backend.delete_sync(file_path)
-        else:
-            import asyncio
-            import concurrent.futures
-            
-            def run_async():
-                return asyncio.run(self.backend.delete(file_path))
-            
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_async)
-                return future.result()
+        """Synchronous version of delete."""
+        import asyncio
+        import concurrent.futures
+        
+        def run_async():
+            return asyncio.run(self.service.delete_file(file_path))
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_async)
+            return future.result()
 
     async def exists(self, file_path: str) -> bool:
-        return await self.backend.exists(file_path)
+        return await self.service.file_exists(file_path)
 
     def exists_sync(self, file_path: str) -> bool:
-        """Synchronous version of exists for use in Celery tasks."""
-        if hasattr(self.backend, 'exists_sync'):
-            return self.backend.exists_sync(file_path)
-        else:
-            import asyncio
-            import concurrent.futures
-            
-            def run_async():
-                return asyncio.run(self.backend.exists(file_path))
-            
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_async)
-                return future.result()
+        """Synchronous version of exists."""
+        import asyncio
+        import concurrent.futures
+        
+        def run_async():
+            return asyncio.run(self.service.file_exists(file_path))
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_async)
+            return future.result()
 
     async def list_files(self, prefix: str = "") -> List[str]:
         """Lists all files in the storage system matching the prefix."""
-        return await self.backend.list_files(prefix)
+        return await self.service.list_files(prefix)
 
 
 class StorageServiceFactory:
-    """Resolve serviços de storage com base no provider informado."""
+    """Resolves storage services based on the provider."""
 
     def __init__(self) -> None:
-        self._providers: Dict[str, StorageService] = {
+        # Initialize repositories
+        self._repositories: Dict[str, StorageRepository] = {
             "local": LocalStorageService(),
             "s3": S3StorageService(),
         }
 
-    def _get_service(self, provider: str) -> StorageService:
+    def _get_service(self, provider: str) -> StorageClientAdapter:
         try:
-            return self._providers[provider]
+            repo = self._repositories[provider]
+            service = StorageService(repository=repo)
+            return StorageClientAdapter(service, provider)
         except KeyError as exc:
-            raise ValueError(f"Provider '{provider}' não suportado") from exc
+            raise ValueError(f"Provider '{provider}' not supported") from exc
 
     def create_storage_service(self, provider: str) -> Any:
-        """Retorna um adapter compatível com os chamadores atuais do módulo de mídia."""
-        service = self._get_service(provider)
-        return StorageClientAdapter(service)
+        """Returns an adapter compatible with current media module callers."""
+        return self._get_service(provider)
 
     def get_download_service(self, provider: str) -> Any:
-        """Resolve um serviço de download compatível com o provider informado."""
+        """Resolves a download service."""
         return self.create_storage_service(provider)
 
     def get_provider_root(self, provider: str) -> Path:
-        """Retorna o diretório raiz do provider configurado (quando aplicável)."""
-        service = self._get_service(provider)
-        root = getattr(service, "_root", None)
-        if root is None:
-            raise ValueError(f"Provider '{provider}' não expõe caminho local")
-        return root
+        """Returns the root directory of the configured provider (when applicable)."""
+        try:
+            repo = self._repositories[provider]
+            # Assuming implementations expose _root or we can access it.
+            # Both Local and S3 (stub) expose _root.
+            root = getattr(repo, "_root", None)
+            if root is None:
+                raise ValueError(f"Provider '{provider}' does not expose local path")
+            return root
+        except KeyError as exc:
+            raise ValueError(f"Provider '{provider}' not supported") from exc
 
 
 def get_storage_service_factory() -> StorageServiceFactory:

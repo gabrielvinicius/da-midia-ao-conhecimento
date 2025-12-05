@@ -1,49 +1,84 @@
 # tests/mocks/in_memory_storage.py
 """Enhanced in-memory storage service for comprehensive testing.
 """
-from typing import Dict, Optional, Tuple
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple, Union
+from uuid import uuid4
 
-from src.storage.application.storage_service import StorageService
+from src.storage.domain.repositories.storage_repository import StorageRepository
+from src.storage.domain.entities.file_metadata import FileMetadata
+from src.storage.domain.value_objects.file_path import FilePath
+from src.storage.domain.value_objects.file_size import FileSize
 
 
-class InMemoryStorage(StorageService):
+class InMemoryStorage(StorageRepository):
     """Enhanced in-memory storage with testing utilities."""
 
     def __init__(self):
         self.files: Dict[str, bytes] = {}
-        self.metadata: Dict[str, dict] = {}
+        self.metadata: Dict[str, FileMetadata] = {}
         self.upload_count = 0
         self.download_count = 0
 
-    async def upload(self, file_path: str, file: bytes) -> None:
+    @property
+    def provider_name(self) -> str:
+        return "in-memory"
+
+    async def store(self, file_path: FilePath, content: bytes) -> FileMetadata:
         """Store file content in memory."""
         self.upload_count += 1
-        self.files[file_path] = file
-        self.metadata[file_path] = {
-            "size": len(file),
-            "content_type": "application/octet-stream"
-        }
+        path_str = str(file_path)
+        self.files[path_str] = content
+        
+        meta = FileMetadata(
+            id=uuid4(),
+            file_path=file_path,
+            size=FileSize(len(content)),
+            content_type="application/octet-stream",
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        self.metadata[path_str] = meta
+        return meta
 
-    async def download(self, file_path: str) -> Optional[Tuple[bytes, str]]:
+    async def retrieve(self, file_path: FilePath) -> Optional[bytes]:
         """Retrieve file content from memory."""
         self.download_count += 1
-        file_content = self.files.get(file_path)
-        if file_content:
-            return file_content, file_path.split("/")[-1]
-        return None
+        path_str = str(file_path)
+        return self.files.get(path_str)
 
-    async def delete(self, file_path: str) -> bool:
+    async def remove(self, file_path: FilePath) -> bool:
         """Remove file from memory storage."""
-        if file_path in self.files:
-            del self.files[file_path]
-            if file_path in self.metadata:
-                del self.metadata[file_path]
+        path_str = str(file_path)
+        if path_str in self.files:
+            del self.files[path_str]
+            if path_str in self.metadata:
+                del self.metadata[path_str]
             return True
         return False
 
-    async def exists(self, file_path: str) -> bool:
+    async def exists(self, file_path: FilePath) -> bool:
         """Check if file exists in memory storage."""
-        return file_path in self.files
+        return str(file_path) in self.files
+
+    async def get_metadata(self, file_path: FilePath) -> Optional[FileMetadata]:
+        return self.metadata.get(str(file_path))
+
+    async def list_files(self, prefix: str = "") -> List[str]:
+        return [f for f in self.files.keys() if f.startswith(prefix)]
+
+    # Compatibility methods for tests calling old methods directly (if any)
+    async def upload(self, file_path: str, file: bytes) -> None:
+        await self.store(FilePath.from_path(file_path), file)
+
+    async def download(self, file_path: str) -> Optional[Tuple[bytes, str]]:
+        content = await self.retrieve(FilePath.from_path(file_path))
+        if content:
+            return content, file_path.split("/")[-1]
+        return None
+
+    async def delete(self, file_path: str) -> bool:
+        return await self.remove(FilePath.from_path(file_path))
 
     def clear(self):
         """Clear all stored files (useful for test cleanup)."""

@@ -34,7 +34,6 @@ async def test_publish_dispatches_payload_to_subscribers():
         media_id="media-123",
         user_id="user-456",
         media_type=DummyMediaType.AUDIO,
-        file_path="/tmp/audio.mp3",
         storage_provider="local",
     )
 
@@ -70,7 +69,6 @@ async def test_start_listener_processes_incoming_events():
         media_id="media-999",
         user_id="user-999",
         media_type=DummyMediaType.VIDEO,
-        file_path="/tmp/video.mp4",
         storage_provider="s3",
     )
 
@@ -138,7 +136,6 @@ async def test_event_bus_with_mock_publisher_flows_events():
         media_id="mock-001",
         user_id="user-123",
         media_type=DummyMediaType.AUDIO,
-        file_path="/tmp/audio.mp3",
         storage_provider="local",
     )
 
@@ -199,7 +196,6 @@ async def test_async_queue_publisher_processes_events():
         media_id="queue-123",
         user_id="user-999",
         media_type=DummyMediaType.AUDIO,
-        file_path="/tmp/audio.mp3",
         storage_provider="local",
     )
 

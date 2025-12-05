@@ -4,8 +4,6 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from src.media_management.api.dependencies import get_media_queries
-from src.media_processing.transcription.application.queries import TranscriptionQueries
 from src.media_processing.transcription.application.transcription_service import (
     TranscriptionService,
 )
@@ -18,7 +16,6 @@ class TranscriptionDependenciesNotConfigured(RuntimeError):
 @dataclass(frozen=True)
 class TranscriptionDependencies:
     service: TranscriptionService
-    queries: TranscriptionQueries
 
 
 def get_transcription_dependencies() -> TranscriptionDependencies:
@@ -37,15 +34,9 @@ def get_transcription_service(deps: TranscriptionDeps) -> TranscriptionService:
     return deps.service
 
 
-def get_transcription_queries(deps: TranscriptionDeps) -> TranscriptionQueries:
-    return deps.queries
-
-
 __all__ = [
     "TranscriptionDependencies",
     "TranscriptionDependenciesNotConfigured",
     "get_transcription_dependencies",
-    "get_transcription_queries",
     "get_transcription_service",
-    "get_media_queries",
 ]

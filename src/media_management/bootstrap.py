@@ -2,7 +2,7 @@
 """Bootstrap media management module."""
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple
-
+from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.api.dependencies import (
@@ -157,7 +157,6 @@ def bind_media_module(app: FastAPI, module: MediaModule) -> None:
     app.dependency_overrides[get_transcription_dependencies] = (
         lambda: TranscriptionDependencies(
             service=module.transcription_service,
-            queries=module.transcription_service, # Duck typing
         )
     )
 

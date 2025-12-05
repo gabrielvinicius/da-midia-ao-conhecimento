@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from src.media_management.application.services import MediaService
+from src.media_management.application.services.media_service import MediaService
 from src.shared.domain.enums import MediaStatus, MediaType
 from src.media_management.domain.media import Media
 from src.user_management.domain.user import UserRole

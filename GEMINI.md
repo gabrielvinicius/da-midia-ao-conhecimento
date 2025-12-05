@@ -159,14 +159,15 @@ src/
 
 - **Test Coverage:**
   - Core logic is covered by E2E/Integration tests.
-  - Unit tests for `media_management` are robust.
-  - **GAP:** Unit tests for new `TextAnalysisService` and event handlers need verification.
+  - Unit tests for `media_management`, `storage`, and `user_management` are robust.
+  - **GAP:** Unit tests for `TextAnalysisService` and event handlers need verification.
 
 - **Refactoring History:**
   - Removed legacy `SimpleMediaService` and `DispatchOrchestrator`.
   - Moved `MediaType` enums to `src/shared`.
   - Decoupled `MediaProcessing` workers from `MediaRepository` writes.
   - Implemented "Reference Passing" for Text Analysis tasks.
+  - Refactored `storage` to use Service Pattern and Repository (Clean Architecture).
 
 ## 5. Developer Workflow
 

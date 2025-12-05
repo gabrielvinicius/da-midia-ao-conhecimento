@@ -13,7 +13,7 @@ from src.media_management.domain.media_state import DEFAULT_MEDIA_STATE_MACHINE
 from src.media_management.domain.model import MediaAggregate
 import structlog
 
-from .media_entity import MediaEntity
+from .persistence import MediaEntity
 from .mappers import MediaMapper
 
 logger = structlog.get_logger(__name__)

@@ -33,3 +33,8 @@ class StorageRepository(ABC):
     async def get_metadata(self, file_path: FilePath) -> Optional[FileMetadata]:
         """Get file metadata without content."""
         pass
+
+    @abstractmethod
+    async def list_files(self, prefix: str = "") -> list[str]:
+        """List files matching prefix."""
+        pass

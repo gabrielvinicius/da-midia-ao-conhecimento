@@ -2,14 +2,19 @@
 from __future__ import annotations
 
 import asyncio
+import mimetypes
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+from uuid import uuid4
 
-from src.storage.application.storage_service import StorageException, StorageService
-from src.providers.domain.interfaces import ProviderCapability, ProviderType
+from src.storage.domain.entities.file_metadata import FileMetadata
+from src.storage.domain.repositories.storage_repository import StorageRepository
+from src.storage.domain.value_objects.file_path import FilePath
+from src.storage.domain.value_objects.file_size import FileSize
 
 
-class LocalStorageService(StorageService):
+class LocalStorageService(StorageRepository):
     """Persist files on the local filesystem using asynchronous wrappers."""
 
     def __init__(self, root_directory: Union[str, Path] = "storage") -> None:
@@ -21,76 +26,75 @@ class LocalStorageService(StorageService):
     def provider_name(self) -> str:
         return "local"
 
-    # --- IProvider Implementation ---
-
-    def get_name(self) -> str:
-        return "local-filesystem"
-
-    def get_type(self) -> ProviderType:
-        return ProviderType.STORAGE
-
-    def get_version(self) -> str:
-        return "1.0.0"
-
-    def get_capabilities(self) -> List[ProviderCapability]:
-        return [
-            ProviderCapability.READ,
-            ProviderCapability.WRITE,
-            ProviderCapability.DELETE,
-            ProviderCapability.LIST
-        ]
-
-    async def health_check(self) -> Dict[str, Any]:
-        try:
-            return {"status": "ok", "root": str(self._root), "writable": self._root.exists()}
-        except Exception as e:
-            return {"status": "error", "error": str(e)}
-
-    def get_configuration(self) -> Dict[str, Any]:
-        return self._config
-
-    async def initialize(self, config: Dict[str, Any]) -> bool:
-        if "root_directory" in config:
-            self._root = Path(config["root_directory"])
-            self._root.mkdir(parents=True, exist_ok=True)
-            self._config = config
-        return True
-
-    async def cleanup(self) -> None:
-        pass
-
-    # --- StorageService Implementation ---
-
-    async def upload(self, file_path: Union[str, Path], file: bytes) -> bool:
+    async def store(self, file_path: FilePath, content: bytes) -> FileMetadata:
+        """Store file and return metadata."""
         destination = self._resolve_path(file_path)
+        
         try:
-            await asyncio.to_thread(self._write_file, destination, file)
-        except Exception as exc:  # pragma: no cover - defensive branch
-            raise StorageException("Failed to store file", exc) from exc
-        return True
+            await asyncio.to_thread(self._write_file, destination, content)
+            
+            # Create metadata
+            stat = destination.stat()
+            size = FileSize(stat.st_size)
+            mime_type, _ = mimetypes.guess_type(destination)
+            
+            return FileMetadata(
+                id=uuid4(),
+                file_path=file_path,
+                size=size,
+                content_type=mime_type or "application/octet-stream",
+                created_at=datetime.utcfromtimestamp(stat.st_ctime),
+                updated_at=datetime.utcfromtimestamp(stat.st_mtime)
+            )
+        except Exception as exc:
+            raise Exception(f"Failed to store file {file_path}: {exc}") from exc
 
-    async def download(self, file_path: Union[str, Path]) -> Optional[Tuple[bytes, str]]:
+    async def retrieve(self, file_path: FilePath) -> Optional[bytes]:
+        """Retrieve file content."""
         source = self._resolve_path(file_path)
         if not source.exists():
             return None
         try:
-            data = await asyncio.to_thread(source.read_bytes)
-            return data, source.name
-        except Exception as exc:  # pragma: no cover - defensive branch
-            raise StorageException("Failed to download file", exc) from exc
+            return await asyncio.to_thread(source.read_bytes)
+        except Exception as exc:
+            raise Exception(f"Failed to retrieve file {file_path}: {exc}") from exc
 
-    async def delete(self, file_path: Union[str, Path]) -> bool:
+    async def remove(self, file_path: FilePath) -> bool:
+        """Remove file. Returns True if removed, False if not found."""
         target = self._resolve_path(file_path)
         if not target.exists():
             return False
         try:
             await asyncio.to_thread(target.unlink)
             return True
-        except Exception as exc:  # pragma: no cover - defensive branch
-            raise StorageException("Failed to delete file", exc) from exc
+        except Exception as exc:
+            raise Exception(f"Failed to remove file {file_path}: {exc}") from exc
 
-    async def exists(self, file_path: Union[str, Path]) -> bool:
+    async def exists(self, file_path: FilePath) -> bool:
+        """Check if file exists."""
         return self._resolve_path(file_path).exists()
+
+    async def get_metadata(self, file_path: FilePath) -> Optional[FileMetadata]:
+        """Get file metadata without content."""
+        target = self._resolve_path(file_path)
+        if not target.exists():
+            return None
+            
+        try:
+            stat = await asyncio.to_thread(target.stat)
+            size = FileSize(stat.st_size)
+            mime_type, _ = mimetypes.guess_type(target)
+            
+            return FileMetadata(
+                id=uuid4(), # Local files don't have persistent IDs, generate one
+                file_path=file_path,
+                size=size,
+                content_type=mime_type or "application/octet-stream",
+                created_at=datetime.utcfromtimestamp(stat.st_ctime),
+                updated_at=datetime.utcfromtimestamp(stat.st_mtime)
+            )
+        except Exception as exc:
+             raise Exception(f"Failed to get metadata for {file_path}: {exc}") from exc
 
     async def list_files(self, prefix: str = "") -> List[str]:
         """Lists files in the local storage."""
@@ -112,11 +116,13 @@ class LocalStorageService(StorageService):
         try:
             return await asyncio.to_thread(_gather)
         except Exception as exc:
-            raise StorageException("Failed to list files", exc) from exc
+            raise Exception(f"Failed to list files: {exc}") from exc
 
-    def _resolve_path(self, file_path: Union[str, Path]) -> Path:
-        path = Path(file_path)
+    def _resolve_path(self, file_path: FilePath) -> Path:
+        path = file_path.to_path()
         if path.is_absolute():
+            # Security check: ensure it's within root if needed, 
+            # but for now assuming trusted input or purely local
             return path
         return self._root / path
 
@@ -127,3 +133,4 @@ class LocalStorageService(StorageService):
 
 
 __all__ = ["LocalStorageService"]
+

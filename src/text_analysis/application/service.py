@@ -1,7 +1,7 @@
-"Application-level service for Text Analysis.
+"""Application-level service for Text Analysis.
 
 Consolidates command and query logic into a single Service class.
-"
+"""
 
 from __future__ import annotations
 
@@ -16,13 +16,13 @@ from src.shared.events.domain_events import (
     SummarizationCompleted,
     TopicModelingCompleted,
 )
-from ..config import AnalysisConfig
+from .config import AnalysisConfig
 from ..domain import Analysis, Document, SentimentLabel
 from ..domain.errors import DomainError
 from ..domain.value_objects import Sentiment, Topic
-from ..dto import AnalysisResultDTO
-from ..mappers import analysis_to_dto, AnalysisMapper
-from ..ports import (
+from .dto import AnalysisResultDTO
+from .mappers import analysis_to_dto
+from .ports import (
     AnalysisRepositoryPort,
     ChunkingServicePort,
     EmbeddingServicePort,
@@ -337,7 +337,7 @@ class TextAnalysisService:
         analysis = self.repository.get_by_media_id(media_id)
         if not analysis:
             return None
-        return AnalysisMapper.to_dto(analysis).to_dict()
+        return analysis_to_dto(analysis).to_dict()
 
     def list_topics(self, analysis_id: str) -> list:
         """List topics for a given analysis."""

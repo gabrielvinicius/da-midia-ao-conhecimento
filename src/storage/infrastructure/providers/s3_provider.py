@@ -9,7 +9,7 @@ import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 
 from src.storage.domain.entities.file_metadata import FileMetadata
-from src.storage.domain.interfaces import StorageConfiguration
+from src.storage.domain.interfaces import StorageConfiguration, StorageProviderError
 from src.storage.domain.value_objects.file_path import FilePath
 from src.storage.domain.value_objects.file_size import FileSize
 from src.storage.infrastructure.providers.base_provider import BaseStorageProvider
