@@ -1,28 +1,21 @@
-"""Application layer wiring for text analysis."""
+"""Application layer exports for Text Analysis."""
 
 from .config import AnalysisConfig
-from .dto import AnalysisResultDTO
-from .commands.analyze_text import AnalyzeTextCommand, AnalyzeTextCommandHandler
-from .queries.get_analysis import GetAnalysisQuery, GetAnalysisQueryHandler
-from .queries.get_analysis_by_media import GetAnalysisByMediaQuery, GetAnalysisByMediaQueryHandler
-from .queries.list_topics import ListTopicsQuery, ListTopicsQueryHandler
+from .dto import (
+    AnalysisResultDTO,
+    SentimentResultDTO,
+    TopicDTO,
+)
 from .service import TextAnalysisService
-from .metrics import TextAnalysisMetrics, NoOpTextAnalysisMetrics
-from .event_handlers import build_text_content_ready_handler
+from .metrics import TextAnalysisMetrics, NoOpTextAnalysisMetrics, PrometheusTextAnalysisMetrics
 
 __all__ = [
+    "TextAnalysisService",
     "AnalysisConfig",
     "AnalysisResultDTO",
-    "AnalyzeTextCommand",
-    "AnalyzeTextCommandHandler",
-    "GetAnalysisQuery",
-    "GetAnalysisQueryHandler",
-    "GetAnalysisByMediaQuery",
-    "GetAnalysisByMediaQueryHandler",
-    "ListTopicsQuery",
-    "ListTopicsQueryHandler",
-    "TextAnalysisService",
+    "SentimentResultDTO",
+    "TopicDTO",
     "TextAnalysisMetrics",
     "NoOpTextAnalysisMetrics",
-    "build_text_content_ready_handler",
+    "PrometheusTextAnalysisMetrics",
 ]

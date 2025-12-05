@@ -10,10 +10,6 @@ from fastapi import FastAPI
 from .application import (
     TextAnalysisService,
     AnalysisConfig,
-    AnalyzeTextCommandHandler,
-    GetAnalysisQueryHandler,
-    GetAnalysisByMediaQueryHandler,
-    ListTopicsQueryHandler,
     NoOpTextAnalysisMetrics,
 )
 from .infrastructure.metrics import PrometheusTextAnalysisMetrics
@@ -27,7 +23,6 @@ from .infrastructure import (
     SimpleChunker,
     TransformersSentimentAdapter,
 )
-from .infrastructure.metrics import PrometheusTextAnalysisMetrics
 
 
 def _prom_available() -> bool:
@@ -41,10 +36,6 @@ def _prom_available() -> bool:
 @dataclass
 class TextAnalysisModule:
     service: TextAnalysisService
-    analyze_handler: AnalyzeTextCommandHandler
-    get_handler: GetAnalysisQueryHandler
-    get_by_media_handler: GetAnalysisByMediaQueryHandler
-    list_topics_handler: ListTopicsQueryHandler
     repository: InMemoryAnalysisRepository
     config: AnalysisConfig
 
@@ -79,38 +70,24 @@ async def build_text_analysis_module(
     text_generation = OllamaTextGenerationAdapter(config.llm_model)
     chunker = SimpleChunker()
 
-    analyze_handler = AnalyzeTextCommandHandler(
+    metrics = PrometheusTextAnalysisMetrics() if _prom_available() else NoOpTextAnalysisMetrics()
+
+    service = TextAnalysisService(
         sentiment_service=sentiment,
         embedding_service=embeddings,
         topic_modeling=topic_modeling,
         text_generation=text_generation,
         chunker=chunker,
         repository=repo,
-        config=config,
-        event_bus=event_bus,
-    )
-    get_handler = GetAnalysisQueryHandler(repo)
-    get_by_media_handler = GetAnalysisByMediaQueryHandler(repo)
-    list_topics_handler = ListTopicsQueryHandler(repo)
-
-    metrics = PrometheusTextAnalysisMetrics() if _prom_available() else NoOpTextAnalysisMetrics()
-
-    service = TextAnalysisService(
         provider_registry=provider_registry,
-        analyze_handler=analyze_handler,
-        get_handler=get_handler,
-        get_by_media_handler=get_by_media_handler,
-        list_topics_handler=list_topics_handler,
+        config=config,
         metrics=metrics,
+        event_bus=event_bus,
         transcription_queries=transcription_queries,
     )
 
     return TextAnalysisModule(
         service=service,
-        analyze_handler=analyze_handler,
-        get_handler=get_handler,
-        get_by_media_handler=get_by_media_handler,
-        list_topics_handler=list_topics_handler,
         repository=repo,
         config=config,
     )
