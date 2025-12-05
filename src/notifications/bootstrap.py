@@ -5,11 +5,7 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.notifications.api.dependencies import (
-    NotificationDependencies,
-    get_notification_dependencies,
-)
-from src.notifications.application.queries.notification_queries import (
-    NotificationQueries,
+    get_notification_service,
 )
 
 # Consolidated Service
@@ -29,7 +25,6 @@ from src.user_management.application.queries.auth_queries import AuthQueries
 class NotificationModule:
     service: NotificationService
     repository: NotificationRepository
-    queries: NotificationQueries
 
 
 async def build_notification_module(
@@ -53,21 +48,14 @@ async def build_notification_module(
     module = NotificationModule(
         service=service,
         repository=repository,
-        queries=NotificationQueries(notification_repository=repository),
     )
-    # EventBus handlers disabled; use task-based notifications where needed
     return module
 
 
 def bind_notification_module(app: FastAPI, module: NotificationModule) -> None:
     """Expose notification services to FastAPI dependency injection."""
 
-    app.dependency_overrides[get_notification_dependencies] = (
-        lambda: NotificationDependencies(
-            service=module.service,
-            queries=module.queries,
-        )
-    )
+    app.dependency_overrides[get_notification_service] = lambda: module.service
 
 
 __all__ = [

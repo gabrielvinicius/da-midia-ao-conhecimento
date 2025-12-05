@@ -7,9 +7,8 @@ from src.notifications.domain.notification import NotificationPriority, Notifica
 from src.shared.api.dependencies import get_current_user
 from src.user_management.domain.user import User, UserRole
 
-from ..application.queries.notification_queries import NotificationQueries
 from ..application.services.notification_service import NotificationService
-from .dependencies import get_notification_queries, get_notification_service
+from .dependencies import get_notification_service
 from .schemas import NotificationRequest, NotificationResponse
 
 # --- Router Definition ---
@@ -42,10 +41,10 @@ async def request_notification(
 @router.get("/{notification_id}", response_model=NotificationResponse)
 async def get_notification_by_id(
     notification_id: str,
-    queries: NotificationQueries = Depends(get_notification_queries),
+    service: NotificationService = Depends(get_notification_service),
     current_user: User = Depends(get_current_user),
 ):
-    notification = await queries.get_by_id(notification_id)
+    notification = await service.get_notification_by_id(notification_id)
     if not notification:
         raise HTTPException(status_code=404, detail="Notification not found")
     if str(notification.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN:

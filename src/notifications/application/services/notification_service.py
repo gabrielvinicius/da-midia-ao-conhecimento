@@ -2,6 +2,8 @@
 """Consolidated Notification Service. This single service now handles all logic
 related to notifications, including sending, delivery, and management.
 """
+from __future__ import annotations
+
 import time
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -27,6 +29,8 @@ logger = structlog.get_logger(__name__)
 
 class NotificationService:
     """Consolidated service for all notification operations.
+    
+    Combines logic previously split between commands and queries.
     """
 
     def __init__(
@@ -49,6 +53,8 @@ class NotificationService:
         self.email_sender = email_sender
         self.sms_sender = sms_sender
         self.push_sender = push_sender
+
+    # --- Commands ---
 
     async def send_notification(
         self,
@@ -119,6 +125,37 @@ class NotificationService:
             )
             # Metrics recording can be added here
 
+    async def mark_notification_as_read(self, notification_id: UUID, user_id: UUID) -> bool:
+        """Marks a notification as read."""
+        notification = await self.repo.find_by_id(notification_id)
+        if not notification or notification.user_id != user_id:
+            return False
+        notification.mark_as_opened()
+        await self.repo.save(notification)
+        return True
+
+    async def cancel_notification(self, notification_id: UUID, user_id: UUID) -> bool:
+        """Cancel a pending notification."""
+        # Placeholder for actual cancel logic
+        return False
+
+    async def cleanup_old_notifications(self, days_to_keep: int = 30) -> int:
+        """Clean up old notifications."""
+        # Placeholder for actual cleanup logic
+        return 0
+
+    # --- Queries ---
+
+    async def get_notification_by_id(self, notification_id: str | UUID) -> Optional[Notification]:
+        """Retrieves a notification by its unique ID."""
+        # Ensure UUID
+        if isinstance(notification_id, str):
+            try:
+                notification_id = UUID(notification_id)
+            except ValueError:
+                return None
+        return await self.repo.find_by_id(notification_id)
+
     async def get_user_notifications(
         self,
         user_id: UUID,
@@ -131,26 +168,7 @@ class NotificationService:
             notifications = [n for n in notifications if not n.opened_at]
         return notifications
 
-    async def mark_notification_as_read(self, notification_id: UUID, user_id: UUID) -> bool:
-        """Marks a notification as read."""
-        notification = await self.repo.find_by_id(notification_id)
-        if not notification or notification.user_id != user_id:
-            return False
-        notification.mark_as_opened()
-        await self.repo.save(notification)
-        return True
-
     async def get_notification_stats(self, user_id: Optional[UUID] = None) -> Dict[str, Any]:
         """Get notification statistics."""
         # Placeholder for actual stats logic
         return {"total": 0, "unread": 0}
-
-    async def cancel_notification(self, notification_id: UUID, user_id: UUID) -> bool:
-        """Cancel a pending notification."""
-        # Placeholder for actual cancel logic
-        return False
-
-    async def cleanup_old_notifications(self, days_to_keep: int = 30) -> int:
-        """Clean up old notifications."""
-        # Placeholder for actual cleanup logic
-        return 0
