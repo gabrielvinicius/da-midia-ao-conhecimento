@@ -7,7 +7,6 @@ from uuid import UUID
 
 import structlog
 
-# Removed: from sqlalchemy.orm import Session
 from src.media_processing.transcription.domain.transcription import Transcription
 from src.shared.config.settings import settings
 from src.shared.event_bus import SupportsEventBus
@@ -34,7 +33,6 @@ class TranscriptionService:
         transcription_metrics: Any,
         storage_service: Any,
         speech_recognizer_factory: Callable[[str], Any] | None,
-        # db_session: Session,  <-- Removed direct dependency
         *,
         media_queries: "MediaQueries" | None = None,
         event_bus: SupportsEventBus | None = None,
@@ -46,7 +44,6 @@ class TranscriptionService:
         self.transcription_metrics = transcription_metrics
         self.storage_service = storage_service
         self._speech_recognizer_factory = speech_recognizer_factory
-        # self.db_session = db_session <-- Removed
         self._media_queries = media_queries
         self._event_bus = event_bus
         self._dispatcher = dispatcher
@@ -77,20 +74,11 @@ class TranscriptionService:
             topic_modeling_provider=topic_modeling_provider,
         )
         
-        # Schedule the task using the injected scheduler
-        # Assumes scheduler has a generic 'schedule_transcription' or similar, or we adapt.
-        # Looking at CeleryTranscriptionTaskScheduler (Turn 69 bootstrap), it likely has schedule_transcription_task.
-        # Let's assume standard naming or update adapter if needed.
-        # bootstrap uses: CeleryTranscriptionTaskScheduler
-        # Let's check if it matches 'schedule_transcription' from my previous thought or different.
-        # Actually, I can just use the method that exists on the scheduler.
-        
         if hasattr(self.task_scheduler, 'schedule_transcription_task'):
              result = await self.task_scheduler.schedule_transcription_task(**payload.model_dump(mode="json"))
         elif hasattr(self.task_scheduler, 'schedule_transcription'):
              result = self.task_scheduler.schedule_transcription(payload.model_dump(mode="json"))
         else:
-             # Fallback or error
              raise RuntimeError(f"Scheduler {type(self.task_scheduler)} missing schedule method")
 
         return {
@@ -99,6 +87,16 @@ class TranscriptionService:
             "message": "Transcription scheduled",
             "task_id": result.get("task_id") if isinstance(result, dict) else None
         }
+
+    async def get_transcription_by_media_id(self, media_id: UUID) -> Optional[Transcription]:
+        """Retrieves a transcription by its associated media ID."""
+        lookup = getattr(self.transcription_repo, "find_by_media_id", None) or getattr(self.transcription_repo, "get_by_media_id")
+        return await lookup(media_id)
+
+    async def get_transcription_by_id(self, transcription_id: UUID) -> Optional[Transcription]:
+        """Retrieves a transcription by its ID."""
+        lookup = getattr(self.transcription_repo, "find_by_id", None) or getattr(self.transcription_repo, "get_by_id")
+        return await lookup(transcription_id)
 
     def process_transcription_job_sync(
         self,
@@ -128,21 +126,15 @@ class TranscriptionService:
                 )
                 transcription.process()
                 transcription = self.transcription_repo.add_sync(transcription)
-                # Ensure transcription is not None after adding
                 if transcription is None:
-                    # If add_sync didn't return the object, fetch it again by media_id
                     transcription = self.transcription_repo.get_by_media_id_sync(media_id)
             else:
-                # Update the provider if it changed
                 transcription.provider = transcription_provider
-                transcription.process()  # Mark as processing again
+                transcription.process()
                 transcription = self.transcription_repo.update_sync(transcription)
-                # Ensure transcription is not None after updating
                 if transcription is None:
-                    # If update_sync didn't return the object, fetch it again by media_id
                     transcription = self.transcription_repo.get_by_media_id_sync(media_id)
             
-            # Double check that transcription is not None before proceeding
             if transcription is None:
                 raise RuntimeError(f"Could not create or retrieve transcription for media_id: {media_id}")
 
@@ -154,13 +146,11 @@ class TranscriptionService:
                 storage_provider=storage_provider,
             )
 
-            # Download file synchronously using the storage service
             audio_bytes = self.storage_service.download_file_sync(file_path)
 
             recognizer = self._resolve_speech_recognizer(transcription_provider)
             requested_language = (language or "auto").lower()
 
-            # Use sync transcription if available, otherwise try async in new thread
             if hasattr(recognizer, 'transcribe_sync'):
                 result_payload = recognizer.transcribe_sync(
                     audio_bytes,
@@ -182,11 +172,9 @@ class TranscriptionService:
 
             transcription.mark_as_completed(result_payload)
             transcription = self.transcription_repo.update_sync(transcription)
-            # self.db_session.commit() <-- Removed: Repository should handle commit/flush
 
             effective_language = transcription.language or language
 
-            # Publish event synchronously if possible
             self._publish_text_content_ready_sync(
                 transcription=transcription,
                 media_id=media_id,
@@ -217,12 +205,10 @@ class TranscriptionService:
             if transcription is not None:
                 transcription.mark_as_failed(str(exc))
                 self.transcription_repo.update_sync(transcription)
-                # self.db_session.commit() <-- Removed
             raise
         finally:
             duration = time.monotonic() - start_time
             if self.transcription_logger is not None:
-                # Use sync logging if available
                 if hasattr(self.transcription_logger, 'log_operation_sync'):
                     try:
                         self.transcription_logger.log_operation_sync(
@@ -247,7 +233,6 @@ class TranscriptionService:
                     elif isinstance(result_payload, str):
                         text_output = result_payload
                         
-                # Use sync metrics if available
                 if hasattr(self.transcription_metrics, 'record_operation_sync'):
                     try:
                         self.transcription_metrics.record_operation_sync(
@@ -284,7 +269,6 @@ class TranscriptionService:
             )
             return
 
-        # Build metadata for the event
         metadata = self._build_text_ready_metadata(
             transcription,
             media_id=media_id,
@@ -302,7 +286,7 @@ class TranscriptionService:
                 metadata=metadata,
                 correlation_id=None,
             )
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:
             logger.warning(
                 "transcription_service.text_dispatch_failed",
                 media_id=str(transcription.media_id),
@@ -332,7 +316,6 @@ class TranscriptionService:
         metadata["sentiment_provider"] = sentiment_provider or DEFAULT_SENTIMENT_PROVIDER
         metadata["topic_provider"] = topic_provider or DEFAULT_TOPIC_PROVIDER
 
-        # Add other metadata as needed
         return metadata
 
     def _resolve_speech_recognizer(self, provider: str) -> Any:

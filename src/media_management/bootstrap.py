@@ -1,3 +1,4 @@
+# src/media_management/bootstrap.py
 """Bootstrap media management module."""
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple
@@ -12,10 +13,7 @@ from src.media_management.application.commands.validators import MediaUploadVali
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
 from src.shared.config.settings import settings
-from src.media_processing.application.services import MediaProcessingService
-from src.media_processing.transcription.application.queries import (
-    TranscriptionQueries,
-)
+from src.media_processing.application.media_processing_service import MediaProcessingService
 from src.media_processing.transcription.application.transcription_service import (
     TranscriptionService,
 )
@@ -67,7 +65,6 @@ class MediaModule:
     # Legacy/Other Services (to be refactored later if needed)
     processing_service: MediaProcessingService
     transcription_service: TranscriptionService
-    transcription_queries: TranscriptionQueries
     video_processing_service: VideoProcessingService
 
 
@@ -120,7 +117,6 @@ def build_media_components(
         media_queries=media_repository, # Duck typing
         event_bus=event_bus,
     )
-    transcription_queries = TranscriptionQueries(transcription_repository=transcription_repository)
 
     video_processing_service = VideoProcessingService(
         video_audio_extractor=FFmpegVideoAudioExtractor(),
@@ -130,20 +126,12 @@ def build_media_components(
     )
 
     video_metrics = PrometheusVideoProcessingMetrics()
-    # CQRS handlers for media processing
-    from src.media_processing.application.commands import (
-        RequestTranscriptionHandler,
-        RequestVideoProcessingHandler,
-    )
 
     processing_service = MediaProcessingService(
         transcription_service=transcription_service,
-        transcription_queries=transcription_queries,
         video_service=video_processing_service,
         transcription_metrics=transcription_metrics,
         video_metrics=video_metrics,
-        request_transcription_handler=RequestTranscriptionHandler(transcription_service),
-        request_video_handler=RequestVideoProcessingHandler(video_processing_service),
         provider_registry=provider_registry,
     )
 
@@ -151,7 +139,6 @@ def build_media_components(
         media_service=media_service,
         processing_service=processing_service,
         transcription_service=transcription_service,
-        transcription_queries=transcription_queries,
         video_processing_service=video_processing_service,
     )
 
@@ -170,7 +157,7 @@ def bind_media_module(app: FastAPI, module: MediaModule) -> None:
     app.dependency_overrides[get_transcription_dependencies] = (
         lambda: TranscriptionDependencies(
             service=module.transcription_service,
-            queries=module.transcription_queries,
+            queries=module.transcription_service, # Duck typing
         )
     )
 

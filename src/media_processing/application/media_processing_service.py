@@ -7,15 +7,6 @@ from uuid import UUID
 
 import structlog
 
-from src.media_processing.application.commands import (
-    RequestTranscriptionCommand,
-    RequestTranscriptionHandler,
-    RequestVideoProcessingCommand,
-    RequestVideoProcessingHandler,
-)
-from src.media_processing.transcription.application.queries.transcription_queries import (
-    TranscriptionQueries,
-)
 from src.media_processing.transcription.application.transcription_service import (
     TranscriptionService,
 )
@@ -33,22 +24,16 @@ class MediaProcessingService:
         self,
         *,
         transcription_service: TranscriptionService,
-        transcription_queries: TranscriptionQueries,
         video_service: VideoProcessingService,
         transcription_metrics: Any | None = None,
         video_metrics: Any | None = None,
-        request_transcription_handler=None,
-        request_video_handler=None,
         provider_registry: IProviderRegistry | None = None,
     ) -> None:
         self._transcription_service = transcription_service
-        self._transcription_queries = transcription_queries
         self._video_service = video_service
         self._logger = structlog.get_logger(__name__).bind(component="media_processing.service")
         self._transcription_metrics = transcription_metrics
         self._video_metrics = video_metrics
-        self._request_transcription_handler = request_transcription_handler
-        self._request_video_handler = request_video_handler
         self._provider_registry = provider_registry
 
     # ------------------------------------------------------------------ #
@@ -69,17 +54,7 @@ class MediaProcessingService:
             transcription_provider,
             ProviderType.TRANSCRIPTION,
         )
-        if self._request_transcription_handler is not None:
-            return await self._request_transcription_handler(
-                RequestTranscriptionCommand(
-                    media_id=media_id,
-                    file_path=file_path,
-                    storage_provider=storage_provider,
-                    transcription_provider=transcription_provider,
-                    language=language,
-                    metrics_payload=metrics_payload,
-                )
-            )
+        
         start_time = time.monotonic()
         success = False
         try:
@@ -116,7 +91,7 @@ class MediaProcessingService:
 
     async def get_transcription_details(self, transcription_id: UUID):
         """Return a transcription by its identifier."""
-        return await self._transcription_queries.get_by_id(transcription_id)
+        return await self._transcription_service.get_transcription_by_id(transcription_id)
 
     # ------------------------------------------------------------------ #
     # Video helpers
@@ -130,15 +105,6 @@ class MediaProcessingService:
         metrics_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Schedule asynchronous video processing for the uploaded media."""
-        if self._request_video_handler is not None:
-            return await self._request_video_handler(
-                RequestVideoProcessingCommand(
-                    media_id=media_id,
-                    file_path=file_path,
-                    storage_provider=storage_provider,
-                    metrics_payload=metrics_payload,
-                )
-            )
         start_time = time.monotonic()
         success = False
         try:
@@ -235,17 +201,18 @@ class MediaProcessingService:
         )
         
         file_path = getattr(event, "file_path", None) or context.get("file_path")
-        if not file_path:
-             # Attempt to reconstruct if possible, or log warning
-             # For event-driven flow, file_path should be in event
-             # Assuming standard location if missing? No, safer to skip or error.
-             # Note: In previous code, file_path was extracted from event.file_path
+        if not file_path and hasattr(event, "filename"):
+             # Fallback logic if file_path is missing but we can guess? 
+             # Actually `MediaUploaded` should have `filename` but maybe not full path if not persisted there.
+             # But `Media` entity has `original_file_path`.
+             # Ideally the event has it. 
+             # If not, we might need to fetch media... but avoiding DB calls here is better.
              pass
 
         try:
             await self._transcription_service.request_transcription_generation(
                 media_id=media_id,
-                file_path=file_path, # Pass file_path
+                file_path=file_path, 
                 storage_provider=storage_provider,
                 transcription_provider=transcription_provider,
                 language=event.language or context.get("language") or "auto",
@@ -316,36 +283,7 @@ class MediaProcessingService:
             )
             return
 
-        # Delegate to TextAnalysisService via dispatch
-        # The previous code imported tasks directly.
-        # Ideally, we should inject TextAnalysisService or use a Dispatcher.
-        # Since TextAnalysis is a separate module, we should use the Event Bus or a Dispatcher.
-        # The `TextAnalysisDispatcher` used in `job_runners.py` seems relevant.
-        # BUT here we are in the API process (handling event).
-        # If we want to trigger TASKS, we should use the Dispatcher or Scheduler.
-        #
-        # Previously: lazy import tasks -> delay()
-        # Better: Use a TextAnalysisScheduler interface?
-        # Or assume `MediaProcessingService` shouldn't handle this?
-        #
-        # Actually, `TextContentReady` IS the trigger for Text Analysis.
-        # Text Analysis Module should listen to `TextContentReady`!
-        # Why is `MediaProcessingService` handling `TextContentReady`?
-        # This seems like incorrect responsibility assignment.
-        #
-        # IF `MediaProcessingService` handles it, it acts as an Orchestrator.
-        #
-        # For now, I will keep the logic but replace lazy imports with dynamic dispatch if possible,
-        # or keep lazy imports as a pragmatic "Glue" if TextAnalysis doesn't have a listener yet.
-        #
-        # Wait, `TextAnalysis` module (consolidated) does NOT have an event listener wired in `bootstrap.py`?
-        # I removed legacy code.
-        # I should check `src/text_analysis/application/event_handlers.py`.
-        
-        # ... (Keeping existing logic with lazy imports for now to avoid breaking text analysis flow, 
-        # as full event migration for TextAnalysis is out of scope for this specific MediaProcessing refactor,
-        # but cleaning it up slightly).
-        
+        # Dynamic dispatch to Text Analysis tasks
         try:
             from src.text_analysis.tasks import (
                 summarize_task,
