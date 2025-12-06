@@ -40,7 +40,7 @@ DEFAULT_MODULE_SPECS: tuple[ModuleSpec, ...] = (
         name="media",
         binder_path="src.media_management.bootstrap:bind_media_module",
         routers=(
-            "src.media_management.api.routers:router",
+            "src.media_management.api.routes:router",
             "src.media_processing.api.routers:router",
         ),
     ),

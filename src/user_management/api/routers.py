@@ -3,7 +3,7 @@ from typing import Annotated, List
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from src.shared.api.dependencies import get_current_admin_user, get_current_user
+from src.user_management.api.dependencies import get_current_admin_user, get_current_user
 from src.user_management.application.auth_service import AuthService
 from src.user_management.application.user_service import UserService
 from src.user_management.domain.user import User

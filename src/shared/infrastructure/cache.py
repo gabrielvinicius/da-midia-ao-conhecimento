@@ -10,11 +10,10 @@ from typing import Any, Dict, Optional
 
 import redis.asyncio as aioredis
 
-from src.shared.config.broker_settings import BrokerSettings
+from src.shared.infrastructure.settings import settings
 from src.shared.infrastructure.logging import get_logger
 
 logger = get_logger("cache")
-settings = BrokerSettings()
 
 
 class CacheConfig:
@@ -54,10 +53,8 @@ class RedisCache:
             return
 
         try:
-            self.redis_client = aioredis.Redis(
-                host=settings.redis_host,
-                port=settings.redis_port,
-                db=settings.redis_db + 1,  # Usar DB diferente do event bus
+            self.redis_client = aioredis.from_url(
+                settings.redis_url,
                 decode_responses=False,  # Para suportar binary data
                 socket_connect_timeout=5,
                 socket_timeout=5,
@@ -68,10 +65,7 @@ class RedisCache:
             await self.redis_client.ping()
             self.is_connected = True
 
-            logger.info("Redis cache connected successfully",
-                       host=settings.redis_host,
-                       port=settings.redis_port,
-                       db=settings.redis_db + 1)
+            logger.info("Redis cache connected successfully", url=settings.redis_url)
 
         except Exception as e:
             logger.error("Failed to connect to Redis cache", extra={"error": str(e)})

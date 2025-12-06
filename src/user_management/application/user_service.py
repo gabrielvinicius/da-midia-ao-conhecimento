@@ -5,7 +5,7 @@ from uuid import UUID
 
 from src.shared.utils.id_generator import generate_id
 from src.shared.utils.password_utils import hash_password, verify_password
-from src.shared.config.settings import Settings, settings
+from src.shared.infrastructure.settings import Settings, settings
 from src.user_management.domain.user import User, UserRole
 from src.user_management.domain.exceptions import (
     UserAlreadyExistsError,

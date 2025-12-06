@@ -15,7 +15,7 @@ from src.storage.domain.entities.file_metadata import FileMetadata
 from src.storage.domain.repositories.storage_repository import StorageRepository
 from src.storage.domain.value_objects.file_path import FilePath
 from src.storage.domain.value_objects.file_size import FileSize
-from src.shared.resilience.policies import create_retry_policy
+from src.shared.infrastructure.resilience import create_retry_policy
 
 
 class S3StorageService(StorageRepository):

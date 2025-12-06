@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import main
-from src.shared.config.settings import Settings
+from src.shared.infrastructure.settings import Settings
 
 
 @pytest.fixture(autouse=True)

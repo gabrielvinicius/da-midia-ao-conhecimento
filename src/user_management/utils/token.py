@@ -4,7 +4,7 @@ from uuid import UUID
 
 from jose import JWTError, jwt
 
-from src.shared.config.settings import settings
+from src.shared.infrastructure.settings import settings
 
 
 def create_access_token(user_id: UUID) -> str:

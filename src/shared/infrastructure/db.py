@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
-from src.shared.config.settings import settings
+from src.shared.infrastructure.settings import settings
 from src.shared.infrastructure.logging import get_logger
 
 

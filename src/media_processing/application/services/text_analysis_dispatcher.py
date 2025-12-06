@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 import structlog
 
-from src.shared.events.domain_events import TextContentReady
+from src.shared.domain.events import TextContentReady
 
 logger = structlog.get_logger(__name__)
 

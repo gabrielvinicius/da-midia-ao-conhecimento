@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Set
 
 import structlog
 
-from src.media_management.application.commands.components import (
+from src.media_management.application.services.components import (
     DefaultMediaEventPublisher,
     DefaultMediaMetricsPublisher,
     DefaultMediaUploadSideEffectPublisher,
@@ -41,12 +41,11 @@ from src.media_management.application.queries.dto import (
     ListMediaQuery,
 )
 from src.media_management.domain.media import Media
-from src.media_management.infrastructure.logging import StructuredMediaLogger
 from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
 from src.media_management.infrastructure.repositories import MediaRepository
 from src.providers.domain.interfaces import IProviderRegistry, ProviderType
 from src.shared.domain.enums import MediaStatus, MediaType
-from src.shared.events.bus import SupportsEventBus
+from src.shared.infrastructure.event_bus import SupportsEventBus
 from src.shared.domain.events import (
     MediaDeleted,
     MediaReprocessRequested,

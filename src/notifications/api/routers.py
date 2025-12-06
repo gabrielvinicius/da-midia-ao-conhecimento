@@ -4,7 +4,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.notifications.domain.notification import NotificationPriority, NotificationType
-from src.shared.api.dependencies import get_current_user
+from src.user_management.api.dependencies import get_current_user
 from src.user_management.domain.user import User, UserRole
 
 from ..application.services.notification_service import NotificationService

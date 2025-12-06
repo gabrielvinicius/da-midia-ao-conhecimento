@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, Uuid
+from sqlalchemy import Column, DateTime, ForeignKey, String, Uuid, Integer, BigInteger
 from sqlalchemy import Enum as SqlEnum
 
 from src.shared.domain.enums import MediaStatus, MediaType
@@ -16,6 +16,10 @@ class MediaEntity(Base):
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     original_file_path = Column(String, nullable=False)
+    filename = Column(String, nullable=True)
+    file_size = Column(BigInteger, nullable=True)
+    mime_type = Column(String, nullable=True)
+    duration = Column(Integer, nullable=True)
     media_type = Column(SqlEnum(MediaType), nullable=False)
     status = Column(SqlEnum(MediaStatus), default=MediaStatus.UPLOADED, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

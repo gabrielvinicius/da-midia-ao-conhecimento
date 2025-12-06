@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.admin.application.admin_service import AdminService
 from src.media_management.api.schemas import MediaResponse
-from src.shared.api.dependencies import get_current_admin_user
-from src.shared.api.schemas import PaginatedResponse
+from src.user_management.api.dependencies import get_current_admin_user
+from src.shared.application.schemas import PaginatedResponse
 from src.user_management.api.schemas import UserResponse
 from src.user_management.domain.user import User
 

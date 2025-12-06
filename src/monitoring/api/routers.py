@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from src.monitoring.domain.interfaces import TimeRange
-from src.shared.api.dependencies import get_current_user
+from src.user_management.api.dependencies import get_current_user
 from src.user_management.domain.user import User
 
 from .dependencies import get_analytics_queries, get_metrics_service

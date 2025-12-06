@@ -1,6 +1,6 @@
 """Reusable validator for upload constraints in media management."""
 
-from src.shared.config.settings import Settings
+from src.shared.infrastructure.settings import Settings
 
 
 class MediaUploadValidator:

@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, Form, HTTPException, status
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
-from src.shared.api.dependencies import get_current_user
-from src.shared.api.unified_schemas import (
+from src.user_management.api.dependencies import get_current_user
+from src.shared.application.schemas import (
     BaseResponseSchema,
     create_error_response,
     create_success_response,

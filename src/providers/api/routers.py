@@ -8,7 +8,7 @@ from src.providers.domain.interfaces import (
     ProviderCapability,
     ProviderType,
 )
-from src.shared.api.dependencies import get_current_user
+from src.user_management.api.dependencies import get_current_user
 from src.user_management.domain.user import User
 
 from .dependencies import get_provider_registry

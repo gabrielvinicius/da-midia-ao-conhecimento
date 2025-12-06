@@ -16,7 +16,7 @@ from src.shared.exceptions.domain_exceptions import (
     AuthorizationError,
 )
 from src.shared.infrastructure.logging_config import get_logger
-from src.shared.config.settings import settings
+from src.shared.infrastructure.settings import settings
 from src.user_management.domain.user import User
 
 logger = get_logger("secure_auth")

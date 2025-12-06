@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.shared.config.settings import Settings, settings
+from src.shared.infrastructure.settings import Settings, settings
 from src.user_management.api.dependencies import (
     AuthDependencies,
     get_auth_dependencies,

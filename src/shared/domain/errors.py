@@ -218,3 +218,7 @@ class StorageError(DomainException):
                 "file_path": file_path
             }
         )
+
+# Aliases for backward compatibility
+ResourceNotFoundException = ResourceNotFoundError
+DomainValidationError = ValidationError

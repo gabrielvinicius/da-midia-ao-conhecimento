@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from src.shared.events.bus import InMemoryEventBus, SupportsEventBus
+from src.shared.infrastructure.event_bus import InMemoryEventBus, SupportsEventBus
 
 
 def get_event_bus(backend: Optional[str] = None) -> SupportsEventBus:

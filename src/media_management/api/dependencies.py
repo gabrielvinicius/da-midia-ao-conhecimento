@@ -8,10 +8,10 @@ from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.queries.media_queries import MediaQueries # Import the Protocol
 from src.media_management.application.commands.validators import MediaUploadValidator
 from src.media_management.application.policies import MediaAccessPolicy
-from src.media_management.infrastructure.media_repository import MediaRepository
+from src.media_management.infrastructure.repositories import MediaRepository
 from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
-from src.shared.config.settings import settings
-from src.shared.events.bus import SupportsEventBus
+from src.shared.infrastructure.settings import settings
+from src.shared.infrastructure.event_bus import SupportsEventBus
 from src.shared.infrastructure.db import get_db
 from src.storage.infrastructure.dependencies import (
     StorageServiceFactory,

@@ -8,8 +8,8 @@ from uuid import UUID
 import structlog
 
 from src.media_processing.domain.model import Transcription
-from src.shared.config.settings import settings
-from src.shared.events.bus import SupportsEventBus
+from src.shared.infrastructure.settings import settings
+from src.shared.infrastructure.event_bus import SupportsEventBus
 from src.media_processing.application.schemas import TranscriptionTaskPayload
 
 if TYPE_CHECKING:
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-DEFAULT_SUMMARIZATION_PROVIDER = settings.SUMMARIZATION_DEFAULT_PROVIDER
+DEFAULT_SUMMARIZATION_PROVIDER = settings.summarization_default_provider
 DEFAULT_SENTIMENT_PROVIDER = "builtin"
 DEFAULT_TOPIC_PROVIDER = "sklearn_lda"
 

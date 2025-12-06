@@ -5,7 +5,7 @@ from uuid import UUID
 
 import structlog
 
-from src.shared.config.unified_settings import get_settings
+from src.shared.infrastructure.settings import settings
 from src.shared.infrastructure.unified_providers import provider_registry
 
 from .providers.fastwhisper_provider import FastWhisperProvider

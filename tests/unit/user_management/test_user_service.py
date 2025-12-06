@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from src.user_management.application.user_service import UserService
-from src.shared.config.settings import Settings
+from src.shared.infrastructure.settings import Settings
 
 @pytest.fixture
 def mock_settings():
