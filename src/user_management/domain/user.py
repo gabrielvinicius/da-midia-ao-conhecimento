@@ -1,10 +1,11 @@
 """Domain entities for user management."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
-from uuid import UUID, uuid4
+from uuid import uuid4
+
+from src.shared.domain.base_entity import AggregateRoot
 
 
 class UserRole(str, Enum):
@@ -12,9 +13,8 @@ class UserRole(str, Enum):
     ADMIN = "ADMIN"
 
 
-@dataclass(slots=True)
-class User:
-    id: UUID
+@dataclass(kw_only=True, slots=True)
+class User(AggregateRoot):
     email: str
     password_hash: str
     is_active: bool = True

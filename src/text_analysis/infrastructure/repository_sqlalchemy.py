@@ -35,30 +35,26 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         self.session = session
 
     def save(self, analysis: Analysis) -> str:
-        # Convert string IDs to UUIDs for FK columns if present
-        media_uuid = uuid.UUID(analysis.media_id) if analysis.media_id else None
-        user_uuid = uuid.UUID(analysis.user_id) if analysis.user_id else None
-        transcription_uuid = uuid.UUID(analysis.transcription_id) if analysis.transcription_id else None
-
+        # Domain entities now use UUIDs, ORM expects UUID objects for FKs, String for ID
+        
         data = {
-            "analysis_id": analysis.id,
-            "document_id": analysis.document.id,
+            "analysis_id": str(analysis.id),
+            "document_id": str(analysis.document.id),
             "overall_sentiment": analysis.overall_sentiment.value if analysis.overall_sentiment else None,
             "sentiment_items": [s.__dict__ for s in analysis.sentiments],
             "topics": [t.__dict__ for t in analysis.topics],
             "diagnostics": analysis.diagnostics,
-            # Redundant but kept for backward compatibility or JSON dumps
-            "media_id": analysis.media_id,
-            "transcription_id": analysis.transcription_id,
-            "user_id": analysis.user_id,
+            "media_id": str(analysis.media_id) if analysis.media_id else None,
+            "transcription_id": str(analysis.transcription_id) if analysis.transcription_id else None,
+            "user_id": str(analysis.user_id) if analysis.user_id else None,
         }
         
         record = AnalysisORM(
-            id=analysis.id, 
-            document_id=analysis.document.id, 
-            media_id=media_uuid,
-            user_id=user_uuid,
-            transcription_id=transcription_uuid,
+            id=str(analysis.id), 
+            document_id=str(analysis.document.id), 
+            media_id=analysis.media_id,
+            user_id=analysis.user_id,
+            transcription_id=analysis.transcription_id,
             payload=data
         )
         self.session.merge(record)
@@ -67,7 +63,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         except Exception:
             self.session.rollback()
             raise
-        return analysis.id
+        return str(analysis.id)
 
     def get(self, analysis_id: str) -> Optional[Analysis]:
         stmt = select(AnalysisORM).where(AnalysisORM.id == analysis_id)
@@ -97,13 +93,21 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
     def _payload_to_analysis(self, payload: dict) -> Analysis:
         from ..domain import Document, Analysis as AnalysisEntity, Sentiment, SentimentLabel, TextChunk, Topic
 
-        doc = Document(id=payload.get("document_id", ""), text="")
+        doc_id = uuid.UUID(str(payload.get("document_id"))) if payload.get("document_id") else uuid.uuid4()
+        doc = Document(id=doc_id, text="")
+        
+        analysis_id = uuid.UUID(str(payload.get("analysis_id"))) if payload.get("analysis_id") else uuid.uuid4()
+        
+        media_id = uuid.UUID(str(payload.get("media_id"))) if payload.get("media_id") else None
+        transcription_id = uuid.UUID(str(payload.get("transcription_id"))) if payload.get("transcription_id") else None
+        user_id = uuid.UUID(str(payload.get("user_id"))) if payload.get("user_id") else None
+
         analysis = AnalysisEntity(
-            id=payload.get("analysis_id", ""),
+            id=analysis_id,
             document=doc,
-            media_id=payload.get("media_id"),
-            transcription_id=payload.get("transcription_id"),
-            user_id=payload.get("user_id"),
+            media_id=media_id,
+            transcription_id=transcription_id,
+            user_id=user_id,
         )
 
         chunks = []

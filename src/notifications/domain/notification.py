@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 from uuid import UUID
 
+from src.shared.domain.base_entity import Entity, AggregateRoot
 from src.shared.utils.time_utils import utcnow
 
 
@@ -36,20 +37,18 @@ class NotificationPriority(str, Enum):
     URGENT = "URGENT"
 
 
-@dataclass
-class Notification:
+@dataclass(kw_only=True)
+class Notification(AggregateRoot):
     """Notification entity following domain-driven design principles."""
     
     user_id: UUID
     type: NotificationType
     content: str
-    id: UUID = field(default_factory=uuid.uuid4)
     subject: Optional[str] = None
     status: NotificationStatus = NotificationStatus.PENDING
     priority: NotificationPriority = NotificationPriority.NORMAL
     
-    # Metadata and tracking
-    created_at: datetime = field(default_factory=utcnow)
+    # Metadata and tracking (created_at inherited from AggregateRoot -> Entity)
     scheduled_at: Optional[datetime] = None
     sent_at: Optional[datetime] = None
     delivered_at: Optional[datetime] = None
@@ -98,12 +97,11 @@ class Notification:
         return utcnow() > expiry_time
 
 
-@dataclass
-class NotificationPreference:
+@dataclass(kw_only=True)
+class NotificationPreference(Entity):
     """User notification preferences entity."""
     
     user_id: UUID
-    id: UUID = field(default_factory=uuid.uuid4)
     
     # Channel preferences
     email_enabled: bool = True
@@ -128,8 +126,7 @@ class NotificationPreference:
         "security_alerts": True
     })
     
-    created_at: datetime = field(default_factory=utcnow)
-    updated_at: datetime = field(default_factory=utcnow)
+    # created_at, updated_at inherited
 
     def is_channel_enabled(self, channel: str) -> bool:
         """Check if specific channel is enabled."""
@@ -142,12 +139,11 @@ class NotificationPreference:
         return channel_map.get(channel, False)
 
 
-@dataclass
-class NotificationTemplate:
+@dataclass(kw_only=True)
+class NotificationTemplate(Entity):
     """Notification template entity."""
     
     name: str
-    id: UUID = field(default_factory=uuid.uuid4)
     description: Optional[str] = None
     
     # Template content
@@ -164,8 +160,7 @@ class NotificationTemplate:
     category: Optional[str] = None
     is_active: bool = True
     
-    created_at: datetime = field(default_factory=utcnow)
-    updated_at: datetime = field(default_factory=utcnow)
+    # created_at, updated_at inherited
 
     def get_content_for_channel(self, channel: str) -> Optional[str]:
         """Get template content for specific channel."""

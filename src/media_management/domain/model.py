@@ -8,6 +8,7 @@ from typing import Optional, Union
 from uuid import UUID, uuid4
 
 from src.shared.domain.enums import MediaStatus, MediaType
+from src.shared.domain.base_entity import AggregateRoot
 
 UUIDLike = Union[UUID, str]
 _MISSING = object()
@@ -25,11 +26,10 @@ def _ensure_timezone(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-@dataclass(frozen=True, slots=True)
-class MediaAggregate:
+@dataclass(slots=True)
+class MediaAggregate(AggregateRoot):
     """Pure domain representation of a stored media item."""
 
-    id: UUID
     user_id: UUID
     original_file_path: str
     media_type: MediaType
@@ -39,7 +39,6 @@ class MediaAggregate:
     summarization_provider: Optional[str] = None
     sentiment_provider: Optional[str] = None
     topic_modeling_provider: Optional[str] = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     error_message: Optional[str] = None
     language: Optional[str] = None
     filename: Optional[str] = None
@@ -47,9 +46,12 @@ class MediaAggregate:
     mime_type: Optional[str] = None
     duration: Optional[int] = None
 
-    def __post_init__(self) -> None:  # pragma: no cover - defensive normalization
-        object.__setattr__(self, "id", _coerce_uuid(self.id))
+    def __post_init__(self) -> None:
+        # Ensure types are correct (defensive programming)
         object.__setattr__(self, "user_id", _coerce_uuid(self.user_id))
+
+        if self.id:
+             object.__setattr__(self, "id", _coerce_uuid(self.id))
 
         media_type = self.media_type
         if not isinstance(media_type, MediaType):
@@ -59,8 +61,9 @@ class MediaAggregate:
         if not isinstance(status, MediaStatus):
             object.__setattr__(self, "status", MediaStatus(str(status)))
 
-        created_at = self.created_at or datetime.now(timezone.utc)
-        object.__setattr__(self, "created_at", _ensure_timezone(created_at))
+        # created_at is handled by Entity but if passed we might want to ensure timezone
+        if self.created_at:
+             object.__setattr__(self, "created_at", _ensure_timezone(self.created_at))
 
     @classmethod
     def create(

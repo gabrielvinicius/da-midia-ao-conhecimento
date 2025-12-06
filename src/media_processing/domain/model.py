@@ -5,7 +5,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from uuid import UUID, uuid4
+from uuid import UUID
+
+from src.shared.domain.base_entity import AggregateRoot
 
 
 class TranscriptionStatus(str, Enum):
@@ -15,10 +17,9 @@ class TranscriptionStatus(str, Enum):
     FAILED = "FAILED"
 
 
-@dataclass
-class Transcription:
+@dataclass(kw_only=True)
+class Transcription(AggregateRoot):
     media_id: UUID
-    id: UUID = field(default_factory=uuid4)
     content: str = ""
     language: Optional[str] = None
     confidence_score: Optional[float] = None
@@ -26,8 +27,7 @@ class Transcription:
     segments: Optional[List[Dict[str, Any]]] = None
     status: TranscriptionStatus = TranscriptionStatus.PENDING
     provider: Optional[str] = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = None
+    # created_at, updated_at, id are inherited from AggregateRoot -> Entity
     processed_at: Optional[datetime] = None
     error_message: Optional[str] = None
     result: Optional[Dict[str, Any]] = None
@@ -56,14 +56,14 @@ class Transcription:
         self.status = TranscriptionStatus.COMPLETED
         now = datetime.now(timezone.utc)
         self.processed_at = now
-        self.updated_at = now
+        object.__setattr__(self, "updated_at", now) # Update immutable field
 
     def mark_as_failed(self, error: str):
         self.status = TranscriptionStatus.FAILED
         self.error_message = error
         now = datetime.now(timezone.utc)
         self.processed_at = now
-        self.updated_at = now
+        object.__setattr__(self, "updated_at", now) # Update immutable field
 
     def set_speaker_aliases(self, aliases: Dict[str, str]):
         """Sets or updates the speaker alias map."""
