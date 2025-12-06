@@ -7,8 +7,8 @@ from uuid import UUID
 
 import math
 
-from src.admin.application.services.admin_media_service import AdminMediaService
-from src.media_management.application.facade import MediaOrchestrator
+from src.media_management.application.services.media_service import MediaService
+from src.media_management.application.queries.dto import ListMediaQuery, GetMediaStatisticsQuery
 from src.user_management.domain.user import User
 
 
@@ -16,7 +16,7 @@ from src.user_management.domain.user import User
 class MediaManagementAdapter:
     """Wrapper around media queries and admin media service used by the façade."""
 
-    media_orchestrator: MediaOrchestrator
+    media_service: MediaService
     admin_media_service: AdminMediaService
 
     async def list_media(
@@ -26,12 +26,13 @@ class MediaManagementAdapter:
         limit: int,
         search: Optional[str],
     ):
-        items = await self.media_orchestrator.queries.list_all(
-            page=page,
-            limit=limit,
-            search=search,
-        )
-        total_items = await self.media_orchestrator.queries.count_filtered(search=search)
+        list_query = ListMediaQuery(page=page, limit=limit, search=search)
+        items = await self.media_service.list_media(query=list_query)
+        
+        count_query = GetMediaStatisticsQuery(search=search)
+        statistics = await self.media_service.get_media_statistics(query=count_query)
+        total_items = statistics.get("total", 0)
+        
         total_pages = math.ceil(total_items / limit) if limit else 1
         return {
             "items": items,

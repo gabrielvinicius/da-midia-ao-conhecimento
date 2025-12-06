@@ -7,7 +7,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, String, Uuid
 from sqlalchemy import Enum as SqlEnum
 
 from src.shared.domain.enums import MediaStatus, MediaType
-from src.shared.infrastructure.database import Base
+from src.shared.infrastructure.db import Base
 
 
 class MediaEntity(Base):

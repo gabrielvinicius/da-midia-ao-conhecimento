@@ -5,7 +5,7 @@ from src.admin.application.queries.admin_queries import AdminQueries
 from src.admin.application.services.admin_audit_service import AdminAuditService
 from src.admin.application.services.admin_media_service import AdminMediaService
 from src.admin.application.services.admin_user_service import AdminUserService
-from src.media_management.application.facade import MediaOrchestrator
+from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.user_management.application.permission_service import UserPermissionService
@@ -17,7 +17,7 @@ class AdminContainer(containers.DeclarativeContainer):
     db: providers.Provider[AsyncSession] = providers.Dependency()
     auth_queries: providers.Provider[AuthQueries] = providers.Dependency()
     media_queries: providers.Provider[MediaQueries] = providers.Dependency()
-    media_orchestrator: providers.Provider[MediaOrchestrator] = providers.Dependency()
+    media_service: providers.Provider[MediaService] = providers.Dependency()
 
     user_repository = providers.Factory(UserRepository, db=db)
     media_repository = providers.Factory(MediaRepository, db=db)
@@ -36,7 +36,7 @@ class AdminContainer(containers.DeclarativeContainer):
         media_repository=media_repository,
         permission_service=permission_service,
         audit_service=admin_audit_service,
-        media_orchestrator=media_orchestrator,
+        media_service=media_service,
     )
 
     admin_queries = providers.Factory(

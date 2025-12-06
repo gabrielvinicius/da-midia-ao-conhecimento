@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.shared.infrastructure.database import Base
+from src.shared.infrastructure.db import Base
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 

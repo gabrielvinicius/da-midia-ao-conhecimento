@@ -1,7 +1,7 @@
 """Shared SQLAlchemy base entity definition."""
 from __future__ import annotations
 
-from src.shared.infrastructure.database import Base
+from src.shared.infrastructure.db import Base
 
 
 class BaseEntity(Base):

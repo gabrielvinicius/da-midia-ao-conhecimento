@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable
 
-from src.shared.events.domain_events import TextContentReady
+from src.shared.domain.events import TextContentReady
 
 
 def build_text_content_ready_handler(service) -> Callable[[TextContentReady], Awaitable[None]]:

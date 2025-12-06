@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from prometheus_client import Counter, Histogram
 
-from src.shared.infrastructure.prometheus_metrics import shared_metrics
+from src.shared.infrastructure.metrics import shared_metrics
 from src.text_analysis.application.metrics import TextAnalysisMetrics
 
 

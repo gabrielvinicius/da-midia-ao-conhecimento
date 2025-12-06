@@ -11,7 +11,7 @@ from starlette import status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
-from src.shared.infrastructure.logging_config import get_logger
+from src.shared.infrastructure.logging import get_logger
 
 logger = get_logger("performance_middleware")
 

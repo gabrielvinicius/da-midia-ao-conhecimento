@@ -11,7 +11,7 @@ from statistics import mean
 from typing import Any, Dict, List, Optional
 
 from src.providers.domain.interfaces import IProviderRegistry
-from src.shared.events.domain_events import (
+from src.shared.domain.events import (
     SentimentAnalysisCompleted,
     SummarizationCompleted,
     TopicModelingCompleted,

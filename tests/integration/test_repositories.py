@@ -3,7 +3,7 @@ import pytest_asyncio
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
-from src.shared.infrastructure.database import Base
+from src.shared.infrastructure.db import Base
 from src.user_management.infrastructure.user_repository import UserRepository
 from src.user_management.domain.user import User
 from src.notifications.infrastructure.notification_repository import NotificationRepository

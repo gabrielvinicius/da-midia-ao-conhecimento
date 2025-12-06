@@ -13,43 +13,43 @@ from src.media_management.application.commands.validators import MediaUploadVali
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
 from src.shared.config.settings import settings
-from src.media_processing.application.media_processing_service import MediaProcessingService
-from src.media_processing.transcription.application.transcription_service import (
+from src.media_processing.application.services.media_processing_service import MediaProcessingService
+from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
-from src.media_processing.transcription.api.dependencies import (
+from src.media_processing.api.dependencies import (
     TranscriptionDependencies,
     get_transcription_dependencies,
 )
 from src.providers.domain.interfaces import IProviderRegistry
-from src.media_processing.transcription.infrastructure.logging import (
+from src.media_processing.infrastructure.transcription.logging import (
     StructuredTranscriptionLogger,
 )
-from src.media_processing.transcription.infrastructure.dependencies import (
+from src.media_processing.infrastructure.transcription.dependencies import (
     create_speech_recognition_service,
 )
-from src.media_processing.transcription.infrastructure.metrics import (
+from src.media_processing.infrastructure.transcription.metrics import (
     PrometheusTranscriptionMetrics,
 )
-from src.media_processing.transcription.infrastructure.task_scheduler import (
+from src.media_processing.infrastructure.transcription.task_scheduler import (
     CeleryTranscriptionTaskScheduler,
 )
-from src.media_processing.transcription.infrastructure.transcription_repository import (
+from src.media_processing.infrastructure.transcription.transcription_repository import (
     TranscriptionRepository,
 )
-from src.media_processing.video_processing.application.video_processing_service import (
+from src.media_processing.application.services.video_processing_service import (
     VideoProcessingService,
 )
-from src.media_processing.video_processing.infrastructure.metrics import (
+from src.media_processing.infrastructure.video_processing.metrics import (
     PrometheusVideoProcessingMetrics,
 )
-from src.media_processing.video_processing.infrastructure.task_scheduler import (
+from src.media_processing.infrastructure.video_processing.task_scheduler import (
     CeleryVideoProcessingTaskScheduler,
 )
-from src.media_processing.video_processing.infrastructure.video_audio_extractor import (
+from src.media_processing.infrastructure.video_processing.video_audio_extractor import (
     FFmpegVideoAudioExtractor,
 )
-from src.media_processing.video_processing.infrastructure.video_thumbnail_generator import (
+from src.media_processing.infrastructure.video_processing.video_thumbnail_generator import (
     FFmpegVideoThumbnailGenerator,
 )
 from src.shared.events.bus import SupportsEventBus

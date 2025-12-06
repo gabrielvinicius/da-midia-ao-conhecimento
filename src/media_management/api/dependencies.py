@@ -2,15 +2,17 @@
 
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Annotated
 
 from src.media_management.application.services.media_service import MediaService
+from src.media_management.application.queries.media_queries import MediaQueries # Import the Protocol
 from src.media_management.application.commands.validators import MediaUploadValidator
 from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
 from src.shared.config.settings import settings
 from src.shared.events.bus import SupportsEventBus
-from src.shared.infrastructure.database import get_db
+from src.shared.infrastructure.db import get_db
 from src.storage.infrastructure.dependencies import (
     StorageServiceFactory,
     get_storage_service_factory,
@@ -48,3 +50,10 @@ def get_media_service(
         event_bus=event_bus,
         emit_legacy_task=True,
     )
+
+def get_media_queries(
+    media_service: Annotated[MediaService, Depends(get_media_service)]
+) -> MediaQueries:
+    """Return a MediaQueries implementation (which is MediaService)."""
+    return media_service
+

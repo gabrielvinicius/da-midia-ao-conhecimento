@@ -9,15 +9,16 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from src.shared.infrastructure.logging_config import get_logger
+from src.shared.infrastructure.logging import get_logger
 
-from .domain_exceptions import (
+from src.shared.domain.errors import (
     AuthenticationError,
     AuthorizationError,
     BusinessRuleViolationError,
     ConfigurationError,
     DomainException,
     ExternalServiceError,
+    MediaNotFoundError,
     MediaProcessingError,
     RateLimitExceededError,
     ResourceAlreadyExistsError,
@@ -34,7 +35,7 @@ logger = get_logger("api_errors")
 EXCEPTION_STATUS_MAPPING = {
     ValidationError: 400,
     BusinessRuleViolationError: 400,
-    ResourceNotFoundError: 404,
+    ResourceNotFoundError: 404, # Changed
     ResourceAlreadyExistsError: 409,
     AuthenticationError: 401,
     AuthorizationError: 403,
@@ -56,16 +57,21 @@ async def domain_exception_handler(request: Request, exc: DomainException) -> JS
     logger.warning(
         "Domain exception occurred",
         exception_type=type(exc).__name__,
-        error_code=exc.error_code,
-        message=exc.message,
-        details=exc.details,
+        error_code=getattr(exc, "error_code", None),
+        message=getattr(exc, "message", str(exc)),
+        details=getattr(exc, "details", {}),
         status_code=status_code,
         path=str(request.url)
     )
 
     return JSONResponse(
         status_code=status_code,
-        content=exc.to_dict()
+        content={
+            "error": getattr(exc, "error_code", type(exc).__name__),
+            "message": getattr(exc, "message", str(exc)),
+            "details": getattr(exc, "details", {}),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
     )
 
 
@@ -84,7 +90,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
             "error": f"HTTP_{exc.status_code}",
             "message": exc.detail,
             "details": {},
-            "timestamp": DomainException("").timestamp
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     )
 
@@ -107,7 +113,7 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
             "error": "INTERNAL_SERVER_ERROR",
             "message": "An internal server error occurred",
             "details": {},
-            "timestamp": DomainException("").timestamp
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     )
 

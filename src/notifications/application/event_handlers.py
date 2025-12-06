@@ -5,7 +5,7 @@ import structlog
 
 from src.notifications.application.schemas import NotificationTaskPayload
 from src.notifications.tasks.notification_tasks import send_notification_task
-from src.shared.events.domain_events import NotificationRequested
+from src.shared.domain.events import NotificationRequested
 
 logger = structlog.get_logger(__name__).bind(component="notifications.event_handlers")
 

@@ -11,7 +11,7 @@ from pydantic import ValidationError as PydanticValidationError
 from starlette import status
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from src.shared.infrastructure.logging_config import get_logger
+from src.shared.infrastructure.logging import get_logger
 from src.shared.validation.schemas import create_validation_error_response
 
 logger = get_logger("validation_middleware")

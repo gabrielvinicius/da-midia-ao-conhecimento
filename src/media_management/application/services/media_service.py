@@ -47,12 +47,12 @@ from src.media_management.infrastructure.repositories import MediaRepository
 from src.providers.domain.interfaces import IProviderRegistry, ProviderType
 from src.shared.domain.enums import MediaStatus, MediaType
 from src.shared.events.bus import SupportsEventBus
-from src.shared.events.domain_events import (
+from src.shared.domain.events import (
     MediaDeleted,
     MediaReprocessRequested,
     MediaUploaded,
 )
-from src.shared.exceptions.domain_exceptions import ValidationError
+from src.shared.domain.errors import ValidationError
 from src.storage.application.maintenance_service import StorageMaintenanceService
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.user_management.domain.user import UserRole
@@ -446,7 +446,7 @@ class MediaService:
         db = getattr(self.media_repository, "db", None)
         if db is None:
             return
-        from src.media_processing.transcription.infrastructure.transcription_repository import (
+        from src.media_processing.infrastructure.transcription.transcription_repository import (
             TranscriptionRepository,
         )
         transcription_repo = TranscriptionRepository(db)

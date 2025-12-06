@@ -7,7 +7,7 @@ runtime dependencies are re-exported here so that callers can keep importing
 the production-ready helpers directly from this package.
 """
 
-from .database import (
+from .db import (
     AsyncSessionLocal,
     Base,
     SessionLocal,
@@ -18,7 +18,8 @@ from .database import (
     get_session,
     get_sync_db,
 )
-from .logging_config import configure_logging, get_logger
+from .logging import configure_logging, get_logger
+from .metrics import shared_metrics
 from .tracing import configure_tracer
 from .unified_providers import (
     ProviderFactory,
@@ -52,4 +53,5 @@ __all__ = [
     "TopicModelingProvider",
     "TranscriptionProvider",
     "provider_registry",
+    "shared_metrics",
 ]

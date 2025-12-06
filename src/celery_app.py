@@ -15,7 +15,7 @@ try:
     import src.user_management.infrastructure.user_model
     import src.notifications.infrastructure.models
     import src.media_management.infrastructure.persistence
-    import src.media_processing.transcription.infrastructure.transcription_model
+    import src.media_processing.infrastructure.transcription.transcription_model
     # text_analysis uses repository_sqlalchemy which defines AnalysisORM
     import src.text_analysis.infrastructure.repository_sqlalchemy 
 except ImportError:
@@ -54,14 +54,11 @@ def create_celery() -> Celery:
     app.autodiscover_tasks(
         [
             # New consolidated modules
-            "src.media_processing",
+            "src.media_processing.application",
             "src.text_analysis",
 
             # Existing task packages
             "src.notifications.tasks",
-            "src.media_processing.transcription.tasks",
-            # Removed legacy text_analysis submodules
-            "src.media_processing.video_processing.tasks",
         ]
     )
 

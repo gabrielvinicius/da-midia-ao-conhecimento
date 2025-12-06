@@ -14,15 +14,14 @@ except Exception:  # pragma: no cover - celery optional
     shared_task = None
 
 from .application.service import TextAnalysisService
-from src.shared.infrastructure.database import get_sync_session
-from src.shared.event_bus_factory import get_event_bus
+from src.shared.infrastructure.db import get_sync_session
+from src.shared.events.event_bus_factory import get_event_bus
 from .bootstrap import build_text_analysis_module
-from src.shared.events.integration_events import (
-    TASK_TEXT_ANALYSIS_ANALYZE,
-    TASK_TEXT_ANALYSIS_SUMMARIZE,
-    TASK_TEXT_ANALYSIS_SENTIMENT,
-    TASK_TEXT_ANALYSIS_TOPIC_MODELING,
-)
+
+TASK_TEXT_ANALYSIS_ANALYZE = "text_analysis.analyze"
+TASK_TEXT_ANALYSIS_SUMMARIZE = "text_analysis.summarize"
+TASK_TEXT_ANALYSIS_SENTIMENT = "text_analysis.sentiment"
+TASK_TEXT_ANALYSIS_TOPIC_MODELING = "text_analysis.topic_modeling"
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +35,21 @@ async def _get_service_async() -> TextAnalysisService:
         # Use sync session for initialization logic that requires DB access
         with get_sync_session() as session:
             # Manually instantiate dependencies required for cross-module access in worker context
-            from src.media_processing.transcription.infrastructure.transcription_repository import TranscriptionRepository
-            from src.media_processing.transcription.application.queries import TranscriptionQueries
+            from src.media_processing.infrastructure.transcription.transcription_repository import TranscriptionRepository
+            from src.media_processing.application.services.transcription_service import TranscriptionService
             
             transcription_repo = TranscriptionRepository(session)
-            transcription_queries = TranscriptionQueries(transcription_repo)
-
+            transcription_service_instance = TranscriptionService(transcription_repo=transcription_repo, # assuming direct repo injection for simple queries
+                                                                    task_scheduler=None, # Not relevant for query
+                                                                    transcription_logger=None, # Not relevant for query
+                                                                    transcription_metrics=None, # Not relevant for query
+                                                                    storage_service=None, # Not relevant for query
+                                                                    speech_recognizer_factory=None, # Not relevant for query
+                                                                    event_bus=get_event_bus(), # Re-initialize for this context
+                                                                    dispatcher=None)
             module = await build_text_analysis_module(
                 session=session,
-                transcription_queries=transcription_queries
+                transcription_queries=transcription_service_instance # Pass the service as queries
             )
             module_cache = SimpleNamespace(service=module.service)
     return module_cache.service
@@ -124,7 +129,7 @@ async def _async_task_body(payload: Dict[str, Any], op_name: str) -> Dict[str, A
             
             # Emit completion events per operation
             if hasattr(service, "event_bus") and service.event_bus is not None:
-                from src.shared.events.domain_events import (
+                from src.shared.domain.events import (
                     SummarizationCompleted,
                     SentimentAnalysisCompleted,
                     TopicModelingCompleted,
@@ -146,6 +151,7 @@ async def _async_task_body(payload: Dict[str, Any], op_name: str) -> Dict[str, A
                     await service.event_bus.publish(TopicModelingCompleted(**base))
         except Exception:
             pass
+
 
 
 def _task_body(payload: Dict[str, Any], *, op_name: str = "analyze_task") -> Dict[str, Any]:

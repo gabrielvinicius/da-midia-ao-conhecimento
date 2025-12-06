@@ -13,8 +13,8 @@ from uuid import UUID
 
 import structlog
 
-from src.shared.events.domain_events import MediaUploaded
-from src.shared.exceptions.domain_exceptions import ValidationError
+from src.shared.domain.events import MediaUploaded
+from src.shared.domain.errors import ValidationError
 
 logger = structlog.get_logger(__name__)
 

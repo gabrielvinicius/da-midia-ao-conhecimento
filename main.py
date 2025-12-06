@@ -30,8 +30,8 @@ from src.shared.application.service_registry import (
     attach_domain_services,
     build_domain_service_registry,
 )
-from src.shared.event_bus_factory import get_event_bus
-from src.shared.events.domain_events import (
+from src.shared.events.event_bus_factory import get_event_bus
+from src.shared.domain.events import (
     MediaUploaded,
     NotificationRequested,
     TextContentReady,
@@ -42,8 +42,8 @@ from src.shared.exceptions.api_errors import register_exception_handlers
 
 # from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled: psutil dep
 from src.shared.infrastructure.cache import cache
-from src.shared.infrastructure.database import AsyncSessionLocal, Base, engine
-from src.shared.infrastructure.logging_config import configure_logging, get_logger
+from src.shared.infrastructure.db import AsyncSessionLocal, Base, engine
+from src.shared.infrastructure.logging import configure_logging, get_logger
 from src.shared.infrastructure.tracing import configure_tracer
 from src.shared.middleware.correlation_middleware import CorrelationIdMiddleware
 from src.shared.middleware.performance_middleware import register_performance_middleware
@@ -139,8 +139,8 @@ async def lifespan(app: FastAPI):
         admin_module = build_admin_module(
             session=session,
             auth_queries=auth_module.auth_queries,
-            media_queries=media_admin_context.queries,
-            media_orchestrator=media_admin_context.orchestrator,
+            media_queries=media_module.media_service,
+            media_service=media_module.media_service,
         )
 
         module_instances = {

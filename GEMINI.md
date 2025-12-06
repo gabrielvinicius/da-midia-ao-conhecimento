@@ -168,6 +168,7 @@ src/
   - Decoupled `MediaProcessing` workers from `MediaRepository` writes.
   - Implemented "Reference Passing" for Text Analysis tasks.
   - Refactored `storage` to use Service Pattern and Repository (Clean Architecture).
+  - Refactored `media_processing` module to align with Clean Architecture and Service Pattern, consolidating `transcription` and `video_processing` sub-modules into a unified structure under `media_processing/application/services` and `media_processing/infrastructure`, and updating all affected imports.
 
 ## 5. Developer Workflow
 

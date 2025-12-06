@@ -26,7 +26,7 @@ from src.notifications.domain.notification import (
     NotificationStatus,
     NotificationType,
 )
-from src.shared.infrastructure.database import Base
+from src.shared.infrastructure.db import Base
 from src.shared.utils.time_utils import utcnow
 
 

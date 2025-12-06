@@ -12,9 +12,9 @@ from src.shared.api.unified_schemas import (
     create_error_response,
     create_success_response,
 )
-from src.shared.exceptions.domain_exceptions import DomainException
+from src.shared.domain.errors import DomainException
 from src.user_management.domain.user import User
-from src.shared.infrastructure.logging_config import get_logger
+from src.shared.infrastructure.logging import get_logger
 
 from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.commands.dto import (

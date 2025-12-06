@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.shared.infrastructure.prometheus_metrics import shared_metrics
+from src.shared.infrastructure.metrics import shared_metrics
 
 
 class PrometheusMediaMetrics:

@@ -10,7 +10,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import JSONB
 
-from src.shared.infrastructure.database import Base
+from src.shared.infrastructure.db import Base
 from ..application.ports import AnalysisRepositoryPort
 from ..domain import Analysis, Topic
 

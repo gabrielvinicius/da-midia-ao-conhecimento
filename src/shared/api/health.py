@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from src.shared.event_bus_factory import get_event_bus
-from src.shared.infrastructure.prometheus_metrics import shared_metrics
+from src.shared.events.event_bus_factory import get_event_bus
+from src.shared.infrastructure.metrics import shared_metrics
 
 router = APIRouter(prefix="/health", tags=["health"])
 

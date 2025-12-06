@@ -8,7 +8,7 @@ from sqlalchemy import Boolean, Column, String, Uuid
 from sqlalchemy import Enum as SQLAEnum
 from sqlalchemy.orm import registry
 
-from src.shared.infrastructure.database import Base
+from src.shared.infrastructure.db import Base
 from src.user_management.domain.user import User as DomainUser, UserRole
 
 

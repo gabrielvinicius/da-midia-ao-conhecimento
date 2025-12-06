@@ -18,7 +18,7 @@ from pydantic import (
 )
 from pydantic.types import conint
 
-from src.shared.infrastructure.logging_config import get_logger
+from src.shared.infrastructure.logging import get_logger
 
 logger = get_logger("validation")
 

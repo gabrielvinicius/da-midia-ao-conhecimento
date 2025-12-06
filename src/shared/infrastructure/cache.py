@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 import redis.asyncio as aioredis
 
 from src.shared.config.broker_settings import BrokerSettings
-from src.shared.infrastructure.logging_config import get_logger
+from src.shared.infrastructure.logging import get_logger
 
 logger = get_logger("cache")
 settings = BrokerSettings()
