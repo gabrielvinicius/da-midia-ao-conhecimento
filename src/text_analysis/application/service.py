@@ -1,5 +1,7 @@
 """Application-level service for Text Analysis.
-Consolidates command and query logic into a single Service class."""
+
+Consolidates command and query logic into a single Service class.
+"""
 
 from __future__ import annotations
 
@@ -201,9 +203,10 @@ class TextAnalysisService:
             overall_score = sum(s.score for s in analysis.sentiments) / len(analysis.sentiments)
         
         sentiment_event = SentimentAnalysisCompleted(
-            analysis_id=analysis.id,
-            transcription_id=analysis.transcription_id,
-            media_id=analysis.media_id,
+            analysis_id=str(analysis.id),
+            transcription_id=str(analysis.transcription_id) if analysis.transcription_id else "",
+            media_id=str(analysis.media_id) if analysis.media_id else None,
+            user_id=str(analysis.user_id) if analysis.user_id else None,
             sentiment_score=overall_score,
             overall_sentiment=(analysis.overall_sentiment.value if analysis.overall_sentiment else None),
             provider="text_analysis",
@@ -214,9 +217,10 @@ class TextAnalysisService:
 
         # Summarization
         summarization_event = SummarizationCompleted(
-            analysis_id=analysis.id,
-            transcription_id=analysis.transcription_id,
-            media_id=analysis.media_id,
+            analysis_id=str(analysis.id),
+            transcription_id=str(analysis.transcription_id) if analysis.transcription_id else None,
+            media_id=str(analysis.media_id) if analysis.media_id else None,
+            user_id=str(analysis.user_id) if analysis.user_id else None,
             provider="text_analysis",
             status="success",
             correlation_id=getattr(analysis, "correlation_id", None),
@@ -225,9 +229,10 @@ class TextAnalysisService:
 
         # Topic modeling
         topic_event = TopicModelingCompleted(
-            analysis_id=analysis.id,
-            transcription_id=analysis.transcription_id,
-            media_id=analysis.media_id,
+            analysis_id=str(analysis.id),
+            transcription_id=str(analysis.transcription_id) if analysis.transcription_id else None,
+            media_id=str(analysis.media_id) if analysis.media_id else None,
+            user_id=str(analysis.user_id) if analysis.user_id else None,
             provider="text_analysis",
             status="success",
             correlation_id=getattr(analysis, "correlation_id", None),

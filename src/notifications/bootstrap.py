@@ -13,11 +13,19 @@ from src.notifications.application.services.notification_service import (
     NotificationService,
 )
 from src.notifications.application.notification_read_service import NotificationReadService
+from src.notifications.application.event_handlers import NotificationEventHandlers
 from src.notifications.infrastructure.metrics import PrometheusNotificationMetrics
 from src.notifications.infrastructure.logging import StructuredNotificationLogger
 from src.notifications.infrastructure.connection_manager import manager as connection_manager_instance
 from src.notifications.infrastructure.notification_repository import (
     NotificationRepository,
+)
+from src.shared.infrastructure.event_bus import SupportsEventBus
+from src.shared.domain.events import (
+    NotificationRequested,
+    SummarizationCompleted,
+    SentimentAnalysisCompleted,
+    TopicModelingCompleted,
 )
 from src.user_management.application.auth_queries import AuthQueries
 
@@ -31,6 +39,7 @@ class NotificationModule:
 async def build_notification_module(
     session: AsyncSession,
     auth_queries: AuthQueries,
+    event_bus: SupportsEventBus | None = None,
 ) -> NotificationModule:
     repository = NotificationRepository(db=session)
     notification_read_service = NotificationReadService(notification_repo=repository)
@@ -48,6 +57,14 @@ async def build_notification_module(
         sms_sender=None,
         push_sender=None,
     )
+
+    if event_bus:
+        handlers = NotificationEventHandlers(event_bus=event_bus, notification_service=service)
+        event_bus.subscribe(NotificationRequested, handlers.handle_notification_requested)
+        event_bus.subscribe(SummarizationCompleted, handlers.handle_summarization_completed)
+        event_bus.subscribe(SentimentAnalysisCompleted, handlers.handle_sentiment_completed)
+        event_bus.subscribe(TopicModelingCompleted, handlers.handle_topic_modeling_completed)
+
     module = NotificationModule(
         service=service,
         repository=repository,

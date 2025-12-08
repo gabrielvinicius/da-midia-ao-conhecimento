@@ -51,7 +51,6 @@ from src.shared.infrastructure.middleware.validation_middleware import register_
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.text_analysis.bootstrap import build_text_analysis_module
 
-from src.notifications.application.event_handlers import handle_notification_requested
 from src.user_management.bootstrap import build_user_management_module
 from src.user_management.domain.user import User
 
@@ -75,7 +74,6 @@ def register_domain_event_handlers(
     """Attach domain event handlers to the bus."""
     event_bus.subscribe(MediaUploaded, media_processing_service.handle_media_uploaded)
     event_bus.subscribe(TextContentReady, media_processing_service.handle_text_content_ready)
-    event_bus.subscribe(NotificationRequested, handle_notification_requested)
 
 
 @asynccontextmanager
@@ -113,6 +111,7 @@ async def lifespan(app: FastAPI):
         notification_module = await build_notification_module(
             session=session,
             auth_queries=auth_module.auth_queries,
+            event_bus=event_bus,
         )
 
         media_module, media_admin_context = build_media_components(

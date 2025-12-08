@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.media_management.api.dependencies import (
     get_media_service,
 )
+from src.media_management.application.event_handlers import MediaEventHandlers
 from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.commands.validators import MediaUploadValidator
 from src.media_management.infrastructure.repositories import MediaRepository
@@ -55,7 +56,7 @@ from src.media_processing.infrastructure.video_processing.video_thumbnail_genera
 )
 from src.shared.infrastructure.event_bus import SupportsEventBus
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
-from src.shared.domain.events import MediaUploaded, TextContentReady
+from src.shared.domain.events import MediaUploaded, TextContentReady, TranscriptionCompleted, TranscriptionFailed
 
 
 @dataclass
@@ -143,9 +144,15 @@ def build_media_components(
         media_processing_service=processing_service,
         provider_registry=provider_registry,
     )
+    
+    media_event_handlers = MediaEventHandlers(media_service)
+
     if event_bus:
         event_bus.subscribe(MediaUploaded, media_processing_event_handlers.handle_media_uploaded)
-        event_bus.subscribe(TextContentReady, media_processing_event_handlers.handle_text_content_ready)
+        # event_bus.subscribe(TextContentReady, media_processing_event_handlers.handle_text_content_ready) # Moved to TextAnalysis
+        
+        event_bus.subscribe(TranscriptionCompleted, media_event_handlers.handle_transcription_completed)
+        event_bus.subscribe(TranscriptionFailed, media_event_handlers.handle_transcription_failed)
 
     module = MediaModule(
         media_service=media_service,

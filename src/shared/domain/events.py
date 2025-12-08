@@ -83,6 +83,7 @@ class SentimentAnalysisCompleted(DomainEvent):
     overall_sentiment: Optional[str] = None
     provider: Optional[str] = None
     media_id: Optional[str] = None
+    user_id: Optional[str] = None
     status: str = "success"
 
 
@@ -93,6 +94,7 @@ class SummarizationCompleted(DomainEvent):
     analysis_id: str = ""
     transcription_id: Optional[str] = None
     media_id: Optional[str] = None
+    user_id: Optional[str] = None
     provider: Optional[str] = None
     status: str = "success"
 
@@ -104,6 +106,7 @@ class TopicModelingCompleted(DomainEvent):
     analysis_id: str = ""
     transcription_id: Optional[str] = None
     media_id: Optional[str] = None
+    user_id: Optional[str] = None
     provider: Optional[str] = None
     status: str = "success"
 

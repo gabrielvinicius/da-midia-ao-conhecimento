@@ -12,7 +12,9 @@ from .application import (
     AnalysisConfig,
     NoOpTextAnalysisMetrics,
 )
+from .application.event_handlers import build_text_content_ready_handler
 from .application.text_analysis_read_service import TextAnalysisReadService
+from src.shared.domain.events import TextContentReady
 from .infrastructure.metrics import PrometheusTextAnalysisMetrics
 from src.providers.domain.interfaces import IProviderRegistry, ProviderCapability, ProviderStatus, ProviderType
 from src.providers.domain.provider import Provider
@@ -87,6 +89,10 @@ async def build_text_analysis_module(
         transcription_queries=transcription_queries,
         text_analysis_read_service=TextAnalysisReadService(repository=repo),
     )
+
+    if event_bus:
+        handler = build_text_content_ready_handler(service)
+        event_bus.subscribe(TextContentReady, handler)
 
     return TextAnalysisModule(
         service=service,
