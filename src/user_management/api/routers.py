@@ -1,9 +1,11 @@
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Query
 from fastapi.security import OAuth2PasswordRequestForm
 
 from src.user_management.api.dependencies import get_current_admin_user, get_current_user
+from src.user_management.application.commands.dto import CreateUserCommand
+from src.user_management.application.queries.dto import ListUsersQuery
 from src.user_management.application.auth_service import AuthService
 from src.user_management.application.user_service import UserService
 from src.user_management.domain.user import User
@@ -15,6 +17,7 @@ from src.user_management.domain.exceptions import (
 
 from .dependencies import get_auth_service, get_auth_settings, get_user_service
 from .schemas import Token, UserCreate, UserResponse
+from src.user_management.application.queries.dto import ListUsersQuery
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -25,7 +28,8 @@ async def register(
     user_service: UserService = Depends(get_user_service),
 ):
     try:
-        result = await user_service.register_user(user_data.email, user_data.password)
+        command = CreateUserCommand(email=user_data.email, password=user_data.password, role=user_data.role)
+        result = await user_service.register_user(command)
         # Explicitly map domain dict to DTO (though register_user returns a dict, ideal would be User entity)
         # user_service.register_user returns {"success": True, "user": {...}}
         return UserResponse(**result["user"])
@@ -82,8 +86,14 @@ async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]
 
 
 @router.get("/users", response_model=List[UserResponse], dependencies=[Depends(get_current_admin_user)])
-async def list_all_users(user_service: UserService = Depends(get_user_service)):
-    users = await user_service.list_users()
+async def list_all_users(
+    user_service: UserService = Depends(get_user_service),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
+    search: Optional[str] = Query(None),
+):
+    query = ListUsersQuery(page=page, limit=limit, search=search)
+    users = await user_service.list_users(query)
     # Explicit mapping list comprehension
     return [
         UserResponse(

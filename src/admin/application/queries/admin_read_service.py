@@ -7,6 +7,7 @@ from uuid import UUID
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.shared.domain.enums import MediaStatus
 from src.user_management.application.auth_queries import AuthQueries
+from src.user_management.application.queries.dto import GetUserQuery
 
 
 class AdminReadService:
@@ -39,7 +40,7 @@ class AdminReadService:
 
     async def get_user_activity_stats(self, user_id: UUID) -> Dict[str, Any]:
         """Return activity statistics for a specific user."""
-        user = await self._auth_queries.get_by_id(user_id)
+        user = await self._auth_queries.get_user_by_id(GetUserQuery(user_id=user_id))
         if not user:
             raise ValueError(f"User with id {user_id} not found")
 

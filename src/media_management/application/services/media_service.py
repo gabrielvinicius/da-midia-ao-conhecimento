@@ -43,6 +43,7 @@ from src.media_management.application.queries.dto import (
 from src.media_management.domain.media import Media
 from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
 from src.media_management.infrastructure.repositories import MediaRepository
+from src.media_management.application.queries.media_queries import MediaQueries # Alias for MediaReadService
 from src.providers.domain.interfaces import IProviderRegistry, ProviderType
 from src.shared.domain.enums import MediaStatus, MediaType
 from src.shared.infrastructure.event_bus import SupportsEventBus
@@ -90,6 +91,7 @@ class MediaService:
         storage_service_factory: StorageServiceFactory,
         metrics_service: Any,
         upload_validator: MediaUploadValidator,
+        media_read_service: MediaQueries, # New dependency
         event_bus: SupportsEventBus | None = None,
         emit_legacy_task: bool = True,
         provider_registry: IProviderRegistry | None = None,
@@ -98,6 +100,7 @@ class MediaService:
         self.storage_factory = storage_service_factory
         self.metrics = metrics_service
         self.upload_validator = upload_validator
+        self.media_read_service = media_read_service # Assign new dependency
         self.event_bus = event_bus
         self.emit_legacy_task = emit_legacy_task
         self.provider_registry = provider_registry
@@ -370,36 +373,15 @@ class MediaService:
 
     async def get_media(self, query: GetMediaQuery) -> Optional[Media]:
         """Retrieves a single media entity."""
-        return await self.media_repository.get_by_id(query.media_id)
+        return await self.media_read_service.get_media(query)
 
     async def list_media(self, query: ListMediaQuery) -> List[Media]:
         """Lists media entities with pagination and filtering."""
-        return await self.media_repository.list_paginated(
-            page=query.page,
-            limit=query.limit,
-            user_id=query.user_id,
-            status=query.status,
-            search=query.search,
-        )
+        return await self.media_read_service.list_media(query)
 
     async def get_media_statistics(self, query: GetMediaStatisticsQuery) -> Dict[str, Any]:
         """Returns statistics about media entities."""
-        if query.user_id:
-            total = await self.media_repository.count_by_user(query.user_id)
-            by_status = {}
-            for status in MediaStatus:
-                count = await self.media_repository.count_by_user_and_status(
-                    query.user_id, status
-                )
-                by_status[status.value] = count
-        else:
-            total = await self.media_repository.count_all()
-            by_status = {}
-            for status in MediaStatus:
-                count = await self.media_repository.count_by_status(status)
-                by_status[status.value] = count
-
-        return {"total": total, "by_status": by_status}
+        return await self.media_read_service.get_media_statistics(query)
 
     # Private Helpers
 

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     secret_key: str = "insecure-secret-key-for-dev"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
+    auth_password_min_length: int = 8
 
     # RabbitMQ / Celery
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672//"

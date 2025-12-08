@@ -1,7 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.notifications.domain.notification import Notification
@@ -133,3 +133,69 @@ class NotificationRepository:
             self.db.commit()
             return True
         return False
+        
+    async def count_all(self) -> int:
+        if isinstance(self.db, AsyncSession):
+            result = await self.db.execute(select(func.count()).select_from(NotificationModel))
+            return result.scalar_one()
+        return self.count_all_sync()
+
+    def count_all_sync(self) -> int:
+        result = self.db.execute(select(func.count()).select_from(NotificationModel))
+        return result.scalar_one()
+
+    async def count_unread_all(self) -> int:
+        if isinstance(self.db, AsyncSession):
+            result = await self.db.execute(
+                select(func.count())
+                .select_from(NotificationModel)
+                .where(NotificationModel.opened_at == None)
+            )
+            return result.scalar_one()
+        return self.count_unread_all_sync()
+
+    def count_unread_all_sync(self) -> int:
+        result = self.db.execute(
+            select(func.count())
+            .select_from(NotificationModel)
+            .where(NotificationModel.opened_at == None)
+        )
+        return result.scalar_one()
+
+    async def count_by_user_id(self, user_id: UUID) -> int:
+        if isinstance(self.db, AsyncSession):
+            result = await self.db.execute(
+                select(func.count())
+                .select_from(NotificationModel)
+                .where(NotificationModel.user_id == user_id)
+            )
+            return result.scalar_one()
+        return self.count_by_user_id_sync(user_id)
+
+    def count_by_user_id_sync(self, user_id: UUID) -> int:
+        result = self.db.execute(
+            select(func.count())
+            .select_from(NotificationModel)
+            .where(NotificationModel.user_id == user_id)
+        )
+        return result.scalar_one()
+
+    async def count_unread_by_user_id(self, user_id: UUID) -> int:
+        if isinstance(self.db, AsyncSession):
+            result = await self.db.execute(
+                select(func.count())
+                .select_from(NotificationModel)
+                .where(NotificationModel.user_id == user_id)
+                .where(NotificationModel.opened_at == None)
+            )
+            return result.scalar_one()
+        return self.count_unread_by_user_id_sync(user_id)
+
+    def count_unread_by_user_id_sync(self, user_id: UUID) -> int:
+        result = self.db.execute(
+            select(func.count())
+            .select_from(NotificationModel)
+            .where(NotificationModel.user_id == user_id)
+            .where(NotificationModel.opened_at == None)
+        )
+        return result.scalar_one()

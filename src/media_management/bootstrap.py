@@ -13,6 +13,7 @@ from src.media_management.application.commands.validators import MediaUploadVali
 from src.media_management.infrastructure.repositories import MediaRepository
 from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
 from src.shared.infrastructure.settings import settings
+from src.media_processing.application.event_handlers import MediaProcessingEventHandlers
 from src.media_processing.application.services.media_processing_service import MediaProcessingService
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
@@ -54,6 +55,7 @@ from src.media_processing.infrastructure.video_processing.video_thumbnail_genera
 )
 from src.shared.infrastructure.event_bus import SupportsEventBus
 from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
+from src.shared.domain.events import MediaUploaded, TextContentReady
 
 
 @dataclass
@@ -90,6 +92,7 @@ def build_media_components(
 ) -> Tuple[MediaModule, MediaAdminContext]:
     """Compose the media module without relying on dependency-injector."""
     media_repository = MediaRepository(db=session)
+    media_read_service = MediaQueries(media_repository=media_repository)
     media_upload_validator = MediaUploadValidator(settings=settings)
 
     # Consolidated processing dependencies
@@ -102,11 +105,11 @@ def build_media_components(
         storage_service_factory=storage_service_factory,
         metrics_service=metrics_service,
         upload_validator=media_upload_validator,
+        media_read_service=media_read_service,
         event_bus=event_bus,
         emit_legacy_task=emit_legacy_media_task,
         provider_registry=provider_registry,
     )
-
     transcription_service = TranscriptionService(
         transcription_repo=transcription_repository,
         task_scheduler=CeleryTranscriptionTaskScheduler(),
@@ -134,6 +137,15 @@ def build_media_components(
         video_metrics=video_metrics,
         provider_registry=provider_registry,
     )
+    
+    # Instantiate and subscribe event handlers for media processing
+    media_processing_event_handlers = MediaProcessingEventHandlers(
+        media_processing_service=processing_service,
+        provider_registry=provider_registry,
+    )
+    if event_bus:
+        event_bus.subscribe(MediaUploaded, media_processing_event_handlers.handle_media_uploaded)
+        event_bus.subscribe(TextContentReady, media_processing_event_handlers.handle_text_content_ready)
 
     module = MediaModule(
         media_service=media_service,

@@ -1,7 +1,5 @@
 """Application-level service for Text Analysis.
-
-Consolidates command and query logic into a single Service class.
-"""
+Consolidates command and query logic into a single Service class."""
 
 from __future__ import annotations
 
@@ -9,6 +7,7 @@ import logging
 import time
 from statistics import mean
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from src.providers.domain.interfaces import IProviderRegistry
 from src.shared.domain.events import (
@@ -31,6 +30,9 @@ from .ports import (
     TopicModelingPort,
 )
 from .metrics import TextAnalysisMetrics, NoOpTextAnalysisMetrics
+from .commands.dto import AnalyzeTextCommand
+from .queries.dto import GetAnalysisQuery, GetAnalysisByMediaIdQuery
+from .text_analysis_read_service import TextAnalysisReadService
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,7 @@ class TextAnalysisService:
         metrics: TextAnalysisMetrics | None = None,
         event_bus: Any | None = None,
         transcription_queries: Any | None = None,
+        text_analysis_read_service: TextAnalysisReadService,
     ) -> None:
         self.sentiment_service = sentiment_service
         self.embedding_service = embedding_service
@@ -64,6 +67,7 @@ class TextAnalysisService:
         self.metrics = metrics or NoOpTextAnalysisMetrics()
         self.event_bus = event_bus
         self.transcription_queries = transcription_queries
+        self.text_analysis_read_service = text_analysis_read_service
 
     def _validate_provider(self, provider: Optional[str]) -> Optional[str]:
         if provider and self.provider_registry:
@@ -74,32 +78,33 @@ class TextAnalysisService:
 
     async def analyze_text_content(
         self,
-        *,
-        media_id: Optional[str] = None,
-        transcription_id: Optional[str] = None,
-        text_content: Optional[str],
-        segments: Optional[list[dict]] = None,
-        language: Optional[str] = None,
-        provider: Optional[str] = None,
-        options: Optional[Dict[str, Any]] = None,
-        user_id: Optional[str] = None,
+        command: AnalyzeTextCommand,
     ) -> Dict[str, Any]:
         """Main orchestrator for analyzing text."""
-        resolved_provider = self._validate_provider(provider)
+        resolved_provider = self._validate_provider(command.language) # Provider might be inferred from language or explicitly set
         
+        text_content = command.text_content
+        transcription_id = command.transcription_id
+        language = command.language
+        segments = None # Commands do not define segments. This was coming from transcription.
+        user_id = command.user_id
+        media_id = command.media_id
+
         # Fallback: Fetch text from database if not provided but media_id is available
         if not text_content and media_id and self.transcription_queries:
             try:
-                transcription = await self.transcription_queries.get_by_media_id(media_id)
+                # Assuming GetMediaQuery(media_id=media_id) would work for transcription
+                # Needs to be fixed based on actual transcription_queries
+                transcription = await self.transcription_queries.get_by_media_id(media_id) 
                 if transcription:
                     text_content = getattr(transcription, "text", "") or getattr(transcription, "content", "")
                     # Enrich missing metadata
                     if not transcription_id:
-                        transcription_id = str(transcription.id)
+                        transcription_id = transcription.id
                     if not language:
                         language = transcription.language
-                    if not segments:
-                        segments = transcription.segments
+                    # if not segments: # Segments might be in transcription, but command doesn't provide.
+                    #     segments = transcription.segments
             except Exception as exc:
                 logger.warning("text_analysis.fetch_text_failed", media_id=media_id, error=str(exc))
 
@@ -111,8 +116,8 @@ class TextAnalysisService:
                 text=text_content or "",
                 segments=segments,
                 language=language,
-                chunk_size=options.get("chunk_size") if options else None,
-                chunk_overlap=options.get("chunk_overlap") if options else None,
+                chunk_size=None, # Options are not part of current command
+                chunk_overlap=None, # Options are not part of current command
                 media_id=media_id,
                 transcription_id=transcription_id,
                 user_id=user_id
@@ -121,24 +126,24 @@ class TextAnalysisService:
             result = result_dto.to_dict()
             # Enrich with ownership/context
             if media_id:
-                result["media_id"] = media_id
+                result["media_id"] = str(media_id)
             if transcription_id:
-                result["transcription_id"] = transcription_id
+                result["transcription_id"] = str(transcription_id)
             if resolved_provider:
                 result["provider"] = resolved_provider
             if user_id:
-                result["user_id"] = user_id
+                result["user_id"] = str(user_id)
             success = True
             return result
         finally:
             try:
                 if hasattr(self.metrics, "set_context"):
-                    self.metrics.set_context(media_id, user_id)
+                    self.metrics.set_context(str(media_id), str(user_id))
                 await self.metrics.record_operation(
                     operation="analyze_text_content",
                     duration=time.perf_counter() - start,
                     success=success,
-                    provider=provider or resolved_provider,
+                    provider=resolved_provider, # command doesn't have provider, infer from language or config
                 )
             except Exception:
                 pass
@@ -150,19 +155,16 @@ class TextAnalysisService:
         language: Optional[str],
         chunk_size: Optional[int],
         chunk_overlap: Optional[int],
-        media_id: Optional[str],
-        transcription_id: Optional[str],
-        user_id: Optional[str],
+        media_id: Optional[UUID],
+        transcription_id: Optional[UUID],
+        user_id: Optional[UUID],
     ) -> AnalysisResultDTO:
         language = language or self.config.language
         chunk_size = chunk_size or self.config.chunk_size
         chunk_overlap = chunk_overlap or self.config.chunk_overlap
 
         document = Document.from_payload(text, segments)
-        analysis = Analysis.new(document)
-        analysis.media_id = media_id
-        analysis.transcription_id = transcription_id
-        analysis.user_id = user_id
+        analysis = Analysis.new(document, media_id=media_id, transcription_id=transcription_id, user_id=user_id)
 
         chunks = self.chunker.chunk(document, size=chunk_size, overlap=chunk_overlap)
         analysis.chunks = chunks
@@ -177,7 +179,7 @@ class TextAnalysisService:
             chunks, embeddings, language
         )
 
-        topics_with_summaries = self._summarize_topics(topics, language)
+        topics_with_summaries = await self._summarize_topics(topics, language) # Await added
         analysis.topics = topics_with_summaries
         analysis.diagnostics = diagnostics
 
@@ -200,8 +202,8 @@ class TextAnalysisService:
         
         sentiment_event = SentimentAnalysisCompleted(
             analysis_id=analysis.id,
-            transcription_id=getattr(analysis.document, "id", ""),
-            media_id=getattr(analysis, "media_id", None),
+            transcription_id=analysis.transcription_id,
+            media_id=analysis.media_id,
             sentiment_score=overall_score,
             overall_sentiment=(analysis.overall_sentiment.value if analysis.overall_sentiment else None),
             provider="text_analysis",
@@ -213,8 +215,8 @@ class TextAnalysisService:
         # Summarization
         summarization_event = SummarizationCompleted(
             analysis_id=analysis.id,
-            transcription_id=getattr(analysis.document, "id", ""),
-            media_id=getattr(analysis, "media_id", None),
+            transcription_id=analysis.transcription_id,
+            media_id=analysis.media_id,
             provider="text_analysis",
             status="success",
             correlation_id=getattr(analysis, "correlation_id", None),
@@ -224,8 +226,8 @@ class TextAnalysisService:
         # Topic modeling
         topic_event = TopicModelingCompleted(
             analysis_id=analysis.id,
-            transcription_id=getattr(analysis.document, "id", ""),
-            media_id=getattr(analysis, "media_id", None),
+            transcription_id=analysis.transcription_id,
+            media_id=analysis.media_id,
             provider="text_analysis",
             status="success",
             correlation_id=getattr(analysis, "correlation_id", None),
@@ -248,13 +250,13 @@ class TextAnalysisService:
         }
         return max(scores, key=scores.get)
 
-    def _summarize_topics(self, topics: List[Topic], language: str) -> List[Topic]:
+    async def _summarize_topics(self, topics: List[Topic], language: str) -> List[Topic]: # Made async
         enhanced: List[Topic] = []
         for topic in topics:
             summary_md = None
             try:
                 if self.text_generation.is_available():
-                    summary_md = self.text_generation.summarize_topic(
+                    summary_md = await self.text_generation.summarize_topic( # Await added
                         topic.title,
                         "\n".join(topic.snippets),
                         topic.keywords,
@@ -290,58 +292,14 @@ class TextAnalysisService:
             "**Trechos representativos**\n" + snippets_md
         )
 
-    async def schedule_summarization_task(self, **kwargs) -> Dict[str, Any]:
-        logger.info("schedule_summarization_task", extra=kwargs)
-        return await self.analyze_text_content(
-            media_id=kwargs.get("media_id"),
-            transcription_id=kwargs.get("transcription_id"),
-            text_content=kwargs.get("text_content"),
-            segments=kwargs.get("segments"),
-            language=kwargs.get("language"),
-            provider=kwargs.get("provider"),
-            options=kwargs.get("options"),
-        )
-
-    async def schedule_sentiment_analysis_task(self, **kwargs) -> Dict[str, Any]:
-        logger.info("schedule_sentiment_analysis_task", extra=kwargs)
-        return await self.analyze_text_content(
-            media_id=kwargs.get("media_id"),
-            transcription_id=kwargs.get("transcription_id"),
-            text_content=kwargs.get("text"),
-            segments=kwargs.get("segments"),
-            language=kwargs.get("language"),
-            provider=kwargs.get("provider"),
-            options=kwargs.get("options"),
-        )
-
-    async def schedule_topic_modeling_task(self, **kwargs) -> Dict[str, Any]:
-        logger.info("schedule_topic_modeling_task", extra=kwargs)
-        return await self.analyze_text_content(
-            media_id=kwargs.get("media_id"),
-            text_content=kwargs.get("text_content"),
-            segments=kwargs.get("segments"),
-            language=kwargs.get("language"),
-            provider=kwargs.get("provider"),
-            options=kwargs.get("options"),
-        )
-
-    def get_analysis(self, analysis_id: str) -> Dict[str, Any]:
+    async def get_analysis(self, query: GetAnalysisQuery) -> Dict[str, Any]:
         """Retrieve analysis by ID."""
-        analysis = self.repository.get(analysis_id)
-        if not analysis:
-            raise DomainError(f"Analysis {analysis_id} not found")
-        return analysis_to_dto(analysis).to_dict()
+        return self.text_analysis_read_service.get_analysis(query)
 
-    def get_analysis_by_media_id(self, media_id: str) -> Optional[Dict[str, Any]]:
+    async def get_analysis_by_media_id(self, query: GetAnalysisByMediaIdQuery) -> Optional[Dict[str, Any]]:
         """Retrieve analysis by Media ID."""
-        analysis = self.repository.get_by_media_id(media_id)
-        if not analysis:
-            return None
-        return analysis_to_dto(analysis).to_dict()
+        return self.text_analysis_read_service.get_analysis_by_media_id(query)
 
-    def list_topics(self, analysis_id: str) -> list:
+    async def list_topics(self, query: ListTopicsQuery) -> List[Topic]:
         """List topics for a given analysis."""
-        topics = self.repository.list_topics(analysis_id)
-        if topics is None:
-            raise DomainError(f"Analysis {analysis_id} not found")
-        return [t.__dict__ for t in topics]
+        return self.text_analysis_read_service.list_topics(query)

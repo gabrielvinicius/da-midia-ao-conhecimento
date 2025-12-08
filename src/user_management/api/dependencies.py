@@ -8,6 +8,7 @@ from jose import jwt, JWTError
 
 from src.shared.infrastructure.settings import Settings, settings
 from src.user_management.application.auth_service import AuthService
+from src.user_management.application.queries.dto import GetUserQuery # New import
 from src.user_management.application.auth_queries import AuthQueries
 from src.user_management.application.user_service import UserService
 from src.user_management.domain.user import User, UserRole
@@ -70,7 +71,7 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
         
-    user = await deps.auth_queries.get_by_id(user_id)
+    user = await deps.auth_queries.get_user_by_id(GetUserQuery(user_id=user_id))
     if user is None:
         raise credentials_exception
     return user
@@ -102,7 +103,7 @@ async def get_current_user_websocket(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         raise HTTPException(status_code=401)
     
-    user = await deps.auth_queries.get_by_id(user_id)
+    user = await deps.auth_queries.get_user_by_id(GetUserQuery(user_id=user_id))
     if not user:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         raise HTTPException(status_code=401)

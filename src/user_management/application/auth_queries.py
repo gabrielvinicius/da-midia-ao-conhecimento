@@ -5,6 +5,7 @@ from uuid import UUID
 
 from src.user_management.domain.user import User
 from src.user_management.infrastructure.user_repository import UserRepository
+from src.user_management.application.queries.dto import GetUserQuery, ListUsersQuery
 
 
 class AuthQueries:
@@ -13,20 +14,14 @@ class AuthQueries:
     def __init__(self, user_repository: UserRepository) -> None:
         self.user_repository = user_repository
 
-    async def get_by_id(self, user_id: str | UUID) -> Optional[User]:
-        """Backward-compatible helper preserved for legacy tests/routes."""
-        if not isinstance(user_id, UUID):
-            user_id = UUID(str(user_id))
-        return await self.get_user_by_id(user_id)
-
-    async def get_user_by_id(self, user_id: UUID) -> Optional[User]:
-        return await self.user_repository.find_by_id(user_id)
+    async def get_user_by_id(self, query: GetUserQuery) -> Optional[User]:
+        return await self.user_repository.find_by_id(query.user_id)
 
     async def get_user_by_email(self, email: str) -> Optional[User]:
         return await self.user_repository.find_by_email(email)
 
-    async def list_all(self, *, page: int = 1, limit: int = 50, search: Optional[str] = None) -> List[User]:
-        return await self.user_repository.list_all(page=page, limit=limit, search=search)
+    async def list_all(self, query: ListUsersQuery) -> List[User]:
+        return await self.user_repository.list_all(page=query.page, limit=query.limit, search=query.search)
 
     async def count_all(self) -> int:
         return await self.user_repository.count_all()

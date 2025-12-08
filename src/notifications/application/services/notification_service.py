@@ -10,18 +10,27 @@ from uuid import UUID
 
 import structlog
 
+from src.notifications.application.commands.dto import (
+    CancelNotificationCommand,
+    CleanupOldNotificationsCommand,
+    MarkNotificationAsReadCommand,
+    SendNotificationCommand,
+)
+from src.notifications.application.queries.dto import (
+    GetNotificationQuery,
+    GetNotificationStatsQuery,
+    GetUserNotificationsQuery,
+)
 from src.notifications.domain.notification import (
     Notification,
-    NotificationPriority,
     NotificationStatus,
-    NotificationType,
 )
 from src.notifications.infrastructure.connection_manager import ConnectionManager
 from src.notifications.infrastructure.logging import StructuredNotificationLogger
-from src.notifications.infrastructure.metrics import PrometheusNotificationMetrics
 from src.notifications.infrastructure.notification_repository import (
     NotificationRepository,
 )
+from src.notifications.application.notification_read_service import NotificationReadService # New import
 from src.user_management.application.auth_queries import AuthQueries
 
 logger = structlog.get_logger(__name__)
@@ -40,6 +49,7 @@ class NotificationService:
         auth_queries: AuthQueries,
         notification_logger: StructuredNotificationLogger,
         notification_metrics: PrometheusNotificationMetrics,
+        notification_read_service: NotificationReadService, # New dependency
         email_sender: Any = None, # Placeholder
         sms_sender: Any = None,   # Placeholder
         push_sender: Any = None   # Placeholder
@@ -47,9 +57,9 @@ class NotificationService:
         self.repo = notification_repo
         self.connection_manager = connection_manager
         self.auth_queries = auth_queries
-        # event bus removed
         self.logger = notification_logger
         self.metrics = notification_metrics
+        self.notification_read_service = notification_read_service # Assign new dependency
         self.email_sender = email_sender
         self.sms_sender = sms_sender
         self.push_sender = push_sender
@@ -58,12 +68,7 @@ class NotificationService:
 
     async def send_notification(
         self,
-        user_id: UUID,
-        message: str,
-        notification_type: NotificationType,
-        priority: NotificationPriority = NotificationPriority.NORMAL,
-        template: Optional[str] = None,
-        variables: Optional[Dict[str, Any]] = None
+        command: SendNotificationCommand,
     ) -> UUID:
         """Sends a notification to a user, handling creation and delivery."""
         start_time = time.monotonic()
@@ -71,16 +76,16 @@ class NotificationService:
         error = None
         notification_id = None
 
-        logger.info("notification.send.started", user_id=str(user_id), type=notification_type.value)
+        logger.info("notification.send.started", user_id=str(command.user_id), type=command.notification_type.value)
         try:
             # 1. Create notification entity
             notification = Notification(
-                user_id=user_id,
-                type=notification_type,
-                content=message,
-                priority=priority,
-                template_name=template,
-                variables=variables or {},
+                user_id=command.user_id,
+                type=command.notification_type,
+                content=command.message,
+                priority=command.priority,
+                template_name=command.template,
+                variables=command.variables or {},
                 status=NotificationStatus.PENDING
             )
             saved_notification = await self.repo.save(notification)
@@ -88,15 +93,10 @@ class NotificationService:
 
             # 2. Attempt delivery (WebSocket, Email, SMS, Push)
             # WebSocket delivery
-            if await self.connection_manager.send_to_user(user_id, {"type": notification_type.value, "message": message}):
+            if await self.connection_manager.send_to_user(command.user_id, {"type": command.notification_type.value, "message": command.message}):
                 saved_notification.status = NotificationStatus.SENT
                 await self.repo.save(saved_notification)
                 logger.info("notification.delivered.websocket", notification_id=str(notification_id))
-
-            # Placeholder for other delivery channels
-            # if self.email_sender: await self.email_sender.send(user_id, message, template, variables)
-            # if self.sms_sender: await self.sms_sender.send(user_id, message)
-            # if self.push_sender: await self.push_sender.send(user_id, message)
 
             success = True
             logger.info("notification.send.completed", notification_id=str(notification_id))
@@ -104,7 +104,7 @@ class NotificationService:
 
         except Exception as e:
             error = e
-            logger.error("notification.send.failed", user_id=str(user_id), type=notification_type.value, error=str(e))
+            logger.error("notification.send.failed", user_id=str(command.user_id), type=command.notification_type.value, error=str(e))
             if notification_id:
                 notification = await self.repo.get_by_id(notification_id)
                 if notification:
@@ -116,59 +116,46 @@ class NotificationService:
             duration = time.monotonic() - start_time
             await self.logger.log_operation(
                 operation="send_notification",
-                user_id=str(user_id),
+                user_id=str(command.user_id),
                 notification_id=str(notification_id) if notification_id else "N/A",
-                type=notification_type.value,
+                type=command.notification_type.value,
                 success=success,
                 duration=duration,
                 error=error
             )
-            # Metrics recording can be added here
 
-    async def mark_notification_as_read(self, notification_id: UUID, user_id: UUID) -> bool:
+    async def mark_notification_as_read(self, command: MarkNotificationAsReadCommand) -> bool:
         """Marks a notification as read."""
-        notification = await self.repo.find_by_id(notification_id)
-        if not notification or notification.user_id != user_id:
+        notification = await self.repo.find_by_id(command.notification_id)
+        if not notification or notification.user_id != command.user_id:
             return False
         notification.mark_as_opened()
         await self.repo.save(notification)
         return True
 
-    async def cancel_notification(self, notification_id: UUID, user_id: UUID) -> bool:
+    async def cancel_notification(self, command: CancelNotificationCommand) -> bool:
         """Cancel a pending notification."""
         # Placeholder for actual cancel logic
         return False
 
-    async def cleanup_old_notifications(self, days_to_keep: int = 30) -> int:
+    async def cleanup_old_notifications(self, command: CleanupOldNotificationsCommand) -> int:
         """Clean up old notifications."""
         # Placeholder for actual cleanup logic
         return 0
 
-    # --- Queries ---
+    # --- Queries (Delegated to Read Service) ---
 
-    async def get_notification_by_id(self, notification_id: str | UUID) -> Optional[Notification]:
+    async def get_notification_by_id(self, query: GetNotificationQuery) -> Optional[Notification]:
         """Retrieves a notification by its unique ID."""
-        # Ensure UUID
-        if isinstance(notification_id, str):
-            try:
-                notification_id = UUID(notification_id)
-            except ValueError:
-                return None
-        return await self.repo.find_by_id(notification_id)
+        return await self.notification_read_service.get_notification_by_id(query)
 
     async def get_user_notifications(
         self,
-        user_id: UUID,
-        include_read: bool = True,
-        limit: int = 50
+        query: GetUserNotificationsQuery,
     ) -> List[Notification]:
         """Retrieves notifications for a user."""
-        notifications = await self.repo.find_by_user_id(user_id, limit)
-        if not include_read:
-            notifications = [n for n in notifications if not n.opened_at]
-        return notifications
+        return await self.notification_read_service.get_user_notifications(query)
 
-    async def get_notification_stats(self, user_id: Optional[UUID] = None) -> Dict[str, Any]:
+    async def get_notification_stats(self, query: GetNotificationStatsQuery) -> Dict[str, Any]:
         """Get notification statistics."""
-        # Placeholder for actual stats logic
-        return {"total": 0, "unread": 0}
+        return await self.notification_read_service.get_notification_stats(query)

@@ -108,6 +108,33 @@ class TopicModelingCompleted(DomainEvent):
     status: str = "success"
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class TranscriptionCompleted(DomainEvent):
+    """Event emitted when a transcription task successfully completes."""
+    media_id: UUID
+    transcription_id: UUID
+    user_id: UUID
+    sentiment_score: Optional[float] = None
+    overall_sentiment: Optional[str] = None
+    language: Optional[str] = None
+    text_content: Optional[str] = None
+    provider: Optional[str] = None
+    status: str = "success"
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class TranscriptionFailed(DomainEvent):
+    """Event emitted when a transcription task fails."""
+    media_id: UUID
+    transcription_id: UUID
+    user_id: UUID
+    error_message: str = ""
+    provider: Optional[str] = None
+    status: str = "failed"
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
 @dataclass(frozen=True, slots=True)
 class VideoUploaded(DomainEvent):
     """Event emitted when a video upload pipeline completes initial storage."""
@@ -204,4 +231,6 @@ __all__ = [
     "MediaProcessingStarted",
     "MediaProcessingCompleted",
     "MediaProcessingFailed",
+    "TranscriptionCompleted",
+    "TranscriptionFailed",
 ]

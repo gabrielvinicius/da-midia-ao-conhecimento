@@ -1,42 +1,49 @@
-"""Admin Commands - Pure data classes following Command Pattern
-"""
-from dataclasses import dataclass
+from pydantic import BaseModel, Field
 from typing import Optional
 from uuid import UUID
 
-
-@dataclass(frozen=True)
-class DeleteMediaCommand:
-    """Command to delete media by admin"""
-
-    media_id: UUID
-    admin_user_id: Optional[UUID] = None
-    reason: Optional[str] = None
+from src.user_management.domain.user import UserRole
 
 
-@dataclass(frozen=True)
-class DeleteUserCommand:
-    """Command to delete user by admin"""
+class DeleteMediaCommand(BaseModel):
+    media_id: UUID = Field(..., description="ID of the media to delete.")
+    admin_user_id: Optional[UUID] = Field(None, description="ID of the admin user performing the action.")
+    reason: Optional[str] = Field(None, description="Reason for deletion.")
 
-    user_id: UUID
-    admin_user_id: UUID
-    reason: Optional[str] = None
-
-
-@dataclass(frozen=True)
-class ReprocessMediaCommand:
-    """Command to reprocess media by admin"""
-
-    media_id: UUID
-    admin_user_id: UUID
-    force: bool = False
+    class Config:
+        frozen = True
 
 
-@dataclass(frozen=True)
-class UpdateUserRoleCommand:
-    """Command to update user role by admin"""
+class DeleteUserCommand(BaseModel):
+    user_id: UUID = Field(..., description="ID of the user to delete.")
+    admin_user_id: UUID = Field(..., description="ID of the admin user performing the action.")
+    reason: Optional[str] = Field(None, description="Reason for deletion.")
 
-    user_id: UUID
-    new_role: str
-    admin_user_id: UUID
-    reason: Optional[str] = None
+    class Config:
+        frozen = True
+
+
+class ReprocessMediaCommand(BaseModel):
+    media_id: UUID = Field(..., description="ID of the media to reprocess.")
+    admin_user_id: UUID = Field(..., description="ID of the admin user performing the action.")
+    force: bool = Field(False, description="Force reprocessing even if not in a failed state.")
+
+    class Config:
+        frozen = True
+
+
+class UpdateUserRoleCommand(BaseModel):
+    user_id: UUID = Field(..., description="ID of the user to update role.")
+    new_role: UserRole = Field(..., description="The new role for the user.")
+    admin_user_id: UUID = Field(..., description="ID of the admin user performing the action.")
+    reason: Optional[str] = Field(None, description="Reason for role update.")
+
+    class Config:
+        frozen = True
+
+
+class BulkReprocessFailedMediaCommand(BaseModel):
+    admin_user_id: UUID = Field(..., description="ID of the admin user performing the action.")
+    
+    class Config:
+        frozen = True

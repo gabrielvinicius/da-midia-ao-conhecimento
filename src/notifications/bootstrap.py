@@ -12,6 +12,7 @@ from src.notifications.api.dependencies import (
 from src.notifications.application.services.notification_service import (
     NotificationService,
 )
+from src.notifications.application.notification_read_service import NotificationReadService
 from src.notifications.infrastructure.metrics import PrometheusNotificationMetrics
 from src.notifications.infrastructure.logging import StructuredNotificationLogger
 from src.notifications.infrastructure.connection_manager import manager as connection_manager_instance
@@ -32,6 +33,7 @@ async def build_notification_module(
     auth_queries: AuthQueries,
 ) -> NotificationModule:
     repository = NotificationRepository(db=session)
+    notification_read_service = NotificationReadService(notification_repo=repository)
     notification_logger = StructuredNotificationLogger()
     notification_metrics = PrometheusNotificationMetrics()
     connection_manager = connection_manager_instance
@@ -41,6 +43,7 @@ async def build_notification_module(
         auth_queries=auth_queries,
         notification_logger=notification_logger,
         notification_metrics=notification_metrics,
+        notification_read_service=notification_read_service,
         email_sender=None,
         sms_sender=None,
         push_sender=None,

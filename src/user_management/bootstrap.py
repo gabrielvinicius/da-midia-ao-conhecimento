@@ -26,10 +26,10 @@ class UserManagementModule:
 def build_user_management_module(session: AsyncSession) -> UserManagementModule:
     """Compose User and Auth services with a shared repository."""
     user_repo = UserRepository(db=session)
+    auth_queries = AuthQueries(user_repository=user_repo) # Instantiate AuthQueries first
     # Use global settings
-    user_service = UserService(user_repository=user_repo, settings=settings)
+    user_service = UserService(user_repository=user_repo, auth_queries=auth_queries, settings=settings)
     auth_service = AuthService(user_service=user_service, settings=settings)
-    auth_queries = AuthQueries(user_repository=user_repo)
 
     return UserManagementModule(
         auth_service=auth_service,

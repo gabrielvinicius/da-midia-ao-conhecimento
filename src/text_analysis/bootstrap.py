@@ -12,6 +12,7 @@ from .application import (
     AnalysisConfig,
     NoOpTextAnalysisMetrics,
 )
+from .application.text_analysis_read_service import TextAnalysisReadService
 from .infrastructure.metrics import PrometheusTextAnalysisMetrics
 from src.providers.domain.interfaces import IProviderRegistry, ProviderCapability, ProviderStatus, ProviderType
 from src.providers.domain.provider import Provider
@@ -84,6 +85,7 @@ async def build_text_analysis_module(
         metrics=metrics,
         event_bus=event_bus,
         transcription_queries=transcription_queries,
+        text_analysis_read_service=TextAnalysisReadService(repository=repo),
     )
 
     return TextAnalysisModule(

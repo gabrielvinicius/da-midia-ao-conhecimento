@@ -1,25 +1,29 @@
-from dataclasses import dataclass
+from pydantic import BaseModel, Field, EmailStr
 from uuid import UUID
+from typing import Optional
 
 from src.user_management.domain.user import UserRole
 
 
-@dataclass(frozen=True)
-class CreateUserCommand:
-    email: str
-    password: str
-    role: UserRole = UserRole.USER
+class CreateUserCommand(BaseModel):
+    email: EmailStr = Field(..., description="User's email address.")
+    password: str = Field(..., description="User's password.")
+    role: UserRole = Field(UserRole.USER, description="User's role.")
 
 
-@dataclass(frozen=True)
-class UpdateUserCommand:
-    user_id: UUID
-    email: str | None = None
-    password: str | None = None
-    role: UserRole | None = None
-    is_active: bool | None = None
+class UpdateUserCommand(BaseModel):
+    user_id: UUID = Field(..., description="ID of the user to update.")
+    email: Optional[str] = Field(None, description="New email address for the user.")
+    password: Optional[str] = Field(None, description="New password for the user.")
+    role: Optional[UserRole] = Field(None, description="New role for the user.")
+    is_active: Optional[bool] = Field(None, description="New active status for the user.")
+
+    class Config:
+        frozen = True # Make it immutable, like dataclass(frozen=True)
 
 
-@dataclass(frozen=True)
-class DeleteUserCommand:
-    user_id: UUID
+class DeleteUserCommand(BaseModel):
+    user_id: UUID = Field(..., description="ID of the user to delete.")
+
+    class Config:
+        frozen = True # Make it immutable
