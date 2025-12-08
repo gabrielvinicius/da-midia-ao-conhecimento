@@ -19,7 +19,7 @@ from src.admin.application.services.admin_user_service import AdminUserService
 from src.admin.container import AdminContainer
 from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.queries.media_queries import MediaQueries
-from src.user_management.application.queries.auth_queries import AuthQueries
+from src.user_management.application.auth_queries import AuthQueries
 
 
 @dataclass

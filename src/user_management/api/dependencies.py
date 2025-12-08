@@ -8,7 +8,7 @@ from jose import jwt, JWTError
 
 from src.shared.infrastructure.settings import Settings, settings
 from src.user_management.application.auth_service import AuthService
-from src.user_management.application.queries.auth_queries import AuthQueries
+from src.user_management.application.auth_queries import AuthQueries
 from src.user_management.application.user_service import UserService
 from src.user_management.domain.user import User, UserRole
 

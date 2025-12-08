@@ -10,7 +10,7 @@ from src.admin.application.services.admin_audit_service import AdminAuditService
 from src.admin.application.services.admin_media_service import AdminMediaService
 from src.admin.application.services.admin_user_service import AdminUserService
 from src.media_management.application.queries.media_queries import MediaQueries
-from src.user_management.application.queries.auth_queries import AuthQueries
+from src.user_management.application.auth_queries import AuthQueries
 from src.user_management.domain.user import User
 
 if TYPE_CHECKING:

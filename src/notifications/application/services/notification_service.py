@@ -22,7 +22,7 @@ from src.notifications.infrastructure.metrics import PrometheusNotificationMetri
 from src.notifications.infrastructure.notification_repository import (
     NotificationRepository,
 )
-from src.user_management.application.queries.auth_queries import AuthQueries
+from src.user_management.application.auth_queries import AuthQueries
 
 logger = structlog.get_logger(__name__)
 

@@ -18,7 +18,7 @@ from src.notifications.infrastructure.connection_manager import manager as conne
 from src.notifications.infrastructure.notification_repository import (
     NotificationRepository,
 )
-from src.user_management.application.queries.auth_queries import AuthQueries
+from src.user_management.application.auth_queries import AuthQueries
 
 
 @dataclass

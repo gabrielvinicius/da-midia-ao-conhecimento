@@ -9,7 +9,7 @@ from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.repositories import MediaRepository
 from src.user_management.application.permission_service import UserPermissionService
-from src.user_management.application.queries.auth_queries import AuthQueries
+from src.user_management.application.auth_queries import AuthQueries
 from src.user_management.infrastructure.user_repository import UserRepository
 
 
