@@ -12,7 +12,7 @@ from src.providers.domain.interfaces import (
 )
 from src.providers.domain.provider import Provider
 from src.providers.domain.provider_metadata import get_provider_metadata
-from src.providers.infrastructure.provider_registry import InMemoryProviderRegistry
+from src.providers.infrastructure.registry.provider_registry import InMemoryProviderRegistry
 
 
 @dataclass

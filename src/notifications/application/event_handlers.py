@@ -13,7 +13,7 @@ from src.shared.domain.events import (
     SentimentAnalysisCompleted,
     TopicModelingCompleted,
 )
-from src.shared.infrastructure.event_bus import SupportsEventBus
+from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
 
 logger = structlog.get_logger(__name__).bind(component="notifications.event_handlers")
 

@@ -10,7 +10,7 @@ from alembic import context
 # ---------- Importe todos os modelos aqui ----------
 # Import all models to ensure they are registered with SQLAlchemy
 from src.shared.infrastructure.database import Base  # Importar a Base
-from src.shared.infrastructure.settings import settings
+from src.shared.infrastructure.config.settings import settings
 
 # Import all INFRASTRUCTURE MODELS to ensure they are registered with the Base metadata
 # Note: Do NOT import Domain Entities here; they are not SQLAlchemy models.

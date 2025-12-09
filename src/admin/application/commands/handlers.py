@@ -8,7 +8,7 @@ from src.user_management.application.queries.user_queries import UserQueries
 from src.media_management.application.queries.media_queries import MediaQueries
 from src.media_management.infrastructure.media_repository import MediaRepository
 from src.storage.infrastructure.dependencies import StorageServiceFactory
-from src.user_management.infrastructure.user_repository import UserRepository
+from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import UserRepository
 
 from .commands import (
     DeleteMediaCommand,

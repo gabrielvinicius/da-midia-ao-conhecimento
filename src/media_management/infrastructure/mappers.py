@@ -1,7 +1,7 @@
 """Mappers for converting between Media Entities and Aggregates."""
 
 from src.media_management.domain.model import MediaAggregate
-from src.media_management.infrastructure.persistence import MediaEntity
+from src.media_management.infrastructure.persistence.models import MediaEntity
 
 
 class MediaMapper:

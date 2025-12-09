@@ -6,22 +6,22 @@ import structlog
 from celery import shared_task
 from asgiref.sync import async_to_sync
 
-from src.shared.infrastructure.db import AsyncSessionLocal
-from src.shared.infrastructure.event_bus_factory import get_event_bus
-from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
+from src.shared.infrastructure.database.db import AsyncSessionLocal
+from src.shared.infrastructure.messaging.event_bus_factory import get_event_bus
+from src.shared.infrastructure.storage.persistence.s3_storage_repository import S3StorageService
 from src.shared.events.integration_events import (
     TASK_MEDIA_TRANSCRIPTION,
     TASK_MEDIA_VIDEO_PROCESSING,
     TASK_MEDIA_TEXT_EXTRACTION,
 )
-from src.media_processing.infrastructure.transcription.transcription_repository import TranscriptionRepository
-from src.media_processing.infrastructure.transcription.dependencies import create_speech_recognition_service
-from src.media_processing.infrastructure.transcription.metrics import PrometheusTranscriptionMetrics
-from src.media_processing.infrastructure.transcription.logging import StructuredTranscriptionLogger
+from src.media_processing.infrastructure.repositories.transcription_repository import TranscriptionRepository
+from src.media_processing.infrastructure.dependencies.speech_recognition_factory import create_speech_recognition_service
+from src.media_processing.infrastructure.metrics.prometheus_transcription_metrics import PrometheusTranscriptionMetrics
+from src.media_processing.infrastructure.logging.structured_transcription_logger import StructuredTranscriptionLogger
 from src.media_processing.application.services.transcription_service import TranscriptionService
 from src.media_processing.application.services.text_extraction_service import TextExtractionService
-from src.media_processing.infrastructure.transcription.task_scheduler import CeleryTranscriptionTaskScheduler
-from src.media_processing.infrastructure.text.task_scheduler import CeleryTextTaskScheduler
+from src.media_processing.infrastructure.task_schedulers.celery_transcription_scheduler import CeleryTranscriptionTaskScheduler
+from src.media_processing.infrastructure.task_schedulers.celery_text_extraction_scheduler import CeleryTextTaskScheduler
 
 logger = structlog.get_logger(__name__)
 
@@ -48,8 +48,8 @@ def bootstrap_text_extraction_service(session, event_bus) -> TextExtractionServi
     storage = S3StorageService()
     scheduler = CeleryTextTaskScheduler()
     # Providers
-    from src.media_processing.infrastructure.text.text_extractor import TextExtractor
-    from src.media_processing.infrastructure.text.ocr_provider import OCRProvider
+    from src.media_processing.infrastructure.adapters.text.text_extractor_adapter import TextExtractor
+    from src.media_processing.infrastructure.adapters.text.ocr_provider_adapter import OCRProvider
     
     return TextExtractionService(
         repository=repo,

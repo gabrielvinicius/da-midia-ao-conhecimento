@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from src.shared.infrastructure.logging import get_logger
+from src.shared.infrastructure.observability.logging.logging_config import get_logger
 
 logger = get_logger("validation")
 

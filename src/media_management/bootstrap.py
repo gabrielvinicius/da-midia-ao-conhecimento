@@ -11,9 +11,9 @@ from src.media_management.api.dependencies import (
 from src.media_management.application.event_handlers import MediaEventHandlers
 from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.commands.validators import MediaUploadValidator
-from src.media_management.infrastructure.repositories import MediaRepository
-from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
-from src.shared.infrastructure.settings import settings
+from src.media_management.infrastructure.repositories.media_repository import MediaRepository
+from src.media_management.infrastructure.metrics.prometheus_metrics import PrometheusMediaMetrics
+from src.shared.infrastructure.config.settings import settings
 from src.media_processing.application.event_handlers import MediaProcessingEventHandlers
 from src.media_processing.application.services.media_processing_service import MediaProcessingService
 from src.media_processing.application.services.transcription_service import (
@@ -24,46 +24,46 @@ from src.media_processing.api.dependencies import (
     get_transcription_dependencies,
 )
 from src.providers.domain.interfaces import IProviderRegistry
-from src.media_processing.infrastructure.transcription.logging import (
+from src.media_processing.infrastructure.logging.structured_transcription_logger import (
     StructuredTranscriptionLogger,
 )
-from src.media_processing.infrastructure.transcription.dependencies import (
+from src.media_processing.infrastructure.dependencies.speech_recognition_factory import (
     create_speech_recognition_service,
 )
-from src.media_processing.infrastructure.transcription.metrics import (
+from src.media_processing.infrastructure.metrics.prometheus_transcription_metrics import (
     PrometheusTranscriptionMetrics,
 )
-from src.media_processing.infrastructure.transcription.task_scheduler import (
+from src.media_processing.infrastructure.task_schedulers.celery_transcription_scheduler import (
     CeleryTranscriptionTaskScheduler,
 )
-from src.media_processing.infrastructure.transcription.transcription_repository import (
+from src.media_processing.infrastructure.repositories.transcription_repository import (
     TranscriptionRepository,
 )
 from src.media_processing.application.services.text_extraction_service import (
     TextExtractionService,
 )
-from src.media_processing.infrastructure.text.task_scheduler import (
+from src.media_processing.infrastructure.task_schedulers.celery_text_extraction_scheduler import (
     CeleryTextTaskScheduler,
 )
-from src.media_processing.infrastructure.text.text_extractor import TextExtractor
-from src.media_processing.infrastructure.text.ocr_provider import OCRProvider
+from src.media_processing.infrastructure.adapters.text.text_extractor_adapter import TextExtractor
+from src.media_processing.infrastructure.adapters.text.ocr_provider_adapter import OCRProvider
 from src.media_processing.application.services.video_processing_service import (
     VideoProcessingService,
 )
-from src.media_processing.infrastructure.video_processing.metrics import (
+from src.media_processing.infrastructure.metrics.prometheus_video_processing_metrics import (
     PrometheusVideoProcessingMetrics,
 )
-from src.media_processing.infrastructure.video_processing.task_scheduler import (
+from src.media_processing.infrastructure.task_schedulers.celery_video_processing_scheduler import (
     CeleryVideoProcessingTaskScheduler,
 )
-from src.media_processing.infrastructure.video_processing.video_audio_extractor import (
+from src.media_processing.infrastructure.adapters.video.ffmpeg_audio_extractor import (
     FFmpegVideoAudioExtractor,
 )
-from src.media_processing.infrastructure.video_processing.video_thumbnail_generator import (
+from src.media_processing.infrastructure.adapters.video.ffmpeg_thumbnail_generator import (
     FFmpegVideoThumbnailGenerator,
 )
-from src.shared.infrastructure.event_bus import SupportsEventBus
-from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
+from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
+from src.shared.infrastructure.storage.persistence.s3_storage_repository import S3StorageService
 from src.shared.domain.events import MediaUploaded, TextContentReady, TranscriptionCompleted, TranscriptionFailed
 
 

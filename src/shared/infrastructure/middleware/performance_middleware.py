@@ -1,6 +1,6 @@
 import time
 from fastapi import FastAPI, Request
-from src.shared.infrastructure.logging import get_logger
+from src.shared.infrastructure.observability.logging.logging_config import get_logger
 
 logger = get_logger("performance")
 

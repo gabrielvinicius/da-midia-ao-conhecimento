@@ -15,17 +15,13 @@ from .application import (
 from .application.event_handlers import build_text_content_ready_handler
 from .application.text_analysis_read_service import TextAnalysisReadService
 from src.shared.domain.events import TextContentReady
-from .infrastructure.metrics import PrometheusTextAnalysisMetrics
-from src.providers.domain.interfaces import IProviderRegistry, ProviderCapability, ProviderStatus, ProviderType
-from src.providers.domain.provider import Provider
-from .infrastructure import (
-    BERTopicAdapter,
-    InMemoryAnalysisRepository,
-    OllamaTextGenerationAdapter,
-    SentenceTransformerEmbeddingAdapter,
-    SimpleChunker,
-    TransformersSentimentAdapter,
-)
+from .infrastructure.adapters.topic_modeling_bertopic_adapter import BERTopicAdapter
+from .infrastructure.repositories.inmemory_analysis_repository import InMemoryAnalysisRepository
+from .infrastructure.adapters.text_generation_ollama_adapter import OllamaTextGenerationAdapter
+from .infrastructure.adapters.embeddings_sentence_transformers_adapter import SentenceTransformerEmbeddingAdapter
+from .infrastructure.adapters.chunking_simple_adapter import SimpleChunker
+from .infrastructure.adapters.sentiment_transformers_adapter import TransformersSentimentAdapter
+from .infrastructure.metrics.prometheus_metrics import PrometheusTextAnalysisMetrics
 
 
 def _prom_available() -> bool:
@@ -55,7 +51,7 @@ async def build_text_analysis_module(
     if repository is not None:
         repo = repository
     else:
-        from .infrastructure.repository_sqlalchemy import SqlAlchemyAnalysisRepository
+        from .infrastructure.repositories.sqlalchemy_analysis_repository import SqlAlchemyAnalysisRepository
 
         if session is None:
             raise RuntimeError("TextAnalysis requires a database session for persistence")

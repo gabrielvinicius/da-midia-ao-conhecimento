@@ -2,7 +2,7 @@ import uuid
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
-from src.shared.infrastructure.logging import get_logger
+from src.shared.infrastructure.observability.logging.logging_config import get_logger
 
 logger = get_logger("correlation")
 

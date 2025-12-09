@@ -14,7 +14,7 @@ from src.shared.application.schemas import (
 )
 from src.shared.domain.errors import DomainException
 from src.user_management.domain.user import User
-from src.shared.infrastructure.logging import get_logger
+from src.shared.infrastructure.observability.logging.logging_config import get_logger
 
 from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.commands.dto import (

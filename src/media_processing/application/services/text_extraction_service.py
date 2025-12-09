@@ -10,13 +10,15 @@ from pathlib import Path
 import structlog
 
 from src.media_processing.application.commands.dto import RequestTextExtractionCommand
-from src.media_processing.infrastructure.text.task_scheduler import CeleryTextTaskScheduler
-from src.media_processing.infrastructure.transcription.transcription_repository import TranscriptionRepository
+from src.media_processing.infrastructure.task_schedulers.celery_text_extraction_scheduler import CeleryTextTaskScheduler
+from src.media_processing.infrastructure.repositories.transcription_repository import TranscriptionRepository
 from src.media_processing.domain.model import Transcription, TranscriptionStatus
-from src.shared.infrastructure.event_bus import SupportsEventBus
+from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
 from src.shared.domain.events import MediaProcessingStarted, MediaProcessingCompleted, MediaProcessingFailed, TextContentReady
 from src.storage.domain.value_objects.file_path import FilePath
 from src.shared.domain.errors import ResourceNotFoundError
+from src.media_processing.infrastructure.adapters.text.text_extractor_adapter import TextExtractor
+from src.media_processing.infrastructure.adapters.text.ocr_provider_adapter import OCRProvider
 
 logger = structlog.get_logger(__name__)
 
@@ -27,8 +29,8 @@ class TextExtractionService:
         task_scheduler: CeleryTextTaskScheduler,
         storage_service: Any,
         event_bus: SupportsEventBus | None = None,
-        text_extractor: Any = None,
-        ocr_provider: Any = None,
+        text_extractor: TextExtractor = TextExtractor(), # Using default instance for now
+        ocr_provider: OCRProvider = OCRProvider(), # Using default instance for now
     ):
         self._repo = repository
         self._task_scheduler = task_scheduler

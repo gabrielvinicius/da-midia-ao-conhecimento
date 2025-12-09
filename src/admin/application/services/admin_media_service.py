@@ -7,13 +7,14 @@ import structlog
 
 from src.admin.domain.interfaces import IAdminAuditService, IAdminMediaService
 from src.media_management.application.services.media_service import MediaService
-from src.shared.domain.enums import MediaStatus
 from src.media_management.domain.media import Media
-from src.media_management.infrastructure.repositories import MediaRepository
-from src.user_management.domain.interfaces import IUserPermissionService
+from src.media_management.infrastructure.repositories.media_repository import MediaRepository
+from src.shared.domain.enums import MediaStatus
+from src.user_management.application.permission_service import UserPermissionService
 from src.user_management.domain.user import User
 from src.media_management.application.commands.dto import DeleteMediaCommand, ReprocessMediaCommand, CleanupOrphanedFilesCommand
 from src.user_management.domain.user import UserRole
+from src.user_management.domain.interfaces import IUserPermissionService
 
 
 logger = structlog.get_logger(__name__)

@@ -1,7 +1,7 @@
 """Bootstrap module for storage services."""
 from typing import Any, Dict
 
-from src.shared.infrastructure.cache import CacheService
+from src.shared.infrastructure.caching.cache import CacheService
 from src.shared.monitoring.metrics_collector import MetricsCollector
 
 from src.storage.application.services.storage_service import StorageService

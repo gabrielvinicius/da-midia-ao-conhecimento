@@ -4,14 +4,14 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from src.shared.utils.password_utils import hash_password, verify_password
-from src.shared.infrastructure.settings import Settings, settings
+from src.shared.infrastructure.config.settings import Settings, settings
 from src.user_management.domain.user import User, UserRole
 from src.user_management.domain.exceptions import (
     UserAlreadyExistsError,
     UserNotFoundError,
     InvalidCredentialsError
 )
-from src.user_management.infrastructure.user_repository import UserRepository
+from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import UserRepository
 from src.user_management.utils.token import create_access_token
 from src.user_management.application.commands.dto import CreateUserCommand, UpdateUserCommand, DeleteUserCommand
 from src.user_management.application.queries.dto import GetUserQuery, ListUsersQuery

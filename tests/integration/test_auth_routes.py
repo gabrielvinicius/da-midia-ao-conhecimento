@@ -4,9 +4,9 @@ import pytest
 from async_asgi_testclient import TestClient
 
 from main import app
-from src.shared.infrastructure.db import AsyncSessionLocal
+from src.shared.infrastructure.database.db import AsyncSessionLocal
 from src.user_management.application.user_service import UserService
-from src.user_management.infrastructure.user_repository import UserRepository
+from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import UserRepository
 
 
 @pytest.mark.asyncio

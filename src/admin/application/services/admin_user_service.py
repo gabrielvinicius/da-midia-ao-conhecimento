@@ -9,7 +9,7 @@ import structlog
 from src.admin.domain.interfaces import IAdminAuditService, IAdminUserService
 from src.user_management.domain.interfaces import IUserPermissionService
 from src.user_management.domain.user import User, UserRole
-from src.user_management.infrastructure.user_repository import UserRepository
+from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import UserRepository
 
 logger = structlog.get_logger(__name__)
 

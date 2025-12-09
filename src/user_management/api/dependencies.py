@@ -6,14 +6,14 @@ from fastapi import Depends, HTTPException, status, WebSocket, Query
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 
-from src.shared.infrastructure.settings import Settings, settings
+from src.shared.infrastructure.config.settings import Settings, settings
 from src.user_management.application.auth_service import AuthService
 from src.user_management.application.queries.dto import GetUserQuery # New import
 from src.user_management.application.auth_queries import AuthQueries
 from src.user_management.application.user_service import UserService
 from src.user_management.domain.user import User, UserRole
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+from src.user_management.infrastructure.auth.oauth2_scheme import oauth2_scheme
 
 class AuthDependenciesNotConfigured(RuntimeError):
     """Raised when the dependency provider has not been registered."""

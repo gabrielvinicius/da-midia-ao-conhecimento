@@ -12,9 +12,9 @@ from src.notifications.infrastructure.logging import StructuredNotificationLogge
 from src.notifications.infrastructure.metrics import PrometheusNotificationMetrics
 from src.notifications.infrastructure.connection_manager import manager as connection_manager_instance
 from src.notifications.application.services.notification_service import NotificationService
-from src.user_management.infrastructure.user_repository import UserRepository
+from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import UserRepository
 from src.user_management.application.auth_queries import AuthQueries
-from src.shared.infrastructure.db import get_sync_session
+from src.shared.infrastructure.database.db import get_sync_session
 
 logger = structlog.get_logger(__name__)
 

@@ -4,7 +4,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from src.user_management.domain.user import User
-from src.user_management.infrastructure.user_repository import UserRepository
+from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import UserRepository
 from src.user_management.application.queries.dto import GetUserQuery, ListUsersQuery
 
 

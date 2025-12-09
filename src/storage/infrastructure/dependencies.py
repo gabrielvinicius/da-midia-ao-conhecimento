@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Optional
 
 import structlog
 
-from src.shared.infrastructure.storage.s3_storage_service import S3StorageService
+from src.shared.infrastructure.storage.persistence.s3_storage_repository import S3StorageService
 from src.storage.application.services.storage_service import StorageService
-from src.storage.infrastructure.local_storage_service import LocalStorageService
+from src.storage.infrastructure.persistence.local_storage_repository import LocalStorageService
 from src.storage.domain.repositories.storage_repository import StorageRepository
 
 logger = structlog.get_logger(__name__)

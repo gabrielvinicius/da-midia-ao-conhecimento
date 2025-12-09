@@ -41,12 +41,12 @@ from src.media_management.application.queries.dto import (
     ListMediaQuery,
 )
 from src.media_management.domain.media import Media
-from src.media_management.infrastructure.metrics import PrometheusMediaMetrics
-from src.media_management.infrastructure.repositories import MediaRepository
+from src.media_management.infrastructure.metrics.prometheus_metrics import PrometheusMediaMetrics
+from src.media_management.infrastructure.repositories.media_repository import MediaRepository
 from src.media_management.application.queries.media_queries import MediaQueries # Alias for MediaReadService
 from src.providers.domain.interfaces import IProviderRegistry, ProviderType
 from src.shared.domain.enums import MediaStatus, MediaType
-from src.shared.infrastructure.event_bus import SupportsEventBus
+from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
 from src.shared.domain.events import (
     MediaDeleted,
     MediaReprocessRequested,
@@ -427,7 +427,7 @@ class MediaService:
         db = getattr(self.media_repository, "db", None)
         if db is None:
             return
-        from src.media_processing.infrastructure.transcription.transcription_repository import (
+        from src.media_processing.infrastructure.repositories.transcription_repository import (
             TranscriptionRepository,
         )
         transcription_repo = TranscriptionRepository(db)

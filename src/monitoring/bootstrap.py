@@ -11,8 +11,8 @@ from src.monitoring.application.analytics_queries import AnalyticsQueries
 from src.monitoring.application.metrics_service import MetricsService
 from src.monitoring.config.settings import AnalyticsSettings
 from src.monitoring.domain.interfaces import IAnalyticsQueries
-from src.monitoring.infrastructure.analytics_repository import AnalyticsRepository
-from src.monitoring.infrastructure.prometheus_provider import PrometheusMetricsProvider
+from src.monitoring.infrastructure.repositories.analytics_repository import AnalyticsRepository
+from src.monitoring.infrastructure.metrics.prometheus_metrics_provider import PrometheusMetricsProvider
 
 
 @dataclass

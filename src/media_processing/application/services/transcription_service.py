@@ -8,23 +8,23 @@ from uuid import UUID
 import structlog
 
 from src.media_processing.domain.model import Transcription, TranscriptionStatus
-from src.media_processing.infrastructure.transcription.transcription_repository import (
+from src.media_processing.infrastructure.repositories.transcription_repository import (
     TranscriptionRepository,
 )
-from src.media_processing.infrastructure.transcription.metrics import (
+from src.media_processing.infrastructure.metrics.prometheus_transcription_metrics import (
     PrometheusTranscriptionMetrics,
 )
-from src.media_processing.infrastructure.transcription.task_scheduler import (
+from src.media_processing.infrastructure.task_schedulers.celery_transcription_scheduler import (
     CeleryTranscriptionTaskScheduler,
 )
-from src.shared.infrastructure.event_bus import SupportsEventBus
+from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
 import asyncio
 import os
 import tempfile
 from pathlib import Path
 from src.shared.domain.events import TranscriptionCompleted, TranscriptionFailed, MediaProcessingStarted
 from src.storage.domain.value_objects.file_path import FilePath
-from src.media_processing.infrastructure.transcription.logging import (
+from src.media_processing.infrastructure.logging.structured_transcription_logger import (
     StructuredTranscriptionLogger,
 )
 from src.shared.domain.errors import ResourceNotFoundError

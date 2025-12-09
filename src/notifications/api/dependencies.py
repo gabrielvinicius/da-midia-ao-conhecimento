@@ -6,7 +6,7 @@ from fastapi import Depends
 from src.notifications.application.services.notification_service import (
     NotificationService,
 )
-from src.notifications.infrastructure.connection_manager import (
+from src.notifications.infrastructure.adapters.websockets.connection_manager import (
     ConnectionManager,
     manager,
 )

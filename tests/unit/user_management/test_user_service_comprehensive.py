@@ -12,7 +12,7 @@ from src.user_management.domain.exceptions import (
     UserNotFoundError,
 )
 from src.user_management.domain.user import User, UserRole
-from src.user_management.infrastructure.user_repository import UserRepository
+from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import UserRepository
 from src.shared.utils.password_utils import hash_password
 
 @fixture

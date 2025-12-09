@@ -14,13 +14,13 @@ from src.notifications.application.services.notification_service import (
 )
 from src.notifications.application.notification_read_service import NotificationReadService
 from src.notifications.application.event_handlers import NotificationEventHandlers
-from src.notifications.infrastructure.metrics import PrometheusNotificationMetrics
-from src.notifications.infrastructure.logging import StructuredNotificationLogger
-from src.notifications.infrastructure.connection_manager import manager as connection_manager_instance
-from src.notifications.infrastructure.notification_repository import (
+from src.notifications.infrastructure.metrics.prometheus_metrics import PrometheusNotificationMetrics
+from src.notifications.infrastructure.logging.structured_logger import StructuredNotificationLogger
+from src.notifications.infrastructure.adapters.websockets.connection_manager import manager as connection_manager_instance
+from src.notifications.infrastructure.repositories.notification_repository import (
     NotificationRepository,
 )
-from src.shared.infrastructure.event_bus import SupportsEventBus
+from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
 from src.shared.domain.events import (
     NotificationRequested,
     SummarizationCompleted,

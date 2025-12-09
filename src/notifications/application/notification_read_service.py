@@ -7,7 +7,7 @@ from src.notifications.application.queries.dto import (
     GetUserNotificationsQuery,
 )
 from src.notifications.domain.notification import Notification
-from src.notifications.infrastructure.notification_repository import NotificationRepository
+from src.notifications.infrastructure.repositories.notification_repository import NotificationRepository
 from src.shared.utils.time_utils import utcnow
 
 

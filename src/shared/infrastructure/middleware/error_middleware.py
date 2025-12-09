@@ -1,7 +1,7 @@
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from src.shared.infrastructure.logging import get_logger
+from src.shared.infrastructure.observability.logging.logging_config import get_logger
 
 logger = get_logger("error_middleware")
 

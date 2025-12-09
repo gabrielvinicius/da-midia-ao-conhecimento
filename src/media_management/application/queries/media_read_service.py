@@ -12,7 +12,7 @@ from src.media_management.application.queries.dto import (
     ListMediaQuery,
 )
 from src.media_management.domain.media import Media
-from src.media_management.infrastructure.repositories import MediaRepository
+from src.media_management.infrastructure.repositories.media_repository import MediaRepository
 from src.shared.domain.enums import MediaStatus
 
 

@@ -25,9 +25,10 @@ from src.notifications.domain.notification import (
     Notification,
     NotificationStatus,
 )
-from src.notifications.infrastructure.connection_manager import ConnectionManager
-from src.notifications.infrastructure.logging import StructuredNotificationLogger
-from src.notifications.infrastructure.notification_repository import (
+from src.notifications.infrastructure.adapters.websockets.connection_manager import ConnectionManager
+from src.notifications.infrastructure.logging.structured_logger import StructuredNotificationLogger
+from src.notifications.infrastructure.metrics.prometheus_metrics import PrometheusNotificationMetrics
+from src.notifications.infrastructure.repositories.notification_repository import (
     NotificationRepository,
 )
 from src.notifications.application.notification_read_service import NotificationReadService # New import

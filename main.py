@@ -15,7 +15,7 @@ from src.monitoring.bootstrap import build_monitoring_module
 from src.notifications.bootstrap import build_notification_module
 from src.providers.bootstrap import build_providers_module
 from src.providers.api.routers import router as providers_router
-from src.shared.infrastructure.health import router as health_router
+from src.shared.infrastructure.observability.health.health_check import router as health_router
 from src.shared.application.lifecycle import (
     ApplicationResources,
     start_application_resources,
@@ -30,20 +30,20 @@ from src.shared.application.service_registry import (
     attach_domain_services,
     build_domain_service_registry,
 )
-from src.shared.infrastructure.event_bus_factory import get_event_bus
+from src.shared.infrastructure.messaging.event_bus_factory import get_event_bus
 from src.shared.domain.events import (
     MediaUploaded,
     NotificationRequested,
     TextContentReady,
 )
 from src.user_management.api.dependencies import get_current_user_websocket
-from src.shared.infrastructure.exception_handlers import register_exception_handlers
+from src.shared.infrastructure.exceptions.exception_handlers import register_exception_handlers
 
 # from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled: psutil dep
-from src.shared.infrastructure.cache import cache
-from src.shared.infrastructure.db import AsyncSessionLocal, Base, engine
-from src.shared.infrastructure.logging import configure_logging, get_logger
-from src.shared.infrastructure.tracing import configure_tracer
+from src.shared.infrastructure.caching.cache import cache
+from src.shared.infrastructure.database.db import AsyncSessionLocal, Base, engine
+from src.shared.infrastructure.observability.logging.logging_config import configure_logging, get_logger
+from src.shared.infrastructure.observability.tracing.tracer import configure_tracer
 from src.shared.infrastructure.middleware.correlation_middleware import CorrelationIdMiddleware
 from src.shared.infrastructure.middleware.performance_middleware import register_performance_middleware
 from src.shared.infrastructure.middleware.error_middleware import unified_error_middleware

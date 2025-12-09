@@ -6,15 +6,15 @@ from uuid import UUID
 
 import structlog
 
-from src.shared.infrastructure.event_bus import SupportsEventBus
+from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
 from src.shared.domain.events import AudioExtracted
-from src.media_processing.infrastructure.video_processing.metrics import (
+from src.media_processing.infrastructure.metrics.prometheus_video_processing_metrics import (
     PrometheusVideoProcessingMetrics,
 )
-from src.media_processing.infrastructure.video_processing.video_audio_extractor import (
+from src.media_processing.infrastructure.adapters.video.ffmpeg_audio_extractor import (
     FFmpegVideoAudioExtractor,
 )
-from src.media_processing.infrastructure.video_processing.video_thumbnail_generator import (
+from src.media_processing.infrastructure.adapters.video.ffmpeg_thumbnail_generator import (
     FFmpegVideoThumbnailGenerator,
 )
 from src.storage.infrastructure.dependencies import StorageServiceFactory

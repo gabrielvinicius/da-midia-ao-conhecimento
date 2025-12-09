@@ -14,7 +14,7 @@ except Exception:  # pragma: no cover - celery optional
     shared_task = None
 
 from .application.service import TextAnalysisService
-from src.shared.infrastructure.db import get_sync_session
+from src.shared.infrastructure.database.db import get_sync_session
 from src.shared.events.event_bus_factory import get_event_bus
 from .bootstrap import build_text_analysis_module
 
@@ -35,7 +35,7 @@ async def _get_service_async() -> TextAnalysisService:
         # Use sync session for initialization logic that requires DB access
         with get_sync_session() as session:
             # Manually instantiate dependencies required for cross-module access in worker context
-            from src.media_processing.infrastructure.transcription.transcription_repository import TranscriptionRepository
+            from src.media_processing.infrastructure.repositories.transcription_repository import TranscriptionRepository
             from src.media_processing.application.services.transcription_service import TranscriptionService
             
             transcription_repo = TranscriptionRepository(session)

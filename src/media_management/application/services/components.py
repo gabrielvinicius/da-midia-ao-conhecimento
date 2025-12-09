@@ -20,7 +20,7 @@ from src.media_management.domain.media import Media
 from src.shared.domain.errors import ValidationError
 from src.shared.domain.events import MediaUploaded
 from src.shared.domain.enums import MediaStatus
-from src.shared.infrastructure.event_bus import SupportsEventBus
+from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 logger = structlog.get_logger(__name__)

@@ -5,14 +5,14 @@ from fastapi import FastAPI
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.shared.infrastructure.settings import Settings, settings
+from src.shared.infrastructure.config.settings import Settings, settings
 from src.user_management.api.dependencies import (
     AuthDependencies,
     get_auth_dependencies,
 )
 from src.user_management.application import AuthQueries, AuthService
 from src.user_management.application.user_service import UserService
-from src.user_management.infrastructure.user_repository import UserRepository
+from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import UserRepository
 
 
 @dataclass
