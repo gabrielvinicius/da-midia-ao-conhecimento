@@ -42,11 +42,7 @@ class MediaProcessingEventHandlers:
             media_type = self._resolve_media_type(media_type_value)
 
             if media_type == _MediaType.TEXT:
-                self._logger.debug(
-                    "media_uploaded.transcription_task_skipped",
-                    media_id=str(media_id),
-                    reason="text_document",
-                )
+                await self._delegate_text_extraction(event, context, media_id)
             else:
                 await self._delegate_transcription(event, context, media_id)
 
@@ -68,6 +64,29 @@ class MediaProcessingEventHandlers:
                 correlation_id=getattr(event, "correlation_id", None),
             )
             return
+
+    async def _delegate_text_extraction(self, event, context, media_id):
+        storage_provider = event.storage_provider or context.get("storage_provider") or "local"
+        file_path = getattr(event, "file_path", None) or context.get("file_path")
+        
+        try:
+            from src.media_processing.application.commands.dto import RequestTextExtractionCommand
+            command = RequestTextExtractionCommand(
+                media_id=media_id,
+                file_path=file_path,
+                storage_provider=storage_provider,
+            )
+            await self._media_processing_service.request_text_extraction(command)
+            self._logger.debug(
+                "media_uploaded.text_extraction_delegated",
+                media_id=str(media_id),
+            )
+        except Exception as exc:
+            self._logger.error(
+                "media_uploaded.text_extraction_delegation_failed",
+                media_id=str(media_id),
+                error=str(exc),
+            )
 
     async def _delegate_transcription(self, event, context, media_id):
         storage_provider = event.storage_provider or context.get("storage_provider") or "local"

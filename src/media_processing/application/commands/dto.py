@@ -27,6 +27,15 @@ class RequestVideoProcessingCommand(BaseModel):
         frozen = True
 
 
+class RequestTextExtractionCommand(BaseModel):
+    media_id: UUID = Field(..., description="ID of the media to extract text from.")
+    file_path: str = Field(..., description="Path to the file in storage.")
+    storage_provider: str = Field(..., description="Provider where the file is stored.")
+
+    class Config:
+        frozen = True
+
+
 class SetSpeakerAliasesCommand(BaseModel):
     transcription_id: UUID = Field(..., description="ID of the transcription to update.")
     aliases: Dict[str, str] = Field(..., description="Mapping of speaker IDs to their aliases.")

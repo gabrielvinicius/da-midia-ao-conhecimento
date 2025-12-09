@@ -12,13 +12,16 @@ from src.shared.infrastructure.storage.s3_storage_service import S3StorageServic
 from src.shared.events.integration_events import (
     TASK_MEDIA_TRANSCRIPTION,
     TASK_MEDIA_VIDEO_PROCESSING,
+    TASK_MEDIA_TEXT_EXTRACTION,
 )
 from src.media_processing.infrastructure.transcription.transcription_repository import TranscriptionRepository
 from src.media_processing.infrastructure.transcription.dependencies import create_speech_recognition_service
 from src.media_processing.infrastructure.transcription.metrics import PrometheusTranscriptionMetrics
 from src.media_processing.infrastructure.transcription.logging import StructuredTranscriptionLogger
 from src.media_processing.application.services.transcription_service import TranscriptionService
+from src.media_processing.application.services.text_extraction_service import TextExtractionService
 from src.media_processing.infrastructure.transcription.task_scheduler import CeleryTranscriptionTaskScheduler
+from src.media_processing.infrastructure.text.task_scheduler import CeleryTextTaskScheduler
 
 logger = structlog.get_logger(__name__)
 
@@ -39,6 +42,53 @@ def bootstrap_transcription_service(session, event_bus) -> TranscriptionService:
         media_queries=None, 
         event_bus=event_bus
     )
+
+def bootstrap_text_extraction_service(session, event_bus) -> TextExtractionService:
+    repo = TranscriptionRepository(session)
+    storage = S3StorageService()
+    scheduler = CeleryTextTaskScheduler()
+    # Providers
+    from src.media_processing.infrastructure.text.text_extractor import TextExtractor
+    from src.media_processing.infrastructure.text.ocr_provider import OCRProvider
+    
+    return TextExtractionService(
+        repository=repo,
+        task_scheduler=scheduler,
+        storage_service=storage,
+        event_bus=event_bus,
+        text_extractor=TextExtractor(),
+        ocr_provider=OCRProvider()
+    )
+
+@shared_task(
+    bind=True,
+    name=TASK_MEDIA_TEXT_EXTRACTION,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=5
+)
+def process_text_extraction_task(
+    self,
+    media_id: str,
+    file_path: str,
+    storage_provider: str,
+    **kwargs
+) -> None:
+    logger.info("text_extraction.task_started", media_id=media_id)
+    async def _run():
+        async with AsyncSessionLocal() as session:
+            event_bus = get_event_bus()
+            service = bootstrap_text_extraction_service(session, event_bus)
+            await service.execute_text_extraction(
+                media_id=UUID(media_id),
+                file_path=file_path,
+                storage_provider=storage_provider
+            )
+    try:
+        async_to_sync(_run)()
+    except Exception as e:
+        logger.error("text_extraction.task_failed", error=str(e), media_id=media_id)
+        raise
 
 @shared_task(
     bind=True, 

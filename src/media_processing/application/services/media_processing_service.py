@@ -13,10 +13,14 @@ from src.media_processing.application.services.transcription_service import (
 from src.media_processing.application.services.video_processing_service import (
     VideoProcessingService,
 )
+from src.media_processing.application.services.text_extraction_service import (
+    TextExtractionService,
+)
 from src.providers.domain.interfaces import IProviderRegistry, ProviderType
 from src.media_processing.application.commands.dto import (
     RequestTranscriptionCommand,
     RequestVideoProcessingCommand,
+    RequestTextExtractionCommand,
 )
 
 
@@ -28,12 +32,14 @@ class MediaProcessingService:
         *,
         transcription_service: TranscriptionService,
         video_service: VideoProcessingService,
+        text_extraction_service: TextExtractionService,
         transcription_metrics: Any | None = None,
         video_metrics: Any | None = None,
         provider_registry: IProviderRegistry | None = None,
     ) -> None:
         self._transcription_service = transcription_service
         self._video_service = video_service
+        self._text_extraction_service = text_extraction_service
         self._logger = structlog.get_logger(__name__).bind(component="media_processing.service")
         self._transcription_metrics = transcription_metrics
         self._video_metrics = video_metrics
@@ -114,6 +120,14 @@ class MediaProcessingService:
                         "video_metrics.record_failed",
                         error=str(exc),
                     )
+
+    async def request_text_extraction(
+        self,
+        command: RequestTextExtractionCommand,
+    ) -> Dict[str, Any]:
+        """Schedule text extraction for the uploaded media."""
+        # Simple delegation for now
+        return await self._text_extraction_service.request_text_extraction(command)
 
     # ------------------------------------------------------------------ #
     # Queries

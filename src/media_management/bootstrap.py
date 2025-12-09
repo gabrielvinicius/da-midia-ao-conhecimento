@@ -39,6 +39,14 @@ from src.media_processing.infrastructure.transcription.task_scheduler import (
 from src.media_processing.infrastructure.transcription.transcription_repository import (
     TranscriptionRepository,
 )
+from src.media_processing.application.services.text_extraction_service import (
+    TextExtractionService,
+)
+from src.media_processing.infrastructure.text.task_scheduler import (
+    CeleryTextTaskScheduler,
+)
+from src.media_processing.infrastructure.text.text_extractor import TextExtractor
+from src.media_processing.infrastructure.text.ocr_provider import OCRProvider
 from src.media_processing.application.services.video_processing_service import (
     VideoProcessingService,
 )
@@ -122,6 +130,15 @@ def build_media_components(
         event_bus=event_bus,
     )
 
+    text_extraction_service = TextExtractionService(
+        repository=transcription_repository,
+        task_scheduler=CeleryTextTaskScheduler(),
+        storage_service=transcription_storage_service,
+        event_bus=event_bus,
+        text_extractor=TextExtractor(),
+        ocr_provider=OCRProvider(),
+    )
+
     video_processing_service = VideoProcessingService(
         video_audio_extractor=FFmpegVideoAudioExtractor(),
         video_thumbnail_generator=FFmpegVideoThumbnailGenerator(),
@@ -135,6 +152,7 @@ def build_media_components(
     processing_service = MediaProcessingService(
         transcription_service=transcription_service,
         video_service=video_processing_service,
+        text_extraction_service=text_extraction_service,
         transcription_metrics=transcription_metrics,
         video_metrics=video_metrics,
         provider_registry=provider_registry,
