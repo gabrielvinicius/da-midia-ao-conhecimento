@@ -127,6 +127,7 @@ def build_media_components(
         video_thumbnail_generator=FFmpegVideoThumbnailGenerator(),
         video_processing_task_scheduler=CeleryVideoProcessingTaskScheduler(),
         storage_factory=storage_service_factory,
+        event_bus=event_bus,
     )
 
     video_metrics = PrometheusVideoProcessingMetrics()

@@ -18,7 +18,12 @@ from src.media_processing.infrastructure.transcription.task_scheduler import (
     CeleryTranscriptionTaskScheduler,
 )
 from src.shared.infrastructure.event_bus import SupportsEventBus
-from src.shared.domain.events import TranscriptionCompleted, TranscriptionFailed
+import asyncio
+import os
+import tempfile
+from pathlib import Path
+from src.shared.domain.events import TranscriptionCompleted, TranscriptionFailed, MediaProcessingStarted
+from src.storage.domain.value_objects.file_path import FilePath
 from src.media_processing.infrastructure.transcription.logging import (
     StructuredTranscriptionLogger,
 )
@@ -61,6 +66,59 @@ class TranscriptionService:
         self._speech_recognizer_factory = speech_recognizer_factory
         self._media_queries = media_queries
         self._event_bus = event_bus
+
+    async def execute_transcription(
+        self,
+        transcription_id: UUID,
+        media_id: UUID,
+        file_path: str,
+        storage_provider: str,
+        transcription_provider: str,
+        language: str,
+        summarization_provider: Optional[str] = None,
+        sentiment_provider: Optional[str] = None,
+        topic_modeling_provider: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Executes the transcription process: download, transcribe, and publish results."""
+        if self._event_bus:
+            await self._event_bus.publish(MediaProcessingStarted(media_id=str(media_id)))
+
+        # Retrieve File
+        content = await self._storage.retrieve(FilePath(file_path))
+        if not content:
+             raise ResourceNotFoundError("File", file_path)
+
+        # Write to temp
+        suffix = Path(file_path).suffix or ".mp3"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+            
+        try:
+            recognizer = self._speech_recognizer_factory(transcription_provider)
+            # Support both sync and async recognizers
+            if asyncio.iscoroutinefunction(recognizer.transcribe):
+                result = await recognizer.transcribe(tmp_path, language=language)
+            else:
+                result = await asyncio.to_thread(recognizer.transcribe, tmp_path, language=language)
+            
+            # Inject downstream provider preferences into result metadata for the event
+            result["summarization_provider"] = summarization_provider
+            result["sentiment_provider"] = sentiment_provider
+            result["topic_modeling_provider"] = topic_modeling_provider
+
+            await self.process_transcription_result(
+                transcription_id, media_id, result, transcription_provider, success=True
+            )
+            return result
+        except Exception as exc:
+            await self.process_transcription_result(
+                transcription_id, media_id, {}, transcription_provider, success=False, error_message=str(exc)
+            )
+            raise
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     async def request_transcription_generation(self, command: RequestTranscriptionCommand) -> Dict[str, Any]:
         """Orchestrates the process of requesting a new transcription."""

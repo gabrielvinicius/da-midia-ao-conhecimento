@@ -6,6 +6,8 @@ from uuid import UUID
 
 import structlog
 
+from src.shared.infrastructure.event_bus import SupportsEventBus
+from src.shared.domain.events import AudioExtracted
 from src.media_processing.infrastructure.video_processing.metrics import (
     PrometheusVideoProcessingMetrics,
 )
@@ -33,6 +35,7 @@ class VideoProcessingService:
         storage_factory: StorageServiceFactory,
         default_storage_provider: str = "local",
         video_processing_metrics: Optional[PrometheusVideoProcessingMetrics] = None,
+        event_bus: Optional[SupportsEventBus] = None,
     ):
         self.audio_extractor = video_audio_extractor
         self.thumbnail_generator = video_thumbnail_generator
@@ -40,6 +43,7 @@ class VideoProcessingService:
         self._storage_factory = storage_factory
         self._default_storage_provider = default_storage_provider
         self._metrics = video_processing_metrics
+        self._event_bus = event_bus
 
     async def request_video_processing(
         self, media_id: UUID, file_path: str, storage_provider: str
@@ -103,6 +107,15 @@ class VideoProcessingService:
                 filename=file_path,
                 output_format="wav",
             )
+            
+            if self._event_bus and audio_result.get("success"):
+                await self._event_bus.publish(
+                    AudioExtracted(
+                        media_id=str(media_id),
+                        audio_file_path=audio_result.get("audio_file_path", ""),
+                        storage_provider=provider
+                    )
+                )
 
             thumbnail_result = await self.thumbnail_generator.generate_thumbnail(
                 video_data=video_data,
