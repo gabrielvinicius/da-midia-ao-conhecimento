@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     app_name: str = "video-summarizer"
     app_env: str = "development"
     debug: bool = False
-    
+    LIGHTWEIGHT_BOOTSTRAP: bool = False
+
     # Database
     database_url: str = "sqlite+aiosqlite:///./app.db"
     db_echo: bool = False
@@ -39,7 +40,7 @@ class Settings(BaseSettings):
     minio_bucket_name: str = "video-summarizer"
     minio_secure: bool = False
 
-    # Providers
+    # Providers (global defaults only; per-context allowlists live in each context)
     transcription_default_provider: str = "whisper"
     summarization_default_provider: str = "openai"
     sentiment_default_provider: str = "vader"

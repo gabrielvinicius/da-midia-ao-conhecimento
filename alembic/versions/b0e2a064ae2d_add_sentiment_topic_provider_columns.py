@@ -11,7 +11,8 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = "b0e2a064ae2d"
-down_revision: Union[str, None] = "afdbd95c1bf6"
+# Legacy migration afdbd95c1bf6 was removed; make this the base of the chain.
+down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

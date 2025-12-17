@@ -4,8 +4,10 @@ from typing import Optional
 
 import structlog
 
+from src.shared.infrastructure.observability.ports import LoggerPort
 
-class StructuredTranscriptionLogger:
+
+class StructuredTranscriptionLogger(LoggerPort):
     """Structured logging implementation for transcription operations.
     Follows SRP - only responsible for logging.
     """
@@ -20,7 +22,8 @@ class StructuredTranscriptionLogger:
         provider: str,
         success: bool,
         duration: float,
-        error: Optional[Exception] = None
+        error: Optional[Exception] = None,
+        **extra,
     ) -> None:
         """Log transcription operation with structured data."""
         log_data = {
@@ -40,17 +43,27 @@ class StructuredTranscriptionLogger:
 
         if success:
             self._logger.info(
-                f"Transcription operation {operation} completed successfully",
+                "Transcription operation completed successfully",
                 **log_data
             )
         else:
             self._logger.error(
-                f"Transcription operation {operation} failed",
+                "Transcription operation failed",
                 **log_data
             )
 
+    # Synchronous helpers for compatibility
+    def info(self, message: str, **kwargs) -> None:
+        self._logger.info(message, **kwargs)
 
-class NoOpTranscriptionLogger:
+    def warning(self, message: str, **kwargs) -> None:
+        self._logger.warning(message, **kwargs)
+
+    def error(self, message: str, **kwargs) -> None:
+        self._logger.error(message, **kwargs)
+
+
+class NoOpTranscriptionLogger(LoggerPort):
     """No-operation logger for testing or when logging is disabled.
     Follows Null Object pattern.
     """
@@ -62,7 +75,17 @@ class NoOpTranscriptionLogger:
         provider: str,
         success: bool,
         duration: float,
-        error: Optional[Exception] = None
+        error: Optional[Exception] = None,
+        **extra,
     ) -> None:
         """No-op implementation."""
         pass
+
+    def info(self, message: str, **kwargs) -> None:
+        return None
+
+    def warning(self, message: str, **kwargs) -> None:
+        return None
+
+    def error(self, message: str, **kwargs) -> None:
+        return None

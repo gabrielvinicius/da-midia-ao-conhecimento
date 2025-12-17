@@ -1,7 +1,5 @@
 # src/shared/infrastructure/cache.py
-"""Sistema de cache Redis inteligente com múltiplas estratégias.
-Suporte a TTL, invalidação automática e cache distribuído.
-"""
+"""Cliente Redis assíncrono com TTLs configuráveis e invalidação por namespace."""
 
 import json
 import pickle
@@ -223,10 +221,17 @@ class RedisCache:
                 "allowed": True,
                 "count": 0,
                 "remaining": limit,
-                "reset_time": int(time.time()) + window
+                "reset_time": int(time.time()) + window,
             }
 
-    async def increment(self, prefix: str, key: str, amount: int = 1, ttl: int = CacheConfig.DEFAULT_TTL, **kwargs) -> int:
+    async def increment(
+        self,
+        prefix: str,
+        key: str,
+        amount: int = 1,
+        ttl: int = CacheConfig.DEFAULT_TTL,
+        **kwargs,
+    ) -> int:
         """Incrementa um contador no cache."""
         if not self.is_connected:
             await self.connect()
@@ -242,11 +247,20 @@ class RedisCache:
             results = await pipe.execute()
             new_value = results[0]
 
-            logger.debug("Cache increment", key=cache_key, amount=amount, new_value=new_value)
+            logger.debug(
+                "Cache increment",
+                key=cache_key,
+                amount=amount,
+                new_value=new_value,
+            )
             return new_value
 
         except Exception as e:
-            logger.error("Cache increment error", key=cache_key, error=str(e))
+            logger.error(
+                "Cache increment error",
+                key=cache_key,
+                error=str(e),
+            )
             return 0
 
 
@@ -281,7 +295,9 @@ class CacheManager:
 
     # === Cache de Mídia ===
 
-    async def get_media(self, media_id: str, include_relations: bool = False) -> Optional[Dict]:
+    async def get_media(
+        self, media_id: str, include_relations: bool = False
+    ) -> Optional[Dict]:
         """Cache de dados de mídia."""
         return await self.cache.get(
             CacheConfig.PREFIXES["media"],
@@ -289,7 +305,12 @@ class CacheManager:
             relations=include_relations
         )
 
-    async def set_media(self, media_id: str, media_data: Dict, include_relations: bool = False) -> bool:
+    async def set_media(
+        self,
+        media_id: str,
+        media_data: Dict,
+        include_relations: bool = False,
+    ) -> bool:
         """Cache de dados de mídia."""
         return await self.cache.set(
             CacheConfig.PREFIXES["media"],
@@ -306,7 +327,9 @@ class CacheManager:
 
     # === Rate Limiting ===
 
-    async def check_rate_limit(self, identifier: str, limit: int, window: int = 60) -> dict:
+    async def check_rate_limit(
+        self, identifier: str, limit: int, window: int = 60
+    ) -> dict:
         """Check rate limit using the underlying cache's rate limiting functionality."""
         return await self.cache.check_rate_limit(identifier, limit, window)
 

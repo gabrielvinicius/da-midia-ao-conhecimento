@@ -1,24 +1,24 @@
-import asyncio
+import os
+import sys
 from logging.config import fileConfig
 
 from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
-from sqlalchemy.ext.asyncio import AsyncEngine
 
 from alembic import context
 
-# ---------- Importe todos os modelos aqui ----------
-# Import all models to ensure they are registered with SQLAlchemy
-from src.shared.infrastructure.database import Base  # Importar a Base
-from src.shared.infrastructure.config.settings import settings
+# Ensure project root is on sys.path
+sys.path.append(os.getcwd())
 
-# Import all INFRASTRUCTURE MODELS to ensure they are registered with the Base metadata
-# Note: Do NOT import Domain Entities here; they are not SQLAlchemy models.
-import src.user_management.infrastructure.user_model
-import src.media_management.infrastructure.persistence
-import src.media_processing.infrastructure.transcription.transcription_model
-import src.notifications.infrastructure.models
-import src.text_analysis.infrastructure.repository_sqlalchemy
+# ---------- Register all models here ----------
+# Infrastructure models (SQLAlchemy)
+import src.media_management.infrastructure.persistence.models  # noqa: F401
+import src.media_processing.infrastructure.persistence.models  # noqa: F401
+import src.notifications.infrastructure.persistence.models  # noqa: F401
+import src.text_analysis.infrastructure.repositories.sqlalchemy_analysis_repository  # noqa: F401
+import src.user_management.infrastructure.persistence.models  # noqa: F401
+from src.shared.infrastructure.config.settings import settings
+from src.shared.infrastructure.database import Base  # SQLAlchemy Base
 
 # ---------------------------------------------------
 
@@ -29,8 +29,14 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Mantém a URL original com +asyncpg
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Derive URL síncrona para o Alembic (evita drivers async).
+_db_url = settings.database_url
+if "+asyncpg" in _db_url:
+    _db_url = _db_url.replace("+asyncpg", "+psycopg2")
+elif "+aiosqlite" in _db_url:
+    _db_url = _db_url.replace("+aiosqlite", "")
+
+config.set_main_option("sqlalchemy.url", _db_url)
 
 # Define os metadados para o Alembic detectar as mudanças
 target_metadata = Base.metadata
@@ -48,29 +54,23 @@ def run_migrations_offline():
         context.run_migrations()
 
 
-async def run_migrations_online():
-    connectable = AsyncEngine(
-        engine_from_config(
-            config.get_section(config.config_ini_section),
-            prefix="sqlalchemy.",
-            poolclass=pool.NullPool,
-            future=True,
-        )
+def run_migrations_online():
+    connectable = engine_from_config(
+        config.get_section(config.config_ini_section),
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+        future=True,
     )
 
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
+    with connectable.connect() as connection:
+        context.configure(connection=connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
 
-    await connectable.dispose()
-
-
-def do_run_migrations(connection):
-    context.configure(connection=connection, target_metadata=target_metadata)
-    with context.begin_transaction():
-        context.run_migrations()
+    connectable.dispose()
 
 
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    asyncio.run(run_migrations_online())
+    run_migrations_online()

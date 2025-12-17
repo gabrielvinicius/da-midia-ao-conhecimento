@@ -9,11 +9,14 @@ from typing import Optional
 class TextGenerationPort(ABC):
     @abstractmethod
     def summarize_topic(
-        self, title_hint: Optional[str], content: str, keywords: list[str], language: str
+        self,
+        title_hint: Optional[str],
+        content: str,
+        keywords: list[str],
+        language: str,
     ) -> str:
         """Generate a markdown summary for a topic."""
 
     @abstractmethod
     def is_available(self) -> bool:
         """Return True if the model is available for use."""
-

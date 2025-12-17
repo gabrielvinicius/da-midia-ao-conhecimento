@@ -7,7 +7,7 @@ from collections import Counter
 from typing import List, Tuple
 
 from src.text_analysis.application.ports.topic_modeling import TopicModelingPort
-from src.text_analysis.domain.value_objects import TextChunk, Topic
+from src.text_analysis.domain import TextChunk, Topic
 
 logger = logging.getLogger(__name__)
 
@@ -27,24 +27,29 @@ class BERTopicAdapter(TopicModelingPort):
             representation_model = None
             if use_transformer_representation:
                 try:
-                    from transformers import pipeline
                     from bertopic.representation import TextGeneration
+                    from transformers import pipeline
 
                     generator = pipeline(
                         "text2text-generation",
                         model=transformer_model_name or "google/flan-t5-base",
                     )
                     representation_model = TextGeneration(generator)
-                    logger.info("Using transformer TextGeneration for topic titles.")
+                    logger.info(
+                        "Using transformer TextGeneration for topic titles."
+                    )
                 except Exception as rep_exc:  # pragma: no cover
                     logger.warning(
-                        "Transformer TextGeneration unavailable (%s). Falling back to default BERTopic.",
+                        "Transformer TextGeneration unavailable (%s). "
+                        "Falling back to default BERTopic.",
                         rep_exc,
                     )
 
             self._model = BERTopic(representation_model=representation_model)
         except Exception as exc:
-            logger.warning("BERTopic unavailable (%s). Using simple keywords fallback.", exc)
+            logger.warning(
+                "BERTopic unavailable (%s). Using simple keywords fallback.", exc
+            )
 
     def model_topics(
         self, chunks: List[TextChunk], embeddings: List[list[float]], language: str
@@ -57,7 +62,9 @@ class BERTopicAdapter(TopicModelingPort):
                 topics_out: List[Topic] = []
                 for topic_id in set(topics):
                     words = [term for term, _ in self._model.get_topic(topic_id) or []]
-                    snippets = [chunk.text for chunk, t in zip(chunks, topics) if t == topic_id]
+                    snippets = [
+                        chunk.text for chunk, t in zip(chunks, topics) if t == topic_id
+                    ]
                     topics_out.append(
                         Topic(
                             topic_id=int(topic_id),
@@ -68,7 +75,9 @@ class BERTopicAdapter(TopicModelingPort):
                             diagnostics={"probabilities": probs},
                         )
                     )
-                diagnostics = {"topics": info.to_dict() if hasattr(info, "to_dict") else {}}
+                diagnostics = {
+                    "topics": info.to_dict() if hasattr(info, "to_dict") else {}
+                }
                 return topics_out, diagnostics
             except Exception as exc:  # pragma: no cover
                 logger.error("BERTopic run failed: %s", exc)

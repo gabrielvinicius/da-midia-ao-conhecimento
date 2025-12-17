@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from src.media_processing.domain.model import TranscriptionStatus
+from src.media_processing.domain import TranscriptionStatus
 
 
 class TranscriptionResponse(BaseModel):
@@ -26,7 +26,9 @@ class TranscriptionResponse(BaseModel):
 
     @field_validator("segments", mode="before")
     @classmethod
-    def _ensure_segments_list(cls, value: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    def _ensure_segments_list(
+        cls, value: Optional[List[Dict[str, Any]]]
+    ) -> List[Dict[str, Any]]:
         if value is None:
             return []
         return value
@@ -42,4 +44,10 @@ class TranscriptionResponse(BaseModel):
 class SpeakerAliasesUpdateRequest(BaseModel):
     """Request schema for updating speaker aliases."""
 
-    aliases: Dict[str, str] = Field(..., description="Dictionary of speaker aliases (e.g., {'speaker_0': 'John Doe'})")
+    aliases: Dict[str, str] = Field(
+        ...,
+        description=(
+            "Dictionary of speaker aliases "
+            "(e.g., {'speaker_0': 'John Doe'})"
+        ),
+    )

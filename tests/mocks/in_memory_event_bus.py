@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Awaitable, Callable, DefaultDict, List, Type
 
-from src.shared.events.domain_events import DomainEvent
+from src.shared.domain.events import DomainEvent
 
 EventHandler = Callable[[DomainEvent], Awaitable[None]]
 

@@ -20,6 +20,9 @@ def configure_tracer(service_name: str):
     # Set the configured provider as the global tracer provider
     trace.set_tracer_provider(provider)
 
-    print(f"[OK] OpenTelemetry tracing configured for service '{service_name}' (Jaeger disabled)")
+    print(
+        f"[OK] OpenTelemetry tracing configured for service '{service_name}' "
+        "(Jaeger disabled)"
+    )
 
     return trace.get_tracer(__name__)

@@ -6,7 +6,7 @@ import logging
 from typing import List
 
 from src.text_analysis.application.ports.sentiment import SentimentServicePort
-from src.text_analysis.domain.value_objects import Sentiment, SentimentLabel, TextChunk
+from src.text_analysis.domain import Sentiment, SentimentLabel, TextChunk
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,9 @@ class TransformersSentimentAdapter(SentimentServicePort):
                 "sentiment-analysis", model=model_name, top_k=None
             )
         except Exception as exc:  # pragma: no cover - optional dependency
-            logger.warning("Sentiment model unavailable (%s). Using rule fallback.", exc)
+            logger.warning(
+                "Sentiment model unavailable (%s). Using rule fallback.", exc
+            )
 
     def analyze(self, chunks: List[TextChunk], language: str) -> List[Sentiment]:
         if not self._pipeline:
@@ -61,4 +63,3 @@ class TransformersSentimentAdapter(SentimentServicePort):
                 score = 0.5
             sentiments.append(Sentiment(chunk_id=chunk.id, label=label, score=score))
         return sentiments
-

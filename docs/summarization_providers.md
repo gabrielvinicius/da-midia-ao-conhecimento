@@ -24,7 +24,7 @@ export SUMMARIZATION_PROVIDER_OVERRIDES='{"huggingface": {"model_name": "google-
 * **HuggingFace**: aceitar `model_name`, `device` e limites de tokens.
 
 ## Registry Global
-- O `provider_registry` agora lista os providers acima em `/providers/summarization`.
+- O arquivo `providers.py` agora lista os providers acima em `/providers/summarization`.
 - Workers Celery carregam apenas os providers presentes em `SUMMARIZATION_ENABLED_PROVIDERS`.
 
 ## Plano de Validação

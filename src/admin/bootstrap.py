@@ -2,29 +2,45 @@
 """Helper utilities to bootstrap the admin module."""
 from dataclasses import dataclass
 
-from dependency_injector import providers
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.admin.api.dependencies import (
-    AdminDependencies,
-    get_admin_dependencies,
-)
-from src.admin.adapters import MediaManagementAdapter, UserManagementAdapter
-from src.admin.application.admin_service import AdminService
-from src.admin.application.queries.admin_queries import AdminQueries
+from src.admin.api.dependencies import AdminDependencies, get_admin_dependencies
 from src.admin.application.services.admin_audit_service import AdminAuditService
 from src.admin.application.services.admin_media_service import AdminMediaService
+from src.admin.application.services.admin_read_service import AdminReadService
+from src.admin.application.services.admin_service import AdminService
 from src.admin.application.services.admin_user_service import AdminUserService
-from src.admin.container import AdminContainer
+from src.admin.infrastructure.adapters.media_read_adapter import MediaReadAdapter
+from src.admin.infrastructure.adapters.media_repository_adapter import (
+    MediaRepositoryAdapter,
+)
+from src.admin.infrastructure.adapters.user_read_adapter import UserReadAdapter
+from src.admin.infrastructure.adapters.user_repository_adapter import (
+    UserRepositoryAdapter,
+)
+from src.admin.infrastructure.dependencies.providers import (
+    get_media_admin_adapter,
+    get_media_read_adapter,
+    get_user_admin_adapter,
+    get_user_read_adapter,
+)
 from src.media_management.application.services.media_service import MediaService
-from src.media_management.application.queries.media_queries import MediaQueries
-from src.user_management.application.auth_queries import AuthQueries
+from src.media_management.infrastructure.repositories.media_repository import (
+    MediaRepository,
+)
+from src.user_management.application.auth_queries import UserReadService
+from src.user_management.application.services.permission_service import (
+    UserPermissionService,
+)
+from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import (
+    UserRepository,
+)
 
 
 @dataclass
 class AdminModule:
-    admin_queries: AdminQueries
+    admin_queries: AdminReadService
     audit_service: AdminAuditService
     user_service: AdminUserService
     media_service: AdminMediaService
@@ -33,34 +49,52 @@ class AdminModule:
 
 def build_admin_module(
     session: AsyncSession,
-    auth_queries: AuthQueries,
-    media_queries: MediaQueries,
+    auth_queries: UserReadService,
     media_service: MediaService,
 ) -> AdminModule:
-    container = AdminContainer(db=session)
-    container.auth_queries.override(providers.Object(auth_queries))
-    container.media_queries.override(providers.Object(media_queries))
-    container.media_service.override(providers.Object(media_service))
+    # Core components (no DI container)
+    permission_service = UserPermissionService()
+    audit_service = AdminAuditService()
 
-    admin_queries = container.admin_queries()
-    audit_service = container.admin_audit_service()
-    user_service = container.admin_user_service()
-    admin_media_service = container.admin_media_service()
+    user_repo = UserRepository(db=session)
+    media_repo = MediaRepository(db=session)
+    user_repo_adapter = UserRepositoryAdapter(user_repo)
+    media_repo_adapter = MediaRepositoryAdapter(media_repo)
 
-    user_adapter = UserManagementAdapter(
+    # Read adapters via ports
+    media_read_adapter: MediaReadAdapter = get_media_read_adapter(media_repo)
+    user_read_adapter: UserReadAdapter = get_user_read_adapter(auth_queries)
+    admin_queries = AdminReadService(
+        user_read_port=user_read_adapter,
+        media_read_port=media_read_adapter,
+    )
+
+    # Services
+    user_service = AdminUserService(
+        user_repository=user_repo_adapter,
+        permission_service=permission_service,
+        audit_service=audit_service,
+    )
+    admin_media_service = AdminMediaService(
+        media_repository=media_repo_adapter,
+        permission_service=permission_service,
+        audit_service=audit_service,
+        media_service=media_service,
+    )
+
+    user_adapter = get_user_admin_adapter(
         auth_queries=auth_queries,
         admin_user_service=user_service,
     )
-    media_adapter = MediaManagementAdapter(
+    media_adapter = get_media_admin_adapter(
         media_service=media_service,
         admin_media_service=admin_media_service,
+        auth_queries=auth_queries,
     )
 
     service = AdminService(
-        admin_queries=admin_queries,
+        admin_read_service=admin_queries,
         audit_service=audit_service,
-        auth_queries=auth_queries,
-        media_queries=media_queries,
         admin_user_service=user_service,
         admin_media_service=admin_media_service,
         user_adapter=user_adapter,
@@ -71,14 +105,13 @@ def build_admin_module(
         admin_queries=admin_queries,
         audit_service=audit_service,
         user_service=user_service,
-        media_service=media_service,
+        media_service=admin_media_service,
         service=service,
     )
 
 
 def bind_admin_module(app: FastAPI, module: AdminModule) -> None:
     """Register dependency overrides for admin APIs."""
-
     app.dependency_overrides[get_admin_dependencies] = lambda: AdminDependencies(
         admin_queries=module.admin_queries,
         audit_service=module.audit_service,

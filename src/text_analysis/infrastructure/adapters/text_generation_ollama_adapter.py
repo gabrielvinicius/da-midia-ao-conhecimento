@@ -47,7 +47,11 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
         return self._available
 
     def summarize_topic(
-        self, title_hint: Optional[str], content: str, keywords: list[str], language: str
+        self,
+        title_hint: Optional[str],
+        content: str,
+        keywords: list[str],
+        language: str,
     ) -> str:
         prompt = PROMPT_TEMPLATE.format(
             title=title_hint or "Tópico",

@@ -11,11 +11,9 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from src.admin.bootstrap import build_admin_module
 from src.media_management.bootstrap import build_media_components
-from src.monitoring.bootstrap import build_monitoring_module
-from src.notifications.bootstrap import build_notification_module
-from src.providers.bootstrap import build_providers_module
-from src.providers.api.routers import router as providers_router
-from src.shared.infrastructure.observability.health.health_check import router as health_router
+from src.media_processing.application.event_handlers import MediaProcessingEventHandlers
+from src.notifications.bootstrap import build_notifications_module
+from src.shared.api.monitoring_router import router as monitoring_router
 from src.shared.application.lifecycle import (
     ApplicationResources,
     start_application_resources,
@@ -27,32 +25,51 @@ from src.shared.application.modules import (
     register_module_dependencies,
 )
 from src.shared.application.service_registry import (
-    attach_domain_services,
+    FastAPIModuleRegistry,
     build_domain_service_registry,
 )
-from src.shared.infrastructure.messaging.event_bus_factory import get_event_bus
 from src.shared.domain.events import (
     MediaUploaded,
-    NotificationRequested,
     TextContentReady,
 )
-from src.user_management.api.dependencies import get_current_user_websocket
-from src.shared.infrastructure.exceptions.exception_handlers import register_exception_handlers
 
-# from src.shared.monitoring.metrics_collector import metrics_collector  # Disabled: psutil dep
+# metrics_collector disabled (psutil dep)
 from src.shared.infrastructure.caching.cache import cache
-from src.shared.infrastructure.database.db import AsyncSessionLocal, Base, engine
-from src.shared.infrastructure.observability.logging.logging_config import configure_logging, get_logger
+from src.shared.infrastructure.database.db import (
+    AsyncSessionLocal,
+    Base,
+    engine,
+    engine_sync,
+)
+from src.shared.infrastructure.exceptions.exception_handlers import (
+    register_exception_handlers,
+)
+from src.shared.infrastructure.messaging.event_bus_factory import get_event_bus
+from src.shared.infrastructure.middleware.correlation_middleware import (
+    CorrelationIdMiddleware,
+)
+from src.shared.infrastructure.middleware.error_middleware import (
+    unified_error_middleware,
+)
+from src.shared.infrastructure.middleware.performance_middleware import (
+    register_performance_middleware,
+)
+from src.shared.infrastructure.middleware.validation_middleware import (
+    register_validation_middleware,
+)
+from src.shared.infrastructure.observability.health.health_check import (
+    router as health_router,
+)
+from src.shared.infrastructure.observability.logging.logging_config import (
+    configure_logging,
+    get_logger,
+)
 from src.shared.infrastructure.observability.tracing.tracer import configure_tracer
-from src.shared.infrastructure.middleware.correlation_middleware import CorrelationIdMiddleware
-from src.shared.infrastructure.middleware.performance_middleware import register_performance_middleware
-from src.shared.infrastructure.middleware.error_middleware import unified_error_middleware
-from src.shared.infrastructure.middleware.validation_middleware import register_validation_middleware
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.text_analysis.bootstrap import build_text_analysis_module
-
+from src.user_management.api.dependencies import get_current_user_websocket
 from src.user_management.bootstrap import build_user_management_module
-from src.user_management.domain.user import User
+from src.user_management.domain import User
 
 # Ensure Celery app is importable during API startup
 try:  # noqa: SIM105 - best-effort import
@@ -72,8 +89,9 @@ def register_domain_event_handlers(
     media_processing_service,
 ) -> None:
     """Attach domain event handlers to the bus."""
-    event_bus.subscribe(MediaUploaded, media_processing_service.handle_media_uploaded)
-    event_bus.subscribe(TextContentReady, media_processing_service.handle_text_content_ready)
+    handlers = MediaProcessingEventHandlers(media_processing_service)
+    event_bus.subscribe(MediaUploaded, handlers.handle_media_uploaded)
+    event_bus.subscribe(TextContentReady, handlers.handle_text_content_ready)
 
 
 @asynccontextmanager
@@ -94,21 +112,27 @@ async def lifespan(app: FastAPI):
     logger.info("Criando tabelas do banco de dados", component="database")
 
     try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        if lightweight_mode:
+            # Em modo leve, cria as tabelas usando o engine síncrono para evitar
+            # o overhead do driver assíncrono em testes.
+            Base.metadata.create_all(bind=engine_sync)
+        else:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
     except Exception as exc:  # pragma: no cover - bootstrap fallback for missing types
         logger.warning(
-            "database.metadata.create_all_failed",
+            "database.metadata_create_all_failed",
             error=str(exc),
         )
 
     logger.info("Inicializando módulos e compondo aplicação", component="bootstrap")
     async with AsyncSessionLocal() as session:
         storage_factory = StorageServiceFactory()
-        auth_module = build_user_management_module(session)
-        monitoring_module = build_monitoring_module(session)
-        providers_module = build_providers_module()
-        notification_module = await build_notification_module(
+        auth_module = build_user_management_module(
+            session,
+            lightweight_mode=lightweight_mode,
+        )
+        notification_module = await build_notifications_module(
             session=session,
             auth_queries=auth_module.auth_queries,
             event_bus=event_bus,
@@ -117,18 +141,16 @@ async def lifespan(app: FastAPI):
         media_module, media_admin_context = build_media_components(
             session=session,
             storage_service_factory=storage_factory,
-            metrics_service=monitoring_module.metrics_service,
+            metrics_service=None,  # monitoring removido; métricas seguem nos módulos
             event_bus=event_bus,
             emit_legacy_media_task=not lightweight_mode,
-            provider_registry=providers_module.provider_registry,
         )
 
         if not lightweight_mode:
             text_analysis_module = await build_text_analysis_module(
                 session=session,
-                provider_registry=providers_module.provider_registry,
                 event_bus=event_bus,
-                transcription_queries=media_module.transcription_queries, # Injected dependency
+                transcription_queries=media_module.transcription_queries,
             )
         else:
             logger.warning("text_analysis.bootstrap_skipped", reason="lightweight_mode")
@@ -137,89 +159,92 @@ async def lifespan(app: FastAPI):
         admin_module = build_admin_module(
             session=session,
             auth_queries=auth_module.auth_queries,
-            media_queries=media_module.media_service,
             media_service=media_module.media_service,
         )
 
-        module_instances = {
-            "auth": auth_module,
-            "monitoring": monitoring_module,
-            "media": media_module,
-            "notifications": notification_module,
-            "providers": providers_module,
-            "admin": admin_module,
-        }
-        if text_analysis_module is not None:
-            module_instances["text_analysis"] = text_analysis_module
+    module_instances = {
+        "auth": auth_module,
+        "media": media_module,
+        "notifications": notification_module,
+        "admin": admin_module,
+    }
+    if text_analysis_module is not None:
+        module_instances["text_analysis"] = text_analysis_module
 
-        register_module_dependencies(
-            app,
-            module_instances=module_instances,
-            specs=DEFAULT_MODULE_SPECS,
-        )
-        domain_registry = build_domain_service_registry(
-            user_management=auth_module,
-            media_management=media_module,
-            text_analysis=text_analysis_module,
-        )
-        attach_domain_services(app, domain_registry)
-        resources = ApplicationResources(cache=cache, event_bus=event_bus)
+    register_module_dependencies(
+        app,
+        module_instances=module_instances,
+        specs=DEFAULT_MODULE_SPECS,
+    )
 
-        register_domain_event_handlers(
-            event_bus,
-            media_processing_service=media_module.processing_service,
-        )
+    domain_registry = build_domain_service_registry(
+        user_management=auth_module,
+        media_management=media_module,
+        media_processing=media_module.processing_service,
+        text_analysis=text_analysis_module,
+    )
+    FastAPIModuleRegistry(domain_registry).attach(app)
+    resources = ApplicationResources(cache=cache, event_bus=event_bus)
 
-        default_admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "user@example.com").strip()
-        default_admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "Admin123!")
-        force_admin_password = (
-            os.getenv("DEFAULT_ADMIN_FORCE_PASSWORD", "0").lower() in {"1", "true", "yes"}
-        )
+    register_domain_event_handlers(
+        event_bus,
+        media_processing_service=media_module.processing_service,
+    )
 
-        if default_admin_email and default_admin_password:
-            try:
-                admin_user = await auth_module.user_service.ensure_admin_user(
-                    email=default_admin_email,
-                    default_password=default_admin_password,
-                    force_password_reset=force_admin_password,
-                )
-                logger.info(
-                    "auth.ensure_admin.success",
-                    email=default_admin_email,
-                    user_id=str(admin_user.id),
-                    force_password_reset=force_admin_password,
-                )
-            except Exception as exc:  # pragma: no cover - defensive guard
-                logger.warning(
-                    "auth.ensure_admin.failed",
-                    email=default_admin_email,
-                    error=str(exc),
-                )
+    default_admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "user@example.com").strip()
+    default_admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "Admin123!")
+    force_admin_password = (
+        os.getenv("DEFAULT_ADMIN_FORCE_PASSWORD", "0").lower() in {"1", "true", "yes"}
+    )
 
+    if not lightweight_mode and default_admin_email and default_admin_password:
+        try:
+            admin_user = await auth_module.user_service.ensure_admin_user(
+                email=default_admin_email,
+                default_password=default_admin_password,
+                force_password_reset=force_admin_password,
+            )
+            logger.info(
+                "auth.ensure_admin.success",
+                email=default_admin_email,
+                user_id=str(admin_user.id),
+                force_password_reset=force_admin_password,
+            )
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.warning(
+                "auth.ensure_admin.failed",
+                email=default_admin_email,
+                error=str(exc),
+            )
+
+    if not lightweight_mode:
         logger.info("Inicializando recursos compartilhados", component="bootstrap")
         try:
             await start_application_resources(resources)
         except Exception as exc:  # pragma: no cover - ignore infrastructure missing
             logger.warning("application_resources.start_failed", error=str(exc))
 
-        logger.info("Aplicação iniciada com sucesso", component="startup")
-        try:
-            yield
-        finally:
-            logger.info("Finalizando recursos", component="shutdown")
+    logger.info("Aplicação iniciada com sucesso", component="startup")
+    try:
+        yield
+    finally:
+        logger.info("Finalizando recursos", component="shutdown")
+        if not lightweight_mode:
             try:
                 await stop_application_resources(resources)
             except Exception as exc:  # pragma: no cover
                 logger.warning("application_resources.stop_failed", error=str(exc))
+        if engine is not None:
             await engine.dispose()
-            logger.info("Aplicação finalizada", component="shutdown")
+        logger.info("Aplicação finalizada", component="shutdown")
 
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Media Processing API",
         description=(
-            "API for uploading, transcribing, and summarizing media files (video, audio, text)"
+            "API for uploading, transcribing, and summarizing media files "
+            "(video, audio, text)"
         ),
         version="2.0.0",
         lifespan=lifespan,
@@ -266,15 +291,18 @@ def create_app() -> FastAPI:
             "Authorization",
             "X-CSRF-Token",  # Permitir header CSRF
             "X-Requested-With",
-            "X-Correlation-ID", # Permitir header de correlação
+            "X-Correlation-ID",  # Permitir header de correlação
         ],
-        expose_headers=["X-CSRF-Token", "X-Correlation-ID"],  # Expor CSRF e Correlation ID
+        expose_headers=[
+            "X-CSRF-Token",
+            "X-Correlation-ID",
+        ],  # Expor CSRF e Correlation ID
     )
 
     # --- Route Registration ---
     include_module_routers(app, specs=DEFAULT_MODULE_SPECS)
-    app.include_router(providers_router)
     app.include_router(health_router)
+    app.include_router(monitoring_router)
 
     # Add WebSocket endpoints for real-time notifications
     @app.websocket("/ws/notifications")

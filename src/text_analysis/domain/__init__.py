@@ -1,18 +1,7 @@
-"""Domain layer exports."""
-
-from .entities import Analysis, Document
-from .errors import DomainError, EmptyTextError, InvalidSegmentError
-from .value_objects import Sentiment, SentimentLabel, TextChunk, Topic
+from src.text_analysis.domain.entities.document import Document, Analysis
+from src.text_analysis.domain.entities.sentiment import Sentiment, SentimentLabel, TextChunk
+from src.text_analysis.domain.entities.topic import Topic
 
 __all__ = [
-    "Analysis",
-    "Document",
-    "DomainError",
-    "EmptyTextError",
-    "InvalidSegmentError",
-    "Sentiment",
-    "SentimentLabel",
-    "TextChunk",
-    "Topic",
+    'Document', 'Analysis', 'Sentiment', 'SentimentLabel', 'TextChunk', 'Topic'
 ]
-

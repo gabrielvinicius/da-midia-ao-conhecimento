@@ -1,8 +1,12 @@
 # Project Context: Video Summarizer (Modular Monolith)
 
-> **Last Updated:** 2025-12-04
+> **Last Updated:** 2025-12-12
 > **Architecture:** Modular Monolith (DDD + Clean Architecture)
 > **Status:** Stable, Refactored, Event-Driven
+
+**Notas recentes**
+- Rota de monitoring/health centralizada em `shared/api/monitoring_router.py`; módulo `monitoring/` removido.
+- Storage segue ports em `storage/application/ports.py` e adapters em `storage/infrastructure/adapters/` (sem `providers/`).
 
 ---
 

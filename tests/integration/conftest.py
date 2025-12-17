@@ -1,100 +1,104 @@
-from types import SimpleNamespace
-from unittest.mock import MagicMock
+import os
 
 import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
 
-import main
-from src.shared.infrastructure.config.settings import Settings
+from main import app
+from src.media_management.api.dependencies import get_media_service
+from src.media_management.application.services.media_read_service import MediaReadService
+from src.media_management.application.services.media_service import MediaService
+from src.media_management.application.services.validators import MediaUploadValidator
+from src.media_management.config.settings import media_settings
+from src.media_management.infrastructure.adapters.storage_uploader_adapter import (
+    DefaultUploadMetadataMapper,
+)
+from src.user_management.api.dependencies import AuthDependencies, get_auth_dependencies
+from src.user_management.api.dependencies import get_auth_service, get_user_service
+from tests.mocks.fake_auth import build_fake_auth, seed_default_user
+from tests.mocks.fake_media_repository import FakeMediaRepository
+from tests.mocks.fake_storage_uploader import FakeStorageUploadAdapter, FakeStorageUploader
+from tests.mocks.in_memory_event_bus import InMemoryEventBus
+from tests.mocks.in_memory_storage import InMemoryStorage
+
+
+@pytest_asyncio.fixture
+async def client():
+    """HTTPX client bound to the FastAPI app for integration tests, com fakes in-memory."""
+    async with app.router.lifespan_context(app):
+        # Override dependências após o bootstrap real para manter fakes
+        auth_service, user_service, auth_queries, user_repo = build_fake_auth()
+
+        class _FakeUserService:
+            async def register_user(self, cmd):
+                return {
+                    "success": True,
+                    "user": {
+                        "id": "00000000-0000-0000-0000-000000000001",
+                        "email": cmd.email,
+                        "role": "user",
+                    },
+                }
+
+            async def authenticate_user(self, email, password):
+                return {"token": f"fake-{email}"}
+
+            user_read_service = user_service.user_read_service
+
+        class _FakeAuthService:
+            async def authenticate_user(self, email, password):
+                return {"token": f"fake-{email}"}
+
+        app.dependency_overrides[get_auth_dependencies] = lambda: AuthDependencies(
+            user_service=user_service,
+            auth_service=auth_service,
+            auth_queries=auth_queries,
+            settings=user_service.settings,
+        )
+        app.dependency_overrides[get_user_service] = lambda: _FakeUserService()
+        app.dependency_overrides[get_auth_service] = lambda: _FakeAuthService()
+
+        storage = InMemoryStorage()
+        storage_uploader = FakeStorageUploader(FakeStorageUploadAdapter(storage))
+        metadata_mapper = DefaultUploadMetadataMapper()
+        media_repo = FakeMediaRepository()
+        media_read_service = MediaReadService(media_repo)
+        fake_event_bus = InMemoryEventBus()
+        media_service = MediaService(
+            media_repository=media_repo,
+            storage_uploader=storage_uploader,
+            metadata_mapper=metadata_mapper,
+            metrics_service=fake_event_bus,  # no-op metrics
+            upload_validator=MediaUploadValidator(media_settings),
+            media_read_service=media_read_service,
+            event_bus=fake_event_bus,
+            emit_legacy_task=False,
+            storage_maintenance=None,
+            transcription_cleanup=None,
+        )
+        app.dependency_overrides[get_media_service] = lambda: media_service
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            # Seed default user and auth header
+            user = await seed_default_user(user_service, "test@example.com", "Password123")
+            token = auth_service.user_service.token_provider.create_access_token(user.id)
+            c.headers["Authorization"] = f"Bearer {token}"
+            yield c
+
+
+@pytest_asyncio.fixture
+async def authenticated_user(client):
+    """Mantido para compatibilidade; já há Authorization header no client."""
+    return None
 
 
 @pytest.fixture(autouse=True)
 def enable_lightweight_mode(monkeypatch) -> None:
-    """Use lightweight bootstrap during tests to avoid external services."""
+    """Use lightweight bootstrap during integration tests to avoid real infra."""
     monkeypatch.setenv("LIGHTWEIGHT_BOOTSTRAP", "1")
-
-    # Stub optional modules that aren't needed for these assertions.
-    monkeypatch.setattr(
-        main,
-        "build_notification_module",
-        lambda *args, **kwargs: SimpleNamespace(service=None, queries=None),
-    )
-    monkeypatch.setattr(
-        main,
-        "build_providers_module",
-        lambda *args, **kwargs: SimpleNamespace(provider_registry=None),
-    )
-
-    dummy_monitoring = SimpleNamespace(
-        metrics_service=object(),
-        analytics_queries=object(),
-    )
-    monkeypatch.setattr(
-        main,
-        "build_monitoring_module",
-        lambda *args, **kwargs: dummy_monitoring,
-    )
-
-    class DummyProcessingService:
-        async def handle_media_uploaded(self, *_args, **_kwargs):
-            return None
-
-        async def handle_text_content_ready(self, *_args, **_kwargs):
-            return None
-
-    dummy_media_module = SimpleNamespace(
-        queries=object(),
-        service=object(),
-        facade=object(),
-        transcription_service=object(),
-        transcription_queries=object(),
-        processing_service=DummyProcessingService(),
-        video_processing_service=object(),
-    )
-    dummy_media_admin = SimpleNamespace(
-        queries=object(),
-        facade=object(),
-    )
-    monkeypatch.setattr(
-        main,
-        "build_media_components",
-        lambda *args, **kwargs: (dummy_media_module, dummy_media_admin),
-    )
-
-    dummy_user_module = MagicMock()
-    dummy_user_module.auth_service = object()
-    dummy_user_module.auth_queries = object()
-    dummy_user_module.user_service = object()
-    dummy_user_module.settings = Settings()
-    monkeypatch.setattr(
-        main,
-        "build_user_management_module",
-        lambda *args, **kwargs: dummy_user_module,
-    )
-
-    class _DummyConn:
-        async def run_sync(self, _fn):
-            return None
-
-    class _DummyEngineContext:
-        async def __aenter__(self):
-            return _DummyConn()
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-    class _DummyEngine:
-        def begin(self):
-            return _DummyEngineContext()
-
-        async def dispose(self):
-            return None
-
-    class _DummySessionContext:
-        async def __aenter__(self):
-            return SimpleNamespace()
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-    monkeypatch.setattr(main, "AsyncSessionLocal", lambda *args, **kwargs: _DummySessionContext())
-    monkeypatch.setattr(main, "engine", _DummyEngine())
+    monkeypatch.setenv("USER_LIGHTWEIGHT_MODE", "1")
+    monkeypatch.setenv("CELERY_BROKER_URL", "memory://")
+    monkeypatch.setenv("CELERY_RESULT_BACKEND", "cache+memory://")
+    monkeypatch.setenv("CELERY_TASK_ALWAYS_EAGER", "1")
+    monkeypatch.setenv("CELERY_TASK_EAGER_PROPAGATES", "1")

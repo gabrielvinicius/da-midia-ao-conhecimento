@@ -54,7 +54,7 @@ This project is a practical implementation of several advanced software architec
 - **Data Persistence**: PostgreSQL (with SQLAlchemy & Alembic)
 - **Asynchronous Tasks & Messaging**: Celery, Redis
 - **Object Storage**: MinIO (S3-compatible), Local File System
-- **Observability**: OpenTelemetry, Jaeger, Prometheus
+- **Observability**: OpenTelemetry, Jaeger, Prometheus (health em `shared/api/monitoring_router.py`)
 - **Containerization**: Docker, Docker Compose
 
 ## Getting Started
@@ -66,7 +66,7 @@ This project is a practical implementation of several advanced software architec
 
 ### 2. Environment Setup
 
-Copy the example environment file for the backend. The default values are configured to work with the local Docker Compose setup.
+Copy the example environment file for the backend. The default values are configured to work with the local Docker Compose setup (database host `postgres`; if you run the API outside Docker, override `DB_HOST=localhost` in your shell).
 
 ```bash
 cp .env.example .env
@@ -119,6 +119,14 @@ docker compose exec backend python -m pytest test_app.py test_main_import.py \
 ```
 
 Se adicionar novos arquivos de teste sob `tests/`, basta referenciá-los no comando acima. Caso precise atualizar dependências de teste, edite `requirements.txt` e reconstrua as imagens com `docker compose up --build backend worker`.
+
+### Pytest markers e atalhos
+
+- Markers configurados: `smoke` (rápidos, sem deps externas) e `integration` (tocam infra real/doubles dedicados).
+- Atalhos (Makefile):
+  - `make test-unit` → pytest tests/unit
+  - `make test-smoke` → pytest -m smoke tests/smoke
+  - `make test-integration` → pytest -m integration tests/integration
 
 ## Core API Overview
 

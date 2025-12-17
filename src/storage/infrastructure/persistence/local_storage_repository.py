@@ -3,18 +3,18 @@ from __future__ import annotations
 
 import asyncio
 import mimetypes
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Union
 from uuid import uuid4
 
+from src.storage.application.ports import StorageRepositoryPort
 from src.storage.domain.entities.file_metadata import FileMetadata
-from src.storage.domain.repositories.storage_repository import StorageRepository
 from src.storage.domain.value_objects.file_path import FilePath
 from src.storage.domain.value_objects.file_size import FileSize
 
 
-class LocalStorageService(StorageRepository):
+class LocalStorageService(StorageRepositoryPort):
     """Persist files on the local filesystem using asynchronous wrappers."""
 
     def __init__(self, root_directory: Union[str, Path] = "storage") -> None:
@@ -29,22 +29,22 @@ class LocalStorageService(StorageRepository):
     async def store(self, file_path: FilePath, content: bytes) -> FileMetadata:
         """Store file and return metadata."""
         destination = self._resolve_path(file_path)
-        
+
         try:
             await asyncio.to_thread(self._write_file, destination, content)
-            
+
             # Create metadata
             stat = destination.stat()
             size = FileSize(stat.st_size)
             mime_type, _ = mimetypes.guess_type(destination)
-            
+
             return FileMetadata(
                 id=uuid4(),
                 file_path=file_path,
                 size=size,
                 content_type=mime_type or "application/octet-stream",
-                created_at=datetime.utcfromtimestamp(stat.st_ctime),
-                updated_at=datetime.utcfromtimestamp(stat.st_mtime)
+                created_at=datetime.fromtimestamp(stat.st_ctime, timezone.utc),
+                updated_at=datetime.fromtimestamp(stat.st_mtime, timezone.utc)
             )
         except Exception as exc:
             raise Exception(f"Failed to store file {file_path}: {exc}") from exc
@@ -79,19 +79,19 @@ class LocalStorageService(StorageRepository):
         target = self._resolve_path(file_path)
         if not target.exists():
             return None
-            
+
         try:
             stat = await asyncio.to_thread(target.stat)
             size = FileSize(stat.st_size)
             mime_type, _ = mimetypes.guess_type(target)
-            
+
             return FileMetadata(
                 id=uuid4(), # Local files don't have persistent IDs, generate one
                 file_path=file_path,
                 size=size,
                 content_type=mime_type or "application/octet-stream",
-                created_at=datetime.utcfromtimestamp(stat.st_ctime),
-                updated_at=datetime.utcfromtimestamp(stat.st_mtime)
+                created_at=datetime.fromtimestamp(stat.st_ctime, timezone.utc),
+                updated_at=datetime.fromtimestamp(stat.st_mtime, timezone.utc)
             )
         except Exception as exc:
              raise Exception(f"Failed to get metadata for {file_path}: {exc}") from exc
@@ -101,7 +101,7 @@ class LocalStorageService(StorageRepository):
         base_dir = self._root
         if prefix:
             base_dir = base_dir / prefix
-        
+
         if not base_dir.exists():
             return []
 
@@ -121,7 +121,7 @@ class LocalStorageService(StorageRepository):
     def _resolve_path(self, file_path: FilePath) -> Path:
         path = file_path.to_path()
         if path.is_absolute():
-            # Security check: ensure it's within root if needed, 
+            # Security check: ensure it's within root if needed,
             # but for now assuming trusted input or purely local
             return path
         return self._root / path

@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from src.user_management.domain.user import UserRole
+from src.user_management.domain import UserRole
 
 
 class UserUpdateRequest(BaseModel):

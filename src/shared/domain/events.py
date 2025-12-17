@@ -1,234 +1,148 @@
-"""Core domain event definitions used across the application."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import Any, Dict, Optional
 from uuid import UUID, uuid4
 
 
-@dataclass(frozen=True, slots=True)
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+@dataclass
 class DomainEvent:
-    """Base value-object for all domain events."""
+    """Base event with minimal envelope metadata."""
 
     event_id: UUID = field(default_factory=uuid4)
-    occurred_at: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    occurred_at: datetime = field(default_factory=_now)
     correlation_id: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def event_name(self) -> str:
-        """Convenience snake_case identifier derived from the class name."""
-        name = self.__class__.__name__
-        parts = []
-        for index, char in enumerate(name):
-            if char.isupper() and index > 0:
-                parts.append("_")
-            parts.append(char.lower())
-        return "".join(parts)
+        return self.__class__.__name__
 
     def with_metadata(self, **extra: Any) -> "DomainEvent":
-        """Return a new event instance enriched with metadata."""
         merged = {**self.metadata, **extra}
-        return replace(self, metadata=merged)
+        return type(self)(**{**self.__dict__, "metadata": merged})
 
 
-@dataclass(frozen=True, slots=True)
+# --- Core media events ---
+@dataclass
 class MediaUploaded(DomainEvent):
-    """Event emitted when a media asset is uploaded."""
-
     media_id: str = ""
-    user_id: str = ""
-    storage_provider: Optional[str] = None
+    user_id: Optional[str] = None
     filename: Optional[str] = None
-    media_type: Optional[Any] = None
+    media_type: Optional[str] = None
+    storage_provider: Optional[str] = None
     transcription_provider: Optional[str] = None
     summarization_provider: Optional[str] = None
     sentiment_provider: Optional[str] = None
     topic_modeling_provider: Optional[str] = None
-    language: Optional[str] = None
+    file_path: Optional[str] = None
     file_size_bytes: Optional[int] = None
-
-
-@dataclass(frozen=True, slots=True)
-class TextContentReady(DomainEvent):
-    """Event emitted when textual artefacts derived from media are ready."""
-
-    media_id: str = ""
-    transcription_id: Optional[str] = None
-    summary_id: Optional[str] = None
-    sentiment_id: Optional[str] = None
-    text_content: Optional[str] = None
-
-
-@dataclass(frozen=True, slots=True)
-class NotificationRequested(DomainEvent):
-    """Event emitted when a notification request is registered."""
-
-    user_id: str = ""
-    message: str = ""
-    notification_type: str = ""
-    contact_info: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True, slots=True)
-class SentimentAnalysisCompleted(DomainEvent):
-    """Event emitted when sentiment analysis concludes."""
-
-    analysis_id: str = ""
-    transcription_id: str = ""
-    sentiment_score: float = 0.0
-    overall_sentiment: Optional[str] = None
-    provider: Optional[str] = None
-    media_id: Optional[str] = None
-    user_id: Optional[str] = None
-    status: str = "success"
-
-
-@dataclass(frozen=True, slots=True)
-class SummarizationCompleted(DomainEvent):
-    """Event emitted when summarization concludes."""
-
-    analysis_id: str = ""
-    transcription_id: Optional[str] = None
-    media_id: Optional[str] = None
-    user_id: Optional[str] = None
-    provider: Optional[str] = None
-    status: str = "success"
-
-
-@dataclass(frozen=True, slots=True)
-class TopicModelingCompleted(DomainEvent):
-    """Event emitted when topic modeling concludes."""
-
-    analysis_id: str = ""
-    transcription_id: Optional[str] = None
-    media_id: Optional[str] = None
-    user_id: Optional[str] = None
-    provider: Optional[str] = None
-    status: str = "success"
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class TranscriptionCompleted(DomainEvent):
-    """Event emitted when a transcription task successfully completes."""
-    media_id: UUID
-    transcription_id: UUID
-    user_id: UUID
-    sentiment_score: Optional[float] = None
-    overall_sentiment: Optional[str] = None
     language: Optional[str] = None
-    text_content: Optional[str] = None
-    provider: Optional[str] = None
-    status: str = "success"
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class TranscriptionFailed(DomainEvent):
-    """Event emitted when a transcription task fails."""
-    media_id: UUID
-    transcription_id: UUID
-    user_id: UUID
-    error_message: str = ""
-    provider: Optional[str] = None
-    status: str = "failed"
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True, slots=True)
-class VideoUploaded(DomainEvent):
-    """Event emitted when a video upload pipeline completes initial storage."""
-
-    video_id: str = ""
-    user_id: str = ""
-    storage_provider: Optional[str] = None
-    filename: Optional[str] = None
-    media_id: Optional[str] = None
-
-
-@dataclass(frozen=True, slots=True)
-class AudioExtracted(DomainEvent):
-    """Event emitted when audio is extracted from a media asset."""
-
-    media_id: str = ""
-    audio_file_path: str = ""
-    storage_provider: Optional[str] = None
-
-
-@dataclass(frozen=True, slots=True)
-class MediaProcessingStarted(DomainEvent):
-    """Event emitted when media processing begins."""
-    media_id: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class MediaProcessingCompleted(DomainEvent):
-    """Event emitted when media processing successfully completes."""
-    media_id: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class MediaProcessingFailed(DomainEvent):
-    """Event emitted when media processing fails."""
-    media_id: str = ""
-    error_message: str = ""
-
-
-if TYPE_CHECKING:
-    from src.media_management.domain.media import Media
-
-
-@dataclass(frozen=True, slots=True)
+@dataclass
 class MediaDeleted(DomainEvent):
-    """Event emitted when a media asset is removed from the catalogue."""
-
     media_id: str = ""
+    reason: Optional[str] = None
     user_id: Optional[str] = None
-    triggered_by: str = ""
+    triggered_by: Optional[str] = None
     actor_id: Optional[str] = None
 
-    @classmethod
-    def for_user(cls, media: "Media", actor_id: UUID | str) -> "MediaDeleted":
-        """Factory helper for user initiated deletions."""
-        return cls(
-            media_id=str(media.id),
-            user_id=str(media.user_id),
-            triggered_by="user",
-            actor_id=str(actor_id),
-        )
 
-
-@dataclass(frozen=True, slots=True)
+@dataclass
 class MediaReprocessRequested(DomainEvent):
-    """Event emitted when a media reprocess flow is requested."""
-
     media_id: str = ""
-    triggered_by: str = ""
+    triggered_by: Optional[str] = None
     actor_id: Optional[str] = None
+    requested_by: Optional[str] = None
+    note: Optional[str] = None
 
-    @classmethod
-    def for_user(cls, media_id: UUID | str, actor_id: UUID | str) -> "MediaReprocessRequested":
-        """Factory helper for user initiated reprocess requests."""
-        return cls(
-            media_id=str(media_id),
-            triggered_by="user",
-            actor_id=str(actor_id),
-        )
+
+@dataclass
+class MediaProcessingStarted(DomainEvent):
+    media_id: str = ""
+    stage: Optional[str] = None
+
+
+@dataclass
+class MediaProcessingCompleted(DomainEvent):
+    media_id: str = ""
+    stage: Optional[str] = None
+    result_id: Optional[str] = None
+
+
+@dataclass
+class MediaProcessingFailed(DomainEvent):
+    media_id: str = ""
+    stage: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+@dataclass
+class TranscriptionCompleted(DomainEvent):
+    media_id: str = ""
+    transcription_id: str = ""
+    text_content: Optional[str] = None
+    user_id: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class TranscriptionFailed(DomainEvent):
+    media_id: str = ""
+    transcription_id: Optional[str] = None
+    user_id: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+@dataclass
+class TextContentReady(DomainEvent):
+    media_id: str = ""
+    transcription_id: Optional[str] = None
+    text_content: Optional[str] = None
+    user_id: Optional[str] = None
+    filename: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+# --- Text analysis outputs ---
+@dataclass
+class SummarizationCompleted(DomainEvent):
+    media_id: Optional[str] = None
+    transcription_id: Optional[str] = None
+    summary: Optional[str] = None
+
+
+@dataclass
+class SentimentAnalysisCompleted(DomainEvent):
+    media_id: Optional[str] = None
+    transcription_id: Optional[str] = None
+    sentiment_score: Optional[float] = None
+
+
+@dataclass
+class TopicModelingCompleted(DomainEvent):
+    media_id: Optional[str] = None
+    transcription_id: Optional[str] = None
+    topics: Optional[Any] = None
+
+
+# --- Notifications ---
+@dataclass
+class NotificationRequested(DomainEvent):
+    user_id: Optional[str] = None
+    channel: Optional[str] = None
+    payload: Dict[str, Any] = field(default_factory=dict)
 
 
 __all__ = [
     "DomainEvent",
     "MediaUploaded",
-    "TextContentReady",
-    "NotificationRequested",
-    "SentimentAnalysisCompleted",
-    "SummarizationCompleted",
-    "TopicModelingCompleted",
-    "VideoUploaded",
-    "AudioExtracted",
     "MediaDeleted",
     "MediaReprocessRequested",
     "MediaProcessingStarted",
@@ -236,4 +150,9 @@ __all__ = [
     "MediaProcessingFailed",
     "TranscriptionCompleted",
     "TranscriptionFailed",
+    "TextContentReady",
+    "SummarizationCompleted",
+    "SentimentAnalysisCompleted",
+    "TopicModelingCompleted",
+    "NotificationRequested",
 ]

@@ -1,21 +1,31 @@
-import pytest
 import asyncio
-from typing import AsyncGenerator, Generator
-from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+import os
+import tempfile
+import warnings
+from typing import Generator
+from unittest.mock import AsyncMock
 
-import pytest_asyncio
-from fastapi import FastAPI
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+import pytest
 
 # Import test utilities
 from tests.mocks.in_memory_event_bus import InMemoryEventBus
-from tests.mocks.in_memory_storage import InMemoryStorageService
+from tests.mocks.in_memory_storage import InMemoryStorage
 from tests.utils.test_data_factory import TestDataFactory
+
+# For coleções/lightweight defaults, habilita bootstrap leve antes da coleta
+def pytest_configure(config):
+    os.environ.setdefault("LIGHTWEIGHT_BOOTSTRAP", "1")
 
 # Configure pytest-asyncio
 pytest_plugins = ["pytest_asyncio"]
+
+# Evitar warning do joblib em ambientes com /dev/shm restrito.
+_joblib_tmp = os.path.join(tempfile.gettempdir(), "joblib")
+os.makedirs(_joblib_tmp, exist_ok=True)
+os.environ.setdefault("JOBLIB_TEMP_FOLDER", _joblib_tmp)
+warnings.filterwarnings("ignore", message=".*joblib will operate in serial mode.*", category=UserWarning, module="joblib.*")
+# Silenciar DeprecationWarning do passlib que importa crypt (Python 3.12+)
+warnings.filterwarnings("ignore", message=".*'crypt' is deprecated.*", category=DeprecationWarning, module="passlib.utils")
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
@@ -38,9 +48,39 @@ def mock_event_bus() -> InMemoryEventBus:
     return InMemoryEventBus()
 
 @pytest.fixture
-def mock_storage_service() -> InMemoryStorageService:
+def mock_storage_service() -> InMemoryStorage:
     """Provides an in-memory storage service for testing file operations."""
-    return InMemoryStorageService()
+    return InMemoryStorage()
+
+
+@pytest.fixture
+def fake_metrics():
+    """Generic fake metrics port that records calls."""
+    class _FakeMetrics:
+        def __init__(self):
+            self.calls = []
+
+        async def record_operation(self, **kwargs):
+            self.calls.append(kwargs)
+            return None
+
+        def set_context(self, *args, **kwargs):
+            return None
+    return _FakeMetrics()
+
+
+@pytest.fixture
+def fake_cache():
+    """Simple in-memory cache fake with dict semantics."""
+    store = {}
+    class _Cache:
+        async def get(self, key, default=None):
+            return store.get(key, default)
+        async def set(self, key, value, expire=None):
+            store[key] = value
+        async def delete(self, key):
+            store.pop(key, None)
+    return _Cache()
 
 @pytest.fixture
 def mock_user_repository() -> AsyncMock:

@@ -1,9 +1,9 @@
 """Metrics collectors for video processing workflows."""
 from __future__ import annotations
 
-from prometheus_client import Counter, Histogram
-
-from src.shared.infrastructure.observability.metrics.prometheus_metrics import shared_metrics
+from src.shared.infrastructure.observability.metrics.prometheus_metrics import (
+    shared_metrics,
+)
 
 
 class PrometheusVideoProcessingMetrics:
@@ -13,9 +13,15 @@ class PrometheusVideoProcessingMetrics:
 
     def __init__(self) -> None:
         # Use shared metrics to prevent duplicate registration
-        self._operations_total = shared_metrics.get_video_processing_operations_total()
-        self._operation_duration = shared_metrics.get_video_processing_duration_seconds()
-        self._file_size_bytes = shared_metrics.get_video_processing_input_file_size_bytes()
+        self._operations_total = (
+            shared_metrics.get_video_processing_operations_total()
+        )
+        self._operation_duration = (
+            shared_metrics.get_video_processing_duration_seconds()
+        )
+        self._file_size_bytes = (
+            shared_metrics.get_video_processing_input_file_size_bytes()
+        )
 
     async def record_operation(
         self,

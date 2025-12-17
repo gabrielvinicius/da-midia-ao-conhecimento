@@ -110,6 +110,7 @@ services:
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DB_HOST=postgres
+      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@${DB_HOST:-postgres}:${DB_PORT:-5432}/${DB_NAME:-video_summarizer}
       - REDIS_HOST=redis
       - REDIS_PASSWORD=
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
@@ -162,6 +163,7 @@ services:
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DB_HOST=postgres
+      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@${DB_HOST:-postgres}:${DB_PORT:-5432}/${DB_NAME:-video_summarizer}
       - REDIS_HOST=redis
       - REDIS_PASSWORD=
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}

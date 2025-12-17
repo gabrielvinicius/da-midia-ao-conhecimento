@@ -1,0 +1,20 @@
+from __future__ import annotations
+
+from src.storage.application.services.maintenance_service import StorageMaintenancePort
+from src.storage.infrastructure.dependencies import StorageServiceFactory
+
+
+class StorageMaintenanceAdapter(StorageMaintenancePort):
+    def __init__(self, factory: StorageServiceFactory):
+        self._factory = factory
+
+    async def list_files(self, provider_name: str) -> list[str]:
+        service = self._factory.create_storage_service(provider_name)
+        return await service.list_files()
+
+    async def delete(self, provider_name: str, path: str) -> None:
+        service = self._factory.create_storage_service(provider_name)
+        await service.delete(path)
+
+
+__all__ = ["StorageMaintenanceAdapter"]

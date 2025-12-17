@@ -1,42 +1,24 @@
 # ruff.toml
 
-# Select a base set of rules.
-# E402: module level import not at top of file (sometimes needed in __init__.py)
-# E501: line too long (handled by line-length)
-# E722: do not use bare 'except' (too broad for some cases)
-select = ["E", "F", "W", "I", "N", "D"]
-ignore = ["E402", "E722"]
-
-# Set the maximum line length.
 line-length = 88
 
-# Exclude directories that don't need to be linted.
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
-    "alembic/versions/*", # Exclude auto-generated migration files
-]
-
 [lint]
-# Allow unused variables in `__init__.py` files, where they are often imported for exposure.
-per-file-ignores = {"__init__.py" = ["F401"]}
+select = ["E", "F", "W", "I", "N"]
+# Excluir pastas/vendor e scripts utilitários
+exclude = [
+    "alembic/versions/*",
+    "aiosqlite",
+    "aiosqlite/**",
+    "docs",
+    "scripts",
+    "verify_endpoints.py",
+]
+# Permitir imports não usados em __init__.py
+per-file-ignores = {"__init__.py" = ["F401"], "tests/**" = ["E501"], "scripts/**" = ["E501"], "simple_app.py" = ["E501"]}
+ignore = [
+    "E402", # module import not at top (permitimos em __init__)
+    "E722", # bare except
+]
 
 [format]
 # Use black-compatible formatting.

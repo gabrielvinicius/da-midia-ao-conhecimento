@@ -1,38 +1,20 @@
-# src/storage/domain/value_objects/file_size.py
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FileSize:
-    """Value object representing file size with validation."""
+    """Value object representing file size in bytes."""
 
     bytes: int
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.bytes < 0:
-            raise ValueError("File size cannot be negative")
+            raise ValueError("File size must be non-negative")
 
-    @property
-    def kb(self) -> float:
-        """Size in kilobytes."""
-        return self.bytes / 1024
-
-    @property
-    def mb(self) -> float:
-        """Size in megabytes."""
-        return self.bytes / (1024 * 1024)
-
-    @property
-    def gb(self) -> float:
-        """Size in gigabytes."""
-        return self.bytes / (1024 * 1024 * 1024)
+    def __int__(self) -> int:
+        return self.bytes
 
     def __str__(self) -> str:
-        if self.bytes < 1024:
-            return f"{self.bytes} B"
-        elif self.bytes < 1024 * 1024:
-            return f"{self.kb:.2f} KB"
-        elif self.bytes < 1024 * 1024 * 1024:
-            return f"{self.mb:.2f} MB"
-        else:
-            return f"{self.gb:.2f} GB"
+        return f"{self.bytes} bytes"

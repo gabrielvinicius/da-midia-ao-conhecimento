@@ -1,20 +1,23 @@
 import logging
+from typing import Optional
+
 import structlog
-import os
-from datetime import datetime
-from typing import Any, Dict, Optional
 
 
-def configure_logging(service_name: str, level: str = "INFO", debug_mode: bool = False) -> None:
-    """
-    Configures structured logging for the application.
-    """
+def configure_logging(
+    service_name: str,
+    level: str = "INFO",
+    debug_mode: bool = False,
+) -> None:
+    """Configures structured logging for the application."""
     shared_processors = [
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
-        structlog.dev.ConsoleRenderer() if debug_mode else structlog.processors.JSONRenderer(),
+        structlog.dev.ConsoleRenderer()
+        if debug_mode
+        else structlog.processors.JSONRenderer(),
     ]
 
     structlog.configure(
@@ -38,9 +41,7 @@ def configure_logging(service_name: str, level: str = "INFO", debug_mode: bool =
 
 
 def get_logger(name: Optional[str] = None) -> structlog.stdlib.BoundLogger:
-    """
-    Returns a structured logger instance.
-    """
+    """Returns a structured logger instance."""
     return structlog.get_logger(name)
 
 

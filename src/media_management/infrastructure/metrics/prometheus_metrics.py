@@ -2,7 +2,9 @@
 
 from typing import Optional
 
-from src.shared.infrastructure.observability.metrics.prometheus_metrics import shared_metrics
+from src.shared.infrastructure.observability.metrics.prometheus_metrics import (
+    shared_metrics,
+)
 
 
 class PrometheusMediaMetrics:
@@ -27,14 +29,14 @@ class PrometheusMediaMetrics:
         status_label = status or ("success" if success else "failure")
         provider_label = provider or "unknown"
         media_id_label = media_id or "unknown"
-        
+
         self._operations_total.labels(
             operation=operation,
             provider=provider_label,
             status=status_label,
             media_id=media_id_label
         ).inc()
-        
+
         self._duration_seconds.labels(
             operation=operation,
             provider=provider_label,

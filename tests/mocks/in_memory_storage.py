@@ -2,16 +2,16 @@
 """Enhanced in-memory storage service for comprehensive testing.
 """
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 from uuid import uuid4
 
-from src.storage.domain.repositories.storage_repository import StorageRepository
+from src.storage.application.ports import StorageRepositoryPort
 from src.storage.domain.entities.file_metadata import FileMetadata
 from src.storage.domain.value_objects.file_path import FilePath
 from src.storage.domain.value_objects.file_size import FileSize
 
 
-class InMemoryStorage(StorageRepository):
+class InMemoryStorage(StorageRepositoryPort):
     """Enhanced in-memory storage with testing utilities."""
 
     def __init__(self):
@@ -29,7 +29,7 @@ class InMemoryStorage(StorageRepository):
         self.upload_count += 1
         path_str = str(file_path)
         self.files[path_str] = content
-        
+
         meta = FileMetadata(
             id=uuid4(),
             file_path=file_path,
@@ -96,6 +96,3 @@ class InMemoryStorage(StorageRepository):
             "download_count": self.download_count
         }
 
-
-# Alias for backward compatibility
-InMemoryStorageService = InMemoryStorage

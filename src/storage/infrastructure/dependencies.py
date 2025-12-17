@@ -7,10 +7,13 @@ from typing import Any, Dict, List, Optional
 
 import structlog
 
-from src.shared.infrastructure.storage.persistence.s3_storage_repository import S3StorageService
+from src.storage.infrastructure.adapters.s3_stub_adapter import S3StorageService
+from src.storage.application.ports import StorageRepositoryPort
 from src.storage.application.services.storage_service import StorageService
-from src.storage.infrastructure.persistence.local_storage_repository import LocalStorageService
-from src.storage.domain.repositories.storage_repository import StorageRepository
+from src.storage.config.settings import storage_settings
+from src.storage.infrastructure.persistence.local_storage_repository import (
+    LocalStorageService,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -27,18 +30,17 @@ class StorageClientAdapter:
     async def upload(
         self,
         *,
-        destination_path: str,
-        content: bytes,
-        filename: str,
+        file_data: bytes,
+        destination: str,
         content_type: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        # Ensure deterministic, non-legacy path layout
-        normalized_path = str(Path(destination_path))
-        
+        # Ensure deterministic path layout
+        normalized_path = str(Path(destination))
+
         # Use new Service API
-        file_meta = await self.service.store_file(normalized_path, content)
-        
+        file_meta = await self.service.store_file(normalized_path, file_data)
+
         return {
             "path": str(file_meta.file_path),
             "provider": self.provider_name,
@@ -52,12 +54,12 @@ class StorageClientAdapter:
         # Old LocalStorageService returned (bytes, filename).
         # S3Stub returned (bytes, filename).
         # New Service returns bytes or None.
-        
+
         normalized_path = str(Path(file_path))
         data = await self.service.retrieve_file(normalized_path)
         if data is None:
             return None
-        
+
         # Reconstruct filename from path
         filename = Path(normalized_path).name
         return data, filename
@@ -67,7 +69,10 @@ class StorageClientAdapter:
         data = await self.service.retrieve_file(normalized_path)
         if data is None:
             raise FileNotFoundError(
-                f"File '{normalized_path}' not found in storage provider '{self.provider_name}'"
+                (
+                    f"File '{normalized_path}' not found in storage provider "
+                    f"'{self.provider_name}'"
+                )
             )
         return data
 
@@ -75,12 +80,12 @@ class StorageClientAdapter:
         """Synchronous version of download_file for use in Celery tasks."""
         import asyncio
         import concurrent.futures
-        
+
         def run_async_download():
             async def async_download():
                 normalized_path = str(Path(file_path))
                 return await self.service.retrieve_file(normalized_path)
-            
+
             # Create a new event loop for this thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -88,15 +93,18 @@ class StorageClientAdapter:
                 return loop.run_until_complete(async_download())
             finally:
                 loop.close()
-        
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(run_async_download)
             result = future.result()
-    
+
         if result is None:
             normalized_path = str(Path(file_path))
             raise FileNotFoundError(
-                f"File '{normalized_path}' not found in storage provider '{self.provider_name}'"
+                (
+                    f"File '{normalized_path}' not found in storage provider "
+                    f"'{self.provider_name}'"
+                )
             )
         return result
 
@@ -107,10 +115,10 @@ class StorageClientAdapter:
         """Synchronous version of delete."""
         import asyncio
         import concurrent.futures
-        
+
         def run_async():
             return asyncio.run(self.service.delete_file(file_path))
-        
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(run_async)
             return future.result()
@@ -122,10 +130,10 @@ class StorageClientAdapter:
         """Synchronous version of exists."""
         import asyncio
         import concurrent.futures
-        
+
         def run_async():
             return asyncio.run(self.service.file_exists(file_path))
-        
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(run_async)
             return future.result()
@@ -140,12 +148,20 @@ class StorageServiceFactory:
 
     def __init__(self) -> None:
         # Initialize repositories
-        self._repositories: Dict[str, StorageRepository] = {
+        self._repositories: Dict[str, StorageRepositoryPort] = {
             "local": LocalStorageService(),
+            # Stub S3 provider backed by filesystem for dev/test; replace with real provider when configured
             "s3": S3StorageService(),
         }
+        self._allowed = set(
+            storage_settings.providers_allowed or self._repositories.keys()
+        )
 
     def _get_service(self, provider: str) -> StorageClientAdapter:
+        if provider not in self._allowed:
+            raise ValueError(
+                f"Provider '{provider}' not allowed; allowed={sorted(self._allowed)}"
+            )
         try:
             repo = self._repositories[provider]
             service = StorageService(repository=repo)

@@ -3,20 +3,19 @@ from typing import List, Optional
 
 import structlog
 
+from src.storage.application.ports import StorageRepositoryPort
 from src.storage.domain.entities.file_metadata import FileMetadata
-from src.storage.domain.repositories.storage_repository import StorageRepository
 from src.storage.domain.value_objects.file_path import FilePath
 
 logger = structlog.get_logger(__name__)
 
 
 class StorageService:
-    """
-    Service for managing file storage operations.
+    """Service for managing file storage operations.
     Orchestrates interactions with the StorageRepository.
     """
 
-    def __init__(self, repository: StorageRepository):
+    def __init__(self, repository: StorageRepositoryPort):
         self._repository = repository
 
     async def store_file(self, path: str, content: bytes) -> FileMetadata:

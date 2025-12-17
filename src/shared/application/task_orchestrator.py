@@ -3,12 +3,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Protocol
+# Import circular removido: TextAnalysisService referenciado apenas via TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional, Protocol
 
 from src.notifications.application.schemas import NotificationTaskPayload
 from src.notifications.tasks.notification_tasks import send_notification_task
-# Removido import circular: from src.text_analysis.application.services import TextAnalysisService
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.text_analysis.application.services import TextAnalysisService
@@ -29,7 +28,9 @@ async def schedule_video_processing(
 ) -> Any:
     """Delegate video processing to the provided scheduler implementation."""
     if task_scheduler is None:
-        raise ValueError("task_scheduler must be provided to schedule video processing tasks.")
+        raise ValueError(
+            "task_scheduler must be provided to schedule video processing tasks."
+        )
 
     return await task_scheduler.schedule_process_video_task(
         media_id=media_id,
@@ -49,7 +50,9 @@ async def schedule_sentiment_analysis(
 ) -> Dict[str, Any]:
     """Trigger the sentiment analysis pipeline via the validated TextAnalysisService."""
     if text_analysis_service is None:
-        raise ValueError("text_analysis_service is required to schedule sentiment analysis")
+        raise ValueError(
+            "text_analysis_service is required to schedule sentiment analysis"
+        )
 
     return await text_analysis_service.schedule_sentiment_analysis_task(
         transcription_id=transcription_id,
@@ -72,7 +75,9 @@ async def schedule_topic_modeling(
 ) -> Dict[str, Any]:
     """Trigger topic modeling through the validated TextAnalysisService."""
     if text_analysis_service is None:
-        raise ValueError("text_analysis_service is required to schedule topic modeling")
+        raise ValueError(
+            "text_analysis_service is required to schedule topic modeling"
+        )
 
     return await text_analysis_service.schedule_topic_modeling_task(
         media_id=media_id,
@@ -98,4 +103,3 @@ def schedule_notification(
         contact_info=contact_info,
     )
     return send_notification_task.delay(**payload.model_dump())
-

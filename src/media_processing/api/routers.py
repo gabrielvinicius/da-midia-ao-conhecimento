@@ -1,47 +1,43 @@
-from typing import Annotated, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Form, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from src.media_management.api.dependencies import get_media_service
+from src.media_management.application.dtos import GetMediaQuery
+from src.media_management.application.services.media_service import MediaService
+from src.media_processing.application.dtos import (
+    GetTranscriptionByIdQuery,
+    GetTranscriptionByMediaIdQuery,
+    ReprocessTranscriptionCommand,
+    SetSpeakerAliasesCommand,
+)
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
-from src.user_management.api.dependencies import get_current_user
 from src.shared.application.schemas import (
     BaseResponseSchema,
     create_error_response,
     create_success_response,
 )
-from src.user_management.domain.user import User
-from src.media_management.api.dependencies import get_media_service
-
-from src.media_management.application.services.media_service import MediaService
-
-from src.media_processing.application.commands.dto import (
-    ReprocessTranscriptionCommand,
-    SetSpeakerAliasesCommand,
-)
-from src.media_management.application.services.media_service import MediaService
-from src.media_processing.application.queries.dto import (
-    GetTranscriptionByIdQuery,
-    GetTranscriptionByMediaIdQuery,
-)
+from src.user_management.api.dependencies import get_current_user
+from src.user_management.domain import User
 
 from .dependencies import (
     get_transcription_service,
 )
 from .schemas import SpeakerAliasesUpdateRequest, TranscriptionResponse
 
-from src.media_management.application.services.media_service import MediaService
-from src.media_management.application.queries.dto import GetMediaQuery
-
 router = APIRouter(prefix="/transcriptions", tags=["Transcriptions"])
 
 
-@router.put("/{transcription_id}/speaker-aliases", response_model=BaseResponseSchema, summary="Set Speaker Aliases for a Transcription")
+@router.put(
+    "/{transcription_id}/speaker-aliases",
+    response_model=BaseResponseSchema,
+    summary="Set Speaker Aliases for a Transcription",
+)
 async def set_speaker_aliases(
-    transcription_id: UUID, # Path parameter
-    request_data: SpeakerAliasesUpdateRequest, # Request body
+    transcription_id: UUID,  # Path parameter
+    request_data: SpeakerAliasesUpdateRequest,  # Request body
     transcription_service: TranscriptionService = Depends(get_transcription_service),
     current_user: User = Depends(get_current_user),
 ):
@@ -52,24 +48,40 @@ async def set_speaker_aliases(
             aliases=request_data.aliases,
         )
         result = await transcription_service.set_speaker_aliases(command)
-        return create_success_response(data=result, message="Speaker aliases set successfully")
+        return create_success_response(
+            data=result,
+            message="Speaker aliases set successfully",
+        )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
 
 
-@router.get("/", response_model=TranscriptionResponse, summary="Get a transcription by its Media ID")
+@router.get(
+    "/",
+    response_model=TranscriptionResponse,
+    summary="Get a transcription by its Media ID",
+)
 async def get_transcription_by_media_id(
-    media_id: UUID = Query(..., description="Media ID to get transcription for."),
+    media_id: UUID = Query(
+        ...,
+        description="Media ID to get transcription for.",
+    ),
     transcription_service: TranscriptionService = Depends(get_transcription_service),
     current_user: User = Depends(get_current_user),
 ):
     query = GetTranscriptionByMediaIdQuery(media_id=media_id)
     transcription = await transcription_service.get_transcription_by_media_id(query)
     if not transcription:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcription not found for the given media ID")
-    
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transcription not found for the given media ID",
+        )
+
     # Explicit mapping
     return TranscriptionResponse(
         id=transcription.id,
@@ -86,7 +98,11 @@ async def get_transcription_by_media_id(
     )
 
 
-@router.get("/{transcription_id}", response_model=TranscriptionResponse, summary="Get a transcription by its ID")
+@router.get(
+    "/{transcription_id}",
+    response_model=TranscriptionResponse,
+    summary="Get a transcription by its ID",
+)
 async def get_transcription_by_id(
     transcription_id: UUID,
     transcription_service: TranscriptionService = Depends(get_transcription_service),
@@ -95,8 +111,11 @@ async def get_transcription_by_id(
     query = GetTranscriptionByIdQuery(transcription_id=transcription_id)
     transcription = await transcription_service.get_transcription_by_id(query)
     if not transcription:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcription not found")
-    
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transcription not found",
+        )
+
     # Explicit mapping
     return TranscriptionResponse(
         id=transcription.id,
@@ -113,11 +132,17 @@ async def get_transcription_by_id(
     )
 
 
-@router.post("/reprocess", response_model=BaseResponseSchema, summary="Reprocess transcription")
+@router.post(
+    "/reprocess",
+    response_model=BaseResponseSchema,
+    summary="Reprocess transcription",
+)
 async def reprocess_transcription(
-    command: ReprocessTranscriptionCommand, # Use the DTO
-    transcription_service: TranscriptionService = Depends(get_transcription_service),
-    media_service: MediaService = Depends(get_media_service), # Changed from media_queries
+    command: ReprocessTranscriptionCommand,  # Use the DTO
+    transcription_service: TranscriptionService = Depends(
+        get_transcription_service
+    ),
+    media_service: MediaService = Depends(get_media_service),
     current_user: User = Depends(get_current_user),
 ):
     """Reprocess transcription for existing media
@@ -131,19 +156,28 @@ async def reprocess_transcription(
         if not media:
             return create_error_response("Media not found", "Invalid media ID")
 
-        if str(media.user_id) != str(current_user.id) and current_user.role.value != "admin":
+        if (
+            str(media.user_id) != str(current_user.id)
+            and current_user.role.value != "admin"
+        ):
             return create_error_response("Not authorized", "Access denied")
 
         if getattr(media, "status", None) == "PROCESSING" and not command.force:
-            return create_error_response("Media is currently being processed", "Cannot reprocess")
+            return create_error_response(
+                "Media is currently being processed",
+                "Cannot reprocess",
+            )
 
-        # The command for transcription_service.reprocess_transcription already has all necessary data
-        # It relies on media.original_file_path and media.storage_provider
-        # Need to ensure ReprocessTranscriptionCommand DTO is sufficient
+        # The command for transcription_service.reprocess_transcription already
+        # has all necessary data. It relies on media.original_file_path and
+        # media.storage_provider. Ensure ReprocessTranscriptionCommand DTO is
+        # sufficient.
         # Or MediaProcessingService should fetch media if needed.
         # For now, pass all necessary data to the command.
-        command.user_id = current_user.id # Add user_id to command for auth/ownership check in service if needed
-        
+        command.user_id = (
+            current_user.id
+        )  # Add user_id to command for auth/ownership check in service if needed
+
         result = await transcription_service.reprocess_transcription(command)
 
         response_data = {
@@ -154,7 +188,10 @@ async def reprocess_transcription(
                 "language": command.language,
                 "status": "SCHEDULED",
             },
-            "message": "Transcription reprocessing started. Check WebSocket for real-time updates.",
+            "message": (
+                "Transcription reprocessing started. "
+                "Check WebSocket for real-time updates."
+            ),
         }
 
         return create_success_response(

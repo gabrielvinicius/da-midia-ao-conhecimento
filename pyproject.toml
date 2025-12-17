@@ -41,7 +41,7 @@ numpy = "^2.0.0"
 scikit-learn = "^1.5.1"      # For Topic Modeling
 
 # --- Authentication & Security ---
-passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+passlib = {extras = ["bcrypt"], version = "1.7.4"}
 python-jose = {extras = ["cryptography"], version = "^3.3.0"}
 
 # --- AWS & S3 Storage ---
@@ -64,6 +64,21 @@ opentelemetry-exporter-jaeger = "^1.25.0"
 opentelemetry-instrumentation-fastapi = "^0.46.0"
 opentelemetry-instrumentation-celery = "^0.46.0"
 opentelemetry-instrumentation-sqlalchemy = "^0.46.0"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:.*joblib will operate in serial mode.*:UserWarning",
+    "ignore:.*'crypt' is deprecated and slated for removal.*:DeprecationWarning:passlib.utils.*",
+]
+markers = [
+    "smoke: fast smoke coverage (no external deps)",
+    "integration: tests that require real services/db",
+]
+testpaths = [
+    "tests/unit",
+    "tests/smoke",
+    "tests/integration",
+]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"

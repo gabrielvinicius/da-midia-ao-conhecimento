@@ -5,12 +5,13 @@ from typing import Optional
 
 import structlog
 
-from src.shared.utils.time_utils import utcnow
-from src.storage.domain.interfaces import StorageOperationLogger
+from src.shared.infrastructure.observability.ports import LoggerPort
+from src.shared.domain.time.clock import utcnow
+from src.storage.application.ports import StorageOperationLoggerPort
 from src.storage.domain.value_objects.file_path import FilePath
 
 
-class StructuredStorageLogger(StorageOperationLogger):
+class StructuredStorageLogger(StorageOperationLoggerPort, LoggerPort):
     """Structured logging implementation for storage operations.
     Follows SRP - only responsible for logging.
     """
@@ -24,7 +25,8 @@ class StructuredStorageLogger(StorageOperationLogger):
         file_path: FilePath,
         success: bool,
         duration: float,
-        error: Optional[Exception] = None
+        error: Optional[Exception] = None,
+        **extra,
     ) -> None:
         """Log storage operation with structured data."""
         log_data = {
@@ -43,17 +45,26 @@ class StructuredStorageLogger(StorageOperationLogger):
 
         if success:
             self._logger.info(
-                f"Storage operation {operation} completed successfully",
-                **log_data
+                "Storage operation completed successfully",
+                **log_data,
             )
         else:
             self._logger.error(
-                f"Storage operation {operation} failed",
-                **log_data
+                "Storage operation failed",
+                **log_data,
             )
 
+    def info(self, message: str, **kwargs) -> None:
+        self._logger.info(message, **kwargs)
 
-class NoOpStorageLogger(StorageOperationLogger):
+    def warning(self, message: str, **kwargs) -> None:
+        self._logger.warning(message, **kwargs)
+
+    def error(self, message: str, **kwargs) -> None:
+        self._logger.error(message, **kwargs)
+
+
+class NoOpStorageLogger(StorageOperationLoggerPort, LoggerPort):
     """No-operation logger for testing or when logging is disabled.
     Follows Null Object pattern.
     """
@@ -64,7 +75,17 @@ class NoOpStorageLogger(StorageOperationLogger):
         file_path: FilePath,
         success: bool,
         duration: float,
-        error: Optional[Exception] = None
+        error: Optional[Exception] = None,
+        **extra,
     ) -> None:
         """No-op implementation."""
         pass
+
+    def info(self, message: str, **kwargs) -> None:
+        return None
+
+    def warning(self, message: str, **kwargs) -> None:
+        return None
+
+    def error(self, message: str, **kwargs) -> None:
+        return None

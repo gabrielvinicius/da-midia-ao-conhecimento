@@ -9,7 +9,13 @@ from typing import Optional
 class SMTPAdapter:
     """Coarse SMTP adapter that pretends to send emails."""
 
-    def __init__(self, host: str, port: int, username: Optional[str], password: Optional[str]) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        username: Optional[str],
+        password: Optional[str],
+    ) -> None:
         self._host = host
         self._port = port
         self._username = username

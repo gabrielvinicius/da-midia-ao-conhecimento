@@ -3,25 +3,35 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import FastAPI
 
+from src.shared.domain.events import TextContentReady
+
 from .application import (
-    TextAnalysisService,
     AnalysisConfig,
     NoOpTextAnalysisMetrics,
+    TextAnalysisService,
 )
 from .application.event_handlers import build_text_content_ready_handler
-from .application.text_analysis_read_service import TextAnalysisReadService
-from src.shared.domain.events import TextContentReady
-from .infrastructure.adapters.topic_modeling_bertopic_adapter import BERTopicAdapter
-from .infrastructure.repositories.inmemory_analysis_repository import InMemoryAnalysisRepository
-from .infrastructure.adapters.text_generation_ollama_adapter import OllamaTextGenerationAdapter
-from .infrastructure.adapters.embeddings_sentence_transformers_adapter import SentenceTransformerEmbeddingAdapter
-from .infrastructure.adapters.chunking_simple_adapter import SimpleChunker
-from .infrastructure.adapters.sentiment_transformers_adapter import TransformersSentimentAdapter
+from .application.ports import TranscriptionQueryPort
+from .application.services.text_analysis_read_service import TextAnalysisReadService
+from src.media_processing.application.services.transcription_read_service import (
+    TranscriptionReadService,
+)
+from .config.settings import text_analysis_settings
+from .infrastructure.dependencies.providers import (
+    get_chunker_adapter,
+    get_embedding_adapter,
+    get_sentiment_adapter,
+    get_text_generation_adapter,
+    get_topic_modeling_adapter,
+)
 from .infrastructure.metrics.prometheus_metrics import PrometheusTextAnalysisMetrics
+from .infrastructure.repositories.inmemory_analysis_repository import (
+    InMemoryAnalysisRepository,
+)
 
 
 def _prom_available() -> bool:
@@ -41,35 +51,65 @@ class TextAnalysisModule:
 
 async def build_text_analysis_module(
     session: Any,
-    provider_registry: IProviderRegistry | None = None,
     repository: Any | None = None,
     event_bus: Any | None = None,
-    transcription_queries: Any | None = None,
+    transcription_queries: Optional[TranscriptionQueryPort] = None,
     **_kwargs: Any,
 ) -> TextAnalysisModule:
-    _seed_text_analysis_providers(provider_registry)
     if repository is not None:
         repo = repository
     else:
-        from .infrastructure.repositories.sqlalchemy_analysis_repository import SqlAlchemyAnalysisRepository
+        from .infrastructure.repositories.sqlalchemy_analysis_repository import (
+            SqlAlchemyAnalysisRepository,
+        )
 
         if session is None:
-            raise RuntimeError("TextAnalysis requires a database session for persistence")
+            raise RuntimeError(
+                "TextAnalysis requires a database session for persistence"
+            )
 
         repo = SqlAlchemyAnalysisRepository(session)
     config = AnalysisConfig()
 
-    sentiment = TransformersSentimentAdapter(config.sentiment_model)
-    embeddings = SentenceTransformerEmbeddingAdapter(config.embedding_model)
-    topic_modeling = BERTopicAdapter(
-        config.topic_model,
-        use_transformer_representation=config.use_transformer_topic_representation,
-        transformer_model_name=config.transformer_representation_model,
-    )
-    text_generation = OllamaTextGenerationAdapter(config.llm_model)
-    chunker = SimpleChunker()
+    # Provide a default transcription query adapter if none supplied
+    if transcription_queries is None:
+        if session is None:
+            raise RuntimeError(
+                "TextAnalysis requires transcription_queries "
+                "or a session to build default adapter"
+            )
+        try:
+            from src.media_processing.infrastructure.dependencies import (
+                transcription_query_adapter,
+            )
+            from src.media_processing.infrastructure.repositories import (
+                transcription_repository,
+            )
 
-    metrics = PrometheusTextAnalysisMetrics() if _prom_available() else NoOpTextAnalysisMetrics()
+            transcription_queries = (
+                transcription_query_adapter.TranscriptionQueryAdapter(  # type: ignore[attr-defined]
+                    transcription_repository.TranscriptionRepository(session)  # type: ignore[attr-defined]
+                )
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            raise RuntimeError(
+                "Failed to build default transcription query adapter"
+            ) from exc
+
+    # Normalizar acesso de leitura via serviço dedicado
+    transcription_queries = TranscriptionReadService(transcription_queries)
+
+    sentiment = get_sentiment_adapter(config)
+    embeddings = get_embedding_adapter(config)
+    topic_modeling = get_topic_modeling_adapter(config)
+    text_generation = get_text_generation_adapter(config)
+    chunker = get_chunker_adapter(config)
+
+    metrics = (
+        PrometheusTextAnalysisMetrics()
+        if _prom_available()
+        else NoOpTextAnalysisMetrics()
+    )
 
     service = TextAnalysisService(
         sentiment_service=sentiment,
@@ -78,12 +118,12 @@ async def build_text_analysis_module(
         text_generation=text_generation,
         chunker=chunker,
         repository=repo,
-        provider_registry=provider_registry,
         config=config,
         metrics=metrics,
         event_bus=event_bus,
         transcription_queries=transcription_queries,
         text_analysis_read_service=TextAnalysisReadService(repository=repo),
+        settings=text_analysis_settings,
     )
 
     if event_bus:
@@ -103,38 +143,5 @@ def bind_text_analysis_module(app: FastAPI, module: TextAnalysisModule) -> None:
     app.dependency_overrides[get_text_analysis_service] = lambda: module.service
 
 
-def _seed_text_analysis_providers(registry: IProviderRegistry | None) -> None:
-    if registry is None:
-        return
-    providers = [
-        Provider(
-            name="transformers",
-            provider_type=ProviderType.SENTIMENT_ANALYSIS,
-            status=ProviderStatus.ACTIVE,
-            capabilities=[ProviderCapability.BATCH_PROCESSING, ProviderCapability.MULTI_LANGUAGE],
-        ),
-        Provider(
-            name="sentence_transformers",
-            provider_type=ProviderType.EMBEDDING,
-            status=ProviderStatus.ACTIVE,
-            capabilities=[ProviderCapability.BATCH_PROCESSING, ProviderCapability.MULTI_LANGUAGE],
-        ),
-        Provider(
-            name="bertopic",
-            provider_type=ProviderType.TOPIC_MODELING,
-            status=ProviderStatus.ACTIVE,
-            capabilities=[ProviderCapability.BATCH_PROCESSING],
-        ),
-        Provider(
-            name="ollama",
-            provider_type=ProviderType.SUMMARIZATION,
-            status=ProviderStatus.ACTIVE,
-            capabilities=[ProviderCapability.BATCH_PROCESSING, ProviderCapability.MULTI_LANGUAGE, ProviderCapability.CUSTOM_MODELS],
-        ),
-    ]
-
-    for provider in providers:
-        try:
-            registry.register_provider(provider)
-        except Exception:
-            continue
+def _seed_text_analysis_providers(_: Any | None) -> None:
+    """No-op: provider registry removed in per-context ownership model."""

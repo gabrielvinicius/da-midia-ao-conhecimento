@@ -7,8 +7,7 @@ from typing import List
 from uuid import uuid4
 
 from src.text_analysis.application.ports.chunking import ChunkingServicePort
-from src.text_analysis.domain.entities import Document
-from src.text_analysis.domain.value_objects import TextChunk
+from src.text_analysis.domain import Document, TextChunk
 
 
 class SimpleChunker(ChunkingServicePort):

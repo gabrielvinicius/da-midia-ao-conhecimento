@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 from collections import defaultdict
-from enum import Enum
 from typing import (
     Awaitable,
     Callable,
@@ -16,22 +15,7 @@ from typing import (
     TypeVar,
 )
 
-# Imports for domain events - these will be moved to domain/events.py later
-# from src.shared.events.domain_events import DomainEvent # Will become from ..domain.events import DomainEvent
-
-# Placeholder for DomainEvent type, will be properly imported later
-class DomainEvent(Protocol):
-    event_id: Any
-    occurred_at: Any
-    metadata: Dict[str, Any]
-    correlation_id: Optional[str]
-
-    @property
-    def event_name(self) -> str:
-        ...
-
-    def with_metadata(self, **extra: Any) -> "DomainEvent":
-        ...
+from src.shared.domain.events import DomainEvent
 
 # --- From subscription_manager.py ---
 EventHandler = Callable[[DomainEvent], Awaitable[None]]
@@ -41,7 +25,10 @@ class SubscriptionManager:
     """Keeps track of event handlers registered for each event type."""
 
     def __init__(self) -> None:
-        self._subscriptions: DefaultDict[Type[DomainEvent], List[EventHandler]] = defaultdict(list)
+        self._subscriptions: DefaultDict[
+            Type[DomainEvent],
+            List[EventHandler],
+        ] = defaultdict(list)
 
     def subscribe(self, event_type: Type[TEvent], handler: EventHandler) -> None:
         """Register an asynchronous handler for a given event type."""
@@ -179,16 +166,26 @@ class AsyncQueueBrokerPublisher:
 class SupportsEventBus(Protocol):
     """Protocol defining the contract expected from an event bus implementation."""
 
-    async def publish(self, event: DomainEvent) -> None:  # pragma: no cover - protocol definition
+    async def publish(self, event: DomainEvent) -> None:  # pragma: no cover
         ...
 
-    async def publish_many(self, events: Iterable[DomainEvent]) -> None:  # pragma: no cover
+    async def publish_many(
+        self, events: Iterable[DomainEvent]
+    ) -> None:  # pragma: no cover
         ...
 
-    def subscribe(self, event_type: Type[TEvent], handler: EventHandler) -> None:  # pragma: no cover
+    def subscribe(
+        self,
+        event_type: Type[TEvent],
+        handler: EventHandler,
+    ) -> None:  # pragma: no cover
         ...
 
-    def unsubscribe(self, event_type: Type[TEvent], handler: EventHandler) -> None:  # pragma: no cover
+    def unsubscribe(
+        self,
+        event_type: Type[TEvent],
+        handler: EventHandler,
+    ) -> None:  # pragma: no cover
         ...
 
     async def start_listener(self) -> None:  # pragma: no cover
@@ -201,7 +198,10 @@ class InMemoryEventBus:
     """Simple asynchronous event bus used during Stage A scaffolding and tests."""
 
     def __init__(self) -> None:
-        self._subscriptions: DefaultDict[Type[DomainEvent], List[EventHandler]] = defaultdict(list)
+        self._subscriptions: DefaultDict[
+            Type[DomainEvent],
+            List[EventHandler],
+        ] = defaultdict(list)
         self._started: bool = False
 
     async def publish(self, event: DomainEvent) -> None:

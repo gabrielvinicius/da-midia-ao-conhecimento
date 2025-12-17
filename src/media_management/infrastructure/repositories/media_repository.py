@@ -5,35 +5,36 @@ from __future__ import annotations
 from typing import List, Optional
 from uuid import UUID
 
+import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.media_management.domain import Media
 from src.shared.domain.enums import MediaStatus
-from src.media_management.domain.media_state import DEFAULT_MEDIA_STATE_MACHINE
-from src.media_management.domain.model import MediaAggregate
-import structlog
 
-from ..persistence.models import MediaEntity
 from ..mappers import MediaMapper
+from ..persistence.models import MediaEntity
 
 logger = structlog.get_logger(__name__)
 
 
 class MediaRepository:
-    """Persists :class:`MediaAggregate` instances using SQLAlchemy."""
+    """Persists :class:`Media` instances using SQLAlchemy."""
 
     def __init__(self, db: AsyncSession, mapper: Optional[MediaMapper] = None) -> None:
         self.db = db
         self._mapper = mapper or MediaMapper()
 
-    async def get_by_id(self, media_id: UUID) -> Optional[MediaAggregate]:
-        result = await self.db.execute(select(MediaEntity).where(MediaEntity.id == media_id))
+    async def get_by_id(self, media_id: UUID) -> Optional[Media]:
+        result = await self.db.execute(
+            select(MediaEntity).where(MediaEntity.id == media_id)
+        )
         entity = result.scalar_one_or_none()
         if entity is None:
             return None
         return self._mapper.to_domain(entity)
 
-    async def add(self, media: MediaAggregate) -> MediaAggregate:
+    async def add(self, media: Media) -> Media:
         entity = self._mapper.to_entity(media)
         self.db.add(entity)
         await self.db.commit()
@@ -41,7 +42,7 @@ class MediaRepository:
         persisted = self._mapper.to_domain(entity)
         return self._mapper.merge_transient_data(persisted, media)
 
-    async def save(self, media: MediaAggregate) -> MediaAggregate:
+    async def save(self, media: Media) -> Media:
         entity = self._mapper.to_entity(media)
         merged = await self.db.merge(entity)
         await self.db.commit()
@@ -49,11 +50,13 @@ class MediaRepository:
         persisted = self._mapper.to_domain(merged)
         return self._mapper.merge_transient_data(persisted, media)
 
-    async def update(self, media: MediaAggregate) -> MediaAggregate:
+    async def update(self, media: Media) -> Media:
         return await self.save(media)
 
     async def delete(self, media_id: UUID) -> None:
-        result = await self.db.execute(select(MediaEntity).where(MediaEntity.id == media_id))
+        result = await self.db.execute(
+            select(MediaEntity).where(MediaEntity.id == media_id)
+        )
         entity = result.scalar_one_or_none()
         if entity is not None:
             await self.db.delete(entity)
@@ -65,11 +68,11 @@ class MediaRepository:
         status: MediaStatus,
         *,
         error_message: Optional[str] = None,
-    ) -> MediaAggregate:
-        result = await self.db.execute(select(MediaEntity).where(MediaEntity.id == media_id))
+    ) -> Media:
+        result = await self.db.execute(
+            select(MediaEntity).where(MediaEntity.id == media_id)
+        )
         entity = result.scalar_one()
-        previous_status = entity.status
-        DEFAULT_MEDIA_STATE_MACHINE.assert_transition(previous_status, status)
         entity.status = status
         entity.error_message = error_message
         await self.db.commit()
@@ -86,7 +89,7 @@ class MediaRepository:
         user_id: Optional[UUID] = None,
         status: Optional[MediaStatus] = None,
         search: Optional[str] = None,
-    ) -> List[MediaAggregate]:
+    ) -> List[Media]:
         stmt = select(MediaEntity)
         if user_id is not None:
             stmt = stmt.where(MediaEntity.user_id == user_id)
@@ -122,20 +125,33 @@ class MediaRepository:
         self,
         user_id: Optional[UUID] = None,
         status: Optional[MediaStatus] = None,
-    ) -> List[MediaAggregate]:
-        return await self.list_paginated(page=1, limit=10_000, user_id=user_id, status=status)
+    ) -> List[Media]:
+        return await self.list_paginated(
+            page=1,
+            limit=10_000,
+            user_id=user_id,
+            status=status,
+        )
 
     async def count_all(self) -> int:
         result = await self.db.execute(select(func.count()).select_from(MediaEntity))
         return result.scalar_one()
 
     async def count_by_status(self, status: MediaStatus) -> int:
-        stmt = select(func.count()).select_from(MediaEntity).where(MediaEntity.status == status)
+        stmt = (
+            select(func.count())
+            .select_from(MediaEntity)
+            .where(MediaEntity.status == status)
+        )
         result = await self.db.execute(stmt)
         return result.scalar_one()
 
     async def count_by_user(self, user_id: UUID) -> int:
-        stmt = select(func.count()).select_from(MediaEntity).where(MediaEntity.user_id == user_id)
+        stmt = (
+            select(func.count())
+            .select_from(MediaEntity)
+            .where(MediaEntity.user_id == user_id)
+        )
         result = await self.db.execute(stmt)
         return result.scalar_one()
 

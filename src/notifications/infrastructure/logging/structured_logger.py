@@ -4,9 +4,11 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
+from src.shared.infrastructure.observability.ports import LoggerPort
 
-class StructuredNotificationLogger:
-    """Placeholder logger that emits structured messages using stdlib logging."""
+
+class StructuredNotificationLogger(LoggerPort):
+    """Logger simples que emite mensagens estruturadas via stdlib logging."""
 
     def __init__(self) -> None:
         self._logger = logging.getLogger("notifications")
@@ -29,6 +31,9 @@ class StructuredNotificationLogger:
             exc_info=exc,
             extra=self._format_extra(extra),
         )
+
+    async def log_operation(self, **kwargs) -> None:
+        self._logger.info("notification.operation", extra=self._format_extra(kwargs))
 
     @staticmethod
     def _format_extra(extra: Dict[str, Any]) -> Dict[str, Any]:

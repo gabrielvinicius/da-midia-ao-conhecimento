@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from src.media_management.domain.media import MediaStatus, MediaType
+from src.media_management.domain.entities.media import MediaStatus, MediaType
 
 
 class MediaCreate(BaseModel):
@@ -24,18 +24,21 @@ class MediaCreate(BaseModel):
 
 
 class MediaResponse(BaseModel):
-    """
-    DTO for Media responses.
+    """DTO for Media responses.
     Decoupled from Domain Entities and Internal Database columns.
     """
+
     id: UUID = Field(..., description="The unique identifier for the media item.")
     filename: Optional[str] = Field(None, description="Original filename.")
     content_type: Optional[str] = Field(None, description="MIME type of the file.")
     size: Optional[int] = Field(None, description="File size in bytes.")
     media_type: MediaType = Field(..., description="The type of the media file.")
     status: MediaStatus = Field(..., description="The current processing status.")
-    created_at: datetime = Field(..., description="The timestamp when the media was uploaded.")
-    
+    created_at: datetime = Field(
+        ...,
+        description="The timestamp when the media was uploaded.",
+    )
+
     # Optional metadata
     error_message: Optional[str] = None
     language: Optional[str] = None
@@ -45,7 +48,7 @@ class MediaResponse(BaseModel):
     @property
     def processing_pipeline(self) -> List[str]:
         pipeline: List[str] = ["upload"]
-        
+
         if self.media_type == MediaType.VIDEO:
             pipeline.append("video_processing")
         elif self.media_type == MediaType.AUDIO:

@@ -1,0 +1,88 @@
+from typing import Any, Dict, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from src.shared.domain.enums import MediaStatus
+
+
+class CreateMediaCommand(BaseModel):
+    """Dados necessários para fazer upload de um novo media."""
+
+    model_config = ConfigDict(frozen=True)
+
+    user_id: str | UUID = Field(..., description="ID do dono do media.")
+    file: bytes = Field(..., description="Arquivo binário a ser armazenado.")
+    filename: str = Field(..., description="Nome original do arquivo.")
+    storage_provider: str = Field(..., description="Provider de storage escolhido.")
+    transcription_provider: Optional[str] = Field(
+        None, description="Provider de transcrição a utilizar."
+    )
+    summarization_provider: Optional[str] = Field(
+        None, description="Provider de sumarização a utilizar."
+    )
+    sentiment_provider: Optional[str] = Field(
+        None, description="Provider de sentimento a utilizar."
+    )
+    topic_modeling_provider: Optional[str] = Field(
+        None, description="Provider de tópicos a utilizar."
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Metadados adicionais enviados pelo cliente."
+    )
+
+
+class DeleteMediaCommand(BaseModel):
+    """Command para excluir um media."""
+
+    model_config = ConfigDict(frozen=True)
+
+    media_id: UUID = Field(..., description="ID do media a excluir.")
+
+
+class ReprocessMediaCommand(BaseModel):
+    """Command para reprocessar um media."""
+
+    model_config = ConfigDict(frozen=True)
+
+    media_id: UUID = Field(..., description="ID do media a reprocessar.")
+
+
+class CleanupOrphanedFilesCommand(BaseModel):
+    """Command para limpar arquivos órfãos no storage."""
+
+    model_config = ConfigDict(frozen=True)
+
+    actor_id: Optional[str] = Field(
+        None, description="Identificador de quem disparou a limpeza."
+    )
+
+
+class GetMediaQuery(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    media_id: UUID = Field(..., description="ID do media para consulta.")
+
+
+class ListMediaQuery(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    page: int = Field(1, ge=1, description="Página de paginação.")
+    limit: int = Field(50, ge=1, le=100, description="Itens por página.")
+    user_id: Optional[UUID] = Field(
+        None, description="Filtra por usuário dono (opcional)."
+    )
+    status: Optional[MediaStatus] = Field(
+        None, description="Filtra por status (opcional)."
+    )
+    search: Optional[str] = Field(
+        None, description="Termo de busca por nome/metadata (opcional)."
+    )
+
+
+class GetMediaStatisticsQuery(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    user_id: Optional[UUID] = Field(
+        None, description="Usuário para estatística (None = global)."
+    )

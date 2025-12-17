@@ -1,37 +1,19 @@
-"""Bootstrap module for storage services."""
+"""Bootstrap module for storage services (legacy helper)."""
 from typing import Any, Dict
 
-from src.shared.infrastructure.caching.cache import CacheService
-from src.shared.monitoring.metrics_collector import MetricsCollector
-
 from src.storage.application.services.storage_service import StorageService
-from src.storage.infrastructure.local_storage_service import LocalStorageService
+from src.storage.infrastructure.persistence.local_storage_repository import (
+    LocalStorageService,
+)
 
 
-def bootstrap_storage_module(
-    metrics_collector: MetricsCollector,
-    cache_service: CacheService,
-    storage_provider: str = "local"
-) -> Dict[str, Any]:
-    """Constructs and returns the services for the storage module.
-    
-    Args:
-        metrics_collector: Metrics collection service
-        cache_service: Cache service
-        storage_provider: Storage provider to use (local is default)
-        
-    Returns:
-        Dict containing storage services
-    """
-    # Infrastructure (Repository)
-    if storage_provider == "local":
-        repository = LocalStorageService(root_directory="storage")
-    else:
-        # Fallback or support for S3 if implemented
-        # For now defaulting to local to ensure stability
-        repository = LocalStorageService(root_directory="storage")
+def bootstrap_storage_module(storage_provider: str = "local") -> Dict[str, Any]:
+    """Constructs storage services using the configured provider."""
+    if storage_provider != "local":
+        # For now, fallback to local; extend when real providers available
+        storage_provider = "local"
 
-    # Application Service
+    repository = LocalStorageService(root_directory="storage")
     storage_service = StorageService(repository=repository)
 
     return {

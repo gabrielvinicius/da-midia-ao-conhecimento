@@ -2,20 +2,19 @@
 from dataclasses import dataclass
 from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, status, WebSocket, Query
-from fastapi.security import OAuth2PasswordBearer
-from jose import jwt, JWTError
+from fastapi import Depends, HTTPException, Query, WebSocket, status
+from jose import JWTError, jwt
 
-from src.shared.infrastructure.config.settings import Settings, settings
-from src.user_management.application.auth_service import AuthService
-from src.user_management.application.queries.dto import GetUserQuery # New import
-from src.user_management.application.auth_queries import AuthQueries
-from src.user_management.application.user_service import UserService
-from src.user_management.domain.user import User, UserRole
+from src.user_management.application.auth_queries import UserReadService
+from src.user_management.application.dtos import GetUserQuery  # New import
+from src.user_management.application.services.auth_service import AuthService
+from src.user_management.application.services.user_service import UserService
+from src.user_management.config.settings import UserSettings
+from src.user_management.domain import User, UserRole
+from src.user_management.infrastructure.adapters.auth.oauth2_scheme import oauth2_scheme
 
-from src.user_management.infrastructure.auth.oauth2_scheme import oauth2_scheme
 
-class AuthDependenciesNotConfigured(RuntimeError):
+class AuthDependenciesNotConfiguredError(RuntimeError):
     """Raised when the dependency provider has not been registered."""
 
 
@@ -25,14 +24,21 @@ class AuthDependencies:
 
     user_service: UserService
     auth_service: AuthService
-    auth_queries: AuthQueries
-    settings: Settings
+    auth_queries: UserReadService
+    settings: UserSettings
 
 
 def get_auth_dependencies() -> AuthDependencies:
-    """Base provider to be overridden during application startup."""
-    raise AuthDependenciesNotConfigured(
-        "Auth dependencies are not configured. Register providers in the lifespan handler."
+    """Base provider to be overridden during application startup.
+
+    Em produção/testes de integração o bootstrap (`bind_user_management_module`)
+    deve registrar um override que devolve as dependências reais. Mantemos a
+    exceção explícita para evitar acoplamento com fakes definidos em `tests/`
+    e para falhar rápido caso o módulo não tenha sido devidamente ligado.
+    """
+    raise AuthDependenciesNotConfiguredError(
+        "Auth dependencies are not configured. "
+        "Register overrides via bind_user_management_module during startup."
     )
 
 
@@ -47,11 +53,11 @@ def get_auth_service(deps: AuthDeps) -> AuthService:
     return deps.auth_service
 
 
-def get_auth_queries(deps: AuthDeps) -> AuthQueries:
+def get_auth_queries(deps: AuthDeps) -> UserReadService:
     return deps.auth_queries
 
 
-def get_auth_settings(deps: AuthDeps) -> Settings:
+def get_auth_settings(deps: AuthDeps) -> UserSettings:
     return deps.settings
 
 async def get_current_user(
@@ -64,13 +70,17 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, deps.settings.secret_key, algorithms=[deps.settings.algorithm])
+        payload = jwt.decode(
+            token,
+            deps.settings.secret_key,
+            algorithms=[deps.settings.algorithm],
+        )
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-        
+
     user = await deps.auth_queries.get_user_by_id(GetUserQuery(user_id=user_id))
     if user is None:
         raise credentials_exception
@@ -97,12 +107,16 @@ async def get_current_user_websocket(
         raise HTTPException(status_code=401)
     # Logic similar to get_current_user
     try:
-        payload = jwt.decode(token, deps.settings.secret_key, algorithms=[deps.settings.algorithm])
+        payload = jwt.decode(
+            token,
+            deps.settings.secret_key,
+            algorithms=[deps.settings.algorithm],
+        )
         user_id: str = payload.get("sub")
     except Exception:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         raise HTTPException(status_code=401)
-    
+
     user = await deps.auth_queries.get_user_by_id(GetUserQuery(user_id=user_id))
     if not user:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -111,7 +125,7 @@ async def get_current_user_websocket(
 
 __all__ = [
     "AuthDependencies",
-    "AuthDependenciesNotConfigured",
+    "AuthDependenciesNotConfiguredError",
     "get_auth_dependencies",
     "get_auth_queries",
     "get_auth_service",

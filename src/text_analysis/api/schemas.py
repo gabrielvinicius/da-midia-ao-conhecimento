@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class Segment(BaseModel):
@@ -27,19 +27,25 @@ class AnalyzeRequest(BaseModel):
     transformer_representation_model: Optional[str] = None
     llm_model: Optional[str] = None
 
-    @root_validator(pre=True)
-    def trim_text(cls, values: dict[str, Any]) -> dict[str, Any]:
-        if "text" in values and isinstance(values["text"], str):
+    @model_validator(mode="before")
+    def trim_text(cls, values: dict[str, Any]) -> dict[str, Any]:  # noqa: N805
+        if (
+            isinstance(values, dict)
+            and "text" in values
+            and isinstance(values["text"], str)
+        ):
             values["text"] = values["text"].strip()
         return values
 
-    @root_validator(skip_on_failure=True)
-    def ensure_source_present(cls, values: dict[str, Any]) -> dict[str, Any]:
-        has_text = bool(values.get("text"))
-        has_ids = bool(values.get("media_id") or values.get("transcription_id"))
+    @model_validator(mode="after")
+    def ensure_source_present(self) -> "AnalyzeRequest":
+        has_text = bool(self.text)
+        has_ids = bool(self.media_id or self.transcription_id)
         if not has_text and not has_ids:
-            raise ValueError("Informe texto ou um media_id/transcription_id para análise")
-        return values
+            raise ValueError(
+                "Informe texto ou um media_id/transcription_id para análise"
+            )
+        return self
 
 
 class AnalyzeResponse(BaseModel):

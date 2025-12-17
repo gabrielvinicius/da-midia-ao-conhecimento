@@ -9,7 +9,7 @@ from src.media_processing.application.services.transcription_service import (
 )
 
 
-class TranscriptionDependenciesNotConfigured(RuntimeError):
+class TranscriptionDependenciesNotConfiguredError(RuntimeError):
     pass
 
 
@@ -19,8 +19,9 @@ class TranscriptionDependencies:
 
 
 def get_transcription_dependencies() -> TranscriptionDependencies:
-    raise TranscriptionDependenciesNotConfigured(
-        "Transcription dependencies are not configured. Register providers in the lifespan handler."
+    raise TranscriptionDependenciesNotConfiguredError(
+        "Transcription dependencies are not configured. "
+        "Register providers in the lifespan handler."
     )
 
 
@@ -36,7 +37,7 @@ def get_transcription_service(deps: TranscriptionDeps) -> TranscriptionService:
 
 __all__ = [
     "TranscriptionDependencies",
-    "TranscriptionDependenciesNotConfigured",
+    "TranscriptionDependenciesNotConfiguredError",
     "get_transcription_dependencies",
     "get_transcription_service",
 ]

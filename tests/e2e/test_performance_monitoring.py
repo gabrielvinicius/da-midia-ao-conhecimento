@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
-
 from src.media_processing.transcription.application.services.speech_recognition_service import (
     SpeechRecognitionService,
 )

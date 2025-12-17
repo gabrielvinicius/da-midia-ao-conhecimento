@@ -12,14 +12,12 @@ from celery import Celery
 # Import models to ensure they are registered with SQLAlchemy Base
 # This prevents NoReferencedTableError for ForeignKeys when running workers
 try:
-    import src.user_management.infrastructure.user_model
-    import src.notifications.infrastructure.models
-    import src.media_management.infrastructure.persistence
-    import src.media_processing.infrastructure.transcription.transcription_model
-    # text_analysis uses repository_sqlalchemy which defines AnalysisORM
-    import src.text_analysis.infrastructure.repository_sqlalchemy 
-except ImportError:
-    # Fallback if models aren't fully set up yet during scaffolding
+    # Side-effect imports to register ORM models
+    import src.media_management.infrastructure.persistence  # noqa: F401
+    import src.media_processing.infrastructure.transcription.transcription_model as _tx  # noqa: F401
+    import src.text_analysis.infrastructure.repository_sqlalchemy as _ta_repo
+    _ = (_tx, _ta_repo)
+except ImportError:  # pragma: no cover - optional during scaffolding
     pass
 
 
@@ -47,7 +45,9 @@ def create_celery() -> Celery:
         timezone=os.getenv("CELERY_TIMEZONE", "UTC"),
         enable_utc=True,
         task_acks_late=True,
-        worker_prefetch_multiplier=int(os.getenv("CELERY_WORKER_PREFETCH_MULTIPLIER", "1")),
+        worker_prefetch_multiplier=int(
+            os.getenv("CELERY_WORKER_PREFETCH_MULTIPLIER", "1")
+        ),
     )
 
     # Autodiscover tasks in namespaced packages

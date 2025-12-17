@@ -5,8 +5,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 
 from src.text_analysis.application.ports.repository import AnalysisRepositoryPort
-from src.text_analysis.domain.entities import Analysis
-from src.text_analysis.domain.value_objects import Topic
+from src.text_analysis.domain import Analysis, Topic
 
 
 class InMemoryAnalysisRepository(AnalysisRepositoryPort):
@@ -24,3 +23,9 @@ class InMemoryAnalysisRepository(AnalysisRepositoryPort):
         analysis = self._store.get(analysis_id)
         return analysis.topics if analysis else []
 
+    # Optional helper for compatibility
+    def get_by_media_id(self, media_id) -> Optional[Analysis]:
+        for analysis in self._store.values():
+            if str(getattr(analysis, "media_id", "")) == str(media_id):
+                return analysis
+        return None

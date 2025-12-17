@@ -1,36 +1,31 @@
-"""Value object representing a validated file path."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Union
+from pathlib import Path, PurePosixPath
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FilePath:
-    """Immutable representation of a file path."""
+    """Value object representing a normalized storage path."""
 
-    value: str
+    path: PurePosixPath
 
-    def __post_init__(self) -> None:
-        cleaned = str(self.value).strip()
-        if not cleaned:
+    @staticmethod
+    def from_path(raw: str) -> "FilePath":
+        if not raw or raw.strip() == "":
             raise ValueError("File path cannot be empty")
-        normalised = Path(cleaned).as_posix()
-        object.__setattr__(self, "value", normalised)
+        # Normalize to POSIX style for storage consistency
+        normalized = PurePosixPath(raw)
+        return FilePath(path=normalized)
 
-    @classmethod
-    def from_path(cls, path: Union[str, Path]) -> "FilePath":
-        return cls(str(path))
+    @property
+    def value(self) -> str:
+        """Return path as POSIX string for adapters that expect `.value`."""
+        return str(self.path)
 
     def to_path(self) -> Path:
-        return Path(self.value)
-
-    def get_extension(self) -> str:
-        return self.to_path().suffix.lower()
-
-    def get_filename(self) -> str:
-        return self.to_path().name
+        """Return a concrete Path for local filesystem-based adapters."""
+        return Path(self.path)
 
     def __str__(self) -> str:
-        return self.value
+        return str(self.path)

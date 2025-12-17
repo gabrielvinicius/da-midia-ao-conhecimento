@@ -37,7 +37,7 @@ openai-whisper
 accelerate
 
 # Authentication & Security
-passlib[bcrypt]>=1.7.4
+passlib[bcrypt]==1.7.4
 bcrypt>=4.2.0
 python-jose[cryptography]>=3.4.0
 

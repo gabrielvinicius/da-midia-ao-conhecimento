@@ -3,10 +3,10 @@ from uuid import uuid4
 
 import pytest
 
-from src.media_processing.video_processing.application.video_processing_service import (
+from src.media_processing.application.services.video_processing_service import (
     VideoProcessingService,
 )
-from src.media_processing.video_processing.infrastructure.metrics import (
+from src.media_processing.infrastructure.metrics.prometheus_video_processing_metrics import (
     PrometheusVideoProcessingMetrics,
 )
 
@@ -44,12 +44,22 @@ async def test_request_video_processing_schedules_task(service_dependencies):
         media_id=media_id,
         file_path="/tmp/video.mp4",
         storage_provider="local",
+        user_id=None,
+        filename=None,
+        triggered_by=None,
+        actor_id=None,
+        correlation_id=None,
     )
 
     task_scheduler.schedule_process_video_task.assert_awaited_once_with(
         media_id=str(media_id),
         file_path="/tmp/video.mp4",
         storage_provider="local",
+        user_id=None,
+        filename=None,
+        triggered_by=None,
+        actor_id=None,
+        correlation_id=str(media_id),
     )
     assert response["task_id"] == "123"
 
@@ -68,6 +78,11 @@ async def test_process_video_job_success(service_dependencies):
         file_path="/tmp/video.mp4",
         storage_provider="local",
         file_size_bytes=123,
+        user_id=None,
+        filename=None,
+        triggered_by=None,
+        actor_id=None,
+        correlation_id=None,
     )
 
     storage_factory.get_download_service.assert_called_once_with("local")
@@ -90,5 +105,10 @@ async def test_process_video_job_failure_raises(service_dependencies):
             media_id=uuid4(),
             file_path="/tmp/video.mp4",
             storage_provider="local",
+            user_id=None,
+            filename=None,
+            triggered_by=None,
+            actor_id=None,
+            correlation_id=None,
         )
     metrics.record_operation.assert_awaited_once()

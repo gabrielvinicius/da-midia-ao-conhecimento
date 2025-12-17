@@ -28,6 +28,7 @@ class TranscriptionTaskPayload(MediaTaskPayload):
 
 class VideoTaskPayload(MediaTaskPayload):
     """Payload specific for video processing tasks."""
+
     pass
 
 

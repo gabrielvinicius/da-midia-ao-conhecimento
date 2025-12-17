@@ -1,14 +1,15 @@
 # src/notifications/api/routers.py
-from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.notifications.application.commands.dto import SendNotificationCommand
-from src.notifications.application.queries.dto import GetNotificationQuery
-from src.notifications.domain.notification import NotificationPriority, NotificationType
+from src.notifications.application.dtos import (
+    GetNotificationQuery,
+    SendNotificationCommand,
+)
+from src.notifications.domain import NotificationPriority, NotificationType
 from src.user_management.api.dependencies import get_current_user
-from src.user_management.domain.user import User, UserRole
+from src.user_management.domain import User, UserRole
 
 from ..application.services.notification_service import NotificationService
 from .dependencies import get_notification_service
@@ -26,8 +27,14 @@ async def request_notification(
     service: NotificationService = Depends(get_notification_service),
     current_user: User = Depends(get_current_user),
 ):
-    if str(request.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to send notification for this user")
+    if (
+        str(request.user_id) != str(current_user.id)
+        and current_user.role != UserRole.ADMIN
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to send notification for this user",
+        )
     try:
         command = SendNotificationCommand(
             user_id=request.user_id,
@@ -36,7 +43,10 @@ async def request_notification(
             priority=NotificationPriority.NORMAL,
         )
         notification_id = await service.send_notification(command)
-        return {"message": "Notification request accepted and is being processed.", "notification_id": str(notification_id)}
+        return {
+            "message": "Notification request accepted and is being processed.",
+            "notification_id": str(notification_id),
+        }
     except ValueError as e:
         # Ideally catch specific domain exceptions
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -52,9 +62,15 @@ async def get_notification_by_id(
     notification = await service.get_notification_by_id(query)
     if not notification:
         raise HTTPException(status_code=404, detail="Notification not found")
-    if str(notification.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this notification")
-    
+    if (
+        str(notification.user_id) != str(current_user.id)
+        and current_user.role != UserRole.ADMIN
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this notification",
+        )
+
     # Explicit mapping Domain Entity -> DTO
     return NotificationResponse(
         id=notification.id,

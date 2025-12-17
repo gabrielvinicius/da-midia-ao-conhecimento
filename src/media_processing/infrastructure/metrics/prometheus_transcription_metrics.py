@@ -1,9 +1,9 @@
 # src/transcription/infrastructure/metrics.py
 from typing import Any, Dict
 
-from prometheus_client import Counter, Gauge, Histogram
-
-from src.shared.infrastructure.observability.metrics.prometheus_metrics import shared_metrics
+from src.shared.infrastructure.observability.metrics.prometheus_metrics import (
+    shared_metrics,
+)
 
 
 class PrometheusTranscriptionMetrics:

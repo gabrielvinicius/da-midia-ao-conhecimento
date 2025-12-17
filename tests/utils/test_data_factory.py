@@ -3,18 +3,14 @@
 Provides consistent, valid test data for all domains.
 """
 import random
-from datetime import datetime
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+from src.media_management.domain import Media
+from src.media_processing.domain import Transcription, TranscriptionStatus
 from src.shared.domain.enums import MediaStatus, MediaType
-from src.media_management.domain.media import Media
-from src.media_processing.transcription.domain.transcription import (
-    Transcription,
-    TranscriptionStatus,
-)
-from src.user_management.domain.user import User, UserRole
+from src.user_management.domain.entities.user import User, UserRole
 
 
 class TestDataFactory:

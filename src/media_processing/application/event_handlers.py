@@ -1,19 +1,20 @@
 """Event handlers for the media_processing module."""
 from __future__ import annotations
 
-import time
 from typing import Any, Dict, Optional
 from uuid import UUID
 
 import structlog
 
-from src.media_processing.application.services.media_processing_service import MediaProcessingService
-from src.providers.domain.interfaces import IProviderRegistry, ProviderType
-from src.shared.domain.events import MediaUploaded, TextContentReady
+from src.media_processing.application.services.media_processing_service import (
+    MediaProcessingService,
+)
 from src.shared.domain.enums import MediaType as _MediaType
+from src.shared.domain.events import MediaUploaded, TextContentReady
 
-
-logger = structlog.get_logger(__name__).bind(component="media_processing.event_handlers")
+logger = structlog.get_logger(__name__).bind(
+    component="media_processing.event_handlers"
+)
 
 
 class MediaProcessingEventHandlers:
@@ -22,11 +23,11 @@ class MediaProcessingEventHandlers:
     def __init__(
         self,
         media_processing_service: MediaProcessingService,
-        provider_registry: IProviderRegistry | None = None,
     ) -> None:
         self._media_processing_service = media_processing_service
-        self._provider_registry = provider_registry
-        self._logger = structlog.get_logger(__name__).bind(component="media_processing.event_handlers")
+        self._logger = structlog.get_logger(__name__).bind(
+            component="media_processing.event_handlers"
+        )
 
     async def handle_media_uploaded(
         self,
@@ -66,15 +67,29 @@ class MediaProcessingEventHandlers:
             return
 
     async def _delegate_text_extraction(self, event, context, media_id):
-        storage_provider = event.storage_provider or context.get("storage_provider") or "local"
+        storage_provider = (
+            event.storage_provider or context.get("storage_provider") or "local"
+        )
         file_path = getattr(event, "file_path", None) or context.get("file_path")
-        
+        user_uuid = None
         try:
-            from src.media_processing.application.commands.dto import RequestTextExtractionCommand
+            user_uuid = UUID(event.user_id) if event.user_id else None
+        except Exception:
+            user_uuid = None
+
+        try:
+            from src.media_processing.application.dtos import (
+                RequestTextExtractionCommand,
+            )
             command = RequestTextExtractionCommand(
                 media_id=media_id,
                 file_path=file_path,
                 storage_provider=storage_provider,
+                user_id=user_uuid,
+                filename=getattr(event, "filename", None),
+                triggered_by=getattr(event, "triggered_by", None),
+                actor_id=getattr(event, "actor_id", None) or context.get("actor_id"),
+                correlation_id=getattr(event, "correlation_id", None),
             )
             await self._media_processing_service.request_text_extraction(command)
             self._logger.debug(
@@ -89,44 +104,54 @@ class MediaProcessingEventHandlers:
             )
 
     async def _delegate_transcription(self, event, context, media_id):
-        storage_provider = event.storage_provider or context.get("storage_provider") or "local"
+        storage_provider = (
+            event.storage_provider or context.get("storage_provider") or "local"
+        )
         # Validate providers
-        transcription_provider = self._validate_provider(
+        transcription_provider = (
             event.transcription_provider
             or context.get("transcription_provider")
             or context.get("provider")
-            or "fastwhisper",
-            ProviderType.TRANSCRIPTION,
+            or "default"
         )
-        summarization_provider = self._validate_provider(
-            event.summarization_provider or context.get("summarization_provider"),
-            ProviderType.SUMMARIZATION,
+        summarization_provider = (
+            event.summarization_provider or context.get("summarization_provider")
         )
-        sentiment_provider = self._validate_provider(
-            event.sentiment_provider or context.get("sentiment_provider"),
-            ProviderType.SENTIMENT_ANALYSIS,
+        sentiment_provider = (
+            event.sentiment_provider or context.get("sentiment_provider")
         )
-        topic_provider = self._validate_provider(
-            event.topic_modeling_provider or context.get("topic_modeling_provider"),
-            ProviderType.TOPIC_MODELING,
+        topic_provider = (
+            event.topic_modeling_provider or context.get("topic_modeling_provider")
         )
-        
+
         file_path = getattr(event, "file_path", None) or context.get("file_path")
-        if not file_path and hasattr(event, "filename"):
-             pass
+        user_uuid = None
+        try:
+            user_uuid = UUID(event.user_id) if event.user_id else None
+        except Exception:
+            user_uuid = None
 
         try:
-            from src.media_processing.application.commands.dto import RequestTranscriptionCommand
+            from src.media_processing.application.dtos import (
+                RequestTranscriptionCommand,
+            )
             command = RequestTranscriptionCommand(
                 media_id=media_id,
-                file_path=file_path, 
+                file_path=file_path,
                 storage_provider=storage_provider,
                 transcription_provider=transcription_provider,
                 language=event.language or context.get("language") or "auto",
-                file_size_bytes=event.file_size_bytes or context.get("file_size_bytes") or 0,
+                file_size_bytes=(
+                    event.file_size_bytes or context.get("file_size_bytes") or 0
+                ),
                 summarization_provider=summarization_provider,
                 sentiment_provider=sentiment_provider,
                 topic_modeling_provider=topic_provider,
+                user_id=user_uuid,
+                filename=getattr(event, "filename", None),
+                triggered_by=getattr(event, "triggered_by", None),
+                actor_id=getattr(event, "actor_id", None) or context.get("actor_id"),
+                correlation_id=getattr(event, "correlation_id", None),
             )
             await self._media_processing_service.request_transcription(command)
             self._logger.debug(
@@ -141,15 +166,29 @@ class MediaProcessingEventHandlers:
             )
 
     async def _delegate_video_processing(self, event, context, media_id):
-        storage_provider = event.storage_provider or context.get("storage_provider") or "local"
+        storage_provider = (
+            event.storage_provider or context.get("storage_provider") or "local"
+        )
         file_path = getattr(event, "file_path", None) or context.get("file_path")
-        
+        user_uuid = None
         try:
-            from src.media_processing.application.commands.dto import RequestVideoProcessingCommand
+            user_uuid = UUID(event.user_id) if event.user_id else None
+        except Exception:
+            user_uuid = None
+
+        try:
+            from src.media_processing.application.dtos import (
+                RequestVideoProcessingCommand,
+            )
             command = RequestVideoProcessingCommand(
                 media_id=media_id,
                 file_path=file_path,
                 storage_provider=storage_provider,
+                user_id=user_uuid,
+                filename=getattr(event, "filename", None),
+                triggered_by=getattr(event, "triggered_by", None),
+                actor_id=getattr(event, "actor_id", None) or context.get("actor_id"),
+                correlation_id=getattr(event, "correlation_id", None),
             )
             await self._media_processing_service.request_video_processing(command)
             self._logger.debug(
@@ -196,8 +235,8 @@ class MediaProcessingEventHandlers:
         # Dynamic dispatch to Text Analysis tasks
         try:
             from src.text_analysis.tasks import (
-                summarize_task,
                 sentiment_task,
+                summarize_task,
                 topic_modeling_task,
             )
         except Exception as exc:
@@ -264,13 +303,5 @@ class MediaProcessingEventHandlers:
                     error=str(exc),
                 )
 
-    def _validate_provider(self, name: str | None, provider_type: ProviderType) -> str | None:
-        if not name or self._provider_registry is None:
-            return name
-        active = {
-            getattr(p, "name", None) or getattr(p, "get_name", lambda: None)()
-            for p in self._provider_registry.get_active_providers(provider_type)
-        }
-        if name not in active:
-            raise ValueError(f"Provider '{name}' not registered/active for {provider_type.value}")
+    def _validate_provider(self, name: str | None) -> str | None:
         return name

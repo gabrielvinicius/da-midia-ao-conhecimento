@@ -1,6 +1,7 @@
 import json
 import os
 
+
 def get_all_python_files(directory):
     py_files = []
     for root, _, files in os.walk(directory):
@@ -17,7 +18,7 @@ def find_unused_modules(pydeps_file, entry_points_paths):
         content = content.strip()
         if content.endswith(','):
             content = content[:-1]
-        
+
         # pydeps output is a sequence of JSON objects, need to wrap in a list
         # Also, it seems the output is not a valid JSON array, so we need to add commas between objects
         content = content.replace('}\n{', '},{')
@@ -44,7 +45,7 @@ def find_unused_modules(pydeps_file, entry_points_paths):
         if 'imports' in module_info:
             for imp in module_info['imports']:
                 imported_modules.add(imp)
-    
+
     # Convert entry points paths to module names
     entry_points = set()
     for path in entry_points_paths:

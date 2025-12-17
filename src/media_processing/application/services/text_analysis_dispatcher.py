@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from enum import Enum
 from typing import Any, Dict, Optional
 
@@ -29,7 +28,15 @@ class TextAnalysisDispatcher:
     def __init__(self, *, event_bus: Any | None) -> None:
         self._event_bus = event_bus
 
-    def dispatch(self, *, transcription_id: str, media_id: str, text: str, metadata: Dict[str, Any], correlation_id: Optional[str]) -> None:
+    def dispatch(
+        self,
+        *,
+        transcription_id: str,
+        media_id: str,
+        text: str,
+        metadata: Dict[str, Any],
+        correlation_id: Optional[str],
+    ) -> None:
         if self._event_bus is None:
             logger.warning(
                 "text_analysis.dispatch.bus_unavailable",
@@ -47,11 +54,17 @@ class TextAnalysisDispatcher:
         )
 
         try:
+            # Evita asyncio.run aqui; assume bus com publish_sync ou publish
+            # assíncrono via loop já existente.
             if hasattr(self._event_bus, "publish_sync"):
                 self._event_bus.publish_sync(event)
             else:
                 import asyncio
-                asyncio.run(self._event_bus.publish(event))
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self._event_bus.publish(event))
+                else:
+                    loop.run_until_complete(self._event_bus.publish(event))
             logger.info(
                 "text_analysis.dispatch.event_bus",
                 media_id=media_id,
@@ -76,8 +89,8 @@ class TextAnalysisDispatcher:
     ) -> None:
         try:
             from src.text_analysis.tasks import (
-                summarize_task,
                 sentiment_task,
+                summarize_task,
                 topic_modeling_task,
             )
         except Exception as exc:  # pragma: no cover
@@ -98,9 +111,21 @@ class TextAnalysisDispatcher:
         }
 
         jobs = [
-            (summarize_task, {**base_payload, "provider": metadata.get("summarization_provider")}, "summarization"),
-            (sentiment_task, {**base_payload, "provider": metadata.get("sentiment_provider")}, "sentiment"),
-            (topic_modeling_task, {**base_payload, "provider": metadata.get("topic_provider")}, "topic_modeling"),
+            (
+                summarize_task,
+                {**base_payload, "provider": metadata.get("summarization_provider")},
+                "summarization",
+            ),
+            (
+                sentiment_task,
+                {**base_payload, "provider": metadata.get("sentiment_provider")},
+                "sentiment",
+            ),
+            (
+                topic_modeling_task,
+                {**base_payload, "provider": metadata.get("topic_provider")},
+                "topic_modeling",
+            ),
         ]
 
         for task_fn, payload, name in jobs:

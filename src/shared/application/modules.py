@@ -32,11 +32,6 @@ DEFAULT_MODULE_SPECS: tuple[ModuleSpec, ...] = (
         routers=("src.user_management.api.routers:router",),
     ),
     ModuleSpec(
-        name="monitoring",
-        binder_path="src.monitoring.bootstrap:bind_monitoring_module",
-        routers=("src.monitoring.api.routers:router",),
-    ),
-    ModuleSpec(
         name="media",
         binder_path="src.media_management.bootstrap:bind_media_module",
         routers=(
@@ -46,13 +41,8 @@ DEFAULT_MODULE_SPECS: tuple[ModuleSpec, ...] = (
     ),
     ModuleSpec(
         name="notifications",
-        binder_path="src.notifications.bootstrap:bind_notification_module",
+        binder_path="src.notifications.bootstrap:bind_notifications_module",
         routers=("src.notifications.api.routers:router",),
-    ),
-    ModuleSpec(
-        name="providers",
-        binder_path="src.providers.bootstrap:bind_providers_module",
-        routers=("src.providers.api.routers:router",),
     ),
     ModuleSpec(
         name="text_analysis",
@@ -74,7 +64,6 @@ def register_module_dependencies(
     specs: Iterable[ModuleSpec] = DEFAULT_MODULE_SPECS,
 ) -> None:
     """Bind FastAPI dependency overrides for all declared modules."""
-
     for spec in specs:
         module = module_instances.get(spec.name)
         if module is None:
@@ -92,7 +81,6 @@ def include_module_routers(
     specs: Iterable[ModuleSpec] = DEFAULT_MODULE_SPECS,
 ) -> None:
     """Attach routers for modules that are enabled in this process."""
-
     for spec in specs:
         if module_instances is not None and module_instances.get(spec.name) is None:
             if spec.optional:

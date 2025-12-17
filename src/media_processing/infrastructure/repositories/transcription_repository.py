@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.media_processing.domain.model import Transcription
+from src.media_processing.domain import Transcription
 from src.media_processing.infrastructure.persistence.models import TranscriptionModel
 
 
@@ -17,14 +17,20 @@ class TranscriptionRepository:
 
     async def get_by_id(self, transcription_id: UUID) -> Optional[Transcription]:
         if isinstance(self.db, AsyncSession):
-            result = await self.db.execute(select(TranscriptionModel).where(TranscriptionModel.id == transcription_id))
+            result = await self.db.execute(
+                select(TranscriptionModel).where(
+                    TranscriptionModel.id == transcription_id
+                )
+            )
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None
         else:  # It's a sync session
             return self.get_by_id_sync(transcription_id)
 
     def get_by_id_sync(self, transcription_id: UUID) -> Optional[Transcription]:
-        stmt = select(TranscriptionModel).where(TranscriptionModel.id == transcription_id)
+        stmt = select(TranscriptionModel).where(
+            TranscriptionModel.id == transcription_id
+        )
         result = self.db.execute(stmt)
         model = result.scalar_one_or_none()
         return model.to_domain() if model else None
@@ -63,21 +69,29 @@ class TranscriptionRepository:
 
     async def get_by_media_id(self, media_id: UUID) -> Optional[Transcription]:
         if isinstance(self.db, AsyncSession):
-            result = await self.db.execute(select(TranscriptionModel).where(TranscriptionModel.media_id == media_id))
+            result = await self.db.execute(
+                select(TranscriptionModel).where(
+                    TranscriptionModel.media_id == media_id
+                )
+            )
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None
         else:  # It's a sync session
             return self.get_by_media_id_sync(media_id)
 
     def get_by_media_id_sync(self, media_id: UUID) -> Optional[Transcription]:
-        stmt = select(TranscriptionModel).where(TranscriptionModel.media_id == media_id)
+        stmt = select(TranscriptionModel).where(
+            TranscriptionModel.media_id == media_id
+        )
         result = self.db.execute(stmt)
         model = result.scalar_one_or_none()
         return model.to_domain() if model else None
 
     async def delete_by_media_id(self, media_id: UUID) -> None:
         if isinstance(self.db, AsyncSession):
-            stmt = select(TranscriptionModel).where(TranscriptionModel.media_id == media_id)
+            stmt = select(TranscriptionModel).where(
+                TranscriptionModel.media_id == media_id
+            )
             result = await self.db.execute(stmt)
             for entity in result.scalars().all():
                 await self.db.delete(entity)

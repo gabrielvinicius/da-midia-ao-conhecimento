@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 import uuid
-from enum import Enum
 
 from sqlalchemy import Boolean, Column, String, Uuid
 from sqlalchemy import Enum as SQLAEnum
-from sqlalchemy.orm import registry
 
 from src.shared.infrastructure.database.db import Base
-from src.user_management.domain.user import User as DomainUser, UserRole
+from src.user_management.domain.entities.user import User as DomainUser
+from src.user_management.domain.entities.user import UserRole
 
 
 class UserModel(Base):
@@ -19,7 +18,11 @@ class UserModel(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    role = Column(SQLAEnum(UserRole, name="userrole"), default=UserRole.USER, nullable=False)
+    role = Column(
+        SQLAEnum(UserRole, name="userrole"),
+        default=UserRole.USER,
+        nullable=False,
+    )
 
     def to_domain(self) -> DomainUser:
         """Convert persistence model to domain entity."""

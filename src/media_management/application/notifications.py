@@ -6,9 +6,9 @@ from uuid import UUID
 
 import structlog
 
+from src.notifications.domain import NotificationType
+from src.notifications.application.tasks import send_notification_task
 from src.shared.domain.enums import MediaStatus
-from src.notifications.domain.notification import NotificationType
-from src.notifications.tasks.notification_tasks import send_notification_task
 
 logger = structlog.get_logger(__name__)
 
@@ -21,7 +21,6 @@ def enqueue_media_status_notification(
     error_message: str | None = None,
 ) -> None:
     """Schedule a websocket notification reflecting the media status."""
-
     status_value = status.value if isinstance(status, MediaStatus) else str(status)
 
     if status_value == MediaStatus.COMPLETED.value:

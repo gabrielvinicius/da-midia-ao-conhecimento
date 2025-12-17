@@ -20,7 +20,9 @@ class SentenceTransformerEmbeddingAdapter(EmbeddingServicePort):
 
             self._model = SentenceTransformer(model_name)
         except Exception as exc:
-            logger.warning("Embedding model unavailable (%s). Using hash fallback.", exc)
+            logger.warning(
+                "Embedding model unavailable (%s). Using hash fallback.", exc
+            )
 
     def embed(self, texts: List[str]) -> List[list[float]]:
         if self._model:
@@ -36,4 +38,3 @@ class SentenceTransformerEmbeddingAdapter(EmbeddingServicePort):
             values[idx % dim] += (ord(ch) % 31) / 100.0
         norm = math.sqrt(sum(v * v for v in values)) or 1.0
         return [v / norm for v in values]
-

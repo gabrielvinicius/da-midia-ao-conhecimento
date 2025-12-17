@@ -25,7 +25,14 @@ def get_database_uri():
         return db_uri
 
     # Monta a URI a partir de variáveis individuais
-    required_vars = ['DB_SCHEME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT', 'DB_NAME']
+    required_vars = [
+        'DB_SCHEME',
+        'DB_USER',
+        'DB_PASSWORD',
+        'DB_HOST',
+        'DB_PORT',
+        'DB_NAME',
+    ]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 
     if missing_vars:

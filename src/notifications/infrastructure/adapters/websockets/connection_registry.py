@@ -5,9 +5,7 @@ from fastapi import WebSocket
 
 
 class WebSocketConnectionRegistry:
-    """Manages and stores active WebSocket connections, mapping user IDs to their connections.
-    Its single responsibility is to maintain the state of active connections.
-    """
+    """Manage active WebSocket connections by user ID."""
 
     def __init__(self):
         self.active_connections: Dict[str, List[WebSocket]] = {}

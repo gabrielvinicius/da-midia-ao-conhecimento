@@ -5,10 +5,10 @@ from typing import Any, Dict
 
 from prometheus_client import Counter, Gauge, Histogram
 
-from src.storage.domain.interfaces import StorageMetrics
+from src.storage.application.ports import StorageMetricsPort
 
 
-class PrometheusStorageMetrics(StorageMetrics):
+class PrometheusStorageMetrics(StorageMetricsPort):
     """Prometheus-based metrics implementation for storage operations.
     Follows SRP - only responsible for metrics collection.
     """
@@ -59,7 +59,7 @@ class PrometheusStorageMetrics(StorageMetrics):
         ).observe(duration)
 
 
-class InMemoryStorageMetrics(StorageMetrics):
+class InMemoryStorageMetrics(StorageMetricsPort):
     """In-memory metrics implementation for testing.
     Follows SRP and provides same interface.
     """
@@ -107,7 +107,7 @@ class InMemoryStorageMetrics(StorageMetrics):
         self._metrics.clear()
 
 
-class NoOpStorageMetrics(StorageMetrics):
+class NoOpStorageMetrics(StorageMetricsPort):
     """No-operation metrics for when metrics are disabled.
     Follows Null Object pattern.
     """

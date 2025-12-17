@@ -12,12 +12,31 @@ class WebSocketLogger:
 
     def log_connect(self, user_id: str, total_connections: int):
         """Logs a new client connection."""
-        logger.info(f"New connection for user {user_id}. Total connections for user: {total_connections}")
+        logger.info(
+            "New connection for user %s. Total connections for user: %s",
+            user_id,
+            total_connections,
+        )
 
     def log_disconnect(self, user_id: str, remaining_connections: int):
         """Logs a client disconnection."""
-        logger.info(f"Disconnected user {user_id}. Remaining connections: {remaining_connections}")
+        logger.info(
+            "Disconnected user %s. Remaining connections: %s",
+            user_id,
+            remaining_connections,
+        )
 
-    def log_error(self, user_id: str, error: Exception, message: str = "WebSocket error"):
+    def log_error(
+        self,
+        user_id: str,
+        error: Exception,
+        message: str = "WebSocket error",
+    ):
         """Logs an error related to a WebSocket connection."""
-        logger.error(f"{message} for user {user_id}: {error}", exc_info=True)
+        logger.error(
+            "%s for user %s: %s",
+            message,
+            user_id,
+            error,
+            exc_info=True,
+        )

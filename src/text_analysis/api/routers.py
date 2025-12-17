@@ -9,13 +9,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.media_management.api.dependencies import get_media_queries
 from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_processing.transcription.api.dependencies import get_transcription_queries
+from src.media_processing.transcription.api.dependencies import (
+    get_transcription_queries,
+)
 from src.media_processing.transcription.application.queries import TranscriptionQueries
 from src.shared.api.dependencies import get_current_user
-from src.user_management.domain.user import User
+from src.user_management.domain import User
 
-from .dependencies import AnalyzeRequest, AnalyzeResponse, get_text_analysis_service
 from ..application.service import TextAnalysisService
+from .dependencies import AnalyzeRequest, AnalyzeResponse, get_text_analysis_service
 
 router = APIRouter(prefix="/text-analysis", tags=["text-analysis"])
 
@@ -32,9 +34,18 @@ async def analyze_text(
     if payload.media_id:
         media = await media_queries.get_by_id(payload.media_id)
         if not media:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
-        if str(media.user_id) != str(current_user.id) and current_user.role.value != "admin":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Media not found",
+            )
+        if (
+            str(media.user_id) != str(current_user.id)
+            and current_user.role.value != "admin"
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied",
+            )
 
     transcription = None
     transcription_id: Optional[UUID] = payload.transcription_id
@@ -104,13 +115,23 @@ async def get_analysis_result(
     try:
         result = service.get_analysis(analysis_id)
         owner = result.get("user_id")
-        if owner and str(owner) != str(current_user.id) and current_user.role.value != "admin":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        if (
+            owner
+            and str(owner) != str(current_user.id)
+            and current_user.role.value != "admin"
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied",
+            )
         return result
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get("/media/{media_id}", response_model=AnalyzeResponse)
@@ -123,16 +144,29 @@ async def get_analysis_by_media(
     try:
         result = service.get_analysis_by_media_id(media_id)
         if not result:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found for this media")
-            
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Analysis not found for this media",
+            )
+
         owner = result.get("user_id")
-        if owner and str(owner) != str(current_user.id) and current_user.role.value != "admin":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        if (
+            owner
+            and str(owner) != str(current_user.id)
+            and current_user.role.value != "admin"
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied",
+            )
         return result
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get("/{analysis_id}/topics")
@@ -145,13 +179,23 @@ async def get_topics(
         topics = service.list_topics(analysis_id)
         analysis = service.get_analysis(analysis_id)
         owner = analysis.get("user_id")
-        if owner and str(owner) != str(current_user.id) and current_user.role.value != "admin":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        if (
+            owner
+            and str(owner) != str(current_user.id)
+            and current_user.role.value != "admin"
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied",
+            )
         return topics
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
 __all__ = ["router"]

@@ -13,6 +13,8 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'bc2700b46d2f'
+# NOTE: Earlier migrations 109225906b59 / afdbd95c1bf6 moved to _deprecated.
+# Keep chain consistent for existing DBs by pointing to the last active predecessor.
 down_revision: Union[str, None] = '0f32d570b4f2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

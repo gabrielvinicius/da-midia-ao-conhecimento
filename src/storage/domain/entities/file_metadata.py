@@ -1,4 +1,5 @@
-# src/storage/domain/entities/file_metadata.py
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
@@ -8,26 +9,23 @@ from src.storage.domain.value_objects.file_path import FilePath
 from src.storage.domain.value_objects.file_size import FileSize
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FileMetadata:
-    """Domain entity representing file metadata."""
+    """Immutable description of a stored file."""
 
     id: UUID
     file_path: FilePath
     size: FileSize
-    content_type: str
+    content_type: Optional[str]
     created_at: datetime
-    updated_at: Optional[datetime] = None
-    checksum: Optional[str] = None
+    updated_at: datetime
 
-    def update_metadata(self, size: FileSize, checksum: Optional[str] = None) -> 'FileMetadata':
-        """Create updated file metadata preserving immutability."""
-        return FileMetadata(
-            id=self.id,
-            file_path=self.file_path,
-            size=size,
-            content_type=self.content_type,
-            created_at=self.created_at,
-            updated_at=datetime.utcnow(),
-            checksum=checksum
-        )
+    def to_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "file_path": str(self.file_path),
+            "size_bytes": int(self.size.bytes),
+            "content_type": self.content_type,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }

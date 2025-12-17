@@ -1,77 +1,112 @@
 from __future__ import annotations
-import asyncio
-import tempfile
-import os
+
 import mimetypes
-from uuid import UUID
-from typing import Any, Dict, Optional
+import os
+import tempfile
 from pathlib import Path
+from typing import Any, Dict
+from uuid import UUID
 
 import structlog
 
-from src.media_processing.application.commands.dto import RequestTextExtractionCommand
-from src.media_processing.infrastructure.task_schedulers.celery_text_extraction_scheduler import CeleryTextTaskScheduler
-from src.media_processing.infrastructure.repositories.transcription_repository import TranscriptionRepository
-from src.media_processing.domain.model import Transcription, TranscriptionStatus
-from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
-from src.shared.domain.events import MediaProcessingStarted, MediaProcessingCompleted, MediaProcessingFailed, TextContentReady
-from src.storage.domain.value_objects.file_path import FilePath
+from src.media_processing.application.ports import (
+    OCRProviderPort,
+    StoragePort,
+    TextExtractionTaskSchedulerPort,
+    TextExtractorPort,
+    TranscriptionRepositoryPort,
+)
+from src.media_processing.domain import Transcription, TranscriptionStatus
 from src.shared.domain.errors import ResourceNotFoundError
-from src.media_processing.infrastructure.adapters.text.text_extractor_adapter import TextExtractor
-from src.media_processing.infrastructure.adapters.text.ocr_provider_adapter import OCRProvider
+from src.shared.domain.events import (
+    MediaProcessingCompleted,
+    MediaProcessingFailed,
+    MediaProcessingStarted,
+    TextContentReady,
+)
+from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
+from src.storage.domain.value_objects.file_path import FilePath
+
+from ..dtos import RequestTextExtractionCommand
 
 logger = structlog.get_logger(__name__)
 
 class TextExtractionService:
     def __init__(
         self,
-        repository: TranscriptionRepository,
-        task_scheduler: CeleryTextTaskScheduler,
-        storage_service: Any,
+        repository: TranscriptionRepositoryPort,
+        task_scheduler: TextExtractionTaskSchedulerPort,
+        storage_service: StoragePort,
         event_bus: SupportsEventBus | None = None,
-        text_extractor: TextExtractor = TextExtractor(), # Using default instance for now
-        ocr_provider: OCRProvider = OCRProvider(), # Using default instance for now
+        text_extractor: TextExtractorPort = None,
+        ocr_provider: OCRProviderPort = None,
     ):
         self._repo = repository
         self._task_scheduler = task_scheduler
         self._storage = storage_service
         self._event_bus = event_bus
+        if text_extractor is None or ocr_provider is None:
+            raise ValueError(
+                "TextExtractionService requires text_extractor and "
+                "ocr_provider adapters"
+            )
         self._text_extractor = text_extractor
         self._ocr_provider = ocr_provider
 
-    async def request_text_extraction(self, command: RequestTextExtractionCommand) -> Dict[str, Any]:
+    async def request_text_extraction(
+        self, command: RequestTextExtractionCommand
+    ) -> Dict[str, Any]:
         """Schedules text extraction task."""
         transcription = Transcription(
             media_id=command.media_id,
+            user_id=command.user_id,
+            filename=command.filename,
+            correlation_id=command.correlation_id,
             status=TranscriptionStatus.PENDING,
-            provider="text_extraction"
+            provider="text_extraction",
         )
         await self._repo.save(transcription)
-        
+
         task_info = await self._task_scheduler.schedule_text_extraction(
             media_id=command.media_id,
             file_path=command.file_path,
-            storage_provider=command.storage_provider
+            storage_provider=command.storage_provider,
+            user_id=str(command.user_id) if command.user_id else None,
+            filename=command.filename,
+            triggered_by=command.triggered_by,
+            actor_id=command.actor_id,
+            correlation_id=command.correlation_id,
         )
-        
-        return {"task_id": task_info.get("task_id"), "extraction_id": str(transcription.id)}
+
+        return {
+            "task_id": task_info.get("task_id"),
+            "extraction_id": str(transcription.id),
+        }
 
     async def execute_text_extraction(
         self,
         media_id: UUID,
         file_path: str,
-        storage_provider: str
+        storage_provider: str,
+        correlation_id: str | None = None,
+        user_id: str | None = None,
+        filename: str | None = None,
     ) -> None:
         """Executes the actual extraction logic."""
         if self._event_bus:
-            await self._event_bus.publish(MediaProcessingStarted(media_id=str(media_id)))
+            await self._event_bus.publish(
+                MediaProcessingStarted(
+                    media_id=str(media_id),
+                    correlation_id=correlation_id,
+                )
+            )
 
         transcription = await self._repo.get_by_media_id(media_id)
-        
+
         # Retrieve content
         content = await self._storage.retrieve(FilePath(file_path))
         if not content:
-             raise ResourceNotFoundError("File", file_path)
+            raise ResourceNotFoundError("File", file_path)
 
         suffix = Path(file_path).suffix
         mime_type, _ = mimetypes.guess_type(file_path)
@@ -94,11 +129,11 @@ class TextExtractionService:
             elif mime_type == "application/pdf" or suffix == ".pdf":
                 text = await self._text_extractor.extract(tmp_path, mime_type)
                 if len(text.strip()) < 50:
-                     provider_used = "ocr_pdf"
-                     extracted_text = await self._ocr_provider.extract(tmp_path)
+                    provider_used = "ocr_pdf"
+                    extracted_text = await self._ocr_provider.extract(tmp_path)
                 else:
-                     provider_used = "pdf_native"
-                     extracted_text = text
+                    provider_used = "pdf_native"
+                    extracted_text = text
             else:
                 provider_used = "fallback"
                 extracted_text = ""
@@ -108,15 +143,28 @@ class TextExtractionService:
                 transcription.status = TranscriptionStatus.COMPLETED
                 transcription.provider = provider_used
                 await self._repo.save(transcription)
-                
+
                 if self._event_bus:
-                    await self._event_bus.publish(MediaProcessingCompleted(media_id=str(media_id)))
-                    await self._event_bus.publish(TextContentReady(
-                        media_id=str(media_id),
-                        transcription_id=str(transcription.id),
-                        text_content=extracted_text,
-                        metadata={"provider": provider_used}
-                    ))
+                    await self._event_bus.publish(
+                        MediaProcessingCompleted(
+                            media_id=str(media_id),
+                            correlation_id=correlation_id,
+                        )
+                    )
+                    await self._event_bus.publish(
+                        TextContentReady(
+                            media_id=str(media_id),
+                            transcription_id=str(transcription.id),
+                            text_content=extracted_text,
+                            user_id=user_id or getattr(transcription, "user_id", None),
+                            filename=filename
+                            or getattr(transcription, "filename", None),
+                            metadata={
+                                "provider": provider_used,
+                            },
+                            correlation_id=correlation_id,
+                        )
+                    )
 
         except Exception as exc:
             if transcription:
@@ -124,14 +172,33 @@ class TextExtractionService:
                 transcription.error_message = str(exc)
                 await self._repo.save(transcription)
             if self._event_bus:
-                await self._event_bus.publish(MediaProcessingFailed(media_id=str(media_id), error_message=str(exc)))
+                await self._event_bus.publish(
+                    MediaProcessingFailed(
+                        media_id=str(media_id),
+                        error_message=str(exc),
+                        correlation_id=correlation_id,
+                    )
+                )
             raise
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
 
     def _is_native_text(self, mime: str, ext: str) -> bool:
-        return mime.startswith("text/") or ext in [".txt", ".csv", ".md", ".json", ".xml", ".docx"]
+        return mime.startswith("text/") or ext in [
+            ".txt",
+            ".csv",
+            ".md",
+            ".json",
+            ".xml",
+            ".docx",
+        ]
 
     def _is_image(self, mime: str, ext: str) -> bool:
-        return mime.startswith("image/") or ext in [".png", ".jpg", ".jpeg", ".tiff", ".bmp"]
+        return mime.startswith("image/") or ext in [
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".tiff",
+            ".bmp",
+        ]

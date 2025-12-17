@@ -9,53 +9,50 @@ import mimetypes
 import os
 import time
 import uuid
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set
 
 import structlog
 
+from src.media_management.application.policies import MediaAccessPolicy
+from src.media_management.application.ports import (
+    EventBusPort,
+    MediaMetricsPort,
+    MediaRepositoryPort,
+    StorageUploaderPort,
+    TranscriptionCleanupPort,
+    UploadMetadataMapperPort,
+)
 from src.media_management.application.services.components import (
     DefaultMediaEventPublisher,
     DefaultMediaMetricsPublisher,
     DefaultMediaUploadSideEffectPublisher,
-    DefaultStorageServiceResolver,
-    DefaultStorageUploader,
-    DefaultUploadMetadataMapper,
     FileSizeMediaFileValidator,
-    MediaFileValidator,
-    MediaUploadSideEffectPublisher,
-    StorageUploader,
-    UploadMetadataMapper,
 )
-from src.media_management.application.commands.dto import (
-    CleanupOrphanedFilesCommand,
-    CreateMediaCommand,
-    DeleteMediaCommand,
-    ReprocessMediaCommand,
-)
-from src.media_management.application.commands.validators import MediaUploadValidator
-from src.media_management.application.policies import MediaAccessPolicy
-from src.media_management.application.queries.dto import (
-    GetMediaQuery,
-    GetMediaStatisticsQuery,
-    ListMediaQuery,
-)
-from src.media_management.domain.media import Media
-from src.media_management.infrastructure.metrics.prometheus_metrics import PrometheusMediaMetrics
-from src.media_management.infrastructure.repositories.media_repository import MediaRepository
-from src.media_management.application.queries.media_queries import MediaQueries # Alias for MediaReadService
-from src.providers.domain.interfaces import IProviderRegistry, ProviderType
-from src.shared.domain.enums import MediaStatus, MediaType
-from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
+from src.media_management.config.settings import media_settings
+from src.media_management.domain import Media
+from src.shared.domain.enums import MediaType
+from src.shared.domain.errors import ValidationError
 from src.shared.domain.events import (
     MediaDeleted,
     MediaReprocessRequested,
     MediaUploaded,
 )
-from src.shared.domain.errors import ValidationError
-from src.storage.application.maintenance_service import StorageMaintenanceService
-from src.storage.infrastructure.dependencies import StorageServiceFactory
-from src.user_management.domain.user import UserRole
+from src.storage.application.services.maintenance_service import (
+    StorageMaintenanceService,
+)
+from src.user_management.domain.entities.user import UserRole
+
+from ..dtos import (
+    CleanupOrphanedFilesCommand,
+    CreateMediaCommand,
+    DeleteMediaCommand,
+    GetMediaQuery,
+    GetMediaStatisticsQuery,
+    ListMediaQuery,
+    ReprocessMediaCommand,
+)
+from .media_read_service import MediaReadService
+from .validators import MediaUploadValidator
 
 logger = structlog.get_logger(__name__)
 
@@ -87,31 +84,43 @@ class MediaService:
 
     def __init__(
         self,
-        media_repository: MediaRepository,
-        storage_service_factory: StorageServiceFactory,
-        metrics_service: Any,
+        media_repository: MediaRepositoryPort,
+        storage_uploader: StorageUploaderPort,
+        metadata_mapper: UploadMetadataMapperPort,
+        metrics_service: MediaMetricsPort,
         upload_validator: MediaUploadValidator,
-        media_read_service: MediaQueries, # New dependency
-        event_bus: SupportsEventBus | None = None,
-        emit_legacy_task: bool = True,
-        provider_registry: IProviderRegistry | None = None,
+        media_read_service: MediaReadService,
+        event_bus: EventBusPort | None = None,
+        emit_legacy_task: bool = False,
+        storage_maintenance: StorageMaintenanceService | None = None,
+        transcription_cleanup: TranscriptionCleanupPort | None = None,
     ) -> None:
         self.media_repository = media_repository
-        self.storage_factory = storage_service_factory
+        self.storage_uploader = storage_uploader
+        self.metadata_mapper = metadata_mapper
         self.metrics = metrics_service
         self.upload_validator = upload_validator
-        self.media_read_service = media_read_service # Assign new dependency
+        self.media_read_service = media_read_service
         self.event_bus = event_bus
         self.emit_legacy_task = emit_legacy_task
-        self.provider_registry = provider_registry
-        
-        # Components for Creation
-        self.storage_uploader = DefaultStorageUploader(
-            storage_resolver=DefaultStorageServiceResolver(factory=storage_service_factory)
+
+        # Provider allowlists per bounded context (soft validation: warn if unknown)
+        self._allowed_storage_providers: Set[str] = set(
+            media_settings.storage_providers_allowed or []
         )
-        self.metadata_mapper = DefaultUploadMetadataMapper()
+        self._allowed_transcription = set(
+            media_settings.transcription_providers_allowed or []
+        )
+        self._allowed_summarization = set(
+            media_settings.summarization_providers_allowed or []
+        )
+        self._allowed_sentiment = set(media_settings.sentiment_providers_allowed or [])
+        self._allowed_topic = set(media_settings.topic_providers_allowed or [])
+
         self.side_effect_publisher = DefaultMediaUploadSideEffectPublisher(
-            metrics_publisher=DefaultMediaMetricsPublisher(metrics_service=metrics_service),
+            metrics_publisher=DefaultMediaMetricsPublisher(
+                metrics_service=metrics_service
+            ),
             event_publisher=DefaultMediaEventPublisher(
                 event_bus=event_bus,
                 emit_legacy_task=emit_legacy_task,
@@ -121,10 +130,11 @@ class MediaService:
             min_size_bytes=self.MIN_FILE_SIZE_BYTES,
             max_size_bytes=self.MAX_FILE_SIZE_BYTES,
         )
-        
+
         # Components for Maintenance
         self.access_policy = MediaAccessPolicy()
-        self.storage_maintenance = StorageMaintenanceService(storage_service_factory)
+        self.storage_maintenance = storage_maintenance
+        self.transcription_cleanup = transcription_cleanup
 
     async def create_media(self, command: CreateMediaCommand) -> Media:
         """Uploads and creates a new media entity."""
@@ -138,19 +148,29 @@ class MediaService:
             file=command.file,
             filename=command.filename,
             storage_provider=self._validate_provider(
-                command.storage_provider, ProviderType.STORAGE
+                command.storage_provider,
+                self._allowed_storage_providers,
+                "storage_provider",
             ),
             transcription_provider=self._validate_provider(
-                command.transcription_provider, ProviderType.TRANSCRIPTION
+                command.transcription_provider,
+                self._allowed_transcription,
+                "transcription_provider",
             ),
             summarization_provider=self._validate_provider(
-                command.summarization_provider, ProviderType.SUMMARIZATION
+                command.summarization_provider,
+                self._allowed_summarization,
+                "summarization_provider",
             ),
             sentiment_provider=self._validate_provider(
-                command.sentiment_provider, ProviderType.SENTIMENT_ANALYSIS
+                command.sentiment_provider,
+                self._allowed_sentiment,
+                "sentiment_provider",
             ),
             topic_modeling_provider=self._validate_provider(
-                command.topic_modeling_provider, ProviderType.TOPIC_MODELING
+                command.topic_modeling_provider,
+                self._allowed_topic,
+                "topic_modeling_provider",
             ),
             metadata=command.metadata,
         )
@@ -178,20 +198,16 @@ class MediaService:
         media = Media.create(
             media_id=media_id,
             user_id=validated_command.user_id,
-            original_file_path=upload_metadata.stored_path,
+            filename=validated_command.filename,
+            file_size_bytes=upload_metadata.file_size,
             media_type=media_type,
             storage_provider=validated_command.storage_provider,
+            original_file_path=upload_metadata.stored_path,
             transcription_provider=validated_command.transcription_provider,
             summarization_provider=validated_command.summarization_provider,
             sentiment_provider=validated_command.sentiment_provider,
             topic_modeling_provider=validated_command.topic_modeling_provider,
-            status=MediaStatus.UPLOADED,
-        )
-        media = media.update(
-            filename=validated_command.filename,
-            file_size=upload_metadata.file_size,
-            mime_type=content_type,
-            created_at=datetime.now(timezone.utc),
+            language="auto",
         )
 
         # 7. Persist
@@ -224,7 +240,9 @@ class MediaService:
         # Access Check
         effective_user = user_id
         if effective_user is None and user_role != UserRole.ADMIN:
-            raise PermissionError("User identifier is required for non-admin operations")
+            raise PermissionError(
+                "User identifier is required for non-admin operations"
+            )
 
         self.access_policy.ensure_can_access(media, effective_user, user_role)
 
@@ -252,7 +270,10 @@ class MediaService:
                 )
 
             success = True
-            logger.info("media_management.delete_media.completed", media_id=str(media.id))
+            logger.info(
+                "media_management.delete_media.completed",
+                media_id=str(media.id),
+            )
             return media
         finally:
             if self.metrics and hasattr(self.metrics, "record_operation"):
@@ -262,8 +283,8 @@ class MediaService:
                     status="success" if success else "failure",
                     duration=time.monotonic() - start_time,
                     media_id=str(media.id),
-                    media_type="unknown", # Missing in original code but required by metrics
-                    provider=None
+                    media_type="unknown",
+                    provider=None,
                 )
 
     async def reprocess_media(
@@ -326,7 +347,7 @@ class MediaService:
                     duration=time.monotonic() - start_time,
                     media_id=str(media.id),
                     media_type="unknown",
-                    provider=None
+                    provider=None,
                 )
 
     async def cleanup_orphaned_files(self, command: CleanupOrphanedFilesCommand) -> int:
@@ -335,9 +356,12 @@ class MediaService:
         provider_records: Dict[str, Set[str]] = {}
         page = 1
         page_size = 500
-        
+
         while True:
-            batch = await self.media_repository.list_paginated(page=page, limit=page_size)
+            batch = await self.media_repository.list_paginated(
+                page=page,
+                limit=page_size,
+            )
             if not batch:
                 break
             for media in batch:
@@ -379,23 +403,16 @@ class MediaService:
         """Lists media entities with pagination and filtering."""
         return await self.media_read_service.list_media(query)
 
-    async def get_media_statistics(self, query: GetMediaStatisticsQuery) -> Dict[str, Any]:
+    async def get_media_statistics(
+        self, query: GetMediaStatisticsQuery
+    ) -> Dict[str, Any]:
         """Returns statistics about media entities."""
         return await self.media_read_service.get_media_statistics(query)
 
     # Private Helpers
 
     async def _persist_media(self, media: Media) -> Media:
-        if hasattr(self.media_repository, "save"):
-            saved_media = await self.media_repository.save(media)
-        else:
-            await self.media_repository.add(media)
-            saved_media = media
-
-        session = getattr(self.media_repository, "db", None)
-        if session is not None and hasattr(session, "commit"):
-            await session.commit()
-        return saved_media
+        return await self.media_repository.save(media)
 
     def _detect_media_type(self, filename: str) -> MediaType:
         _, ext = os.path.splitext(filename or "")
@@ -409,30 +426,27 @@ class MediaService:
         return mime_type or "application/octet-stream"
 
     def _validate_provider(
-        self, name: str | None, provider_type: ProviderType
+        self,
+        name: str | None,
+        allowed: Set[str],
+        field: str,
     ) -> str | None:
-        if not name or self.provider_registry is None:
-            return name
-        active = {
-            getattr(p, "name", None) or getattr(p, "get_name", lambda: None)()
-            for p in self.provider_registry.get_active_providers(provider_type)
-        }
-        if name not in active:
-            raise ValidationError(
-                "provider", name, f"Provider not active for {provider_type.value}"
+        if name is None:
+            return None
+        if allowed and name not in allowed:
+            logger.warning(
+                "media_management.provider.unrecognized",
+                field=field,
+                provider=name,
+                allowed=list(sorted(allowed)),
             )
         return name
 
     async def _delete_associated_records(self, media_id: uuid.UUID) -> None:
-        db = getattr(self.media_repository, "db", None)
-        if db is None:
+        if not self.transcription_cleanup:
             return
-        from src.media_processing.infrastructure.repositories.transcription_repository import (
-            TranscriptionRepository,
-        )
-        transcription_repo = TranscriptionRepository(db)
         try:
-            await transcription_repo.delete_by_media_id(media_id)
+            await self.transcription_cleanup.delete_by_media_id(media_id)
         except Exception as exc:
             logger.warning(
                 "media.delete.transcription_failed",
@@ -445,9 +459,15 @@ class MediaService:
         if not file_path:
             return
         provider = (getattr(media, "storage_provider", None) or "local").lower()
+        if not self.storage_maintenance:
+            logger.warning(
+                "media.delete.storage_maintenance_missing",
+                path=file_path,
+                provider=provider,
+            )
+            return
         try:
-            storage_client = self.storage_factory.create_storage_service(provider)
-            await storage_client.delete(file_path)
+            await self.storage_maintenance.delete_file(provider, file_path)
         except Exception as exc:
             logger.warning(
                 "media.delete.file_failed",

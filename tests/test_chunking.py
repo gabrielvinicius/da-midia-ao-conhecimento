@@ -1,4 +1,5 @@
 from src.text_analysis.infrastructure.chunking import SimpleChunker
+
 from src.text_analysis.domain import Document
 
 

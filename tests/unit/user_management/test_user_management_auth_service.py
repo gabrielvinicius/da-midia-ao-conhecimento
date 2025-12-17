@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.user_management.application.auth_service import AuthService
+from src.user_management.application.services.auth_service import AuthService
 
 
 @pytest.mark.asyncio

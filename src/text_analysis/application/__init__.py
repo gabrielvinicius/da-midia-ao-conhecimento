@@ -1,14 +1,14 @@
 """Application layer exports for Text Analysis."""
 
 from .config import AnalysisConfig
-from .dto import (
+from .dtos import (
     AnalysisResultDTO,
     SentimentItemDTO,
     TopicDTO,
 )
-from .service import TextAnalysisService
 from .event_handlers import build_text_content_ready_handler
-from .metrics import TextAnalysisMetrics, NoOpTextAnalysisMetrics
+from .metrics import NoOpTextAnalysisMetrics, TextAnalysisMetrics
+from .services.text_analysis_service import TextAnalysisService
 
 __all__ = [
     "TextAnalysisService",

@@ -37,7 +37,11 @@ class ChangePasswordRequest(BaseModel):
     """Schema for changing a user's password."""
 
     old_password: str = Field(..., description="The user's current password.")
-    new_password: str = Field(..., min_length=8, description="The user's new password (min 8 characters).")
+    new_password: str = Field(
+        ...,
+        min_length=8,
+        description="The user's new password (min 8 characters).",
+    )
 
 
 class Token(BaseModel):

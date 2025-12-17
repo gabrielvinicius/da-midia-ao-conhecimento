@@ -2,16 +2,15 @@ import io
 import logging
 import os
 import tempfile
-from typing import Dict, Optional
+from typing import Dict
 
 import av
 import numpy as np
 import resampy
-from transformers import pipeline
-
 from src.media_processing.transcription.infrastructure.dependencies import (
     register_speech_recognition,
 )
+from transformers import pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,11 @@ class HuggingfaceTranscriber:
                 "provider": self.provider_name,
             }
         except Exception as e:
-            logger.error("huggingface.transcription_failed", extra={"error": str(e)}, exc_info=True)
+            logger.error(
+                "huggingface.transcription_failed",
+                extra={"error": str(e)},
+                exc_info=True,
+            )
             raise RuntimeError(f"Transcription error: {str(e)}")
         finally:
             if path and os.path.exists(path):
@@ -52,7 +55,9 @@ class HuggingfaceTranscriber:
             buffer = io.BytesIO(file_bytes)
             container = av.open(buffer)
 
-            audio_stream = next((s for s in container.streams if s.type == 'audio'), None)
+            audio_stream = next(
+                (s for s in container.streams if s.type == "audio"), None
+            )
             if audio_stream is None:
                 raise ValueError("No audio stream found in the input file")
 

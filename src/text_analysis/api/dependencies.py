@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from .schemas import AnalyzeRequest, AnalyzeResponse
 from ..application import TextAnalysisService
+from .schemas import AnalyzeRequest, AnalyzeResponse
 
 
 def get_text_analysis_service() -> TextAnalysisService:

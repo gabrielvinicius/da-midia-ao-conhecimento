@@ -3,33 +3,39 @@ import re
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import Response
 
-from src.user_management.api.dependencies import get_current_user
+from src.media_management.application.dtos import (
+    CreateMediaCommand,
+    DeleteMediaCommand,
+    GetMediaQuery,
+    ListMediaQuery,
+    ReprocessMediaCommand,
+)
+from src.media_management.application.services.media_service import MediaService
 from src.shared.application.schemas import (
     BaseResponseSchema,
     create_error_response,
     create_success_response,
 )
-from src.shared.domain.errors import DomainException
-from src.user_management.domain.user import User
+from src.shared.domain.errors import DomainError
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
+from src.storage.infrastructure.dependencies import StorageServiceFactory
+from src.user_management.api.dependencies import get_current_user
+from src.user_management.domain import User
 
-from src.media_management.application.services.media_service import MediaService
-from src.media_management.application.commands.dto import (
-    CreateMediaCommand,
-    DeleteMediaCommand,
-    ReprocessMediaCommand,
-)
-from src.media_management.application.queries.dto import (
-    GetMediaQuery,
-    ListMediaQuery,
-)
 from .dependencies import get_media_service
 from .schemas import MediaResponse
-from src.storage.infrastructure.dependencies import StorageServiceFactory
-
 
 RANGE_HEADER_PATTERN = re.compile(r"bytes=(\d+)-(\d+)?")
 
@@ -58,7 +64,7 @@ async def create_media(
 ):
     try:
         file_content = await file.read()
-        
+
         command = CreateMediaCommand(
             user_id=str(current_user.id),
             file=file_content,
@@ -69,9 +75,9 @@ async def create_media(
             sentiment_provider=sentiment_provider,
             topic_modeling_provider=topic_modeling_provider,
         )
-        
+
         media = await service.create_media(command)
-        
+
         return MediaResponse(
             id=media.id,
             filename=media.filename,
@@ -84,7 +90,7 @@ async def create_media(
             language=media.language,
             duration=media.duration
         )
-    except DomainException as e:
+    except DomainError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -96,9 +102,17 @@ async def create_media(
             filename=file.filename if file else None,
             user_id=str(current_user.id),
         )
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        )
 
-@router.get("/", response_model=List[MediaResponse], summary="List all media for the current user")
+
+@router.get(
+    "/",
+    response_model=List[MediaResponse],
+    summary="List all media for the current user",
+)
 async def list_user_media(
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
@@ -110,10 +124,10 @@ async def list_user_media(
         user_id=current_user.id,
         page=page,
         limit=limit,
-        search=search
+        search=search,
     )
     media_list = await service.list_media(query)
-    
+
     return [
         MediaResponse(
             id=media.id,
@@ -126,10 +140,16 @@ async def list_user_media(
             error_message=media.error_message,
             language=media.language,
             duration=media.duration
-        ) for media in media_list
+        )
+        for media in media_list
     ]
 
-@router.get("/{media_id}", response_model=MediaResponse, summary="Get a media item by its ID")
+
+@router.get(
+    "/{media_id}",
+    response_model=MediaResponse,
+    summary="Get a media item by its ID",
+)
 async def get_media_by_id(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -138,12 +158,12 @@ async def get_media_by_id(
     try:
         query = GetMediaQuery(media_id=media_id)
         media = await service.get_media(query)
-        
+
         if not media:
             raise ValueError("Media not found")
-            
+
         if media.user_id != current_user.id and current_user.role != "ADMIN":
-             raise PermissionError("Not authorized")
+            raise PermissionError("Not authorized")
 
         return MediaResponse(
             id=media.id,
@@ -158,10 +178,17 @@ async def get_media_by_id(
             duration=media.duration
         )
     except (ValueError, PermissionError):
-        raise HTTPException(status_code=404, detail="Media not found or not authorized")
+        raise HTTPException(
+            status_code=404,
+            detail="Media not found or not authorized",
+        )
 
 
-@router.delete("/{media_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a media item")
+@router.delete(
+    "/{media_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a media item",
+)
 async def delete_media(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
@@ -170,9 +197,9 @@ async def delete_media(
     try:
         command = DeleteMediaCommand(media_id=media_id)
         await service.delete_media(
-            command, 
-            user_id=current_user.id, 
-            user_role=current_user.role
+            command,
+            user_id=current_user.id,
+            user_role=current_user.role,
         )
     except PermissionError:
         raise HTTPException(status_code=404, detail="Media not found or not authorized")
@@ -190,10 +217,10 @@ async def stream_media(
     try:
         query = GetMediaQuery(media_id=media_id)
         media = await service.get_media(query)
-        
+
         if not media:
              raise ValueError("Media not found")
-             
+
         if media.user_id != current_user.id and current_user.role != "ADMIN":
              raise PermissionError("Not authorized")
     except (ValueError, PermissionError):
@@ -233,7 +260,10 @@ async def stream_media(
         start = int(match.group(1))
         end = int(match.group(2)) if match.group(2) is not None else file_size - 1
         if start >= file_size:
-            raise HTTPException(status_code=416, detail="Requested range not satisfiable")
+            raise HTTPException(
+                status_code=416,
+                detail="Requested range not satisfiable",
+            )
 
         end = min(end, file_size - 1)
         payload = file_bytes[start : end + 1]
@@ -245,16 +275,25 @@ async def stream_media(
         headers["Content-Length"] = str(file_size)
         status_code = status.HTTP_200_OK
 
-    return Response(content=payload, media_type=mime_type, headers=headers, status_code=status_code)
+    return Response(
+        content=payload,
+        media_type=mime_type,
+        headers=headers,
+        status_code=status_code,
+    )
 
 
-@router.post("/{media_id}/reprocess", response_model=BaseResponseSchema, summary="Reprocess media item")
+@router.post(
+    "/{media_id}/reprocess",
+    response_model=BaseResponseSchema,
+    summary="Reprocess media item",
+)
 async def reprocess_media(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
 ):
-    """Reprocess a media item (transcription, summarization, sentiment analysis, etc.)"""
+    """Reprocess a media item (transcription, summarization, sentiment)."""
     try:
         command = ReprocessMediaCommand(media_id=media_id)
         await service.reprocess_media(

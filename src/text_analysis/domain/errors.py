@@ -1,14 +1,10 @@
-"""Domain-level exceptions for text analysis."""
+from __future__ import annotations
+
+from src.shared.domain.errors import DomainError as SharedDomainError
 
 
-class DomainError(Exception):
-    """Base class for domain errors."""
+class DomainError(SharedDomainError):
+    """Base domain error for text_analysis, reusing shared domain error hierarchy."""
 
 
-class EmptyTextError(DomainError):
-    """Raised when text content is empty or only whitespace."""
-
-
-class InvalidSegmentError(DomainError):
-    """Raised when a provided segment payload is malformed."""
-
+__all__ = ["DomainError"]
