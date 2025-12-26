@@ -48,16 +48,6 @@ class ReprocessMediaCommand(BaseModel):
     media_id: UUID = Field(..., description="ID do media a reprocessar.")
 
 
-class CleanupOrphanedFilesCommand(BaseModel):
-    """Command para limpar arquivos órfãos no storage."""
-
-    model_config = ConfigDict(frozen=True)
-
-    actor_id: Optional[str] = Field(
-        None, description="Identificador de quem disparou a limpeza."
-    )
-
-
 class GetMediaQuery(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -87,6 +77,24 @@ class GetMediaStatisticsQuery(BaseModel):
     user_id: Optional[UUID] = Field(
         None, description="Usuário para estatística (None = global)."
     )
+
+
+class GetMediaStreamQuery(BaseModel):
+    """Consulta para obter stream de bytes de uma mídia."""
+
+    model_config = ConfigDict(frozen=True)
+    media_id: UUID
+    range_header: Optional[str] = None
+
+
+class MediaStreamDTO(BaseModel):
+    """Resultado do processamento de stream, pronto para a camada de transporte."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    content: bytes
+    media_type: str
+    headers: Dict[str, str]
+    status_code: int
 
 
 class PaginatedMedia(BaseModel):

@@ -139,20 +139,23 @@ class TextAnalysisService:
                 result["user_id"] = str(user_id)
             success = True
             return result
-        finally:
-            try:
-                if hasattr(self.metrics, "set_context"):
-                    self.metrics.set_context(str(media_id), str(user_id))
-                await self.metrics.record_operation(
-                    operation="analyze_text_content",
-                    duration=time.perf_counter() - start,
-                    success=success,
-                    provider=resolved_provider,
-                )
-            except Exception:
-                pass
-
-    async def _perform_analysis(
+                    finally:
+                        try:
+                            if hasattr(self.metrics, "set_context"):
+                                self.metrics.set_context(str(media_id), str(user_id))
+                            await self.metrics.record_operation(
+                                operation="analyze_text_content",
+                                duration=time.perf_counter() - start,
+                                success=success,
+                                provider=resolved_provider,
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                "text_analysis.metrics_failed",
+                                error=str(exc),
+                                media_id=str(media_id) if media_id else None,
+                            )
+            async def _perform_analysis(
         self,
         text: str,
         segments: Optional[list[dict]],

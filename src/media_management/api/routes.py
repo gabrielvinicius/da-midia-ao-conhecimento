@@ -20,6 +20,7 @@ from src.media_management.application.dtos import (
     DeleteMediaCommand,
     GetMediaQuery,
     GetMediaStatisticsQuery,
+    GetMediaStreamQuery,
     ListMediaQuery,
     ReprocessMediaCommand,
 )
@@ -31,15 +32,12 @@ from src.shared.application.schemas import (
 )
 from src.shared.domain.errors import DomainError
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
-from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.user_management.api.dependencies import get_current_user
 from src.user_management.domain import User
 from src.user_management.domain import UserRole
 
 from .dependencies import get_media_service
 from .schemas import MediaResponse
-
-RANGE_HEADER_PATTERN = re.compile(r"bytes=(\d+)-(\d+)?")
 
 router = APIRouter(
     prefix="/media",
@@ -68,7 +66,7 @@ async def create_media(
         file_content = await file.read()
 
         command = CreateMediaCommand(
-            user_id=str(current_user.id),
+            user_id=current_user.id,
             file=file_content,
             filename=file.filename,
             storage_provider=storage_provider,
@@ -80,18 +78,7 @@ async def create_media(
 
         media = await service.create_media(command)
 
-        return MediaResponse(
-            id=media.id,
-            filename=media.filename,
-            content_type=media.mime_type,
-            size=media.file_size,
-            media_type=media.media_type,
-            created_at=media.created_at,
-            status=media.status,
-            error_message=media.error_message,
-            language=media.language,
-            duration=media.duration
-        )
+        return MediaResponse.from_domain(media)
     except DomainError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
     except ValueError as e:
@@ -133,18 +120,7 @@ async def list_user_media(
     page_data = await service.list_media(query)
 
     items = [
-        MediaResponse(
-            id=media.id,
-            filename=media.filename,
-            content_type=media.mime_type,
-            size=media.file_size,
-            media_type=media.media_type,
-            created_at=media.created_at,
-            status=media.status,
-            error_message=media.error_message,
-            language=media.language,
-            duration=media.duration
-        )
+        MediaResponse.from_domain(media)
         for media in page_data.items
     ]
 
@@ -190,18 +166,7 @@ async def get_media_by_id(
         if media.user_id != current_user.id and current_user.role != UserRole.ADMIN:
             raise PermissionError("Não autorizado")
 
-        return MediaResponse(
-            id=media.id,
-            filename=media.filename,
-            content_type=media.mime_type,
-            size=media.file_size,
-            media_type=media.media_type,
-            created_at=media.created_at,
-            status=media.status,
-            error_message=media.error_message,
-            language=media.language,
-            duration=media.duration
-        )
+        return MediaResponse.from_domain(media)
     except (ValueError, PermissionError):
         raise HTTPException(
             status_code=404,
@@ -240,72 +205,27 @@ async def stream_media(
     service: MediaService = Depends(get_media_service),
 ):
     try:
-        query = GetMediaQuery(media_id=media_id)
-        media = await service.get_media(query)
+        query = GetMediaStreamQuery(
+            media_id=media_id,
+            range_header=request.headers.get("range"),
+        )
+        stream_dto = await service.get_media_stream(
+            query,
+            user_id=current_user.id,
+            user_role=current_user.role,
+        )
 
-        if not media:
-             raise ValueError("Mídia não encontrada")
-
-        if media.user_id != current_user.id and current_user.role != UserRole.ADMIN:
-             raise PermissionError("Não autorizado")
-    except (ValueError, PermissionError):
-        raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")
-
-    if not media.original_file_path:
-        raise HTTPException(status_code=404, detail="Arquivo de mídia indisponível")
-
-    storage_provider = getattr(media, "storage_provider", None) or "local"
-    storage_factory = StorageServiceFactory()
-    storage_client = storage_factory.get_download_service(storage_provider)
-
-    try:
-        file_bytes = await storage_client.download_file(media.original_file_path)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Arquivo de mídia ausente no storage")
-
-    file_size = len(file_bytes)
-    if file_size == 0:
-        raise HTTPException(status_code=404, detail="Arquivo de mídia vazio")
-
-    filename = media.filename or media.original_file_path.split("/")[-1]
-    mime_type = getattr(media, "mime_type", None) or "application/octet-stream"
-
-    range_header = request.headers.get("range")
-    headers = {
-        "Accept-Ranges": "bytes",
-        "Content-Disposition": f'inline; filename="{filename}"',
-    }
-
-    if range_header:
-        range_header = range_header.strip()
-        match = RANGE_HEADER_PATTERN.match(range_header)
-        if not match:
-            raise HTTPException(status_code=416, detail="Cabeçalho Range inválido")
-
-        start = int(match.group(1))
-        end = int(match.group(2)) if match.group(2) is not None else file_size - 1
-        if start >= file_size:
-            raise HTTPException(
-                status_code=416,
-                detail="Requested range not satisfiable",
-            )
-
-        end = min(end, file_size - 1)
-        payload = file_bytes[start : end + 1]
-        headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
-        headers["Content-Length"] = str(len(payload))
-        status_code = status.HTTP_206_PARTIAL_CONTENT
-    else:
-        payload = file_bytes
-        headers["Content-Length"] = str(file_size)
-        status_code = status.HTTP_200_OK
-
-    return Response(
-        content=payload,
-        media_type=mime_type,
-        headers=headers,
-        status_code=status_code,
-    )
+        return Response(
+            content=stream_dto.content,
+            media_type=stream_dto.media_type,
+            headers=stream_dto.headers,
+            status_code=stream_dto.status_code,
+        )
+    except (ValueError, PermissionError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        logger.error("media_api.stream_failed", media_id=str(media_id), error=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error during streaming")
 
 
 @router.post(

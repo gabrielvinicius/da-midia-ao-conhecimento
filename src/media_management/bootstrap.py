@@ -45,6 +45,12 @@ from src.media_processing.application.services.video_processing_service import (
 from src.media_processing.infrastructure.adapters.storage_download_adapter import (
     StorageDownloadAdapter,
 )
+from src.media_management.infrastructure.adapters.storage_downloader_adapter import (
+    StorageDownloaderAdapter,
+)
+from src.media_management.infrastructure.adapters.file_validator_adapter import (
+    MediaFileReferenceValidator,
+)
 from src.media_processing.infrastructure.adapters.transcription_cleanup_adapter import (
     TranscriptionCleanupAdapter,
 )
@@ -140,6 +146,14 @@ def build_media_components(
         storage_provider
     )
 
+    storage_maintenance_service = StorageMaintenanceService(
+        storage_port=StorageMaintenanceAdapter(storage_service_factory)
+    )
+    # Register validators
+    storage_maintenance_service.register_validator(
+        MediaFileReferenceValidator(media_repository)
+    )
+
     media_service = MediaService(
         media_repository=media_repo_adapter,
         storage_uploader=DefaultStorageUploader(StorageUploaderAdapter(storage_service_factory)),
@@ -148,10 +162,9 @@ def build_media_components(
         upload_validator=media_upload_validator,
         media_read_service=media_read_service,
         event_bus=event_bus,
-        storage_maintenance=StorageMaintenanceService(
-            storage_port=StorageMaintenanceAdapter(storage_service_factory)
-        ),
+        storage_maintenance=storage_maintenance_service,
         transcription_cleanup=TranscriptionCleanupAdapter(transcription_repository),
+        storage_downloader=StorageDownloaderAdapter(storage_service_factory),
     )
     transcription_service = TranscriptionService(
         transcription_repo=transcription_repository,

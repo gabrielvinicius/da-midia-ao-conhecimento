@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from src.media_management.domain.entities.media import MediaStatus, MediaType
+from src.media_management.domain.entities.media import Media, MediaStatus, MediaType
 
 
 class MediaCreate(BaseModel):
@@ -43,6 +43,21 @@ class MediaResponse(BaseModel):
     error_message: Optional[str] = None
     language: Optional[str] = None
     duration: Optional[float] = None
+
+    @classmethod
+    def from_domain(cls, media: Media) -> "MediaResponse":
+        return cls(
+            id=media.id,
+            filename=media.filename,
+            content_type=media.mime_type,
+            size=media.file_size,
+            media_type=media.media_type,
+            created_at=media.created_at,
+            status=media.status,
+            error_message=media.error_message,
+            language=media.language,
+            duration=media.duration,
+        )
 
     @computed_field(return_type=List[str])
     @property

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import mimetypes
 import os
+import re
 import time
 import uuid
 from typing import Any, Dict, List, Optional, Set
@@ -18,6 +19,7 @@ from src.media_management.application.ports import (
     EventBusPort,
     MediaMetricsPort,
     MediaRepositoryPort,
+    StorageDownloaderPort,
     StorageUploaderPort,
     TranscriptionCleanupPort,
     UploadMetadataMapperPort,
@@ -30,7 +32,7 @@ from src.media_management.application.services.components import (
 )
 from src.media_management.config.settings import media_settings
 from src.media_management.domain import Media
-from src.shared.domain.enums import MediaType
+from src.shared.domain.enums import MediaStatus, MediaType
 from src.shared.domain.errors import ValidationError
 from src.shared.domain.events import (
     MediaDeleted,
@@ -43,12 +45,13 @@ from src.storage.application.services.maintenance_service import (
 from src.user_management.domain.entities.user import UserRole
 
 from ..dtos import (
-    CleanupOrphanedFilesCommand,
     CreateMediaCommand,
     DeleteMediaCommand,
     GetMediaQuery,
     GetMediaStatisticsQuery,
+    GetMediaStreamQuery,
     ListMediaQuery,
+    MediaStreamDTO,
     ReprocessMediaCommand,
     PaginatedMedia,
 )
@@ -56,6 +59,8 @@ from .media_read_service import MediaReadService
 from .validators import MediaUploadValidator
 
 logger = structlog.get_logger(__name__)
+
+RANGE_HEADER_PATTERN = re.compile(r"bytes=(\d+)-(\d+)?")
 
 
 class MediaService:
@@ -94,6 +99,7 @@ class MediaService:
         event_bus: EventBusPort | None = None,
         storage_maintenance: StorageMaintenanceService | None = None,
         transcription_cleanup: TranscriptionCleanupPort | None = None,
+        storage_downloader: StorageDownloaderPort | None = None,
     ) -> None:
         self.media_repository = media_repository
         self.storage_uploader = storage_uploader
@@ -102,6 +108,7 @@ class MediaService:
         self.upload_validator = upload_validator
         self.media_read_service = media_read_service
         self.event_bus = event_bus
+        self.storage_downloader = storage_downloader
 
         # Provider allowlists per bounded context (soft validation: warn if unknown)
         self._allowed_storage_providers: Set[str] = set(
@@ -345,51 +352,6 @@ class MediaService:
                     provider=None,
                 )
 
-    async def cleanup_orphaned_files(self, command: CleanupOrphanedFilesCommand) -> int:
-        """Removes files from storage that are not referenced in the DB."""
-        # 1. Gather all known paths
-        provider_records: Dict[str, Set[str]] = {}
-        page = 1
-        page_size = 500
-
-        while True:
-            batch = await self.media_repository.list_paginated(
-                page=page,
-                limit=page_size,
-            )
-            if not batch:
-                break
-            for media in batch:
-                provider = (media.storage_provider or "local").lower()
-                if provider not in provider_records:
-                    provider_records[provider] = set()
-                provider_records[provider].add(media.original_file_path)
-            if len(batch) < page_size:
-                break
-            page += 1
-
-        # 2. Cleanup
-        total_deleted = 0
-        providers = set(provider_records.keys())
-        if not providers:
-            providers.add("local")
-
-        for provider in providers:
-            known_files = provider_records.get(provider, set())
-            deleted = await self.storage_maintenance.cleanup_orphaned_files(
-                provider_name=provider,
-                valid_files=known_files,
-            )
-            total_deleted += deleted
-            logger.info(
-                "media_management.cleanup.provider_summary",
-                provider=provider,
-                deleted=deleted,
-                actor_id=command.actor_id,
-            )
-
-        return total_deleted
-
     async def get_media(self, query: GetMediaQuery) -> Optional[Media]:
         """Retrieves a single media entity."""
         return await self.media_read_service.get_media(query)
@@ -403,6 +365,73 @@ class MediaService:
     ) -> Dict[str, Any]:
         """Returns statistics about media entities."""
         return await self.media_read_service.get_media_statistics(query)
+
+    async def get_media_stream(
+        self,
+        query: GetMediaStreamQuery,
+        user_id: Optional[uuid.UUID] = None,
+        user_role: Optional[UserRole] = None,
+    ) -> MediaStreamDTO:
+        """Obtém os bytes de uma mídia processando cabeçalhos de Range para streaming."""
+        media = await self.media_repository.get_by_id(query.media_id)
+        if not media:
+            raise ValueError("Mídia não encontrada")
+
+        self.access_policy.ensure_can_access(media, user_id, user_role)
+
+        if not media.original_file_path:
+            raise ValueError("Arquivo de mídia indisponível")
+
+        if not self.storage_downloader:
+            raise RuntimeError("Storage downloader not configured")
+
+        provider = (getattr(media, "storage_provider", None) or "local").lower()
+        try:
+            file_bytes = await self.storage_downloader.download(provider, media.original_file_path)
+        except Exception as exc:
+            logger.error("media.stream.download_failed", media_id=str(media.id), error=str(exc))
+            raise ValueError("Arquivo de mídia ausente no storage")
+
+        file_size = len(file_bytes)
+        if file_size == 0:
+            raise ValueError("Arquivo de mídia vazio")
+
+        filename = media.filename or media.original_file_path.split("/")[-1]
+        mime_type = media.mime_type or "application/octet-stream"
+
+        headers = {
+            "Accept-Ranges": "bytes",
+            "Content-Disposition": f'inline; filename="{filename}"',
+        }
+
+        range_header = query.range_header
+        if range_header:
+            range_header = range_header.strip()
+            match = RANGE_HEADER_PATTERN.match(range_header)
+            if not match:
+                raise ValueError("Cabeçalho Range inválido")
+
+            start = int(match.group(1))
+            end = int(match.group(2)) if match.group(2) is not None else file_size - 1
+            if start >= file_size:
+                raise ValueError("Requested range not satisfiable")
+
+            end = min(end, file_size - 1)
+            payload = file_bytes[start : end + 1]
+            headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+            headers["Content-Length"] = str(len(payload))
+            status_code = 206
+        else:
+            payload = file_bytes
+            headers["Content-Length"] = str(file_size)
+            status_code = 200
+
+        return MediaStreamDTO(
+            content=payload,
+            media_type=mime_type,
+            headers=headers,
+            status_code=status_code,
+        )
 
     # Private Helpers
 

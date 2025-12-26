@@ -101,6 +101,14 @@ class FileStoragePort(Protocol):
     ) -> Dict[str, Any]: ...
 
 
+class FileReferenceValidatorPort(Protocol):
+    """Protocol for modules that hold references to files in storage."""
+
+    async def validate_batch(self, provider: str, paths: List[str]) -> Any:
+        """Given a list of file paths, return the set of paths that are valid/referenced."""
+        ...
+
+
 __all__ = [
     "StorageProviderError",
     "StorageConfigurationPort",
@@ -110,4 +118,5 @@ __all__ = [
     "StorageOperationLoggerPort",
     "StorageRepositoryPort",
     "FileStoragePort",
+    "FileReferenceValidatorPort",
 ]

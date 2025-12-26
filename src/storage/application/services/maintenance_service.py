@@ -1,9 +1,11 @@
 """Service for storage maintenance tasks like cleanup and consistency checks."""
 from __future__ import annotations
 
-from typing import Protocol, Set
+from typing import List, Protocol, Set
 
 import structlog
+
+from src.storage.application.ports import FileReferenceValidatorPort
 
 logger = structlog.get_logger(__name__)
 
@@ -21,6 +23,11 @@ class StorageMaintenanceService:
 
     def __init__(self, storage_port: StorageMaintenancePort) -> None:
         self._storage = storage_port
+        self._validators: List[FileReferenceValidatorPort] = []
+
+    def register_validator(self, validator: FileReferenceValidatorPort) -> None:
+        """Registers a new validator that can vouch for file existence."""
+        self._validators.append(validator)
 
     async def delete_file(self, provider_name: str, path: str) -> None:
         """Delete a single file, used by higher-level services (e.g., media delete)."""
@@ -29,31 +36,41 @@ class StorageMaintenanceService:
     async def cleanup_orphaned_files(
         self,
         provider_name: str,
-        valid_files: Set[str],
         dry_run: bool = False,
     ) -> int:
-        """Identifies and removes files in storage that are not in the valid_files set.
+        """Identifies and removes files in storage that are not claimed by any validator.
 
         Args:
             provider_name: The storage provider to clean (e.g., 'local', 's3').
-            valid_files: Set of file paths (relative strings) that are known and valid.
             dry_run: If True, only logs what would be deleted.
 
         Returns:
             Count of deleted files.
-
         """
         try:
             stored_files = await self._storage.list_files(provider_name)
+            
+            # Normalize paths
+            candidates = {f.replace("\\", "/") for f in stored_files}
+            valid_files: Set[str] = set()
 
-            orphans = []
-            for file_path in stored_files:
-                # Normalize paths for comparison (generic handling)
-                norm_path = file_path.replace("\\", "/")
-                if norm_path not in valid_files:
-                    orphans.append(file_path)
+            # Ask all validators which files they know about
+            for validator in self._validators:
+                try:
+                    claimed = await validator.validate_batch(provider_name, list(candidates))
+                    valid_files.update(claimed)
+                except Exception as exc:
+                    logger.error(
+                        "storage.cleanup.validator_failed",
+                        provider=provider_name,
+                        error=str(exc),
+                    )
+                    # If a validator fails, we abort to avoid deleting valid files
+                    return 0
 
+            orphans = candidates - valid_files
             deleted_count = 0
+
             for orphan in orphans:
                 if dry_run:
                     logger.info(

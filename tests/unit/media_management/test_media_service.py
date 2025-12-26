@@ -39,6 +39,8 @@ def service_components() -> Dict[str, object]:
     media_repository.count_all = AsyncMock(return_value=7)
     media_repository.count_by_user = AsyncMock()
     media_repository.count_by_user_and_status = AsyncMock()
+    media_repository.count_by_type = AsyncMock(return_value=0)
+    media_repository.count_by_user_and_type = AsyncMock(return_value=0)
     media_repository.count_by_status = AsyncMock(
         side_effect=lambda status: 3 if status == MediaStatus.UPLOADED else 0
     )
@@ -46,6 +48,8 @@ def service_components() -> Dict[str, object]:
     media_read_service = MediaReadService(media_repository=media_repository)
     storage_uploader = MagicMock()
     storage_uploader.upload = AsyncMock()
+    storage_downloader = MagicMock()
+    storage_downloader.download = AsyncMock()
     metadata_mapper = MagicMock()
     metadata_mapper.map = MagicMock()
     metrics_service = MagicMock(spec=PrometheusMediaMetrics)
@@ -62,6 +66,7 @@ def service_components() -> Dict[str, object]:
         media_read_service=media_read_service,
         event_bus=None,
         storage_maintenance=storage_maintenance,
+        storage_downloader=storage_downloader,
     )
     service.access_policy = access_policy
 
@@ -78,6 +83,7 @@ def service_components() -> Dict[str, object]:
         "media_repository": media_repository,
         "media_read_service": media_read_service,
         "storage_uploader": storage_uploader,
+        "storage_downloader": storage_downloader,
         "metrics_service": metrics_service,
         "validator": upload_validator,
         "access_policy": access_policy,
@@ -172,3 +178,35 @@ async def test_get_media_statistics_scopes_by_user(service_components):
 
     assert stats["total"] == 7
     assert stats["by_status"][MediaStatus.UPLOADED.value] == 3
+
+
+@pytest.mark.asyncio
+async def test_get_media_stream_processes_range_header(service_components):
+    from src.media_management.application.dtos import GetMediaStreamQuery
+    service: MediaService = service_components["service"]
+    media_repository = service_components["media_repository"]
+    storage_downloader = service_components["storage_downloader"]
+
+    media = Media.create(
+        media_id=uuid4(),
+        user_id=uuid4(),
+        filename="test.mp4",
+        file_size_bytes=100,
+        original_file_path="path/to/file",
+        media_type=MediaType.VIDEO,
+        storage_provider="local",
+    )
+    media_repository.get_by_id.return_value = media
+    storage_downloader.download.return_value = b"0123456789" * 10 # 100 bytes
+
+    query = GetMediaStreamQuery(
+        media_id=media.id,
+        range_header="bytes=0-9"
+    )
+
+    stream_dto = await service.get_media_stream(query, user_id=media.user_id)
+
+    assert stream_dto.status_code == 206
+    assert stream_dto.content == b"0123456789"
+    assert stream_dto.headers["Content-Range"] == "bytes 0-9/100"
+    assert stream_dto.headers["Content-Length"] == "10"

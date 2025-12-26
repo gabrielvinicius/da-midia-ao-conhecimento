@@ -75,6 +75,10 @@ class StorageUploaderPort(Protocol):
     ) -> UploadResult: ...
 
 
+class StorageDownloaderPort(Protocol):
+    async def download(self, provider_name: str, path: str) -> bytes: ...
+
+
 class UploadMetadataMapperPort(Protocol):
     def map(
         self,

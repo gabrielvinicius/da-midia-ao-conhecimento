@@ -200,10 +200,28 @@ class MediaRepository:
         result = await self.db.execute(stmt)
         return result.scalar_one()
 
+    async def get_existing_paths(self, paths: List[str]) -> set[str]:
+        """Check which of the provided paths exist in the database."""
+        await self._ensure_clean()
+        if not paths:
+            return set()
+        
+        # In a real scenario with huge lists, we might need to chunk this query too.
+        # For now, assuming reasonable batch sizes from the caller.
+        stmt = select(MediaEntity.original_file_path).where(
+            MediaEntity.original_file_path.in_(paths)
+        )
+        result = await self.db.execute(stmt)
+        return set(result.scalars().all())
+
     async def _ensure_clean(self) -> None:
         """Rolls back any pending transaction to avoid asyncpg state errors."""
         try:
             await self.db.rollback()
-        except Exception:
+        except Exception as exc:
             # Best-effort cleanup; leave session as-is if rollback fails
-            pass
+            logger.warning(
+                "media_repository.rollback_failed",
+                error=str(exc),
+                message="Failed to rollback pending transaction (best-effort cleanup)",
+            )
