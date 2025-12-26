@@ -1,36 +1,123 @@
 // Queries API - Para operações de leitura (CQRS Read Side)
 import api from '@/lib/api';
-import { 
-  Media, 
-  User, 
-  Transcription, 
-  Summary, 
-  SentimentAnalysisResult, 
-  TopicModelingResult, 
-  SystemStats, 
-  UserResponse, 
-  Notification 
+import {
+  Media,
+  User,
+  Transcription,
+  TextAnalysisResponse,
+  SystemStats,
+  UserResponse,
+  Paginated,
+  PaginatedMedia,
+  MediaType,
+  MediaStatus,
 } from '@/types';
+
+export type ProviderOption = {
+  name: string;
+  label: string;
+  description?: string | null;
+  capabilities?: Record<string, any>;
+};
+
+export type ProvidersResponse = {
+  stages: Record<string, ProviderOption[]>;
+};
+
+type RawTranscription = Partial<Transcription> & {
+  content?: string | null;
+};
+
+const normalizeMediaShape = (payload: any): Media => {
+  const media_type = String(payload.media_type || payload.mediaType || '').toUpperCase() as MediaType;
+  const status = String(payload.status || '').toUpperCase() as MediaStatus;
+  return {
+    id: String(payload.id),
+    filename: payload.filename ?? null,
+    content_type: payload.mime_type ?? payload.content_type ?? null,
+    size: payload.file_size ?? payload.size ?? null,
+    media_type,
+    status,
+    created_at: String(payload.created_at),
+    error_message: payload.error_message ?? null,
+    language: payload.language ?? null,
+    duration: payload.duration ?? null,
+    original_file_path: payload.original_file_path ?? null,
+    storage_provider: payload.storage_provider ?? null,
+    transcription_provider: payload.transcription_provider ?? null,
+    summarization_provider: payload.summarization_provider ?? null,
+    sentiment_provider: payload.sentiment_provider ?? null,
+    topic_modeling_provider: payload.topic_modeling_provider ?? null,
+  } as Media;
+};
+
+const normalizeTranscription = (payload: RawTranscription): Transcription => {
+  const segments = Array.isArray(payload.segments) ? payload.segments : [];
+  return {
+    id: String(payload.id),
+    media_id: String(payload.media_id),
+    status: payload.status as any,
+    provider: payload.provider ?? null,
+    created_at: String(payload.created_at),
+    processed_at: (payload.processed_at as any) ?? null,
+    error_message: (payload.error_message as any) ?? null,
+    text: String((payload as any).text ?? payload.content ?? ""),
+    segments,
+    speaker_aliases: (payload as any).speaker_aliases ?? {},
+    language: (payload as any).language ?? null,
+    confidence_score: (payload as any).confidence_score ?? null,
+  };
+};
 
 // =============================================================================
 // MEDIA QUERIES
 // =============================================================================
 
 export const getMediaById = async (mediaId: string): Promise<Media> => {
-  console.log('📖 Executando GetMediaByIdQuery:', mediaId);
-  
   const response = await api.get<Media>(`/media/${mediaId}`);
-  
-  console.log('✅ GetMediaByIdQuery executada:', response.data);
-  return response.data;
+  return normalizeMediaShape(response.data);
 };
 
-export const getMediaByUser = async (): Promise<Media[]> => {
-  console.log('📖 Executando GetMediaByUserQuery');
-  
-  const response = await api.get<Media[]>('/media/');
-  
-  console.log('✅ GetMediaByUserQuery executada:', response.data.length, 'items');
+export const getMediaByUser = async (
+  page = 1,
+  limit = 100, // API permite até 100
+  order: 'asc' | 'desc' = 'desc',
+  search: string = "",
+): Promise<PaginatedMedia> => {
+  const response = await api.get<Partial<Paginated<Media>>>('/media/', {
+    params: {
+      page,
+      limit,
+      order,
+      search: search || undefined,
+    },
+  });
+
+  const items = Array.isArray(response.data?.items)
+    ? response.data.items.map(normalizeMediaShape)
+    : [];
+  const total = typeof response.data?.total === 'number' ? response.data.total : items.length;
+  const resolvedLimit = response.data?.limit ?? limit;
+  const resolvedPage = response.data?.page ?? page;
+  const resolvedPages = response.data?.pages ?? Math.max(1, Math.ceil(total / resolvedLimit));
+
+  return {
+    items,
+    total,
+    page: resolvedPage,
+    pages: resolvedPages,
+    limit: resolvedLimit,
+  };
+};
+
+// Estatísticas das mídias do usuário atual
+export type MediaStatsResponse = {
+  total: number;
+  by_status: Record<string, number>;
+};
+
+export const getMediaStats = async (): Promise<MediaStatsResponse> => {
+  const response = await api.get<MediaStatsResponse>('/media/stats');
   return response.data;
 };
 
@@ -39,73 +126,24 @@ export const getMediaByUser = async (): Promise<Media[]> => {
 // =============================================================================
 
 export const getTranscriptionByMediaId = async (mediaId: string): Promise<Transcription> => {
-  console.log('📖 Executando GetTranscriptionByMediaIdQuery:', mediaId);
-  
-  const response = await api.get<Transcription>(`/transcriptions/?media_id=${mediaId}`);
-  
-  console.log('✅ GetTranscriptionByMediaIdQuery executada:', response.data);
-  return response.data;
+  const response = await api.get<RawTranscription>(`/transcriptions/?media_id=${mediaId}`);
+  const transcription = normalizeTranscription(response.data);
+  return transcription;
 };
 
 export const getTranscriptionById = async (transcriptionId: string): Promise<Transcription> => {
-  console.log('📖 Executando GetTranscriptionByIdQuery:', transcriptionId);
-  
-  const response = await api.get<Transcription>(`/transcriptions/${transcriptionId}`);
-  
-  console.log('✅ GetTranscriptionByIdQuery executada:', response.data);
-  return response.data;
+  const response = await api.get<RawTranscription>(`/transcriptions/${transcriptionId}`);
+  const transcription = normalizeTranscription(response.data);
+  return transcription;
 };
 
 // =============================================================================
-// SUMMARIZATION QUERIES
+// TEXT ANALYSIS QUERIES (unificado)
 // =============================================================================
 
-export const getSummaryByMediaId = async (mediaId: string): Promise<Summary> => {
-  console.log('📖 Executando GetSummaryByMediaIdQuery:', mediaId);
-  
-  const response = await api.get<Summary>(`/summaries/?media_id=${mediaId}`);
-  
-  console.log('✅ GetSummaryByMediaIdQuery executada:', response.data);
-  return response.data;
-};
-
-export const getSummaryById = async (summaryId: string): Promise<Summary> => {
-  console.log('📖 Executando GetSummaryByIdQuery:', summaryId);
-  
-  const response = await api.get<Summary>(`/summaries/${summaryId}`);
-  
-  console.log('✅ GetSummaryByIdQuery executada:', response.data);
-  return response.data;
-};
-
-// =============================================================================
-// SENTIMENT ANALYSIS QUERIES
-// =============================================================================
-
-export const getSentimentAnalysisByMediaId = async (mediaId: string): Promise<SentimentAnalysisResult | null> => {
-  console.log('📖 Executando GetSentimentAnalysisByMediaIdQuery:', mediaId);
-  
+export const getTextAnalysisByMediaId = async (mediaId: string): Promise<TextAnalysisResponse | null> => {
   try {
-    const response = await api.get<SentimentAnalysisResult>(`/sentiment-analysis/?media_id=${mediaId}`);
-    console.log('✅ GetSentimentAnalysisByMediaIdQuery executada:', response.data);
-    return response.data;
-  } catch (error: any) {
-    if (error?.response?.status === 404) {
-      return null;
-    }
-    throw error;
-  }
-};
-
-// =============================================================================
-// TOPIC MODELING QUERIES
-// =============================================================================
-
-export const getTopicModelingByMediaId = async (mediaId: string): Promise<TopicModelingResult | null> => {
-  console.log('📖 Executando GetTopicModelingByMediaIdQuery:', mediaId);
-  try {
-    const response = await api.get<TopicModelingResult>(`/topic-modeling/?media_id=${mediaId}`);
-    console.log('✅ GetTopicModelingByMediaIdQuery executada:', response.data);
+    const response = await api.get<TextAnalysisResponse>(`/text-analysis/media/${mediaId}`);
     return response.data;
   } catch (error: any) {
     if (error?.response?.status === 404) {
@@ -120,108 +158,38 @@ export const getTopicModelingByMediaId = async (mediaId: string): Promise<TopicM
 // =============================================================================
 
 export const getCurrentUser = async (): Promise<User> => {
-  console.log('📖 Executando GetCurrentUserQuery');
-  
   const response = await api.get<User>('/auth/me');
-  
-  console.log('✅ GetCurrentUserQuery executada:', response.data);
   return response.data;
 };
 
 // =============================================================================
-// PROVIDER QUERIES
+// PROVIDERS (pipeline)
 // =============================================================================
 
-export const getStorageProviders = async (): Promise<string[]> => {
-  console.log('📖 Executando GetStorageProvidersQuery');
-  
-  const response = await api.get<string[]>('/providers/storage');
-  
-  console.log('✅ GetStorageProvidersQuery executada:', response.data);
+export const getProviders = async (): Promise<ProvidersResponse> => {
+  const response = await api.get<ProvidersResponse>("/providers");
   return response.data;
 };
 
-export const getTranscriptionProviders = async (): Promise<string[]> => {
-  console.log('📖 Executando GetTranscriptionProvidersQuery');
-  
-  const response = await api.get<string[]>('/providers/transcription');
-  
-  console.log('✅ GetTranscriptionProvidersQuery executada:', response.data);
-  return response.data;
-};
-
-export const getSummarizationProviders = async (): Promise<string[]> => {
-  console.log('📖 Executando GetSummarizationProvidersQuery');
-  
-  const response = await api.get<string[]>('/providers/summarization');
-  
-  console.log('✅ GetSummarizationProvidersQuery executada:', response.data);
-  return response.data;
-};
-
-export const getSentimentProviders = async (): Promise<string[]> => {
-  console.log('📖 Executando GetSentimentProvidersQuery');
-  const response = await api.get<string[]>('/providers/sentiment');
-  console.log('✅ GetSentimentProvidersQuery executada:', response.data);
-  return response.data;
-};
-
-export const getTopicModelingProviders = async (): Promise<string[]> => {
-  console.log('📖 Executando GetTopicModelingProvidersQuery');
-  const response = await api.get<string[]>('/providers/topics');
-  console.log('✅ GetTopicModelingProvidersQuery executada:', response.data);
-  return response.data;
-};
-
-export const getAllProviders = async (): Promise<Record<string, string[]>> => {
-  console.log('📖 Executando GetAllProvidersQuery');
-  
-  const response = await api.get<Record<string, string[]>>('/providers/');
-  
-  console.log('✅ GetAllProvidersQuery executada:', response.data);
-  return response.data;
-};
-
-// =============================================================================
-// NOTIFICATION QUERIES
-// =============================================================================
-
-export const getNotifications = async (): Promise<Notification[]> => {
-  console.log('📖 Executando GetNotificationsQuery');
-  
-  const response = await api.get<Notification[]>('/notifications/');
-  
-  console.log('✅ GetNotificationsQuery executada:', response.data.length, 'notifications');
-  return response.data;
-};
+// Notas:
+// - O frontend consulta `GET /providers` para listar opções selecionáveis do pipeline no upload.
+// - Notificações são entregues via WebSocket no frontend atual; leitura por API é opcional no backend.
 
 // =============================================================================
 // ADMIN QUERIES
 // =============================================================================
 
 export const getSystemStats = async (): Promise<SystemStats> => {
-  console.log('📖 Executando GetSystemStatsQuery');
-  
   const response = await api.get<SystemStats>('/admin/stats');
-  
-  console.log('✅ GetSystemStatsQuery executada:', response.data);
   return response.data;
 };
 
-export const getAllUsers = async (): Promise<UserResponse[]> => {
-  console.log('📖 Executando GetAllUsersQuery');
-  
-  const response = await api.get<UserResponse[]>('/admin/users');
-  
-  console.log('✅ GetAllUsersQuery executada:', response.data.length, 'users');
+export const getAllUsers = async (): Promise<Paginated<UserResponse>> => {
+  const response = await api.get<Paginated<UserResponse>>('/admin/users');
   return response.data;
 };
 
-export const getAllMediaAdmin = async (): Promise<Media[]> => {
-  console.log('📖 Executando GetAllMediaAdminQuery');
-  
-  const response = await api.get<Media[]>('/admin/media');
-  
-  console.log('✅ GetAllMediaAdminQuery executada:', response.data.length, 'media items');
+export const getAllMediaAdmin = async (): Promise<Paginated<Media>> => {
+  const response = await api.get<Paginated<Media>>('/admin/media');
   return response.data;
 };

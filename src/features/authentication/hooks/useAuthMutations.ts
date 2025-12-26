@@ -13,13 +13,9 @@ export const useLogin = () => {
   return useMutation({
     mutationFn: (credentials: UserCredentials) => login(credentials),
     onSuccess: async (data) => {
-      console.log('Login response:', data);
-      
       try {
         // Buscar dados do usuário
         const user = await getMe();
-        console.log('User data:', user);
-        
         // Atualizar contexto e cache
         setUser(user);
         queryClient.setQueryData(['currentUser'], user);

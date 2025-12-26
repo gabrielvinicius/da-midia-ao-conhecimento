@@ -29,6 +29,7 @@ import {
   useProcessingTrends,
   useSystemPerformance,
 } from "../hooks/useAdminQueries";
+import ErrorState from "@/components/ui/ErrorState";
 import {
   DistributionBarList,
   KpiCard,
@@ -133,6 +134,19 @@ export const AdminAnalyticsPage = () => {
     );
   }
 
+  if (isPerformanceError && isTrendsError && isSummaryError && isKpisError) {
+    return (
+      <ErrorState
+        title="Não foi possível carregar as métricas"
+        message="Verifique o backend /monitoring e sua permissão ADMIN."
+        onRetry={() => {
+          // hooks refetch via invalidation on window focus; force reload
+          window.location.reload();
+        }}
+      />
+    );
+  }
+
   const healthScore = performanceData?.overall_health_score ?? 0;
   const tone = statusTone(healthScore);
 
@@ -166,7 +180,7 @@ export const AdminAnalyticsPage = () => {
               <span>Nem todos os painéis puderam ser carregados.</span>
             </div>
             <CardDescription>
-              Recarregue a página após garantir que o backend `/monitoring/*` está acessível e que seu usuário mantém a role ADMIN.
+              Verifique conectividade com /monitoring/* e tente recarregar.
             </CardDescription>
           </CardHeader>
         </Card>

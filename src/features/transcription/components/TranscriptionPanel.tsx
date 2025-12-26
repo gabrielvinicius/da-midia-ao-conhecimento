@@ -38,7 +38,7 @@ export const TranscriptionPanel = ({ mediaId }: TranscriptionPanelProps) => {
       },
       {
         label: "Modelo",
-        value: transcription.provider ?? "fastwhisper",
+        value: transcription.provider ?? "automático",
         icon: <Activity className="h-4 w-4 text-sky-400" />,
       },
       {
@@ -88,7 +88,7 @@ export const TranscriptionPanel = ({ mediaId }: TranscriptionPanelProps) => {
         return (
           <div className="space-y-3">
             <div className="rounded-2xl bg-slate-900/50 px-4 py-3 text-sm leading-relaxed text-slate-100 shadow-inner shadow-black/40">
-              {transcription.result?.text || transcription.text}
+              {transcription.text}
             </div>
             {transcription.segments && (
               <div className="grid gap-2 text-xs text-muted-foreground">

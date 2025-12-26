@@ -30,8 +30,6 @@ export const executeCreateMedia = async (
   command: CreateMediaCommand,
   options?: UploadOptions,
 ): Promise<Media & { correlation_id?: string }> => {
-  console.log('🎬 Executando CreateMediaCommand:', command);
-  
   const { file, ...queryParams } = command;
   const formData = new FormData();
   formData.append('file', file, file.name);
@@ -68,18 +66,12 @@ export const executeCreateMedia = async (
       options?.onProgress?.(percentCompleted, event);
     },
   });
-  
-  console.log('✅ CreateMediaCommand executado:', response.data);
   const correlationId = response.headers?.['x-correlation-id'];
   return { ...response.data, correlation_id: correlationId };
 };
 
 export const executeReprocessMedia = async (command: ReprocessMediaCommand): Promise<{ message: string }> => {
-  console.log('🔄 Executando ReprocessMediaCommand:', command);
-  
   const response = await api.post<{ message: string }>(`/media/${command.mediaId}/reprocess`);
-  
-  console.log('✅ ReprocessMediaCommand executado:', response.data);
   return response.data;
 };
 
@@ -103,38 +95,27 @@ export interface ChangePasswordCommand {
 }
 
 export const executeAuthenticateUser = async (command: AuthenticateUserCommand) => {
-  console.log('🔐 Executando AuthenticateUserCommand');
-
   const response = await authService.login({
     username: command.email,
     password: command.password,
   });
 
-  console.log('✅ AuthenticateUserCommand executado');
   return response;
 };
 
 export const executeCreateUser = async (command: CreateUserCommand) => {
-  console.log('👤 Executando CreateUserCommand');
-  
   const response = await api.post('/auth/register', {
     email: command.email,
     password: command.password,
   });
-  
-  console.log('✅ CreateUserCommand executado');
   return response.data;
 };
 
 export const executeChangePassword = async (command: ChangePasswordCommand) => {
-  console.log('🔒 Executando ChangePasswordCommand');
-  
   const response = await api.put('/auth/me/password', {
     old_password: command.oldPassword,
     new_password: command.newPassword,
   });
-  
-  console.log('✅ ChangePasswordCommand executado');
   return response.data;
 };
 
@@ -148,13 +129,9 @@ export interface SetSpeakerAliasesCommand {
 }
 
 export const executeSetSpeakerAliases = async (command: SetSpeakerAliasesCommand) => {
-  console.log('🗣️ Executando SetSpeakerAliasesCommand:', command);
-  
-  const response = await api.put(`/transcriptions/${command.transcriptionId}/speakers`, {
+  const response = await api.put(`/transcriptions/${command.transcriptionId}/speaker-aliases`, {
     aliases: command.aliases,
   });
-  
-  console.log('✅ SetSpeakerAliasesCommand executado');
   return response.data;
 };
 
@@ -180,45 +157,25 @@ export interface DeleteUserMediaCommand {
 }
 
 export const executeUpdateUserRole = async (command: UpdateUserRoleCommand) => {
-  console.log('👑 Executando UpdateUserRoleCommand:', command);
-  
   const response = await api.put(`/admin/users/${command.userId}`, {
     role: command.role,
   });
-  
-  console.log('✅ UpdateUserRoleCommand executado');
   return response.data;
 };
 
 export const executeDeleteUser = async (command: DeleteUserCommand) => {
-  console.log('🗑️ Executando DeleteUserCommand:', command);
-  
   await api.delete(`/admin/users/${command.userId}`);
-  
-  console.log('✅ DeleteUserCommand executado');
 };
 
 export const executeDeleteMedia = async (command: DeleteMediaCommand) => {
-  console.log('🗑️ Executando DeleteMediaCommand:', command);
-  
   await api.delete(`/admin/media/${command.mediaId}`);
-  
-  console.log('✅ DeleteMediaCommand executado');
 };
 
 export const executeDeleteUserMedia = async (command: DeleteUserMediaCommand) => {
-  console.log('🗑️ Executando DeleteUserMediaCommand:', command);
-
   await api.delete(`/media/${command.mediaId}`);
-
-  console.log('✅ DeleteUserMediaCommand executado');
 };
 
 export const executeAdminReprocessMedia = async (command: ReprocessMediaCommand) => {
-  console.log('🔄 Executando Admin ReprocessMediaCommand:', command);
-  
   const response = await api.post(`/admin/media/${command.mediaId}/reprocess`);
-  
-  console.log('✅ Admin ReprocessMediaCommand executado');
   return response.data;
 };

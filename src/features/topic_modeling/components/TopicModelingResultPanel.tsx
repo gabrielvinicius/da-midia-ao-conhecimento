@@ -1,13 +1,13 @@
-import { useTopicModeling } from "../hooks/useTopicModeling";
+import { useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
-import { TopicModelingStatus, TopicSummaryDetail } from "@/types";
-import { formatDistanceToNow } from "date-fns";
+import { MediaStatus, TextAnalysisTopic } from "@/types";
 import { Brain, Clock3, Loader2, Sparkles, Languages, ListOrdered } from "lucide-react";
 
 interface TopicModelingResultPanelProps {
   mediaId: string;
+  mediaStatus?: MediaStatus;
 }
 
 const providerMeta: Record<string, { label: string; description: string }> = {
@@ -49,20 +49,22 @@ const providerMeta: Record<string, { label: string; description: string }> = {
   },
 };
 
-const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
-  [TopicModelingStatus.COMPLETED]: { label: "Concluído", variant: "default" },
-  [TopicModelingStatus.PROCESSING]: { label: "Processando", variant: "secondary" },
-  [TopicModelingStatus.FAILED]: { label: "Falhou", variant: "destructive" },
-};
-
-export const TopicModelingResultPanel = ({ mediaId }: TopicModelingResultPanelProps) => {
-  const { data: analysis, isLoading, isError } = useTopicModeling(mediaId);
-  const providerInfo = analysis?.provider ? providerMeta[analysis.provider] : undefined;
+export const TopicModelingResultPanel = ({ mediaId, mediaStatus }: TopicModelingResultPanelProps) => {
+  const { data: analysis, isLoading, isError } = useTextAnalysisByMediaIdQuery(mediaId);
+  const provider = analysis?.provider ?? undefined;
+  const providerInfo = provider ? providerMeta[provider] : undefined;
 
   const renderStatusBadge = () => {
-    const status = analysis?.status ?? TopicModelingStatus.PROCESSING;
-    const config = statusMap[status] ?? statusMap[TopicModelingStatus.PROCESSING];
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    if (mediaStatus === MediaStatus.FAILED) {
+      return <Badge variant="destructive">Falhou</Badge>;
+    }
+    if (!analysis && mediaStatus === MediaStatus.PROCESSING) {
+      return <Badge variant="secondary">Processando</Badge>;
+    }
+    if (analysis) {
+      return <Badge variant="default">Concluído</Badge>;
+    }
+    return <Badge variant="secondary">Aguardando</Badge>;
   };
 
   const renderContent = () => {
@@ -81,35 +83,32 @@ export const TopicModelingResultPanel = ({ mediaId }: TopicModelingResultPanelPr
     }
 
     if (!analysis) {
-    return (
-      <p className="text-muted-foreground text-center text-xs flex items-center justify-center gap-2">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        Modelagem em andamento... aguarde alguns instantes.
-      </p>
+      return (
+        <p className="text-muted-foreground text-center text-xs flex items-center justify-center gap-2">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          {mediaStatus === MediaStatus.PROCESSING
+            ? "Modelagem em andamento... aguarde alguns instantes."
+            : "Tópicos ainda não disponíveis."}
+        </p>
       );
     }
 
     const metaItems: React.ReactNode[] = [];
-    if (analysis?.language) {
+    const language = analysis.diagnostics?.language || analysis.diagnostics?.lang || null;
+    if (language) {
       metaItems.push(
         <span key="language" className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5">
           <Languages className="h-3 w-3" />
-          Idioma: {analysis.language.toUpperCase()}
+          Idioma: {String(language).toUpperCase()}
         </span>
       );
     }
-    if (analysis?.num_topics) {
+    const numTopics = (analysis.topics || []).length;
+    if (numTopics) {
       metaItems.push(
         <span key="topics" className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5">
           <ListOrdered className="h-3 w-3" />
-          {analysis.num_topics} tópicos
-        </span>
-      );
-    }
-    if (analysis?.model_name) {
-      metaItems.push(
-        <span key="model" className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5">
-          Modelo: {analysis.model_name}
+          {numTopics} tópicos
         </span>
       );
     }
@@ -117,27 +116,27 @@ export const TopicModelingResultPanel = ({ mediaId }: TopicModelingResultPanelPr
       <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">{metaItems}</div>
     ) : null;
 
-    const structuredTopics = analysis.topic_summaries;
-    if (structuredTopics && structuredTopics.length > 0) {
+    const topics = analysis.topics || [];
+    if (topics.length > 0) {
       return (
         <div className="space-y-3 text-sm leading-relaxed">
           {metaBadges}
-          {structuredTopics.map((topic: TopicSummaryDetail, index: number) => (
+          {topics.map((topic: TextAnalysisTopic, index: number) => (
             <div
-              key={topic.id ?? index}
+              key={topic.topic_id ?? index}
               className="rounded-2xl border border-[#f2eadf] bg-[#fdfbf6] p-3 shadow-sm"
             >
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{topic.label}</p>
-              {topic.summary_sentence ? (
-                <p className="mt-2 font-medium text-slate-900">{topic.summary_sentence}</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{topic.title || `Tópico ${index + 1}`}</p>
+              {topic.summary_md ? (
+                <p className="mt-2 font-medium text-slate-900 whitespace-pre-wrap">{topic.summary_md}</p>
               ) : (
                 <p className="mt-2 text-muted-foreground">
-                  {topic.keywords.length
+                  {topic.keywords?.length
                     ? `Principais termos: ${topic.keywords.slice(0, 5).join(", ")}`
-                    : "Em processamento..."}
+                    : "Sem resumo disponível."}
                 </p>
               )}
-              {topic.keywords.length > 0 && (
+              {topic.keywords?.length > 0 && (
                 <p className="mt-2 text-xs text-muted-foreground">
                   Palavras-chave: {topic.keywords.slice(0, 6).join(", ")}
                 </p>
@@ -148,52 +147,7 @@ export const TopicModelingResultPanel = ({ mediaId }: TopicModelingResultPanelPr
       );
     }
 
-    const rawTopics = analysis.raw_topics;
-    if ((!rawTopics || rawTopics.length === 0) && (!analysis.topics || analysis.topics.length === 0)) {
-      return (
-        <p className="text-muted-foreground text-center text-xs">
-          {analysis.status === TopicModelingStatus.PROCESSING
-            ? "Estamos analisando o conteúdo para extrair os tópicos predominantes."
-            : "Os tópicos serão exibidos assim que a transcrição e a sumarização forem concluídas."}
-        </p>
-      );
-    }
-
-    if (rawTopics && rawTopics.length > 0) {
-      return (
-        <div className="space-y-3 text-sm leading-relaxed">
-          {metaBadges}
-          {rawTopics.map((topic, index) => {
-            const keywords = (topic.keywords || topic.terms || [])
-              .map((keyword: any) =>
-                typeof keyword === "string" ? keyword : keyword?.[0] || keyword?.term || keyword
-              )
-              .filter(Boolean)
-              .slice(0, 6);
-            const label = topic.name || topic.label || `Tópico ${index + 1}`;
-            const sentence = keywords.length
-              ? `${label} destaca ${keywords.slice(0, -1).join(", ")} e ${keywords[keywords.length - 1]}.`
-              : `${label} ainda possui pouca informação disponível.`;
-            return (
-              <div
-                key={topic.id ?? index}
-                className="rounded-2xl border border-border/60 bg-gradient-to-r from-background via-background to-slate-900/5 p-3 shadow-sm"
-              >
-                <p>{sentence}</p>
-              </div>
-            );
-          })}
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-2 text-sm">
-        {(analysis.topics || []).map((topic, index) => (
-          <p key={index}>{topic}</p>
-        ))}
-      </div>
-    );
+    return <p className="text-muted-foreground text-center text-xs">Nenhum tópico detectado.</p>;
   };
 
   return (
@@ -211,7 +165,7 @@ export const TopicModelingResultPanel = ({ mediaId }: TopicModelingResultPanelPr
         <CardDescription className="flex flex-col gap-1 text-xs">
           <Badge variant="outline" className="gap-1">
             <Sparkles className="h-3 w-3 text-amber-500" />
-            {providerInfo?.label ?? analysis?.provider ?? "sklearn_lda"}
+            {providerInfo?.label ?? provider ?? "automático"}
           </Badge>
           {providerInfo?.description && (
             <span className="text-muted-foreground leading-relaxed">
@@ -219,12 +173,7 @@ export const TopicModelingResultPanel = ({ mediaId }: TopicModelingResultPanelPr
             </span>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            {analysis?.processed_at ? (
-              <span className="inline-flex items-center gap-1">
-                <Clock3 className="h-3.5 w-3.5" />
-                Atualizado {formatDistanceToNow(new Date(analysis.processed_at), { addSuffix: true })}
-              </span>
-            ) : (
+            {analysis ? null : (
               <span className="inline-flex items-center gap-1 text-muted-foreground">
                 <Clock3 className="h-3.5 w-3.5" />
                 Aguardando processamento

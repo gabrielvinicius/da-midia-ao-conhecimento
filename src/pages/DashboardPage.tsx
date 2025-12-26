@@ -1,11 +1,15 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { Button } from "../components/ui/Button";
-import { Skeleton } from "../components/ui/Skeleton";
+import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
+import ErrorState from "@/components/ui/ErrorState";
 import NumberTicker from "@/components/ui/NumberTicker";
 import { MagicSurface } from "@/components/ui/MagicSurface";
 import { MediaCard } from "../features/media/components/MediaCard";
-import { useMediaList } from "../features/media/hooks/useMedia";
+import { useMediaByUserQuery, useMediaStatsQuery } from "@/hooks/useQueries";
+import { PaginationState } from "@tanstack/react-table";
+import { Input } from "@/components/ui/Input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { useAuth } from "../contexts/AuthContext";
 import { UserRole } from "@/types";
 import {
@@ -21,17 +25,79 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+const SelectPageSize = ({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+}) => {
+  const options = [12, 24, 48, 96];
+  return (
+    <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
+      <SelectTrigger className="w-24">
+        <SelectValue placeholder="Itens/pág." />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((opt) => (
+          <SelectItem key={opt} value={String(opt)}>
+            {opt} / pág.
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
+
 const DashboardPage = () => {
-  const { data: media, isLoading, isError, error, refetch } = useMediaList();
+  const [{ pageIndex, pageSize }, setPagination] = React.useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 12,
+  });
+  const [search, setSearch] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const page = pageIndex + 1;
+
+  const { data: mediaPage, isLoading, isError, error, refetch, isFetching } = useMediaByUserQuery(
+    page,
+    pageSize,
+    "desc",
+    debouncedSearch
+  );
+  const { data: statsApi } = useMediaStatsQuery();
+  const media = Array.isArray(mediaPage?.items) ? mediaPage.items : [];
+  const totalMedia =
+    typeof mediaPage?.total === "number"
+      ? mediaPage.total
+      : Array.isArray(mediaPage?.items)
+        ? mediaPage.items.length
+        : 0;
+  const totalPages = mediaPage?.pages ?? Math.max(1, Math.ceil(totalMedia / pageSize));
   const { user } = useAuth();
   const isAdmin = user?.role === UserRole.ADMIN || user?.role?.toString().toUpperCase().includes("ADMIN");
 
-  // Calcular estatísticas
+  // Calcular estatísticas (usa API /media/stats quando disponível; fallback no slice)
   const stats = React.useMemo(() => {
-    if (!media) return { total: 0, videos: 0, audios: 0, texts: 0, processing: 0, completed: 0, failed: 0 };
-    
+    const fallback = { total: media.length, videos: 0, audios: 0, texts: 0, processing: 0, completed: 0, failed: 0 };
+    if (statsApi?.by_status) {
+      return {
+        total: statsApi.total ?? fallback.total,
+        videos: media.filter(m => m.media_type === 'VIDEO').length, // ausência de breakdown por tipo; mantém parcial
+        audios: media.filter(m => m.media_type === 'AUDIO').length,
+        texts: media.filter(m => m.media_type === 'TEXT').length,
+        processing: statsApi.by_status.PROCESSING ?? 0,
+        completed: statsApi.by_status.COMPLETED ?? 0,
+        failed: statsApi.by_status.FAILED ?? 0,
+      };
+    }
     return {
-      total: media.length,
+      ...fallback,
       videos: media.filter(m => m.media_type === 'VIDEO').length,
       audios: media.filter(m => m.media_type === 'AUDIO').length,
       texts: media.filter(m => m.media_type === 'TEXT').length,
@@ -39,17 +105,17 @@ const DashboardPage = () => {
       completed: media.filter(m => m.status === 'COMPLETED').length,
       failed: media.filter(m => m.status === 'FAILED').length,
     };
-  }, [media]);
+  }, [media, statsApi]);
 
-  const completionRate = stats.total ? (stats.completed / stats.total) * 100 : 0;
-  const failureRate = stats.total ? (stats.failed / stats.total) * 100 : 0;
-  const processingRate = stats.total ? (stats.processing / stats.total) * 100 : 0;
+  const completionRate = totalMedia ? (stats.completed / totalMedia) * 100 : 0;
+  const failureRate = totalMedia ? (stats.failed / totalMedia) * 100 : 0;
+  const processingRate = totalMedia ? (stats.processing / totalMedia) * 100 : 0;
   const lastUpload = media?.[0];
 
   const breakdown = [
-    { label: "Vídeo", value: stats.videos, icon: <Video className="h-4 w-4" />, color: "bg-violet-500" },
-    { label: "Áudio", value: stats.audios, icon: <Music className="h-4 w-4" />, color: "bg-emerald-500" },
-    { label: "Texto", value: stats.texts, icon: <FileText className="h-4 w-4" />, color: "bg-sky-500" },
+    { label: "Vídeo", value: statsApi?.by_type?.VIDEO ?? stats.videos, icon: <Video className="h-4 w-4" />, color: "bg-violet-500" },
+    { label: "Áudio", value: statsApi?.by_type?.AUDIO ?? stats.audios, icon: <Music className="h-4 w-4" />, color: "bg-emerald-500" },
+    { label: "Texto", value: statsApi?.by_type?.TEXT ?? stats.texts, icon: <FileText className="h-4 w-4" />, color: "bg-sky-500" },
   ];
 
   const StatCard = ({
@@ -66,7 +132,7 @@ const DashboardPage = () => {
     icon: React.ReactNode;
   }) => (
     <MagicSurface title={title} description={description}>
-      <div className="flex.items-center justify-between">
+      <div className="flex items-center justify-between">
         <div className="text-3xl font-semibold text-slate-900">
           <NumberTicker value={value} suffix={suffix} />
         </div>
@@ -91,7 +157,7 @@ const DashboardPage = () => {
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
       <StatCard
         title="Total monitorado"
-        value={stats.total}
+        value={totalMedia}
         description={stats.processing ? `${stats.processing} em processamento` : "Nenhum processamento ativo"}
         icon={<FileText className="h-4 w-4" />}
       />
@@ -104,8 +170,8 @@ const DashboardPage = () => {
       />
       <StatCard
         title="Uploads recentes"
-        value={media?.slice(0, 10).length ?? 0}
-        description="Últimos itens enviados"
+        value={totalMedia}
+        description="Total de itens enviados"
         icon={<Upload className="h-4 w-4" />}
       />
       <StatCard
@@ -140,15 +206,11 @@ const DashboardPage = () => {
 
     if (isError) {
       return (
-        <div className="text-center py-16">
-          <div className="text-destructive mb-4">
-            <p>Erro ao carregar arquivos: {error?.message}</p>
-          </div>
-          <Button onClick={() => refetch()} variant="outline">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Tentar Novamente
-          </Button>
-        </div>
+        <ErrorState
+          title="Erro ao carregar seus arquivos"
+          message={error?.message || "Tente novamente em instantes."}
+          onRetry={() => refetch()}
+        />
       );
     }
 
@@ -176,8 +238,17 @@ const DashboardPage = () => {
             <div className="mb-4 flex gap-2">
               <Button variant="outline" size="sm" onClick={() => refetch()}>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Atualizar
+                {isFetching ? "Atualizando..." : "Atualizar"}
               </Button>
+              <Input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPagination((p) => ({ ...p, pageIndex: 0 }));
+                }}
+                placeholder="Filtrar por nome..."
+                className="max-w-xs"
+              />
               <Button asChild size="sm">
                 <Link to="/upload">
                   <Upload className="mr-2 h-4 w-4" />
@@ -189,6 +260,35 @@ const DashboardPage = () => {
               {media.map((item) => (
                 <MediaCard key={item.id} media={item} />
               ))}
+            </div>
+            <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+              <span>
+                Página {page} de {totalPages} · {totalMedia} itens
+              </span>
+              <div className="flex gap-2">
+                <SelectPageSize value={pageSize} onChange={(n) => setPagination({ pageIndex: 0, pageSize: n })} />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pageIndex === 0}
+                  onClick={() => setPagination((p) => ({ ...p, pageIndex: Math.max(0, p.pageIndex - 1) }))}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() =>
+                    setPagination((p) => ({
+                      ...p,
+                      pageIndex: Math.min(totalPages - 1, p.pageIndex + 1),
+                    }))
+                  }
+                >
+                  Próxima
+                </Button>
+              </div>
             </div>
           </MagicSurface>
 
@@ -222,7 +322,7 @@ const DashboardPage = () => {
             <MagicSurface title="Último upload" description="Acompanhe o item mais recente enviado.">
                 {lastUpload ? (
                   <div className="space-y-2 text-sm">
-                    <p className="font-semibold text-foreground">{lastUpload.original_filename ?? "Arquivo sem nome"}</p>
+                    <p className="font-semibold text-foreground">{lastUpload.filename ?? "Arquivo sem nome"}</p>
                     <p className="text-muted-foreground">
                       Status: <span className="font-medium text-foreground">{lastUpload.status}</span>
                     </p>

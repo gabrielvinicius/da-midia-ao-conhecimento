@@ -5,19 +5,13 @@ import {
   getMediaByUser,
   getTranscriptionByMediaId,
   getTranscriptionById,
-  getSummaryByMediaId,
-  getSummaryById,
-  getSentimentAnalysisByMediaId,
-  getTopicModelingByMediaId,
+  getTextAnalysisByMediaId,
   getCurrentUser,
-  getAllProviders,
-  getNotifications,
   getSystemStats,
   getAllUsers,
   getAllMediaAdmin,
+  getMediaStats,
 } from '@/api/queries';
-import { useProviders } from '@/features/providers/hooks/useProviders';
-import { useStorageProviders } from '@/features/providers/hooks/useStorageProviders';
 
 // =============================================================================
 // MEDIA QUERIES
@@ -33,11 +27,25 @@ export const useMediaByIdQuery = (mediaId: string) => {
   });
 };
 
-export const useMediaByUserQuery = () => {
+export const useMediaByUserQuery = (
+  page: number = 1,
+  limit: number = 100,
+  order: 'asc' | 'desc' = 'desc',
+  search: string = ""
+) => {
   return useQuery({
-    queryKey: ['media-list'],
-    queryFn: getMediaByUser,
+    queryKey: ['media-list', page, limit, order, search],
+    queryFn: () => getMediaByUser(page, limit, order, search),
     staleTime: 60000, // 1 minuto
+  });
+};
+
+export const useMediaStatsQuery = () => {
+  return useQuery({
+    queryKey: ['media-stats'],
+    queryFn: getMediaStats,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
   });
 };
 
@@ -70,54 +78,20 @@ export const useTranscriptionByIdQuery = (transcriptionId: string) => {
 };
 
 // =============================================================================
-// SUMMARIZATION QUERIES
+// TEXT ANALYSIS QUERIES (unificado)
 // =============================================================================
 
-export const useSummaryByMediaIdQuery = (mediaId: string) => {
+export const useTextAnalysisByMediaIdQuery = (mediaId: string) => {
   return useQuery({
-    queryKey: ['summary', mediaId],
-    queryFn: () => getSummaryByMediaId(mediaId),
+    queryKey: ['text-analysis', mediaId],
+    queryFn: () => getTextAnalysisByMediaId(mediaId),
     enabled: !!mediaId,
     retry: (failureCount, error: any) => {
-      if (error?.response?.status === 404 || error?.response?.status === 202) {
+      if (error?.response?.status === 404) {
         return false;
       }
       return failureCount < 3;
     },
-    refetchOnWindowFocus: false,
-  });
-};
-
-export const useSummaryByIdQuery = (summaryId: string) => {
-  return useQuery({
-    queryKey: ['summary', summaryId],
-    queryFn: () => getSummaryById(summaryId),
-    enabled: !!summaryId,
-  });
-};
-
-// =============================================================================
-// SENTIMENT ANALYSIS QUERIES
-// =============================================================================
-
-export const useSentimentAnalysisByMediaIdQuery = (mediaId: string) => {
-  return useQuery({
-    queryKey: ['sentiment-analysis', mediaId],
-    queryFn: () => getSentimentAnalysisByMediaId(mediaId),
-    enabled: !!mediaId,
-    refetchOnWindowFocus: false,
-  });
-};
-
-// =============================================================================
-// TOPIC MODELING QUERIES
-// =============================================================================
-
-export const useTopicModelingByMediaIdQuery = (mediaId: string) => {
-  return useQuery({
-    queryKey: ['topic-modeling', mediaId],
-    queryFn: () => getTopicModelingByMediaId(mediaId),
-    enabled: !!mediaId,
     refetchOnWindowFocus: false,
   });
 };
@@ -136,32 +110,10 @@ export const useCurrentUserQuery = () => {
 };
 
 // =============================================================================
-// PROVIDER QUERIES
-// =============================================================================
-
-export const useStorageProvidersQuery = useStorageProviders;
-export const useTranscriptionProvidersQuery = () => useProviders('transcription');
-export const useSummarizationProvidersQuery = () => useProviders('summarization');
-
-export const useAllProvidersQuery = () => {
-  return useQuery({
-    queryKey: ['providers', 'all'],
-    queryFn: getAllProviders,
-    staleTime: 10 * 60 * 1000,
-  });
-};
-
-// =============================================================================
 // NOTIFICATION QUERIES
 // =============================================================================
 
-export const useNotificationsQuery = () => {
-  return useQuery({
-    queryKey: ['notifications'],
-    queryFn: getNotifications,
-    refetchOnWindowFocus: false,
-  });
-};
+// Notificações via WebSocket (ver contexts/WebSocketContext)
 
 // =============================================================================
 // ADMIN QUERIES
@@ -199,32 +151,13 @@ export const useAllMediaAdminQuery = () => {
 export const useMediaDetailQuery = (mediaId: string) => {
   const mediaQuery = useMediaByIdQuery(mediaId);
   const transcriptionQuery = useTranscriptionByMediaIdQuery(mediaId);
-  const summaryQuery = useSummaryByMediaIdQuery(mediaId);
-  const sentimentQuery = useSentimentAnalysisByMediaIdQuery(mediaId);
-  const topicQuery = useTopicModelingByMediaIdQuery(mediaId);
+  const textAnalysisQuery = useTextAnalysisByMediaIdQuery(mediaId);
 
   return {
     media: mediaQuery,
     transcription: transcriptionQuery,
-    summary: summaryQuery,
-    sentiment: sentimentQuery,
-    topics: topicQuery,
+    text_analysis: textAnalysisQuery,
     isLoading: mediaQuery.isLoading,
     hasError: mediaQuery.isError,
-  };
-};
-
-// Hook para buscar providers necessários no upload
-export const useUploadProvidersQuery = () => {
-  const storageQuery = useStorageProvidersQuery();
-  const transcriptionQuery = useTranscriptionProvidersQuery();
-  const summarizationQuery = useSummarizationProvidersQuery();
-
-  return {
-    storage: storageQuery,
-    transcription: transcriptionQuery,
-    summarization: summarizationQuery,
-    isLoading: storageQuery.isLoading || transcriptionQuery.isLoading || summarizationQuery.isLoading,
-    hasError: storageQuery.isError || transcriptionQuery.isError || summarizationQuery.isError,
   };
 };

@@ -1,6 +1,6 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/Card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { UploadForm } from "../features/media/components/UploadForm";
+import { UploadForm } from "@/features/media/components/UploadForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { UploadCloud, Shield, Sparkles, HardDrive, Server } from "lucide-react";
 
@@ -9,7 +9,7 @@ const supportedMedia = [
     label: "Vídeos",
     emoji: "🎥",
     formats: ".mp4, .webm, .mov, .avi, .mkv",
-    pipeline: "Transcrição → Sumarização → Sentimento → Tópicos",
+    pipeline: "Transcrição → Análise de texto (resumo, sentimento e tópicos)",
     hint: "Reuniões, aulas e entrevistas",
     accent: "from-purple-700 via-purple-600 to-purple-800",
   },
@@ -17,7 +17,7 @@ const supportedMedia = [
     label: "Áudios",
     emoji: "🎵",
     formats: ".mp3, .wav, .m4a, .flac",
-    pipeline: "Transcrição → Sumarização → Sentimento → Tópicos",
+    pipeline: "Transcrição → Análise de texto (resumo, sentimento e tópicos)",
     hint: "Podcasts, áudios de reuniões e chamadas",
     accent: "from-emerald-700 via-emerald-600 to-emerald-800",
   },
@@ -25,7 +25,7 @@ const supportedMedia = [
     label: "Textos",
     emoji: "📄",
     formats: ".pdf, .txt",
-    pipeline: "Sumarização → Sentimento → Tópicos",
+    pipeline: "Extração/OCR → Análise de texto (resumo, sentimento e tópicos)",
     hint: "Documentos, artigos e relatórios",
     accent: "from-sky-700 via-sky-600 to-sky-800",
   },

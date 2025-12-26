@@ -3,6 +3,7 @@ import { StatCard } from "../components/StatCard";
 import { useSystemStats, useSystemHealth, useMediaProcessingStats } from "../hooks/useAdminQueries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
+import ErrorState from "@/components/ui/ErrorState";
 import { percentFormatter } from "../components/AnalyticsWidgets";
 
 const ProgressBar = ({ value = 0, label, color = "bg-primary" }: { value?: number; label: string; color?: string }) => {
@@ -21,9 +22,23 @@ const ProgressBar = ({ value = 0, label, color = "bg-primary" }: { value?: numbe
 };
 
 export const AdminDashboardPage = () => {
-  const { data: stats, isLoading } = useSystemStats();
-  const { data: health, isLoading: isHealthLoading } = useSystemHealth();
-  const { data: mediaStats, isLoading: isMediaStatsLoading } = useMediaProcessingStats();
+  const { data: stats, isLoading, isError: isStatsError, refetch: refetchStats } = useSystemStats();
+  const { data: health, isLoading: isHealthLoading, isError: isHealthError, refetch: refetchHealth } = useSystemHealth();
+  const { data: mediaStats, isLoading: isMediaStatsLoading, isError: isMediaStatsError, refetch: refetchMediaStats } = useMediaProcessingStats();
+
+  if (isStatsError || isHealthError || isMediaStatsError) {
+    return (
+      <ErrorState
+        title="Não foi possível carregar o painel admin"
+        message="Verifique sua permissão ADMIN e a saúde do backend."
+        onRetry={() => {
+          refetchStats();
+          refetchHealth();
+          refetchMediaStats();
+        }}
+      />
+    );
+  }
 
   return (
     <div>

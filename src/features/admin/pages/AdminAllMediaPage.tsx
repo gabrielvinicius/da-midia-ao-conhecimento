@@ -1,6 +1,6 @@
 import * as React from "react";
 import { ColumnDef, PaginationState } from "@tanstack/react-table";
-import { MoreHorizontal, RefreshCw, Recycle, Brush, Trash2, CheckCircle, Loader2, HardDrive, ShieldCheck } from "lucide-react";
+import { MoreHorizontal, RefreshCw, Recycle, Brush, Trash2, CheckCircle, Loader2, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -10,6 +10,7 @@ import { useDeleteMedia, useReprocessMedia, useBulkReprocessMedia, useCleanupOrp
 import { DataTable } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
+import ErrorState from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
 import NumberTicker from "@/components/ui/NumberTicker";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -137,13 +138,17 @@ export const AdminAllMediaPage = () => {
   const { mutate: bulkReprocess, isPending: isBulkReprocessing } = useBulkReprocessMedia();
   const { mutate: cleanupOrphans, isPending: isCleaning } = useCleanupOrphanedFiles();
 
-  const { data, isLoading, isError } = useAllMedia({
+  const { data, isLoading, isError, refetch } = useAllMedia({
     page: pageIndex + 1, // API is 1-indexed
     limit: pageSize,
     search,
   });
 
   const defaultData = React.useMemo(() => [], []);
+  const items = data?.items ?? defaultData;
+  const totalItems = data?.total ?? 0;
+  const totalPages = data?.pages ?? Math.max(1, Math.ceil(totalItems / pageSize));
+  const metrics = (data as any)?.metrics ?? {};
 
   const pagination = React.useMemo(
     () => ({ pageIndex, pageSize }),
@@ -151,7 +156,13 @@ export const AdminAllMediaPage = () => {
   );
 
   if (isError) {
-    return <p className="text-destructive">Erro ao carregar o inventário de mídias.</p>;
+    return (
+      <ErrorState
+        title="Erro ao carregar o inventário de mídias"
+        message="Tente novamente em instantes."
+        onRetry={() => refetch()}
+      />
+    );
   }
 
   return (
@@ -179,7 +190,7 @@ export const AdminAllMediaPage = () => {
             <CardDescription>Resultado atual da busca.</CardDescription>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
-            <NumberTicker value={data?.total_items ?? 0} />
+            <NumberTicker value={totalItems} />
           </CardContent>
         </Card>
         <Card className="border border-[#ede4d5] bg-white">
@@ -189,7 +200,7 @@ export const AdminAllMediaPage = () => {
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-sky-600">
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-2xl font-semibold">{data?.metrics?.processing ?? 0}</span>
+            <span className="text-2xl font-semibold">{metrics?.processing ?? 0}</span>
           </CardContent>
         </Card>
         <Card className="border border-[#ede4d5] bg-white">
@@ -199,7 +210,7 @@ export const AdminAllMediaPage = () => {
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-emerald-600">
             <CheckCircle className="h-4 w-4" />
-            <span className="text-2xl font-semibold">{data?.metrics?.completed ?? 0}</span>
+            <span className="text-2xl font-semibold">{metrics?.completed ?? 0}</span>
           </CardContent>
         </Card>
         <Card className="border border-[#ede4d5] bg-white">
@@ -209,7 +220,7 @@ export const AdminAllMediaPage = () => {
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-red-600">
             <ShieldCheck className="h-4 w-4" />
-            <span className="text-2xl font-semibold">{data?.metrics?.failed ?? 0}</span>
+            <span className="text-2xl font-semibold">{metrics?.failed ?? 0}</span>
           </CardContent>
         </Card>
       </div>
@@ -227,8 +238,8 @@ export const AdminAllMediaPage = () => {
           <CardContent>
             <DataTable
               columns={columns}
-              data={data?.items ?? defaultData}
-              pageCount={data?.total_pages ?? 0}
+              data={items}
+              pageCount={Math.max(1, totalPages)}
               pagination={pagination}
               onPaginationChange={setPagination}
               onSearchChange={setSearch}

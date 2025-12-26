@@ -39,14 +39,14 @@ export const InteractiveTranscriptionPanel = ({ mediaId, currentTime, onSeek }: 
     }
   };
 
-  const resolvedText = transcription?.result?.text ?? transcription?.text ?? "";
-  const resolvedSegments = transcription?.result?.segments ?? [];
-  const isDiarized = transcription?.result?.diarized ?? resolvedSegments.some((segment) => Boolean(segment.speaker));
+  const resolvedText = transcription?.text ?? "";
+  const resolvedSegments = transcription?.segments ?? [];
+  const isDiarized = resolvedSegments.some((segment) => Boolean(segment.speaker));
   const durationSeconds = React.useMemo(() => {
     if (resolvedSegments.length > 0) {
       return resolvedSegments[resolvedSegments.length - 1].end;
     }
-    return transcription?.result?.duration ?? transcription?.duration ?? null;
+    return null;
   }, [resolvedSegments, transcription]);
 
   const formattedDuration = React.useMemo(() => {

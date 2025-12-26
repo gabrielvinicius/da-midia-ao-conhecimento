@@ -46,7 +46,7 @@ export const useCreateMediaCommand = () => {
       setProgress(0);
     },
     onSuccess: (data) => {
-      const filename = data.original_file_path?.split('/').pop() || 'arquivo';
+      const filename = data.filename || 'arquivo';
       const pipeline = data.processing_pipeline?.join(' → ');
       const correlationId = (data as any)?.correlation_id;
 
@@ -98,9 +98,7 @@ export const useReprocessMediaCommand = () => {
       queryClient.invalidateQueries({ queryKey: ['media', variables.mediaId] });
       queryClient.invalidateQueries({ queryKey: ['media-list'] });
       queryClient.invalidateQueries({ queryKey: ['transcription', variables.mediaId] });
-      queryClient.invalidateQueries({ queryKey: ['summary', variables.mediaId] });
-      queryClient.invalidateQueries({ queryKey: ['sentiment-analysis', variables.mediaId] });
-      queryClient.invalidateQueries({ queryKey: ['topic-modeling', variables.mediaId] });
+      queryClient.invalidateQueries({ queryKey: ['text-analysis', variables.mediaId] });
     },
     onError: (error: any) => {
       console.error('❌ ReprocessMediaCommand falhou:', error);
@@ -114,17 +112,35 @@ export const useDeleteUserMediaCommand = () => {
 
   return useMutation({
     mutationFn: (command: DeleteUserMediaCommand) => executeDeleteUserMedia(command),
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ['media-list'] });
+      const previous = queryClient.getQueryData<any>(['media-list']);
+
+      // Otimista: remove item da primeira página em cache se existir
+      if (previous && Array.isArray(previous.items)) {
+        const items = previous.items.filter((m: any) => m.id !== variables.mediaId);
+        const total = typeof previous.total === 'number' ? Math.max(0, previous.total - 1) : items.length;
+        queryClient.setQueryData(['media-list'], { ...previous, items, total });
+      }
+
+      return { previous };
+    },
     onSuccess: (_, variables) => {
       toast.success('Mídia excluída com sucesso.');
       queryClient.invalidateQueries({ queryKey: ['media-list'] });
+      queryClient.invalidateQueries({ queryKey: ['media-stats'] });
       if (variables.mediaId) {
         queryClient.invalidateQueries({ queryKey: ['media', variables.mediaId] });
+        queryClient.removeQueries({ queryKey: ['media', variables.mediaId] });
       }
     },
-    onError: (error: any) => {
+    onError: (error: any, _vars, context) => {
       console.error('❌ DeleteMediaCommand falhou:', error);
       const message = error?.response?.data?.detail || 'Erro ao excluir a mídia';
       toast.error(message);
+      if (context?.previous) {
+        queryClient.setQueryData(['media-list'], context.previous);
+      }
     },
   });
 };
@@ -143,8 +159,7 @@ export const useAuthenticateUserCommand = () => {
     onSuccess: async (data) => {
       try {
         // Buscar dados do usuário após login
-        const { getCurrentUser } = await import('@/api/queries');
-        const user = await getCurrentUser();
+      const user = await getCurrentUser();
         
         setUser(user);
         queryClient.setQueryData(['current-user'], user);

@@ -1,24 +1,26 @@
-import { useMemo } from "react";
-import { useSentimentAnalysis } from "../hooks/useSentimentAnalysis";
+import type { ReactNode } from "react";
+import { useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ThumbsUp, ThumbsDown, Meh, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
+import { MediaStatus } from "@/types";
 
 interface SentimentResultPanelProps {
   mediaId: string;
+  mediaStatus?: MediaStatus;
 }
 
-const sentimentConfig: Record<string, { icon: React.ReactNode; accent: string; label: string }> = {
+const sentimentConfig: Record<string, { icon: ReactNode; accent: string; label: string }> = {
   POSITIVE: { icon: <ThumbsUp className="h-8 w-8" />, accent: "text-emerald-500", label: "Positivo" },
   NEGATIVE: { icon: <ThumbsDown className="h-8 w-8" />, accent: "text-red-500", label: "Negativo" },
   NEUTRAL: { icon: <Meh className="h-8 w-8" />, accent: "text-amber-500", label: "Neutro" },
   ERROR: { icon: <Meh className="h-8 w-8" />, accent: "text-slate-500", label: "Erro na Análise" },
 };
 
-export const SentimentResultPanel = ({ mediaId }: SentimentResultPanelProps) => {
-  const { data: analysis, isLoading, isError } = useSentimentAnalysis(mediaId);
+export const SentimentResultPanel = ({ mediaId, mediaStatus }: SentimentResultPanelProps) => {
+  const { data: analysis, isLoading, isError } = useTextAnalysisByMediaIdQuery(mediaId);
 
   const renderContent = () => {
     if (isLoading && !analysis) {
@@ -38,18 +40,16 @@ export const SentimentResultPanel = ({ mediaId }: SentimentResultPanelProps) => 
     if (!analysis) {
       return (
         <div className="rounded-2xl border border-[#f2eadf] bg-[#fdfbf6] p-4 text-center text-xs text-muted-foreground">
-          Aguarde: liberamos a análise assim que a transcrição estiver concluída.
+          {mediaStatus === MediaStatus.FAILED
+            ? "Falha no processamento. Corrija o erro e tente reprocessar."
+            : "Aguarde: liberamos a análise assim que a transcrição/extração estiver concluída."}
         </div>
       );
     }
 
-    const config = sentimentConfig[analysis.label] || sentimentConfig.NEUTRAL;
-    const emotions = analysis.full_result?.emotions || {};
-    const topEmotions = Object.entries(emotions)
-      .sort(([, a], [, b]) => Number(b) - Number(a))
-      .slice(0, 4);
-    const scorePercent = Math.round(((analysis.score ?? 0) + 1) * 50);
-    const confidencePercent = Math.round((analysis.confidence ?? 0) * 100);
+    const label = String(analysis.overall_sentiment || "NEUTRAL").toUpperCase();
+    const config = sentimentConfig[label] || sentimentConfig.NEUTRAL;
+    const chunks = analysis.sentiment_items?.length ?? 0;
 
     return (
       <div className="space-y-5">
@@ -59,30 +59,20 @@ export const SentimentResultPanel = ({ mediaId }: SentimentResultPanelProps) => 
           </div>
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">sentimento</p>
           <p className="text-2xl font-bold text-slate-900">{config.label}</p>
-          <p className="text-sm text-muted-foreground">
-            Intensidade {scorePercent}% · Confiança {confidencePercent}%
-          </p>
+          <p className="text-sm text-muted-foreground">Baseado em {chunks} blocos de texto</p>
         </div>
 
-        {topEmotions.length > 0 && (
+        {(analysis.sentiment_items || []).slice(0, 4).length > 0 && (
           <div className="space-y-3">
             <p className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500">
-              <Sparkles className="h-4 w-4" /> Emoções predominantes
+              <Sparkles className="h-4 w-4" /> Amostra de blocos
             </p>
-            {topEmotions.map(([emotion, value]) => {
-              const percent = Math.round(Number(value) * 100);
-              return (
-                <div key={emotion} className="space-y-1">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span className="capitalize">{emotion}</span>
-                    <span>{percent}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted">
-                    <div className="h-2 rounded-full bg-gradient-to-r from-emerald-400 via-amber-300 to-pink-300" style={{ width: `${percent}%` }} />
-                  </div>
-                </div>
-              );
-            })}
+            {(analysis.sentiment_items || []).slice(0, 4).map((item) => (
+              <div key={item.chunk_id} className="rounded-xl border border-[#f2eadf] bg-[#fdfbf6] p-3 text-xs">
+                <p className="font-semibold text-slate-900">{String(item.label).toUpperCase()}</p>
+                <p className="mt-1 text-muted-foreground line-clamp-3">{item.text}</p>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -96,10 +86,7 @@ export const SentimentResultPanel = ({ mediaId }: SentimentResultPanelProps) => 
         <CardTitle className="text-2xl">Análise de Sentimento</CardTitle>
         {analysis && (
           <CardDescription className="text-xs text-muted-foreground">
-            Provider {analysis.provider}
-            {analysis.full_result?.processing_time && (
-              <> · {analysis.full_result.processing_time?.toFixed?.(1) ?? analysis.full_result.processing_time}s</>
-            )}
+            {analysis.provider ? `Provider ${analysis.provider}` : "Provider automático"}
           </CardDescription>
         )}
         {!analysis && (

@@ -86,5 +86,6 @@ export const useAllMedia = (params: GetPaginatedDataParams) => {
   return useQuery({
     queryKey: ['admin-all-media', params.page, params.limit, params.search],
     queryFn: () => getAllMedia(params),
+    keepPreviousData: true,
   });
 };

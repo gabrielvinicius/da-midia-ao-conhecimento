@@ -1,13 +1,13 @@
+import type { MouseEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/Card";
-import { Badge } from "../../../components/ui/Badge";
-import { Button } from "../../../components/ui/Button";
-import { Media, MediaStatus, MediaType } from "../../../types";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Media, MediaStatus, MediaType } from "@/types";
 import { FileText, CheckCircle, XCircle, Loader2, Clock, Video, Music, FileImage, MoreVertical, Eye, RotateCcw, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useReprocessMedia } from "../hooks/useMedia";
-import { useDeleteUserMediaCommand } from "@/hooks/useCommands";
+import { useDeleteUserMediaCommand, useReprocessMediaCommand } from "@/hooks/useCommands";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +33,7 @@ interface MediaCardProps {
 }
 
 // Status configuration for visual feedback
-const statusConfig: Record<MediaStatus, { icon: React.ReactNode; color: string; label: string; bgColor: string }> = {
+const statusConfig: Record<MediaStatus, { icon: ReactNode; color: string; label: string; bgColor: string }> = {
   [MediaStatus.PENDING]: { 
     icon: <Clock className="h-4 w-4" />, 
     color: "text-yellow-600", 
@@ -61,14 +61,14 @@ const statusConfig: Record<MediaStatus, { icon: React.ReactNode; color: string; 
 };
 
 // Media type icons
-const mediaTypeConfig: Record<MediaType, { icon: React.ReactNode; label: string; color: string }> = {
+const mediaTypeConfig: Record<MediaType, { icon: ReactNode; label: string; color: string }> = {
   [MediaType.VIDEO]: { icon: <Video className="h-5 w-5" />, label: "Vídeo", color: "text-purple-600" },
   [MediaType.AUDIO]: { icon: <Music className="h-5 w-5" />, label: "Áudio", color: "text-blue-600" },
   [MediaType.TEXT]: { icon: <FileText className="h-5 w-5" />, label: "Texto", color: "text-green-600" },
 };
 
 export const MediaCard = ({ media }: MediaCardProps) => {
-  const { mutate: reprocess, isPending: isReprocessing } = useReprocessMedia();
+  const { mutate: reprocess, isPending: isReprocessing } = useReprocessMediaCommand();
   const { mutate: deleteMedia, isPending: isDeleting } = useDeleteUserMediaCommand();
   const { icon: statusIcon, color: statusColor, label: statusLabel, bgColor: statusBgColor } = statusConfig[media.status] || statusConfig[MediaStatus.PENDING];
   const { icon: typeIcon, label: typeLabel, color: typeColor } = mediaTypeConfig[media.media_type] || mediaTypeConfig[MediaType.TEXT];
@@ -76,7 +76,7 @@ export const MediaCard = ({ media }: MediaCardProps) => {
   const filename = media.original_file_path?.split('/').pop() || 'Arquivo';
   const createdAt = new Date(media.created_at);
 
-  const handleReprocess = (e: React.MouseEvent) => {
+  const handleReprocess = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     reprocess({ mediaId: media.id });

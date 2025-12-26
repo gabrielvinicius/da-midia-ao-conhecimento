@@ -1,5 +1,5 @@
 import api from "@/lib/api";
-import { User, Media, PaginatedResponse, UserRole } from "@/types";
+import { User, Media, Paginated, UserRole } from "@/types";
 
 export interface SystemStats {
   total_users: number;
@@ -156,15 +156,15 @@ export const getBusinessKpis = async (): Promise<BusinessKPIsResponse> => {
   return response.data;
 };
 
-export const getAllUsers = async ({ page = 1, limit = 10, search = '' }: GetPaginatedDataParams): Promise<PaginatedResponse<User>> => {
-  const response = await api.get<PaginatedResponse<User>>("/admin/users", {
+export const getAllUsers = async ({ page = 1, limit = 10, search = '' }: GetPaginatedDataParams): Promise<Paginated<User>> => {
+  const response = await api.get<Paginated<User>>("/admin/users", {
     params: { page, limit, search },
   });
   return response.data;
 };
 
-export const getAllMedia = async ({ page = 1, limit = 10, search = '' }: GetPaginatedDataParams): Promise<PaginatedResponse<Media>> => {
-  const response = await api.get<PaginatedResponse<Media>>("/admin/media", {
+export const getAllMedia = async ({ page = 1, limit = 10, search = '' }: GetPaginatedDataParams): Promise<Paginated<Media>> => {
+  const response = await api.get<Paginated<Media>>("/admin/media", {
     params: { page, limit, search },
   });
   return response.data;

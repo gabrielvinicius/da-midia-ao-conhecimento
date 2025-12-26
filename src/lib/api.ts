@@ -9,6 +9,7 @@ const envConfiguredBase = () => {
   return configured ? normalizeBase(configured) : '';
 };
 
+// Em Docker (nginx), a API é exposta sob /api e proxied para o backend.
 const API_PREFIX = "/api";
 
 const runtimeOrigin = (): string | undefined => {
@@ -30,23 +31,37 @@ export const getApiBaseUrl = (): string => {
     return cachedBaseUrl;
   }
 
-  const forced = import.meta.env.VITE_FORCE_API_URL === 'true';
   const configured = envConfiguredBase();
 
   const origin = runtimeOrigin();
-  if (origin && (!import.meta.env.PROD || !forced)) {
+  // Produção (Docker/nginx): preferir origin + /api para usar o reverse proxy.
+  if (origin && import.meta.env.PROD) {
     cachedBaseUrl = `${origin}${API_PREFIX}`;
     return cachedBaseUrl;
   }
 
-  cachedBaseUrl = configured || 'http://localhost:8000';
+  // Desenvolvimento: se configurado, usa VITE_API_URL (útil quando o backend roda em outra porta).
+  if (configured) {
+    cachedBaseUrl = configured;
+    return cachedBaseUrl;
+  }
+
+  if (origin) {
+    cachedBaseUrl = `${origin}${API_PREFIX}`;
+    return cachedBaseUrl;
+  }
+
+  cachedBaseUrl = 'http://localhost:8000';
   return cachedBaseUrl;
 };
 
 if (typeof window !== 'undefined') {
   const origin = runtimeOrigin();
   if (origin) {
-    cachedBaseUrl = `${origin}${API_PREFIX}`;
+    const configured = envConfiguredBase();
+    if (import.meta.env.PROD || !configured) {
+      cachedBaseUrl = `${origin}${API_PREFIX}`;
+    }
   }
 }
 
@@ -54,7 +69,7 @@ export const buildApiUrl = (path = '/'): string => `${getApiBaseUrl()}${ensureAb
 export const buildWsUrl = (path = '/'): string => buildApiUrl(path).replace(/^http/, 'ws');
 
 const api = axios.create({
-  withCredentials: true,
+  withCredentials: false,
 });
 
 // Request interceptor to add the auth token to headers
@@ -80,12 +95,6 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => {
     const correlationId = response.headers['x-correlation-id'];
-    console.log('✅ Response recebido:', {
-      url: response.config.url,
-      status: response.status,
-      method: response.config.method,
-      correlationId: correlationId
-    });
     return response;
   },
   async (error) => {
@@ -102,42 +111,31 @@ api.interceptors.response.use(
       correlationId: correlationId
     });
     
-    // Se erro 401 e não é uma requisição de auth, tentar refresh
-    if (
-      error.response?.status === 401 &&
-      originalRequest &&
-      !originalRequest.url?.includes('/auth/token') &&
-      !originalRequest._retry
-    ) {
-      originalRequest._retry = true;
-      console.log('🔄 Tentando refresh automático com cookies...');
+    const isAuthEndpoint =
+      originalRequest?.url?.includes('/auth/token') ||
+      originalRequest?.url?.includes('/auth/refresh');
 
-      try {
-        const { default: authService } = await import('../services/auth.service');
-        await authService.refreshToken();
-        console.log('✅ Sessão renovada, repetindo requisição original');
-        return api.request(originalRequest);
-      } catch (refreshError) {
-        console.error('❌ Refresh token falhou:', refreshError);
-        const { default: authService } = await import('../services/auth.service');
-        authService.clearLocalAuth();
-        toast.error('Sessão expirada. Faça login novamente.');
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
+    if (error.response?.status === 401 && !isAuthEndpoint) {
+      // Evita loops: uma tentativa de refresh por request
+      if (!originalRequest?._retry) {
+        originalRequest._retry = true;
+        try {
+          await authService.refreshToken();
+          const newToken = sessionStorage.getItem('access_token');
+          if (newToken) {
+            originalRequest.headers = originalRequest.headers ?? {};
+            originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+          }
+          return api.request(originalRequest);
+        } catch (refreshError) {
+          console.warn('🔐 Refresh falhou, limpando sessão');
         }
-        return Promise.reject(refreshError);
       }
-    }
-
-    if (error.response?.status === 401) {
-      console.warn('🔐 Sessão inválida ou expirada');
-      const { default: authService } = await import('../services/auth.service');
       authService.clearLocalAuth();
       toast.error('Sessão expirada. Faça login novamente.');
-
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
-      }
+      // Sinaliza para a SPA redirecionar sem recarregar
+      const logoutEvent = new CustomEvent('app:logout');
+      window.dispatchEvent(logoutEvent);
     } else if (error.response?.status === 413) {
       toast.error('Arquivo muito grande. Tamanho máximo permitido: 200MB');
     } else if (error.response?.status === 400) {

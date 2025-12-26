@@ -60,11 +60,6 @@ export function createLazyComponent<T = any>(
       const module = await importFn();
       const loadTime = performance.now() - start;
       
-      // Log performance apenas em desenvolvimento
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`🚀 Loaded ${componentName || 'component'} in ${loadTime.toFixed(2)}ms`);
-      }
-      
       // Marcar como carregado
       if (componentName) {
         loadedComponents.add(componentName);

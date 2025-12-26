@@ -19,9 +19,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Function to fetch the current user
 const fetchCurrentUser = async (): Promise<User | null> => {
   try {
-    console.log('👤 Buscando dados do usuário atual...');
     const user = await authService.getCurrentUser();
-    console.log('✅ Dados do usuário obtidos via AuthService:', user);
     return user;
   } catch (error) {
     console.error('❌ Erro ao buscar usuário:', error);
@@ -46,12 +44,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (currentUser) {
       setUser(currentUser);
-      console.log('✅ Usuário definido no contexto:', currentUser);
     }
   }, [currentUser]);
 
   const logout = async () => {
-    console.log('🚪 Fazendo logout...');
     try {
       await authService.logout();
     } catch (error) {
@@ -59,13 +55,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setUser(null);
       queryClient.clear(); // Clear all query cache on logout
-      console.log('✅ Logout concluído');
-      window.location.href = '/login';
+      const logoutEvent = new CustomEvent('app:logout');
+      window.dispatchEvent(logoutEvent);
     }
   };
 
   const refreshToken = async () => {
-    console.log('🔄 Refresh token solicitado pelo contexto...');
     try {
       await authService.refreshToken();
       // Invalidar query para buscar dados atualizados
@@ -84,6 +79,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     logout,
     refreshToken,
   };
+
+  useEffect(() => {
+    const handler = () => {
+      setUser(null);
+      queryClient.clear();
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+    };
+    window.addEventListener('app:logout', handler);
+    return () => window.removeEventListener('app:logout', handler);
+  }, [queryClient]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

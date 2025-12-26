@@ -30,12 +30,27 @@ export const useDeleteMedia = () => {
 
   return useMutation({
     mutationFn: (mediaId: string) => deleteMedia(mediaId),
+    onMutate: async (mediaId) => {
+      await queryClient.cancelQueries({ queryKey: ['admin-all-media'] });
+      const previous = queryClient.getQueryData<any>(['admin-all-media']);
+      if (previous && Array.isArray(previous.items)) {
+        const items = previous.items.filter((m: any) => m.id !== mediaId);
+        const total = typeof previous.total === 'number' ? Math.max(0, previous.total - 1) : items.length;
+        queryClient.setQueryData(['admin-all-media'], { ...previous, items, total });
+      }
+      return { previous };
+    },
     onSuccess: () => {
       toast.success('Mídia excluída com sucesso.');
       queryClient.invalidateQueries({ queryKey: ['admin-all-media'] });
+      queryClient.invalidateQueries({ queryKey: ['media-stats'] });
     },
-    onError: (error) => {
+    onError: (error, _vars, context) => {
       console.error('Failed to delete media:', error);
+      if (context?.previous) {
+        queryClient.setQueryData(['admin-all-media'], context.previous);
+      }
+      toast.error('Erro ao excluir mídia');
     },
   });
 };

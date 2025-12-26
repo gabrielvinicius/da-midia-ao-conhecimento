@@ -1,6 +1,6 @@
 // src/services/auth.service.ts
-import api from "../lib/api";
-import { User, UserRole } from "../types";
+import api, { getApiBaseUrl } from "@/lib/api";
+import { User, UserRole } from "@/types";
 
 export interface LoginData {
     username: string;
@@ -44,8 +44,6 @@ class AuthService {
      * Login usando cookies httpOnly entregues pelo backend FastAPI
      */
     async login(data: LoginData): Promise<TokenResponse> {
-        console.log('🛡️ Login usando cookies httpOnly');
-
         const payload = new URLSearchParams();
         payload.append('username', data.username);
         payload.append('password', data.password);
@@ -53,7 +51,8 @@ class AuthService {
         const response = await api.post<TokenResponse>("/auth/token", payload, {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
-            }
+            },
+            withCredentials: true, // necessário para receber refresh cookie
         });
 
         this.hasActiveSession = true;
@@ -88,11 +87,22 @@ class AuthService {
      * Refresh token (apenas para modo seguro)
      */
     async refreshToken(): Promise<TokenResponse> {
-        throw new Error('Refresh token não suportado pelo backend atual');
+        const url = `${getApiBaseUrl()}/auth/refresh`;
+        const response = await api.post<TokenResponse>(
+            url,
+            {},
+            { withCredentials: true }
+        );
+        if (response.data?.access_token) {
+            sessionStorage.setItem('access_token', response.data.access_token);
+            sessionStorage.setItem('has_session', 'true');
+            this.hasActiveSession = true;
+        }
+        return response.data;
     }
 
     private async _performRefresh(): Promise<void> {
-        throw new Error('Refresh token não suportado');
+        await this.refreshToken();
     }
 
     /**
@@ -100,7 +110,8 @@ class AuthService {
      */
     async logout(): Promise<void> {
         try {
-            await api.post("/auth/logout", {});
+            // Remove refresh cookie
+            await api.post("/auth/logout", {}, { withCredentials: true });
         } catch (error) {
             console.warn('Logout no servidor falhou:', error);
         } finally {
@@ -123,7 +134,6 @@ class AuthService {
         sessionStorage.removeItem('has_session');
         sessionStorage.removeItem('access_token');
         this.hasActiveSession = false;
-        console.log('🧹 Dados de autenticação limpos');
     }
 
     /**

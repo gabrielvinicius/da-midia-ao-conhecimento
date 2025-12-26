@@ -54,6 +54,16 @@ export interface Media {
   error_message?: string;
   language?: string | null;
   duration?: number | null;
+
+  // Campos estendidos (podem não estar presentes em todas as rotas)
+  original_file_path?: string | null;
+  storage_provider?: string | null;
+  transcription_provider?: string | null;
+  summarization_provider?: string | null;
+  sentiment_provider?: string | null;
+  topic_modeling_provider?: string | null;
+  processing_pipeline?: string[] | null;
+  file_size_mb?: number | null;
 }
 
 // Legacy Video interface for backward compatibility
@@ -77,58 +87,20 @@ export interface TranscriptionSegment {
   speaker?: string;
 }
 
-export interface TranscriptionResult {
-  text: string;
-  segments: TranscriptionSegment[];
-  diarized?: boolean;
-  [key: string]: any;
-}
-
-// Aligned with Backend DTO (TranscriptionResponse)
+// Alinhado com o backend (TranscriptionResponse)
 export interface Transcription {
   id: string;
   media_id: string;
   status: TranscriptionStatus;
-  content: string; // Main text content
-  language: string | null;
-  confidence_score: number | null;
-  created_at: string;
-  processed_at: string | null;
-  error_message: string | null;
-  speaker_labels: any | null;
-  segments: any | null;
-}
-
-export enum SummaryStatus {
-  PENDING = "PENDING",
-  PROCESSING = "PROCESSING",
-  COMPLETED = "COMPLETED",
-  FAILED = "FAILED",
-}
-
-export interface Summary {
-  id: string;
-  media_id: string;
-  status: SummaryStatus;
   provider: string | null;
-  text: string | null;
   created_at: string;
   processed_at: string | null;
   error_message: string | null;
-  strategy?: string | null;
-  bullet_points?: string[] | null;
-  key_topics?: string[] | null;
+  text: string;
+  segments: TranscriptionSegment[];
+  speaker_aliases: Record<string, string>;
+  language?: string | null;
   confidence_score?: number | null;
-}
-
-export interface SummarizationReprocessResponse {
-  message: string;
-  reprocessing: {
-    media_id: string;
-    provider: string;
-    status: 'PROCESSING';
-    task_id?: string;
-  };
 }
 
 export interface Notification {
@@ -141,102 +113,62 @@ export interface Notification {
   created_at: string;
   sent_at: string | null;
   error_message: string | null;
+  read?: boolean;
+  delivered_at?: string | null;
+  opened_at?: string | null;
+  template_name?: string | null;
+  variables?: Record<string, unknown>;
+  retries?: number;
+  max_retries?: number;
+  updated_at?: string | null;
 }
 
-export interface PaginatedResponse<T> {
-  total_items: number;
-  total_pages: number;
-  current_page: number;
+export interface Paginated<T> {
   items: T[];
+  total: number;
+  page: number;
+  pages: number;
+  limit: number;
 }
 
-// --- V2: Analysis Types ---
+// Alias legado para compatibilidade (preferir Paginated<T>)
+export type PaginatedResponse<T> = Paginated<T>;
 
-export enum AnalysisType {
-  SENTIMENT = "SENTIMENT",
-  TOPIC_MODELING = "TOPIC_MODELING",
-}
+// Paginação simplificada (API /media)
+export type PaginatedMedia = Paginated<Media>;
 
-// A generic Analysis result type
-export interface AnalysisResult {
-  [key: string]: any;
-}
+// --- Text Analysis (unificado) ---
 
-export interface Analysis {
-  id: string;
-  media_id: string;
-  type: AnalysisType;
-  result: AnalysisResult;
-  label?: string;
-  score?: number;
-}
-
-// Specific analysis result types baseados no backend
-export interface SentimentAnalysisResult {
-  id: string;
-  media_id: string;
-  transcription_id: string;
+export interface TextAnalysisSentimentItem {
+  chunk_id: string;
   label: string;
   score: number;
-  confidence?: number | null;
-  provider: string;
-  model?: string | null;
-  updated_at: string;
-  full_result: Record<string, any>;
-  created_at: string;
+  text: string;
+  start?: number | null;
+  end?: number | null;
 }
 
-export interface SentimentAnalysisAck {
-  transcription_id: string;
-  provider: string;
-  model?: string;
-  status: 'PROCESSING';
-  task_id?: string;
-}
-
-export interface SentimentAnalysisAcceptedResponse {
-  message: string;
-  analysis: SentimentAnalysisAck;
-}
-
-export enum TopicModelingStatus {
-  PENDING = "PENDING",
-  PROCESSING = "PROCESSING",
-  COMPLETED = "COMPLETED",
-  FAILED = "FAILED",
-}
-
-export interface TopicModelingResult {
-  id: string;
-  media_id: string;
-  status: TopicModelingStatus;
-  provider?: string | null;
-  topics: string[]; // Array de strings conforme backend: ["Topic #1: tech, software", "Topic #2: design"]
-  created_at: string;
-  processed_at?: string | null;
-  error_message?: string | null;
-  raw_topics?: Record<string, any>[] | null;
-  topic_summaries?: TopicSummaryDetail[] | null;
-}
-
-export interface TopicSummaryDetail {
-  id: number | string;
-  label: string;
+export interface TextAnalysisTopic {
+  topic_id: number;
+  title?: string | null;
   keywords: string[];
-  summary_sentence?: string | null;
+  summary_md?: string | null;
+  representative_snippets: string[];
+  size: number;
+  diagnostics: Record<string, any>;
 }
 
-export interface TopicModelingAck {
-  media_id?: string;
-  provider: string;
-  language: string;
-  status: 'PROCESSING';
-  task_id?: string;
-}
-
-export interface TopicModelingAcceptedResponse {
-  message: string;
-  analysis: TopicModelingAck;
+export interface TextAnalysisResponse {
+  analysis_id: string;
+  document_id: string;
+  overall_sentiment: string;
+  sentiment_items: TextAnalysisSentimentItem[];
+  topics: TextAnalysisTopic[];
+  diagnostics: Record<string, any>;
+  media_id?: string | null;
+  transcription_id?: string | null;
+  provider?: string | null;
+  user_id?: string | null;
 }
 
 // Admin types

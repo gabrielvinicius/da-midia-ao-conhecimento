@@ -1,10 +1,10 @@
 import { saveAs } from 'file-saver';
-import { useSummary } from "../hooks/useSummary";
+import { useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { Download, Info, Sparkles } from "lucide-react";
-import { SummaryStatus } from "@/types";
+import { MediaStatus, TextAnalysisResponse } from "@/types";
 import { cn } from "@/lib/utils";
 
 const SUMMARY_PROVIDER_META: Record<string, { label: string; description: string }> = {
@@ -40,20 +40,40 @@ const SUMMARY_PROVIDER_META: Record<string, { label: string; description: string
 
 interface SummaryPanelProps {
   mediaId: string;
+  mediaStatus?: MediaStatus;
 }
 
-export const SummaryPanel = ({ mediaId }: SummaryPanelProps) => {
-  const { data: summary, isLoading, isError } = useSummary(mediaId);
-  const providerInfo = summary?.provider ? SUMMARY_PROVIDER_META[summary.provider] : undefined;
+const buildSummaryText = (analysis: TextAnalysisResponse): string => {
+  const topics = analysis.topics || [];
+  const summaries = topics
+    .map((t) => (t.summary_md || "").trim())
+    .filter(Boolean);
+  if (summaries.length > 0) {
+    return summaries.join("\n\n");
+  }
+  // Fallback: usar snippets representativos quando não há summary_md
+  const snippets = topics
+    .flatMap((t) => t.representative_snippets || [])
+    .map((s) => String(s || "").trim())
+    .filter(Boolean)
+    .slice(0, 20);
+  return snippets.join("\n");
+};
+
+export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
+  const { data: analysis, isLoading, isError } = useTextAnalysisByMediaIdQuery(mediaId);
+  const provider = analysis?.provider || undefined;
+  const providerInfo = provider ? SUMMARY_PROVIDER_META[provider] : undefined;
+  const summaryText = analysis ? buildSummaryText(analysis) : "";
 
   const handleDownload = () => {
-    if (summary && summary.text) {
-      const blob = new Blob([summary.text], { type: "text/plain;charset=utf-8" });
+    if (analysis && summaryText) {
+      const blob = new Blob([summaryText], { type: "text/plain;charset=utf-8" });
       saveAs(blob, `summary-${mediaId}.txt`);
     }
   };
 
-  const canDownload = summary?.status === SummaryStatus.COMPLETED && !!summary.text;
+  const canDownload = Boolean(analysis && summaryText);
 
   const renderContent = () => {
     if (isLoading) {
@@ -69,55 +89,46 @@ export const SummaryPanel = ({ mediaId }: SummaryPanelProps) => {
       return <p className="text-destructive">Erro ao carregar resumo.</p>;
     }
 
-    if (!summary) {
-      return <p className="text-muted-foreground">O resumo ainda não foi iniciado.</p>;
-    }
-
-    switch (summary.status) {
-      case SummaryStatus.PENDING:
-      case SummaryStatus.PROCESSING:
+    if (!analysis) {
+      if (mediaStatus === MediaStatus.FAILED) {
+        return <p className="text-destructive">Falha no processamento da mídia.</p>;
+      }
+      if (mediaStatus === MediaStatus.PROCESSING) {
         return (
           <div className="space-y-2 text-sm text-muted-foreground">
             <p className="font-medium text-slate-900">Gerando resumo inteligente...</p>
-            <p>Nossa engine está identificando os principais tópicos antes de sintetizar.</p>
+            <p>Assim que a transcrição/extração finalizar, a análise será produzida.</p>
           </div>
         );
-      case SummaryStatus.COMPLETED:
-        return (
-          <div className="space-y-4">
-            {summary.text && (
-              <p className="whitespace-pre-wrap text-sm leading-relaxed">{summary.text}</p>
-            )}
-            {summary.bullet_points && summary.bullet_points.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.3em]">Destaques</p>
-                <ul className="list-disc space-y-1 pl-4 text-sm">
-                  {summary.bullet_points.map((point, index) => (
-                    <li key={`${point}-${index}`}>{point}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {summary.key_topics && summary.key_topics.length > 0 && (
-              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                {summary.key_topics.slice(0, 6).map((topic, index) => (
-                  <Badge key={`${topic}-${index}`} variant="outline" className="rounded-full bg-slate-50">
-                    {topic}
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      case SummaryStatus.FAILED:
-        return (
-          <p className="text-destructive">
-            Falha no resumo: {summary.error_message || "Erro desconhecido"}
-          </p>
-        );
-      default:
-        return <p className="text-muted-foreground">Status de resumo desconhecido.</p>;
+      }
+      return <p className="text-muted-foreground">Resumo ainda não disponível.</p>;
     }
+
+    const keyTopics = (analysis.topics || [])
+      .flatMap((t) => t.keywords || [])
+      .filter(Boolean)
+      .slice(0, 10);
+
+    return (
+      <div className="space-y-4">
+        {summaryText ? (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{summaryText}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            A análise foi gerada, mas ainda não há um resumo consolidado disponível.
+          </p>
+        )}
+        {keyTopics.length > 0 && (
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+            {keyTopics.map((topic, index) => (
+              <Badge key={`${topic}-${index}`} variant="outline" className="rounded-full bg-slate-50">
+                {topic}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -149,20 +160,15 @@ export const SummaryPanel = ({ mediaId }: SummaryPanelProps) => {
           </button>
         </div>
         <div className="flex flex-wrap gap-2">
-          {summary?.provider && (
+          {provider && (
             <Badge variant="outline" className="rounded-full border border-[#f2eadf] bg-[#fdfbf6] text-slate-800">
               <Sparkles className="mr-1 h-3 w-3 text-amber-500" />
-              {providerInfo?.label ?? summary.provider}
+              {providerInfo?.label ?? provider}
             </Badge>
           )}
-          {summary?.strategy && (
+          {analysis && (
             <Badge variant="secondary" className="rounded-full border border-[#f2eadf] bg-[#fdfbf6] text-slate-800">
-              Estratégia: {summary.strategy}
-            </Badge>
-          )}
-          {summary && (
-            <Badge variant="secondary" className="rounded-full border border-[#f2eadf] bg-[#fdfbf6] text-slate-800">
-              {summary.status}
+              {MediaStatus.COMPLETED}
             </Badge>
           )}
         </div>

@@ -8,6 +8,7 @@ import { useDeleteUser } from "../hooks/useAdminMutations";
 import { DataTable } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
+import ErrorState from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import {
@@ -126,7 +127,7 @@ export const AdminUsersPage = () => {
   });
   const [search, setSearch] = React.useState('');
 
-  const { data, isLoading, isError } = useAllUsers({
+  const { data, isLoading, isError, refetch } = useAllUsers({
     page: pageIndex + 1, // API is 1-indexed
     limit: pageSize,
     search,
@@ -140,7 +141,13 @@ export const AdminUsersPage = () => {
   );
 
   if (isError) {
-    return <p className="text-destructive">Erro ao carregar usuários.</p>;
+    return (
+      <ErrorState
+        title="Erro ao carregar usuários"
+        message="Tente novamente em instantes."
+        onRetry={() => refetch()}
+      />
+    );
   }
 
   return (
@@ -164,7 +171,7 @@ export const AdminUsersPage = () => {
             <DataTable
               columns={columns}
               data={data?.items ?? defaultData}
-              pageCount={data?.total_pages ?? 0}
+              pageCount={data?.pages ?? 0}
               pagination={pagination}
               onPaginationChange={setPagination}
               onSearchChange={setSearch}

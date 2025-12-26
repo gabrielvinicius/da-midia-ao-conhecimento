@@ -1,16 +1,17 @@
 import { useState, useRef } from "react";
-import { UserRole, SummaryStatus, TopicModelingStatus } from "@/types";
+import { UserRole } from "@/types";
 import { useParams } from "react-router-dom";
-import { useMediaDetail, useReprocessMedia } from "../features/media/hooks/useMedia";
-import { InteractiveTranscriptionPanel } from "../features/transcription/components/InteractiveTranscriptionPanel";
+import { useMediaByIdQuery, useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
+import { useReprocessMediaCommand } from "@/hooks/useCommands";
+import { InteractiveTranscriptionPanel } from "@/features/transcription/components/InteractiveTranscriptionPanel";
 import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel";
 import { TopicModelingResultPanel } from "@/features/topic_modeling/components/TopicModelingResultPanel"; // Re-enable v2 Feature
-import { Skeleton } from "../components/ui/Skeleton";
-import { Badge } from "../components/ui/Badge";
-import { Button } from "../components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { MagicSurface } from "@/components/ui/MagicSurface";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { MediaType, MediaStatus, TranscriptionStatus } from "@/types";
@@ -18,9 +19,6 @@ import { MediaPlayer } from "@/features/media/components/MediaPlayer";
 import { useTranscription } from "@/features/transcription/hooks/useTranscription";
 import { TranscriptionPanel } from "@/features/transcription/components/TranscriptionPanel";
 import { buildApiUrl } from "@/lib/api";
-import { useSummary } from "@/features/summarization/hooks/useSummary";
-import { useSentimentAnalysis } from "@/features/sentiment_analysis/hooks/useSentimentAnalysis";
-import { useTopicModeling } from "@/features/topic_modeling/hooks/useTopicModeling";
 import { SummaryPanel } from "@/features/summarization/components/SummaryPanel";
 
 type PipelineStep = {
@@ -60,11 +58,9 @@ const MediaDetailPage = () => {
     return <p className="text-destructive">Nenhum ID de mídia informado.</p>;
   }
 
-  const { data: media, isLoading, isError } = useMediaDetail(id);
-  const reprocessMutation = useReprocessMedia();
-  const { data: summaryData } = useSummary(id ?? "");
-  const { data: sentimentData } = useSentimentAnalysis(id ?? "");
-  const { data: topicData } = useTopicModeling(id ?? "");
+  const { data: media, isLoading, isError } = useMediaByIdQuery(id);
+  const reprocessMutation = useReprocessMediaCommand();
+  const { data: textAnalysis } = useTextAnalysisByMediaIdQuery(id);
 
   const handleReprocess = () => {
     if (media) {
@@ -108,11 +104,11 @@ const MediaDetailPage = () => {
   };
 
   const formattedDate = format(new Date(media.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR });
-  const displayName = media.original_file_path?.split("/").pop() || media.original_file_path;
-  const rawFileSize = media.file_size ?? (media as any)?.file_size_bytes ?? null;
+  const displayName = media.filename || media.original_file_path?.split("/").pop() || media.id;
+  const rawFileSize = media.size ?? null;
   const fileSizeMb = media.file_size_mb ?? (rawFileSize ? rawFileSize / (1024 * 1024) : undefined);
   const formattedFileSize = fileSizeMb ? `${fileSizeMb.toFixed(2)} MB` : "Indisponível";
-  const derivedLanguage = media.language || (transcriptionData as any)?.language || transcriptionData?.result?.language;
+  const derivedLanguage = media.language || transcriptionData?.language;
   const languageLabel = derivedLanguage ? derivedLanguage.toUpperCase() : "Indefinido";
   const pipelineFlags = media.processing_pipeline ?? [];
   const providerCount = pipelineFlags.length;
@@ -122,13 +118,13 @@ const MediaDetailPage = () => {
 
   const computeStageStatus = (primary?: string | null, configured = true): string => {
     if (!configured) return "SKIPPED";
-    if (primary && primary !== SummaryStatus.PENDING && primary !== TranscriptionStatus.PENDING && primary !== TopicModelingStatus.PENDING) {
+    if (primary && primary !== TranscriptionStatus.PENDING) {
       return primary;
     }
-    if (primary === SummaryStatus.FAILED || primary === TranscriptionStatus.FAILED || primary === TopicModelingStatus.FAILED) {
+    if (primary === TranscriptionStatus.FAILED) {
       return "FAILED";
     }
-    if (primary === SummaryStatus.PROCESSING || primary === TranscriptionStatus.PROCESSING || primary === TopicModelingStatus.PROCESSING) {
+    if (primary === TranscriptionStatus.PROCESSING) {
       return "PROCESSING";
     }
     if (media.status === MediaStatus.FAILED) {
@@ -149,34 +145,27 @@ const MediaDetailPage = () => {
   const uploadStageStatus = media.status === MediaStatus.FAILED ? MediaStatus.FAILED : MediaStatus.COMPLETED;
   const videoStageStatus = media.media_type === MediaType.VIDEO ? computeStageStatus(media.status, true) : "SKIPPED";
   const transcriptionStageStatus = computeStageStatus(transcriptionData?.status ?? (isTextMedia ? transcriptionData?.status : undefined), true);
-  const summaryStageStatus = computeStageStatus(summaryData?.status, summaryConfigured);
-  const sentimentStageStatus = computeStageStatus(sentimentData ? "COMPLETED" : undefined, sentimentConfigured);
-  const topicStageStatus = computeStageStatus(topicData?.status, topicsConfigured);
+  const analysisStage = textAnalysis ? MediaStatus.COMPLETED : undefined;
+  const summaryStageStatus = computeStageStatus(analysisStage, summaryConfigured);
+  const sentimentStageStatus = computeStageStatus(analysisStage, sentimentConfigured);
+  const topicStageStatus = computeStageStatus(analysisStage, topicsConfigured);
 
   const statusToken = (status?: string | null) => {
     switch (status) {
       case MediaStatus.COMPLETED:
-      case SummaryStatus.COMPLETED:
       case TranscriptionStatus.COMPLETED:
-      case TopicModelingStatus.COMPLETED:
       case "COMPLETED":
         return { label: "Concluído", badge: "bg-emerald-500/10 text-emerald-600", icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" /> };
       case MediaStatus.PROCESSING:
-      case SummaryStatus.PROCESSING:
       case TranscriptionStatus.PROCESSING:
-      case TopicModelingStatus.PROCESSING:
       case "PROCESSING":
         return { label: "Processando", badge: "bg-amber-500/10 text-amber-600", icon: <Loader2 className="h-4 w-4 animate-spin text-amber-500" /> };
       case MediaStatus.FAILED:
-      case SummaryStatus.FAILED:
       case TranscriptionStatus.FAILED:
-      case TopicModelingStatus.FAILED:
       case "FAILED":
         return { label: "Falhou", badge: "bg-red-500/10 text-red-600", icon: <AlertTriangle className="h-4 w-4 text-red-500" /> };
       case MediaStatus.PENDING:
-      case SummaryStatus.PENDING:
       case TranscriptionStatus.PENDING:
-      case TopicModelingStatus.PENDING:
       case "UPLOADED":
         return { label: "Aguardando", badge: "bg-muted text-muted-foreground", icon: <Loader2 className="h-4 w-4 text-muted-foreground" /> };
       case "SKIPPED":
@@ -217,9 +206,9 @@ const MediaDetailPage = () => {
     key: "summary",
     label: "Resumo inteligente",
     status: summaryStageStatus,
-    description: summaryStageStatus === MediaStatus.COMPLETED || summaryStageStatus === SummaryStatus.COMPLETED
+    description: summaryStageStatus === MediaStatus.COMPLETED
       ? "Resumo concluído com insights prioritários."
-      : summaryStageStatus === MediaStatus.PROCESSING || summaryStageStatus === SummaryStatus.PROCESSING
+      : summaryStageStatus === MediaStatus.PROCESSING
       ? "Gerando síntese automaticamente."
       : "Aguardando texto para resumir.",
   });
@@ -239,9 +228,9 @@ const MediaDetailPage = () => {
     key: "topics",
     label: "Modelagem de tópicos",
     status: topicStageStatus,
-    description: topicStageStatus === TopicModelingStatus.COMPLETED
+    description: topicStageStatus === MediaStatus.COMPLETED
       ? "Tópicos principais descobertos."
-      : topicStageStatus === TopicModelingStatus.PROCESSING
+      : topicStageStatus === MediaStatus.PROCESSING
       ? "Clusterizando temas relacionados."
       : "Aguardando processamento textual para classificar os tópicos.",
   });
@@ -325,11 +314,11 @@ const MediaDetailPage = () => {
 
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
-          <SummaryPanel mediaId={id} />
+          <SummaryPanel mediaId={id} mediaStatus={media.status} />
         </div>
         <div className="space-y-4">
-          <SentimentResultPanel mediaId={id} />
-          <TopicModelingResultPanel mediaId={id} />
+          <SentimentResultPanel mediaId={id} mediaStatus={media.status} />
+          <TopicModelingResultPanel mediaId={id} mediaStatus={media.status} />
         </div>
       </section>
 
@@ -392,10 +381,10 @@ const MediaDetailPage = () => {
               onTimeUpdate={setCurrentTime}
             />
           ) : isTextMedia ? (
-            <TextPreview
+              <TextPreview
               isLoading={isTranscriptionLoading}
               isError={isTranscriptionError}
-              transcription={transcriptionData?.result?.text || transcriptionData?.text || ""}
+              transcription={transcriptionData?.text || ""}
               status={transcriptionData?.status}
             />
           ) : (

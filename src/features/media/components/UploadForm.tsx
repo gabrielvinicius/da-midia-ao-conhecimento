@@ -2,6 +2,7 @@ import * as React from 'react';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useQuery } from '@tanstack/react-query';
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -14,11 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
-import { useProviders } from '@/features/providers/hooks/useProviders';
-import { useStorageProviders } from '@/features/providers/hooks/useStorageProviders';
-import { useProvidersContext } from '@/features/providers/context/ProvidersContext';
 import { useCreateMediaCommand } from '@/hooks/useCommands';
 import { CreateMediaCommand } from '@/api/commands';
+import { getProviders, ProvidersResponse } from '@/api/queries';
 
 const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200 MB (conforme configuração do backend)
 const ACCEPTED_FILE_TYPES = [
@@ -27,20 +26,21 @@ const ACCEPTED_FILE_TYPES = [
   "application/pdf", "text/plain"
 ];
 
-const PROVIDER_GROUPS: { key: 'storage' | 'transcription' | 'summarization' | 'sentiment' | 'topics'; label: string }[] = [
-  { key: 'storage', label: 'Armazenamento' },
-  { key: 'transcription', label: 'Transcrição' },
-  { key: 'summarization', label: 'Sumarização' },
-  { key: 'sentiment', label: 'Sentimento' },
-  { key: 'topics', label: 'Modelagem de tópicos' },
-];
+const optionalProviderName = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : undefined;
+  },
+  z.string().optional(),
+);
 
 const uploadSchema = z.object({
-  storageProvider: z.string().default("local"),
-  transcriptionProvider: z.string().optional(),
-  summarizationProvider: z.string().optional(),
-  sentimentProvider: z.string().optional(),
-  topicModelingProvider: z.string().optional(),
+  storageProvider: z.string().min(1, "Provider de armazenamento é obrigatório.").default("local"),
+  transcriptionProvider: optionalProviderName,
+  summarizationProvider: optionalProviderName,
+  sentimentProvider: optionalProviderName,
+  topicModelingProvider: optionalProviderName,
   file: z
     .any()
     .refine((files) => files?.length === 1, "Arquivo é obrigatório.")
@@ -63,16 +63,24 @@ const uploadSchema = z.object({
 
 type UploadFormValues = z.infer<typeof uploadSchema>;
 
+const AUTO_PROVIDER_VALUE = "__auto__";
+
 export const UploadForm = () => {
   const { mutate: upload, isPending, progress } = useCreateMediaCommand();
-  const { data: transcriptionProviders } = useProviders("transcription");
-  const { data: summarizationProviders } = useProviders("summarization");
-  const { data: sentimentProviders } = useProviders("sentiment");
-  const { data: topicProviders } = useProviders("topics");
-  const { data: storageProviders, isLoading: isLoadingStorage } = useStorageProviders();
-  const { providers: providerMap } = useProvidersContext();
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [fileType, setFileType] = React.useState<'video' | 'audio' | 'text' | null>(null);
+
+  const {
+    data: providersData,
+    isLoading: providersLoading,
+    isError: providersError,
+    error: providersErrorObj,
+  } = useQuery<ProvidersResponse>({
+    queryKey: ["providers"],
+    queryFn: getProviders,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
   const form = useForm<UploadFormValues>({
     resolver: zodResolver(uploadSchema),
@@ -80,6 +88,13 @@ export const UploadForm = () => {
       storageProvider: 'local',
     },
   });
+
+  const stageProviders = providersData?.stages ?? {};
+  const storageProviders = stageProviders["storage"] ?? [];
+  const transcriptionProviders = stageProviders["transcription"] ?? [];
+  const summarizationProviders = stageProviders["summarization"] ?? [];
+  const sentimentProviders = stageProviders["sentiment"] ?? [];
+  const topicProviders = stageProviders["topic_modeling"] ?? [];
 
   const detectFileType = (file: File): 'video' | 'audio' | 'text' | null => {
     const filename = file.name.toLowerCase();
@@ -103,14 +118,11 @@ export const UploadForm = () => {
   };
 
   const watchedFile = form.watch('file');
-  const selectedTopicProvider = form.watch('topicModelingProvider');
-  const selectedSummarizationProvider = form.watch('summarizationProvider');
-  const topicProviderDetails = selectedTopicProvider
-    ? topicProviders?.find((entry) => entry.name === selectedTopicProvider)
-    : undefined;
-  const summarizationProviderDetails = selectedSummarizationProvider
-    ? summarizationProviders?.find((entry) => entry.name === selectedSummarizationProvider)
-    : undefined;
+  const watchedStorageProvider = form.watch("storageProvider");
+  const watchedTranscriptionProvider = form.watch("transcriptionProvider");
+  const watchedSummarizationProvider = form.watch("summarizationProvider");
+  const watchedSentimentProvider = form.watch("sentimentProvider");
+  const watchedTopicProvider = form.watch("topicModelingProvider");
   
   React.useEffect(() => {
     if (watchedFile?.length > 0) {
@@ -129,17 +141,19 @@ export const UploadForm = () => {
     }
   }, [watchedFile, form]);
 
+  React.useEffect(() => {
+    if (!providersData) return;
+    if (!storageProviders.length) return;
+
+    const current = watchedStorageProvider || "local";
+    if (!storageProviders.some((p) => p.name === current)) {
+      form.setValue("storageProvider", storageProviders[0].name);
+    }
+  }, [providersData, storageProviders, watchedStorageProvider, form]);
+
   const onSubmit: SubmitHandler<UploadFormValues> = (data) => {
     const file = data.file[0];
     const detectedFileType = detectFileType(file);
-    
-    console.log('Uploading file:', { 
-      name: file.name, 
-      size: file.size, 
-      type: file.type,
-      detectedFileType,
-      storageProvider: data.storageProvider
-    });
     
     // Enviar apenas providers relevantes baseados no tipo de arquivo
     const uploadData: CreateMediaCommand = {
@@ -167,7 +181,6 @@ export const UploadForm = () => {
       uploadData.topicModelingProvider = data.topicModelingProvider;
     }
     
-    console.log('Sending upload data:', uploadData);
     upload(uploadData);
   };
 
@@ -225,224 +238,234 @@ export const UploadForm = () => {
 
         <Card className="mt-6 border border-dashed border-gray-200 dark:border-gray-700">
           <CardHeader>
-            <CardTitle className="text-base">Provedores disponíveis (API)</CardTitle>
+            <CardTitle className="text-base">Configuração avançada</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Esta lista reflete exatamente o que o endpoint `/providers` retorna para cada etapa do pipeline.
+              Providers disponíveis são carregados do endpoint{" "}
+              <code className="font-mono text-xs">/providers</code>. Use{" "}
+              <span className="font-medium">Automático</span> para manter o padrão do sistema.
             </p>
+            {providersError && (
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-3">
+                Falha ao carregar /providers. Você pode digitar os nomes manualmente.
+                {providersErrorObj instanceof Error ? ` (${providersErrorObj.message})` : ""}
+              </p>
+            )}
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
-            {PROVIDER_GROUPS.map((group) => {
-              const list = providerMap[group.key] || [];
-              return (
-                <div key={group.key} className="space-y-1">
-                  <p className="font-medium text-slate-900 dark:text-slate-100">{group.label}</p>
-                  {list.length ? (
-                    <div className="flex flex-wrap gap-2">
-                      {list.map((provider) => (
-                        <span key={provider.name} className="rounded-full border border-[#f2eadf] bg-[#fdfbf6] px-3 py-1 text-xs text-slate-800">
-                          {provider.label || provider.name}
-                        </span>
-                      ))}
-                    </div>
+            <div className="space-y-2">
+              <Label htmlFor="storage-provider">Provider de Armazenamento</Label>
+              {storageProviders.length > 0 && !providersError ? (
+                <Select
+                  value={watchedStorageProvider}
+                  onValueChange={(value) => form.setValue("storageProvider", value)}
+                  disabled={isPending || providersLoading}
+                >
+                  <SelectTrigger id="storage-provider">
+                    <SelectValue
+                      placeholder={
+                        providersLoading ? "Carregando..." : "Selecione o storage"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {storageProviders.map((p) => (
+                      <SelectItem key={p.name} value={p.name}>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                            {p.label || p.name}
+                          </span>
+                          {p.description && (
+                            <span className="text-xs text-muted-foreground">
+                              {p.description}
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="storage-provider"
+                  placeholder={
+                    providersError
+                      ? "Falha ao carregar /providers (digite manualmente)"
+                      : "Digite o nome do storage"
+                  }
+                  disabled={isPending}
+                  {...form.register("storageProvider")}
+                />
+              )}
+              {form.formState.errors.storageProvider && (
+                <p className="text-sm text-destructive">{form.formState.errors.storageProvider.message?.toString()}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Este provider precisa suportar <span className="font-mono text-xs">upload</span> e{" "}
+                <span className="font-mono text-xs">download</span> (para exibição no frontend).
+              </p>
+            </div>
+
+            {selectedFile && fileType && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(fileType === "video" || fileType === "audio") && (
+                  <div className="space-y-2">
+                    <Label htmlFor="transcription-provider">
+                      Provider de Transcrição{" "}
+                      <span className="text-xs text-gray-500">
+                        (para {fileType === "video" ? "vídeos" : "áudios"})
+                      </span>
+                    </Label>
+                    {transcriptionProviders.length > 0 && !providersError ? (
+                      <Select
+                        value={watchedTranscriptionProvider ?? AUTO_PROVIDER_VALUE}
+                        onValueChange={(value) =>
+                          form.setValue(
+                            "transcriptionProvider",
+                            value === AUTO_PROVIDER_VALUE ? undefined : value,
+                          )
+                        }
+                        disabled={isPending || providersLoading}
+                      >
+                        <SelectTrigger id="transcription-provider">
+                          <SelectValue placeholder="Selecione (opcional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={AUTO_PROVIDER_VALUE}>Automático</SelectItem>
+                          {transcriptionProviders.map((p) => (
+                            <SelectItem key={p.name} value={p.name}>
+                              {p.label || p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id="transcription-provider"
+                        placeholder="Automático (ou digite o nome)"
+                        disabled={isPending}
+                        {...form.register("transcriptionProvider")}
+                      />
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="summarization-provider">Provider de Sumarização</Label>
+                  {summarizationProviders.length > 0 && !providersError ? (
+                    <Select
+                      value={watchedSummarizationProvider ?? AUTO_PROVIDER_VALUE}
+                      onValueChange={(value) =>
+                        form.setValue(
+                          "summarizationProvider",
+                          value === AUTO_PROVIDER_VALUE ? undefined : value,
+                        )
+                      }
+                      disabled={isPending || providersLoading}
+                    >
+                      <SelectTrigger id="summarization-provider">
+                        <SelectValue placeholder="Selecione (opcional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={AUTO_PROVIDER_VALUE}>Automático</SelectItem>
+                        {summarizationProviders.map((p) => (
+                          <SelectItem key={p.name} value={p.name}>
+                            {p.label || p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : (
-                    <p className="text-xs text-muted-foreground">Nenhum provider registrado para este tipo.</p>
+                    <Input
+                      id="summarization-provider"
+                      placeholder="Automático (ou digite o nome)"
+                      disabled={isPending}
+                      {...form.register("summarizationProvider")}
+                    />
                   )}
                 </div>
-              );
-            })}
+
+                <div className="space-y-2">
+                  <Label htmlFor="sentiment-provider">Provider de Análise de Sentimento</Label>
+                  {sentimentProviders.length > 0 && !providersError ? (
+                    <Select
+                      value={watchedSentimentProvider ?? AUTO_PROVIDER_VALUE}
+                      onValueChange={(value) =>
+                        form.setValue(
+                          "sentimentProvider",
+                          value === AUTO_PROVIDER_VALUE ? undefined : value,
+                        )
+                      }
+                      disabled={isPending || providersLoading}
+                    >
+                      <SelectTrigger id="sentiment-provider">
+                        <SelectValue placeholder="Selecione (opcional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={AUTO_PROVIDER_VALUE}>Automático</SelectItem>
+                        {sentimentProviders.map((p) => (
+                          <SelectItem key={p.name} value={p.name}>
+                            {p.label || p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="sentiment-provider"
+                      placeholder="Automático (ou digite o nome)"
+                      disabled={isPending}
+                      {...form.register("sentimentProvider")}
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="topic-provider">Provider de Modelagem de Tópicos</Label>
+                  {topicProviders.length > 0 && !providersError ? (
+                    <Select
+                      value={watchedTopicProvider ?? AUTO_PROVIDER_VALUE}
+                      onValueChange={(value) =>
+                        form.setValue(
+                          "topicModelingProvider",
+                          value === AUTO_PROVIDER_VALUE ? undefined : value,
+                        )
+                      }
+                      disabled={isPending || providersLoading}
+                    >
+                      <SelectTrigger id="topic-provider">
+                        <SelectValue placeholder="Selecione (opcional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={AUTO_PROVIDER_VALUE}>Automático</SelectItem>
+                        {topicProviders.map((p) => (
+                          <SelectItem key={p.name} value={p.name}>
+                            {p.label || p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="topic-provider"
+                      placeholder="Automático (ou digite o nome)"
+                      disabled={isPending}
+                      {...form.register("topicModelingProvider")}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
-      
-      {/* Storage Provider Section - Always visible */}
-      <div className="space-y-2">
-        <Label htmlFor="storage-provider">Provider de Armazenamento</Label>
-        <Select 
-          onValueChange={(value) => form.setValue('storageProvider', value)} 
-          disabled={isPending || isLoadingStorage || (storageProviders?.length ?? 0) === 0}
-          defaultValue="local"
-        >
-          <SelectTrigger id="storage-provider">
-            <SelectValue placeholder={isLoadingStorage ? 'Carregando providers...' : 'Selecione onde armazenar o arquivo'} />
-          </SelectTrigger>
-          <SelectContent>
-            {storageProviders && storageProviders.length > 0 ? (
-              storageProviders.map(provider => (
-                <SelectItem key={provider.name} value={provider.name}>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                      {provider.label || provider.name}
-                    </span>
-                    {provider.description && (
-                      <span className="text-xs text-muted-foreground">
-                        {provider.description}
-                      </span>
-                    )}
-                  </div>
-                </SelectItem>
-              ))
-            ) : (
-              <SelectItem value="_empty" disabled>
-                {isLoadingStorage ? 'Carregando opções...' : 'Nenhum provider disponível'}
-              </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-gray-500">
-          {isLoadingStorage ? 'Carregando providers...' : 
-           'Escolha onde o arquivo será armazenado. Local mantém no servidor, S3/MinIO para armazenamento em nuvem.'}
-        </p>
-      </div>
-      
-      {/* Providers Section - Only show if file is selected */}
+
+      {/* Opções de processamento - exibidas apenas com arquivo selecionado */}
       {selectedFile && fileType && (
         <div className="space-y-4">
           <div className="border-t pt-4">
             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
               Opções de Processamento de Conteúdo
             </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Transcription Provider - Only for video and audio */}
-              {(fileType === 'video' || fileType === 'audio') && (
-                <div className="space-y-2">
-                  <Label htmlFor="transcription-provider">
-                    Provider de Transcrição
-                    <span className="text-xs text-gray-500 ml-1">
-                      (para {fileType === 'video' ? 'vídeos' : 'áudios'})
-                    </span>
-                  </Label>
-                  <Select onValueChange={(value) => form.setValue('transcriptionProvider', value)} disabled={isPending}>
-                    <SelectTrigger id="transcription-provider">
-                      <SelectValue placeholder="Selecione um provider (opcional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                    {transcriptionProviders && transcriptionProviders.length > 0 ? (
-                      transcriptionProviders.map(p => (
-                        <SelectItem key={p.name} value={p.name}>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{p.label || p.name}</span>
-                            {p.description && <span className="text-xs text-muted-foreground">{p.description}</span>}
-                          </div>
-                        </SelectItem>
-                      ))
-                      ) : (
-                        <SelectItem value="_empty" disabled>
-                          Nenhum provider disponível
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              
-              {/* Summarization Provider - For all types */}
-              <div className="space-y-2">
-                <Label htmlFor="summarization-provider">
-                  Provider de Sumarização
-                  <span className="text-xs text-gray-500 ml-1">
-                    (para {fileType === 'text' ? 'textos' : fileType === 'video' ? 'transcrições de vídeo' : 'transcrições de áudio'})
-                  </span>
-                </Label>
-                <Select onValueChange={(value) => form.setValue('summarizationProvider', value)} disabled={isPending}>
-                  <SelectTrigger id="summarization-provider">
-                    <SelectValue placeholder="Selecione um provider (opcional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {summarizationProviders && summarizationProviders.length > 0 ? (
-                      summarizationProviders.map(p => (
-                        <SelectItem key={p.name} value={p.name}>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{p.label || p.name}</span>
-                            {p.description && (
-                              <span className="text-xs text-muted-foreground">
-                                {p.description}
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="_empty" disabled>
-                        Nenhum provider disponível
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-                {selectedSummarizationProvider && (
-                  <p className="text-xs text-muted-foreground">
-                    {summarizationProviderDetails?.description || 'Provider selecionado.'}
-                  </p>
-                )}
-              </div>
-
-              {/* Sentiment Provider */}
-              <div className="space-y-2">
-                <Label htmlFor="sentiment-provider">
-                  Provider de Análise de Sentimento
-                  <span className="text-xs text-gray-500 ml-1">(executado após a transcrição)</span>
-                </Label>
-                <Select onValueChange={(value) => form.setValue('sentimentProvider', value)} disabled={isPending}>
-                  <SelectTrigger id="sentiment-provider">
-                    <SelectValue placeholder="Selecione um provider (opcional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sentimentProviders && sentimentProviders.length > 0 ? (
-                      sentimentProviders.map(p => (
-                        <SelectItem key={p.name} value={p.name}>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{p.label || p.name}</span>
-                            {p.description && <span className="text-xs text-muted-foreground">{p.description}</span>}
-                          </div>
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="_empty" disabled>
-                        Nenhum provider disponível
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Topic Modeling Provider */}
-              <div className="space-y-2">
-                <Label htmlFor="topic-provider">
-                  Provider de Modelagem de Tópicos
-                  <span className="text-xs text-gray-500 ml-1">(executado após a sumarização)</span>
-                </Label>
-                <Select onValueChange={(value) => form.setValue('topicModelingProvider', value)} disabled={isPending}>
-                  <SelectTrigger id="topic-provider">
-                    <SelectValue placeholder="Selecione um provider (opcional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {topicProviders && topicProviders.length > 0 ? (
-                      topicProviders.map(p => (
-                        <SelectItem key={p.name} value={p.name}>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{p.label || p.name}</span>
-                            {p.description && (
-                              <span className="text-xs text-muted-foreground">
-                                {p.description}
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="_empty" disabled>
-                        Nenhum provider disponível
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-                {selectedTopicProvider && (
-                  <p className="text-xs text-muted-foreground">
-                    {topicProviderDetails?.description || 'Provider selecionado.'}
-                  </p>
-                )}
-              </div>
-            </div>
             
             {/* Information about processing */}
             <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
@@ -453,36 +476,6 @@ export const UploadForm = () => {
                 {fileType === 'text' && " Texto → Sumarização → Sentimento → Tópicos"}
               </p>
             </div>
-
-            <Card className="mt-4 border border-dashed border-gray-200 dark:border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-base">Provedores disponíveis (dados da API)</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Esta lista reflete o endpoint <code className="font-mono text-xs text-slate-600">/providers</code> em tempo real.
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4 text-sm">
-                {PROVIDER_GROUPS.map((group) => {
-                  const list = providerMap[group.key] || [];
-                  return (
-                    <div key={group.key} className="space-y-1">
-                      <p className="font-medium text-slate-900 dark:text-slate-100">{group.label}</p>
-                      {list.length ? (
-                        <div className="flex flex-wrap gap-2">
-                          {list.map((provider) => (
-                            <span key={provider.name} className="rounded-full border border-[#f2eadf] bg-[#fdfbf6] px-3 py-1 text-xs text-slate-800">
-                              {provider.label || provider.name}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">Nenhum provider registrado para este tipo.</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
           </div>
         </div>
       )}
