@@ -29,6 +29,12 @@ class NotificationRepositoryAdapter(NotificationRepositoryPort):
     async def mark_as_read(self, notification_id: str) -> bool:
         return await self._repo.mark_as_read(str(notification_id))
 
+    async def mark_as_delivered(self, notification_id: str) -> bool:
+        return await self._repo.mark_as_delivered(str(notification_id))
+
+    async def list_undelivered_by_user(self, user_id: str, limit: int = 50):
+        return await self._repo.list_undelivered_by_user(user_id, limit=limit)
+
     async def count_all(self) -> int:
         return await self._repo.count_all()
 

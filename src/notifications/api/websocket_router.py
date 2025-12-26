@@ -3,7 +3,9 @@ from uuid import UUID
 
 from fastapi import Depends, WebSocket, WebSocketDisconnect
 
-from src.notifications.infrastructure.connection_manager import manager
+from src.notifications.infrastructure.adapters.websockets.connection_manager import (
+    manager,
+)
 from src.shared.api.dependencies import get_current_user
 from src.user_management.domain import User
 

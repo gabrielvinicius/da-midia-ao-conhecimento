@@ -106,6 +106,12 @@ class Notification(BaseEntity):
         self.updated_at = datetime.datetime.now(datetime.timezone.utc)
         self.retries += 1
 
+    def record_transient_error(self, error: str) -> None:
+        """Registra erro transitório sem marcar como FAILED (usado quando haverá retry)."""
+        self.error_message = error
+        self.updated_at = datetime.datetime.now(datetime.timezone.utc)
+        self.retries += 1
+
     def can_retry(self) -> bool:
         return (
             self.status == NotificationStatus.FAILED

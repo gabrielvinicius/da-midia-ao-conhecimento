@@ -1,13 +1,13 @@
 class UserAlreadyExistsError(Exception):
-    pass
+    """Usuário já existe."""
 
 
 class UserNotFoundError(Exception):
-    pass
+    """Usuário não encontrado."""
 
 
 class InvalidCredentialsError(Exception):
-    pass
+    """Credenciais inválidas."""
 
 
 __all__ = [

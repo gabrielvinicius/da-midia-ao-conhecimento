@@ -1,4 +1,8 @@
-"""Simplified SMS adapter used for development and tests."""
+"""SMS adapter (stub / no-op).
+
+Não realiza envio real de SMS; mantenha fora do catálogo público até haver
+integração com um provider de fato.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +15,7 @@ class SmsAdapter:
 
     async def send(self, phone_number: Optional[str], message: str) -> None:
         if not phone_number:
-            raise ValueError("phone number is required to send SMS notifications")
+            raise ValueError("Número de telefone é obrigatório para enviar SMS")
         await asyncio.sleep(0)
 
 

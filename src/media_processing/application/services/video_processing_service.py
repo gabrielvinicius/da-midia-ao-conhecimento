@@ -12,7 +12,11 @@ from src.media_processing.application.ports import (
     VideoAudioExtractorPort,
     VideoThumbnailGeneratorPort,
 )
-from src.shared.domain.events import MediaProcessingCompleted
+from src.shared.domain.events import (
+    MediaProcessingCompleted,
+    MediaProcessingFailed,
+    MediaProcessingStarted,
+)
 from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
 
 logger = structlog.get_logger(__name__)
@@ -99,6 +103,7 @@ class VideoProcessingService:
         filename: Optional[str] = None,
         triggered_by: Optional[str] = None,
         actor_id: Optional[str] = None,
+        final_attempt: bool = False,
     ) -> Dict[str, Any]:
         """Execute video processing workflow previously handled inside Celery tasks."""
         start_time = time.monotonic()
@@ -111,6 +116,21 @@ class VideoProcessingService:
             storage_provider=provider,
         )
         try:
+            if self._event_bus:
+                await self._event_bus.publish(
+                    MediaProcessingStarted(
+                        media_id=str(media_id),
+                        stage="video_processing",
+                        correlation_id=correlation_id or str(media_id),
+                        metadata={
+                            "storage_provider": provider,
+                            "file_path": file_path,
+                            "user_id": user_id,
+                            "filename": filename,
+                        },
+                    )
+                )
+
             storage_service = self._storage_factory.get_download_service(provider)
             video_data = await storage_service.download_file(file_path)
 
@@ -164,6 +184,21 @@ class VideoProcessingService:
                 error=str(exc),
                 exc_info=True,
             )
+            if self._event_bus and final_attempt:
+                await self._event_bus.publish(
+                    MediaProcessingFailed(
+                        media_id=str(media_id),
+                        stage="video_processing",
+                        error_message=str(exc),
+                        correlation_id=correlation_id or str(media_id),
+                        metadata={
+                            "storage_provider": provider,
+                            "file_path": file_path,
+                            "user_id": user_id,
+                            "filename": filename,
+                        },
+                    )
+                )
             raise
         finally:
             duration = time.monotonic() - start_time

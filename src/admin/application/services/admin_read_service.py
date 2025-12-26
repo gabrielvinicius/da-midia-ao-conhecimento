@@ -53,7 +53,7 @@ class AdminReadService:
             GetUserQuery(user_id=user_id)
         )
         if not user:
-            raise ValueError(f"User with id {user_id} not found")
+            raise ValueError(f"Usuário com id {user_id} não foi encontrado")
 
         total_media = await self._media_read_service.count_by_user(user.id)
         processing_media = await self._media_read_service.count_by_user_and_status(

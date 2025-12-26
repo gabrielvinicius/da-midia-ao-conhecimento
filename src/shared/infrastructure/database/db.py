@@ -7,6 +7,7 @@ from typing import AsyncGenerator, Generator
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from src.shared.infrastructure.config.settings import settings
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
@@ -37,7 +38,9 @@ if "+async" in _async_url or "aiosqlite" in _async_url:
         _async_url,
         future=True,
         isolation_level=None if _is_sqlite else "READ COMMITTED",
+        poolclass=NullPool,  # evita reuse de conexão entre tasks (worker)
         connect_args=connect_args,
+        pool_pre_ping=True,
     )
 
 SessionLocal = sessionmaker(bind=engine_sync)
@@ -49,22 +52,30 @@ logger = get_logger("database")
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Provide an async SQLAlchemy session."""
+    """Provide an async SQLAlchemy session (sem commit automático).
+
+    Estratégia única de transação/commit:
+    - A sessão é criada por request/task e **não** comita automaticamente no final.
+    - A responsabilidade de `commit()` fica nos repositórios/adapters (ou UoW),
+      mantendo o fluxo explícito e evitando commits duplicados.
+    - Em caso de exceção, fazemos rollback defensivo.
+    """
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            await session.commit()
         except Exception:
             await session.rollback()
             raise
 
 
 def get_sync_db() -> Generator[Session, None, None]:
-    """Provide a synchronous SQLAlchemy session."""
+    """Provide a synchronous SQLAlchemy session (sem commit automático).
+
+    Mesma estratégia do `get_db()`: commit explícito nos repositórios/adapters.
+    """
     with SessionLocal() as session:
         try:
             yield session
-            session.commit()
         except Exception:
             session.rollback()
             raise
@@ -77,11 +88,10 @@ def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 @asynccontextmanager
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Async context manager yielding a managed session."""
+    """Async context manager yielding a managed session (sem commit automático)."""
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            await session.commit()
         except Exception:
             await session.rollback()
             raise
@@ -91,11 +101,10 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 @contextmanager
 def get_sync_session() -> Generator[Session, None, None]:
-    """Synchronous context manager for SQLAlchemy session."""
+    """Synchronous context manager for SQLAlchemy session (sem commit automático)."""
     with SessionLocal() as session:
         try:
             yield session
-            session.commit()
         except Exception:
             session.rollback()
             raise

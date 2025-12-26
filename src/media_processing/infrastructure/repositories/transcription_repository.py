@@ -15,8 +15,18 @@ class TranscriptionRepository:
     def __init__(self, db):
         self.db = db
 
+    async def save(self, transcription: Transcription) -> Transcription:
+        """Upsert simplificado que cumpre o port TranscriptionRepositoryPort."""
+        existing = await self.get_by_id(transcription.id)
+        if existing is None:
+            await self.add(transcription)
+        else:
+            await self.update(transcription)
+        return transcription
+
     async def get_by_id(self, transcription_id: UUID) -> Optional[Transcription]:
         if isinstance(self.db, AsyncSession):
+            await self.db.rollback()  # garante conexão livre
             result = await self.db.execute(
                 select(TranscriptionModel).where(
                     TranscriptionModel.id == transcription_id
@@ -89,6 +99,7 @@ class TranscriptionRepository:
 
     async def delete_by_media_id(self, media_id: UUID) -> None:
         if isinstance(self.db, AsyncSession):
+            await self.db.rollback()  # garante conexão livre
             stmt = select(TranscriptionModel).where(
                 TranscriptionModel.media_id == media_id
             )

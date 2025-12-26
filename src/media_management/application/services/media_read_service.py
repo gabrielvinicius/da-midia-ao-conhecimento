@@ -8,12 +8,13 @@ from uuid import UUID
 
 from src.media_management.application.ports import MediaRepositoryPort
 from src.media_management.domain import Media
-from src.shared.domain.enums import MediaStatus
+from src.shared.domain.enums import MediaStatus, MediaType
 
 from ..dtos import (
     GetMediaQuery,
     GetMediaStatisticsQuery,
     ListMediaQuery,
+    PaginatedMedia,
 )
 
 
@@ -27,14 +28,26 @@ class MediaReadService:
         """Retrieves a single media entity."""
         return await self.repository.get_by_id(query.media_id)
 
-    async def list_media(self, query: ListMediaQuery) -> List[Media]:
+    async def list_media(self, query: ListMediaQuery) -> PaginatedMedia:
         """Lists media entities with pagination and filtering."""
-        return await self.repository.list_paginated(
+        items = await self.repository.list_paginated(
             page=query.page,
             limit=query.limit,
             user_id=query.user_id,
             status=query.status,
             search=query.search,
+            order=query.order,
+        )
+        total = await self.repository.count_filtered(
+            user_id=query.user_id, status=query.status, search=query.search
+        )
+        pages = (total + query.limit - 1) // query.limit if query.limit else 1
+        return PaginatedMedia(
+            items=items,
+            total=total,
+            page=query.page,
+            pages=pages,
+            limit=query.limit,
         )
 
     async def get_media_statistics(
@@ -43,20 +56,29 @@ class MediaReadService:
         """Returns statistics about media entities."""
         if query.user_id:
             total = await self.repository.count_by_user(query.user_id)
-            by_status = {}
-            for status in MediaStatus:
-                count = await self.repository.count_by_user_and_status(
+            by_status = {
+                status.value: await self.repository.count_by_user_and_status(
                     query.user_id, status
                 )
-                by_status[status.value] = count
+                for status in MediaStatus
+            }
+            by_type = {
+                mt.value: await self.repository.count_by_user_and_type(
+                    query.user_id, mt
+                )
+                for mt in MediaType
+            }
         else:
             total = await self.repository.count_all()
-            by_status = {}
-            for status in MediaStatus:
-                count = await self.repository.count_by_status(status)
-                by_status[status.value] = count
+            by_status = {
+                status.value: await self.repository.count_by_status(status)
+                for status in MediaStatus
+            }
+            by_type = {
+                mt.value: await self.repository.count_by_type(mt) for mt in MediaType
+            }
 
-        return {"total": total, "by_status": by_status}
+        return {"total": total, "by_status": by_status, "by_type": by_type}
 
     async def count_all(self) -> int:
         """Count all media items."""

@@ -86,7 +86,7 @@ async def get_transcription_by_media_id(
     return TranscriptionResponse(
         id=transcription.id,
         media_id=transcription.media_id,
-        content=transcription.content,
+        content=transcription.text,
         language=transcription.language,
         status=transcription.status.value,
         confidence_score=transcription.confidence_score,
@@ -120,7 +120,7 @@ async def get_transcription_by_id(
     return TranscriptionResponse(
         id=transcription.id,
         media_id=transcription.media_id,
-        content=transcription.content,
+        content=transcription.text,
         language=transcription.language,
         status=transcription.status.value,
         confidence_score=transcription.confidence_score,

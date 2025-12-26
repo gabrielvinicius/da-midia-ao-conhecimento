@@ -110,5 +110,37 @@ async def test_process_video_job_failure_raises(service_dependencies):
             triggered_by=None,
             actor_id=None,
             correlation_id=None,
+            final_attempt=True,
         )
     metrics.record_operation.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_process_video_job_failure_intermediate_does_not_publish_failed(monkeypatch, service_dependencies):
+    service, audio_extractor, _, _, storage_service, storage_factory, metrics = service_dependencies
+
+    storage_service.download_file.return_value = b"video-bytes"
+    audio_extractor.extract_audio.side_effect = RuntimeError("boom")
+
+    published = []
+
+    class DummyBus:
+        async def publish(self, event):
+            published.append(type(event).__name__)
+
+    service._event_bus = DummyBus()
+
+    with pytest.raises(RuntimeError):
+        await service.process_video_job(
+            media_id=uuid4(),
+            file_path="/tmp/video.mp4",
+            storage_provider="local",
+            user_id=None,
+            filename=None,
+            triggered_by=None,
+            actor_id=None,
+            correlation_id=None,
+            final_attempt=False,
+        )
+
+    assert "MediaProcessingFailed" not in published

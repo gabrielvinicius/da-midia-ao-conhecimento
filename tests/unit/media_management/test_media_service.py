@@ -61,7 +61,6 @@ def service_components() -> Dict[str, object]:
         upload_validator=upload_validator,
         media_read_service=media_read_service,
         event_bus=None,
-        emit_legacy_task=False,
         storage_maintenance=storage_maintenance,
     )
     service.access_policy = access_policy

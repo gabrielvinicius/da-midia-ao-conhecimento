@@ -10,17 +10,17 @@ from ...domain import Analysis, Topic
 
 class AnalysisRepositoryPort(ABC):
     @abstractmethod
-    def save(self, analysis: Analysis) -> str:
+    async def save(self, analysis: Analysis) -> str:
         ...
 
     @abstractmethod
-    def get(self, analysis_id: str) -> Optional[Analysis]:
+    async def get(self, analysis_id: str) -> Optional[Analysis]:
         ...
 
     @abstractmethod
-    def get_by_media_id(self, media_id: str) -> Optional[Analysis]:
+    async def get_by_media_id(self, media_id: str) -> Optional[Analysis]:
         ...
 
     @abstractmethod
-    def list_topics(self, analysis_id: str) -> List[Topic]:
+    async def list_topics(self, analysis_id: str) -> List[Topic]:
         ...

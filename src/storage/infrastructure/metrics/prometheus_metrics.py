@@ -120,4 +120,4 @@ class NoOpStorageMetrics(StorageMetricsPort):
         success: bool
     ) -> None:
         """No-op implementation."""
-        pass
+        return None

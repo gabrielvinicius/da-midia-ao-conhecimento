@@ -79,7 +79,7 @@ class NoOpStorageLogger(StorageOperationLoggerPort, LoggerPort):
         **extra,
     ) -> None:
         """No-op implementation."""
-        pass
+        return None
 
     def info(self, message: str, **kwargs) -> None:
         return None

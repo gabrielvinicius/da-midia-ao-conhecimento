@@ -33,6 +33,7 @@ class MediaEntity(Base):
         index=True,
     )
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=True)
     error_message = Column(String, nullable=True)
 
     storage_provider = Column(String, nullable=False)

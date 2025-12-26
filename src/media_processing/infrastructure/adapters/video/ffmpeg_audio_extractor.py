@@ -42,7 +42,7 @@ class FFmpegVideoAudioExtractor:
             # Check if file format is supported
             file_ext = Path(filename).suffix.lower()
             if file_ext not in self.supported_formats:
-                raise ValueError(f"Unsupported video format: {file_ext}")
+                raise ValueError(f"Formato de vídeo não suportado: {file_ext}")
 
             # Extract audio using FFmpeg
             audio_data = await self._extract_with_ffmpeg(
@@ -110,12 +110,13 @@ class FFmpegVideoAudioExtractor:
             stdout, stderr = await process.communicate()
 
             if process.returncode != 0:
+                stderr_txt = stderr.decode()
                 logger.error(
-                    f"FFmpeg failed: {stderr.decode()}",
+                    "ffmpeg_audio.failed",
                     stdout=stdout.decode(),
-                    stderr=stderr.decode(),
+                    stderr=stderr_txt,
                 )
-                raise RuntimeError(f"FFmpeg failed: {stderr.decode()}")
+                raise RuntimeError(f"FFmpeg falhou ao extrair áudio: {stderr_txt}")
 
             with open(audio_temp_path, 'rb') as f:
                 audio_data = f.read()

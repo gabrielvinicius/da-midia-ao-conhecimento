@@ -53,7 +53,7 @@ class FFmpegVideoThumbnailGenerator:
             # Check if file format is supported
             file_ext = Path(filename).suffix.lower()
             if file_ext not in self.supported_formats:
-                raise ValueError(f"Unsupported video format: {file_ext}")
+                raise ValueError(f"Formato de vídeo não suportado: {file_ext}")
 
             # Generate thumbnail
             thumbnail_data = await self._generate_with_ffmpeg(
@@ -128,12 +128,15 @@ class FFmpegVideoThumbnailGenerator:
             stdout, stderr = await process.communicate()
 
             if process.returncode != 0:
+                stderr_txt = stderr.decode()
                 logger.error(
-                    f"FFmpeg failed: {stderr.decode()}",
+                    "ffmpeg_thumbnail.failed",
                     stdout=stdout.decode(),
-                    stderr=stderr.decode(),
+                    stderr=stderr_txt,
                 )
-                raise RuntimeError(f"FFmpeg failed: {stderr.decode()}")
+                raise RuntimeError(
+                    f"FFmpeg falhou ao gerar thumbnail: {stderr_txt}"
+                )
 
             with open(thumb_temp_path, 'rb') as f:
                 thumbnail_data = f.read()

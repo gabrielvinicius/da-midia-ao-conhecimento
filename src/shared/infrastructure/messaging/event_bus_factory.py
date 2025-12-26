@@ -1,13 +1,10 @@
-"""Factory for creating the application event bus.
+"""Factory do event bus da aplicação.
 
-Currently supports in-memory bus, with room for future backends
-(e.g., Redis/Kafka) driven by environment variables.
+Decisão arquitetural: o event bus é **apenas in-process** (memory).
+Integração entre processos (API ↔ worker) deve ocorrer via Celery/DB, não via bus.
 """
 
 from __future__ import annotations
-
-import os
-from typing import Optional
 
 from src.shared.infrastructure.messaging.event_bus import (
     SupportsEventBus,
@@ -15,12 +12,9 @@ from src.shared.infrastructure.messaging.event_bus import (
 )
 
 
-def get_event_bus(backend: Optional[str] = None) -> SupportsEventBus:
-    backend = (backend or os.getenv("EVENT_BUS", "memory")).lower()
-    if backend == "memory":
-        # Coordinated EventBus (queue + subscription manager) keeps contexts consistent
-        return create_inmemory_event_bus()
-    raise ValueError(f"Unsupported EVENT_BUS backend: {backend}")
+def get_event_bus() -> SupportsEventBus:
+    """Retorna um event bus in-memory (in-process)."""
+    return create_inmemory_event_bus()
 
 
 __all__ = ["get_event_bus"]

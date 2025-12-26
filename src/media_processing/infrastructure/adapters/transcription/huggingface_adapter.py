@@ -44,7 +44,7 @@ class HuggingfaceTranscriber:
                 extra={"error": str(e)},
                 exc_info=True,
             )
-            raise RuntimeError(f"Transcription error: {str(e)}")
+            raise RuntimeError(f"Erro de transcrição (huggingface): {str(e)}")
         finally:
             if path and os.path.exists(path):
                 os.unlink(path)
@@ -59,7 +59,7 @@ class HuggingfaceTranscriber:
                 (s for s in container.streams if s.type == "audio"), None
             )
             if audio_stream is None:
-                raise ValueError("No audio stream found in the input file")
+                raise ValueError("Nenhuma trilha de áudio encontrada no arquivo de entrada")
 
             frames = []
             for packet in container.demux(audio_stream):
@@ -70,7 +70,7 @@ class HuggingfaceTranscriber:
                     frames.append(samples)
 
             if not frames:
-                raise ValueError("No audio frames found")
+                raise ValueError("Nenhum frame de áudio encontrado")
 
             audio = np.concatenate(frames).astype(np.float32)
             original_rate = audio_stream.rate
@@ -84,7 +84,7 @@ class HuggingfaceTranscriber:
 
         except Exception as e:
             logger.error("huggingface.audio_decode_failed", extra={"error": str(e)})
-            raise RuntimeError(f"Audio decoding error: {str(e)}")
+            raise RuntimeError(f"Erro ao decodificar áudio: {str(e)}")
 
     async def _decode_file_bytes(self, file_bytes: bytes) -> str:
         tmp = tempfile.NamedTemporaryFile(suffix=".tmp", delete=False)

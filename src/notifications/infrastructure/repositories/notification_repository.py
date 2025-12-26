@@ -7,6 +7,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.notifications.domain import Notification
+from src.notifications.domain.entities.notification import NotificationStatus
 from src.notifications.infrastructure.persistence.models import NotificationModel
 
 
@@ -37,20 +38,21 @@ class NotificationRepository:
 
     async def save(self, notification: Notification) -> Notification:
         """Saves a notification to the database."""
-        model = NotificationModel.from_domain(notification)
         if isinstance(self.db, AsyncSession):
-            self.db.add(model)
+            await self.db.rollback()  # libera conexão
+            model = NotificationModel.from_domain(notification)
+            merged = await self.db.merge(model)  # merge faz upsert seguro
             await self.db.commit()
-            await self.db.refresh(model)
-            return model.to_domain()
+            await self.db.refresh(merged)
+            return merged.to_domain()
         return self.save_sync(notification)
 
     def save_sync(self, notification: Notification) -> Notification:
         model = NotificationModel.from_domain(notification)
-        self.db.add(model)
+        merged = self.db.merge(model)  # upsert seguro
         self.db.commit()
-        self.db.refresh(model)
-        return model.to_domain()
+        self.db.refresh(merged)
+        return merged.to_domain()
 
     async def list_by_user(self, user_id: str) -> List[Notification]:
         """Lists all notifications for a specific user."""
@@ -100,6 +102,65 @@ class NotificationRepository:
         result = self.db.execute(stmt)
         self.db.commit()
         return result.rowcount > 0
+
+    async def mark_as_delivered(self, notification_id: str) -> bool:
+        """Marca como entregue via realtime (WebSocket), setando delivered_at."""
+        from src.shared.domain.time.clock import utcnow
+
+        now = utcnow()
+
+        if isinstance(self.db, AsyncSession):
+            stmt = (
+                update(NotificationModel)
+                .where(NotificationModel.id == UUID(notification_id))
+                .where(NotificationModel.delivered_at.is_(None))
+                .values(
+                    status=NotificationStatus.DELIVERED,
+                    delivered_at=now,
+                    updated_at=now,
+                )
+            )
+            result = await self.db.execute(stmt)
+            await self.db.commit()
+            return (result.rowcount or 0) > 0
+        return self.mark_as_delivered_sync(notification_id)
+
+    def mark_as_delivered_sync(self, notification_id: str) -> bool:
+        from src.shared.domain.time.clock import utcnow
+
+        now = utcnow()
+        stmt = (
+            update(NotificationModel)
+            .where(NotificationModel.id == UUID(notification_id))
+            .where(NotificationModel.delivered_at.is_(None))
+            .values(
+                status=NotificationStatus.DELIVERED,
+                delivered_at=now,
+                updated_at=now,
+            )
+        )
+        result = self.db.execute(stmt)
+        self.db.commit()
+        return (result.rowcount or 0) > 0
+
+    async def list_undelivered_by_user(
+        self,
+        user_id: str,
+        limit: int = 50,
+    ) -> List[Notification]:
+        """Lista notificações ainda não entregues via realtime."""
+        stmt = (
+            select(NotificationModel)
+            .where(NotificationModel.user_id == UUID(user_id))
+            .where(NotificationModel.delivered_at.is_(None))
+            .order_by(NotificationModel.created_at.asc())
+            .limit(limit)
+        )
+        if isinstance(self.db, AsyncSession):
+            result = await self.db.execute(stmt)
+            return [model.to_domain() for model in result.scalars().all()]
+        result = self.db.execute(stmt)
+        return [model.to_domain() for model in result.scalars().all()]
 
     async def delete(self, notification_id: str) -> bool:
         """Deletes a notification by its ID."""

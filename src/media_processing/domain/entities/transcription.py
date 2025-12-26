@@ -55,6 +55,7 @@ class Transcription(BaseEntity):
         error_message: Optional[str] = None,
         speaker_aliases: Optional[Dict[str, str]] = None,
         result: Optional[Dict[str, Any]] = None,
+        processed_at: Optional[datetime.datetime] = None,
         id: Optional[UUID] = None,
     ):
         super().__init__(id or uuid4())
@@ -73,7 +74,7 @@ class Transcription(BaseEntity):
         self.updated_at = updated_at or datetime.datetime.now(datetime.timezone.utc)
         self.error_message = error_message
         self.speaker_aliases = speaker_aliases or {}
-        self.processed_at: Optional[datetime.datetime] = None
+        self.processed_at: Optional[datetime.datetime] = processed_at
         self.result = result
 
     def mark_as_completed(self, result: Dict[str, Any]) -> None:
@@ -88,6 +89,16 @@ class Transcription(BaseEntity):
         self.updated_at = datetime.datetime.now(datetime.timezone.utc)
         self.processed_at = self.updated_at
         self.result = result or self.result
+
+    def mark_as_processing(self) -> None:
+        self.status = TranscriptionStatus.PROCESSING
+        self.error_message = None
+        self.updated_at = datetime.datetime.now(datetime.timezone.utc)
+
+    def record_processing_error(self, error_message: str) -> None:
+        self.status = TranscriptionStatus.PROCESSING
+        self.error_message = error_message
+        self.updated_at = datetime.datetime.now(datetime.timezone.utc)
 
     def mark_as_failed(self, error_message: str) -> None:
         self.status = TranscriptionStatus.FAILED

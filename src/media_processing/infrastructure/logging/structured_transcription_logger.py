@@ -19,9 +19,9 @@ class StructuredTranscriptionLogger(LoggerPort):
         self,
         operation: str,
         media_id: str,
-        provider: str,
-        success: bool,
-        duration: float,
+        provider: str = "",
+        success: bool = True,
+        duration: float = 0.0,
         error: Optional[Exception] = None,
         **extra,
     ) -> None:
@@ -79,7 +79,7 @@ class NoOpTranscriptionLogger(LoggerPort):
         **extra,
     ) -> None:
         """No-op implementation."""
-        pass
+        return None
 
     def info(self, message: str, **kwargs) -> None:
         return None

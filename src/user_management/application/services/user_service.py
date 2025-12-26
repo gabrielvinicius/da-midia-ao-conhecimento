@@ -78,7 +78,7 @@ class UserService:
             and not command.role
             and command.is_active is None
         ):
-            raise ValueError("No updates provided")
+            raise ValueError("Nenhuma atualização fornecida")
 
         user = await self._get_or_raise(command.user_id)
 
@@ -103,7 +103,7 @@ class UserService:
     async def delete_user(self, command: DeleteUserCommand) -> None:
         await self._get_or_raise(command.user_id)
         if not await self.user_repository.delete(command.user_id):
-            raise ValueError("User could not be deleted")
+            raise ValueError("Usuário não pôde ser removido")
 
     async def activate_user(self, command: GetUserQuery) -> User:
         user = await self._get_or_raise(command.user_id)
@@ -134,7 +134,7 @@ class UserService:
     ) -> User:
         normalised_email = email.strip().lower()
         if not normalised_email:
-            raise ValueError("Admin email must not be empty")
+            raise ValueError("Email do admin não pode ser vazio")
 
         self._validate_password_strength(default_password)
 
@@ -168,9 +168,16 @@ class UserService:
             password, user.password_hash
         ):
             raise InvalidCredentialsError()
-        token = self.token_provider.create_access_token(user.id)
+        access_token = self.token_provider.create_access_token(user.id)
+        refresh_token = (
+            self.token_provider.create_refresh_token(user.id)
+            if hasattr(self.token_provider, "create_refresh_token")
+            else None
+        )
         return {
-            "token": token,
+            "token": access_token,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
             "user": {
                 "id": str(user.id),
                 "email": user.email,
@@ -186,7 +193,7 @@ class UserService:
 
     def _validate_email_format(self, email: str) -> None:
         if not email or "@" not in email or "." not in email.split("@")[-1]:
-            raise ValueError("Invalid email format")
+            raise ValueError("Formato de email inválido")
 
     async def _ensure_email_available(self, email: str) -> None:
         existing = await self.user_read_service.get_user_by_email(email)
@@ -196,17 +203,17 @@ class UserService:
     def _validate_password_strength(self, password: str) -> None:
         min_length = self.settings.auth_password_min_length
         if len(password) < min_length:
-            raise ValueError(f"Password must be at least {min_length} characters long")
+            raise ValueError(f"Senha deve ter pelo menos {min_length} caracteres")
         if not any(c.isupper() for c in password):
-            raise ValueError("Password must contain at least one uppercase letter")
+            raise ValueError("Senha deve conter ao menos uma letra maiúscula")
         if not any(c.islower() for c in password):
-            raise ValueError("Password must contain at least one lowercase letter")
+            raise ValueError("Senha deve conter ao menos uma letra minúscula")
         if not any(c.isdigit() for c in password):
-            raise ValueError("Password must contain at least one number")
+            raise ValueError("Senha deve conter ao menos um número")
 
     def _normalise_role(self, role: str) -> UserRole:
         try:
             return UserRole(role.upper())
         except ValueError:
             valid = ", ".join(r.value for r in UserRole)
-            raise ValueError(f"Invalid role. Valid roles: {valid}") from None
+            raise ValueError(f"Perfil inválido. Perfis válidos: {valid}") from None

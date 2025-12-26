@@ -11,6 +11,8 @@ from src.media_management.application.dtos import (
     CleanupOrphanedFilesCommand,
     DeleteMediaCommand,
     ReprocessMediaCommand,
+    ListMediaQuery,
+    PaginatedMedia,
 )
 from src.media_management.application.services.media_service import MediaService
 from src.media_management.domain import Media
@@ -89,10 +91,13 @@ class AdminMediaService:
             command=CleanupOrphanedFilesCommand(actor_id=str(admin_user.id))
         )
 
+    async def list_media(self, query: ListMediaQuery) -> PaginatedMedia:
+        return await self.media_service.list_media(query)
+
     async def delete_media(self, media_id: UUID, admin_user: User) -> None:
         media = await self.media_repository.get_by_id(media_id)
         if not media:
-            raise ValueError(f"Media with id {media_id} not found")
+            raise ValueError(f"Mídia com id {media_id} não foi encontrada")
 
         self.permission_service.validate_admin_operation(admin_user, media.user_id)
 
@@ -109,14 +114,14 @@ class AdminMediaService:
     async def reprocess_media(self, media_id: UUID, admin_user: User) -> None:
         media = await self.media_repository.get_by_id(media_id)
         if not media:
-            raise ValueError(f"Media with id {media_id} not found")
+            raise ValueError(f"Mídia com id {media_id} não foi encontrada")
 
         self.permission_service.validate_admin_operation(admin_user, media.user_id)
 
         if media.status != MediaStatus.FAILED:
             raise ValueError(
-                f"Media {media_id} is not in failed state "
-                f"(current: {media.status.value})"
+                f"Mídia {media_id} não está em estado 'failed' "
+                f"(atual: {media.status.value})"
             )
 
         await self._dispatch_admin_reprocess(

@@ -68,7 +68,8 @@ class ListMediaQuery(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     page: int = Field(1, ge=1, description="Página de paginação.")
-    limit: int = Field(50, ge=1, le=100, description="Itens por página.")
+    limit: int = Field(10, ge=1, le=100, description="Itens por página.")
+    order: str = Field("desc", pattern="^(asc|desc)$", description="Ordenação por created_at.")
     user_id: Optional[UUID] = Field(
         None, description="Filtra por usuário dono (opcional)."
     )
@@ -86,3 +87,15 @@ class GetMediaStatisticsQuery(BaseModel):
     user_id: Optional[UUID] = Field(
         None, description="Usuário para estatística (None = global)."
     )
+
+
+class PaginatedMedia(BaseModel):
+    """Envelope de paginação para listagem de mídias."""
+
+    model_config = ConfigDict(frozen=True)
+
+    items: list
+    total: int
+    page: int | None = None
+    pages: int | None = None
+    limit: int | None = None

@@ -32,15 +32,13 @@ from src.media_processing.api.dependencies import (
     get_transcription_dependencies,
 )
 from src.media_processing.application.event_handlers import MediaProcessingEventHandlers
-from src.media_processing.application.services.media_processing_service import (
-    MediaProcessingService,
-)
 from src.media_processing.application.services.text_extraction_service import (
     TextExtractionService,
 )
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
+from src.media_processing.application.ports import TranscriptionQueryPort
 from src.media_processing.application.services.video_processing_service import (
     VideoProcessingService,
 )
@@ -49,6 +47,9 @@ from src.media_processing.infrastructure.adapters.storage_download_adapter impor
 )
 from src.media_processing.infrastructure.adapters.transcription_cleanup_adapter import (
     TranscriptionCleanupAdapter,
+)
+from src.media_processing.infrastructure.dependencies.transcription_query_adapter import (
+    TranscriptionQueryAdapter,
 )
 from src.media_processing.infrastructure.dependencies.providers import (
     get_audio_extractor,
@@ -99,12 +100,10 @@ class MediaModule:
 
     media_service: MediaService
 
-    # Legacy/Other Services (to be refactored later if needed)
-    processing_service: MediaProcessingService
     transcription_service: TranscriptionService
     video_processing_service: VideoProcessingService
-    # Simple query proxy for other modules
-    transcription_queries: TranscriptionService
+    # Read-side: consulta de transcrições (para outros contextos, ex.: text_analysis).
+    transcription_queries: TranscriptionQueryPort
 
 
 @dataclass
@@ -125,7 +124,6 @@ def build_media_components(
     storage_service_factory: Any,
     metrics_service: Any,
     event_bus: Optional[SupportsEventBus] = None,
-    emit_legacy_media_task: bool = False,
     storage_provider: str = "local",
 ) -> Tuple[MediaModule, MediaAdminContext]:
     """Compose the media module without relying on dependency-injector."""
@@ -134,8 +132,9 @@ def build_media_components(
     media_read_service = MediaReadService(media_repository=media_repo_adapter)
     media_upload_validator = MediaUploadValidator(settings=media_settings)
 
-    # Consolidated processing dependencies
+    # Processing dependencies
     transcription_repository = TranscriptionRepository(db=session)
+    transcription_queries = TranscriptionQueryAdapter(transcription_repository)
     transcription_metrics = PrometheusTranscriptionMetrics()
     transcription_storage_service = storage_service_factory.create_storage_service(
         storage_provider
@@ -149,7 +148,6 @@ def build_media_components(
         upload_validator=media_upload_validator,
         media_read_service=media_read_service,
         event_bus=event_bus,
-        emit_legacy_task=emit_legacy_media_task,
         storage_maintenance=StorageMaintenanceService(
             storage_port=StorageMaintenanceAdapter(storage_service_factory)
         ),
@@ -185,17 +183,11 @@ def build_media_components(
 
     video_metrics = PrometheusVideoProcessingMetrics()
 
-    processing_service = MediaProcessingService(
-        transcription_service=transcription_service,
-        video_service=video_processing_service,
-        text_extraction_service=text_extraction_service,
-        transcription_metrics=transcription_metrics,
-        video_metrics=video_metrics,
-    )
-
     # Instantiate and subscribe event handlers for media processing
     media_processing_event_handlers = MediaProcessingEventHandlers(
-        media_processing_service=processing_service,
+        transcription_service=transcription_service,
+        text_extraction_service=text_extraction_service,
+        video_processing_service=video_processing_service,
     )
 
     media_event_handlers = MediaEventHandlers(media_service)
@@ -217,10 +209,9 @@ def build_media_components(
 
     module = MediaModule(
         media_service=media_service,
-        processing_service=processing_service,
         transcription_service=transcription_service,
         video_processing_service=video_processing_service,
-        transcription_queries=transcription_service,
+        transcription_queries=transcription_queries,
     )
 
     admin_context = MediaAdminContext(

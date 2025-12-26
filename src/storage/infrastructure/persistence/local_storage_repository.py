@@ -47,7 +47,9 @@ class LocalStorageService(StorageRepositoryPort):
                 updated_at=datetime.fromtimestamp(stat.st_mtime, timezone.utc)
             )
         except Exception as exc:
-            raise Exception(f"Failed to store file {file_path}: {exc}") from exc
+            raise Exception(
+                f"Falha ao gravar arquivo {file_path}: {exc}"
+            ) from exc
 
     async def retrieve(self, file_path: FilePath) -> Optional[bytes]:
         """Retrieve file content."""
@@ -57,7 +59,9 @@ class LocalStorageService(StorageRepositoryPort):
         try:
             return await asyncio.to_thread(source.read_bytes)
         except Exception as exc:
-            raise Exception(f"Failed to retrieve file {file_path}: {exc}") from exc
+            raise Exception(
+                f"Falha ao ler arquivo {file_path}: {exc}"
+            ) from exc
 
     async def remove(self, file_path: FilePath) -> bool:
         """Remove file. Returns True if removed, False if not found."""
@@ -68,7 +72,9 @@ class LocalStorageService(StorageRepositoryPort):
             await asyncio.to_thread(target.unlink)
             return True
         except Exception as exc:
-            raise Exception(f"Failed to remove file {file_path}: {exc}") from exc
+            raise Exception(
+                f"Falha ao remover arquivo {file_path}: {exc}"
+            ) from exc
 
     async def exists(self, file_path: FilePath) -> bool:
         """Check if file exists."""
@@ -94,7 +100,9 @@ class LocalStorageService(StorageRepositoryPort):
                 updated_at=datetime.fromtimestamp(stat.st_mtime, timezone.utc)
             )
         except Exception as exc:
-             raise Exception(f"Failed to get metadata for {file_path}: {exc}") from exc
+             raise Exception(
+                 f"Falha ao obter metadados de {file_path}: {exc}"
+             ) from exc
 
     async def list_files(self, prefix: str = "") -> List[str]:
         """Lists files in the local storage."""
@@ -116,7 +124,7 @@ class LocalStorageService(StorageRepositoryPort):
         try:
             return await asyncio.to_thread(_gather)
         except Exception as exc:
-            raise Exception(f"Failed to list files: {exc}") from exc
+            raise Exception(f"Falha ao listar arquivos: {exc}") from exc
 
     def _resolve_path(self, file_path: FilePath) -> Path:
         path = file_path.to_path()

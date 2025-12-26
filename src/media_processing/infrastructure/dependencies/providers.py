@@ -1,15 +1,13 @@
-"""Provider registries for media_processing adapters.
+"""Registries de providers do `media_processing`.
 
-Each registry maps a provider name to a factory that returns the concrete adapter
-implementing the corresponding application port. Defaults are lightweight stubs
-to avoid heavy optional deps in test/dev.
+Cada registry mapeia o nome do provider para uma factory que retorna o adapter
+concreto (infra) que implementa o port (application).
 """
 from __future__ import annotations
 
-from typing import Callable, Dict
+from typing import Callable, Dict, Any
 
 from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
-from src.shared.infrastructure.messaging.event_bus_provider import resolve_event_bus
 
 from src.media_processing.application.ports import (
     OCRProviderPort,
@@ -18,16 +16,43 @@ from src.media_processing.application.ports import (
     VideoAudioExtractorPort,
     VideoThumbnailGeneratorPort,
 )
+from src.shared.infrastructure.config.settings import settings
 
 # Optional adapters; guard imports to avoid missing deps
-try:
-    from src.media_processing.infrastructure.adapters.transcription import (
-        huggingface_adapter,
-    )
+def _load_fastwhisper():
+    try:
+        from src.media_processing.infrastructure.adapters.transcription.fastwhisper_adapter import (
+            FastWhisperTranscriber,
+        )
+        return FastWhisperTranscriber
+    except Exception as exc:  # pragma: no cover - optional dependency
+        raise ImportError(
+            "Provider 'fastwhisper' requer o pacote faster-whisper instalado."
+        ) from exc
 
-    HuggingfaceTranscriber = huggingface_adapter.HuggingfaceTranscriber
-except Exception:  # pragma: no cover - optional dependency
-    HuggingfaceTranscriber = None
+
+def _load_huggingface():
+    try:
+        from src.media_processing.infrastructure.adapters.transcription.huggingface_adapter import (
+            HuggingfaceTranscriber,
+        )
+        return HuggingfaceTranscriber
+    except Exception as exc:  # pragma: no cover - optional dependency
+        raise ImportError(
+            "Provider 'huggingface' requer deps do transformers instaladas."
+        ) from exc
+
+
+def _load_openai_whisper():
+    try:
+        from src.media_processing.infrastructure.adapters.transcription.openai_whisper_adapter import (
+            OpenAIWhisperTranscriber,
+        )
+        return OpenAIWhisperTranscriber
+    except Exception as exc:  # pragma: no cover - optional dependency
+        raise ImportError(
+            "Provider 'openai-whisper' requer o pacote openai-whisper instalado."
+        ) from exc
 
 try:
     from src.media_processing.infrastructure.adapters.video import (
@@ -59,6 +84,12 @@ class BasicWhisperRecognizer:
     """Stub recognizer to keep unit paths lightweight."""
 
     async def transcribe(self, path: str, language: str = "auto"):
+        # Em produção, não permitir uso do stub para evitar "sucesso" sem transcrição.
+        if settings.app_env.lower() not in ("dev", "development", "local"):
+            raise RuntimeError(
+                "Provider 'whisper' (stub) não está habilitado em produção. "
+                "Configure um provider real (ex.: 'huggingface')."
+            )
         return {
             "text": "",
             "language": language,
@@ -70,14 +101,101 @@ class BasicWhisperRecognizer:
 _SPEECH_RECOGNIZERS: Dict[str, Callable[[], SpeechRecognizer]] = {
     "whisper": lambda: BasicWhisperRecognizer(),
 }
-if HuggingfaceTranscriber:
-    _SPEECH_RECOGNIZERS["huggingface"] = lambda: HuggingfaceTranscriber()
+_SPEECH_META: Dict[str, Dict[str, Any]] = {
+    "whisper": {
+        "label": "Whisper (stub - dev only)",
+        "public": False,  # não expor no catálogo em produção
+        "description": "Stub de desenvolvimento; não produz transcrição real.",
+    },
+}
+def _register_fastwhisper():
+    try:
+        cls = _load_fastwhisper()
+        _SPEECH_RECOGNIZERS["fastwhisper"] = lambda: cls()
+        _SPEECH_META["fastwhisper"] = {
+            "label": "Faster-Whisper (CTranslate2)",
+            "public": True,
+            "description": "Implementação otimizada do Whisper (CPU/GPU).",
+        }
+    except ImportError:
+        pass
+
+
+def _register_huggingface():
+    try:
+        cls = _load_huggingface()
+        _SPEECH_RECOGNIZERS["huggingface"] = lambda: cls()
+        _SPEECH_META["huggingface"] = {
+            "label": "Transformers ASR (HF)",
+            "public": True,
+            "description": "",
+        }
+    except ImportError:
+        pass
+
+
+def _register_openai_whisper():
+    try:
+        cls = _load_openai_whisper()
+        _SPEECH_RECOGNIZERS["openai-whisper"] = lambda: cls()
+        _SPEECH_META["openai-whisper"] = {
+            "label": "OpenAI Whisper (original)",
+            "public": True,
+            "description": "Implementação oficial em PyTorch.",
+        }
+    except ImportError:
+        pass
+
+
+_register_fastwhisper()
+_register_huggingface()
+_register_openai_whisper()
+
+# definir default: prioriza fastwhisper, depois openai-whisper, depois huggingface; se nada, mantém stub (não público)
+if "fastwhisper" in _SPEECH_RECOGNIZERS:
+    _SPEECH_RECOGNIZERS["default"] = _SPEECH_RECOGNIZERS["fastwhisper"]
+    _SPEECH_META["default"] = {
+        "label": "Faster-Whisper (default)",
+        "public": True,
+        "description": "Provider padrão de transcrição otimizada.",
+    }
+elif "openai-whisper" in _SPEECH_RECOGNIZERS:
+    _SPEECH_RECOGNIZERS["default"] = _SPEECH_RECOGNIZERS["openai-whisper"]
+    _SPEECH_META["default"] = {
+        "label": "OpenAI Whisper (default)",
+        "public": True,
+        "description": "Provider padrão usando modelo oficial.",
+    }
+elif "huggingface" in _SPEECH_RECOGNIZERS:
+    _SPEECH_RECOGNIZERS["default"] = _SPEECH_RECOGNIZERS["huggingface"]
+    _SPEECH_META["default"] = {
+        "label": "Transformers ASR (HF) (default)",
+        "public": True,
+        "description": "Provider padrão para transcrição.",
+    }
+else:
+    _SPEECH_RECOGNIZERS["default"] = _SPEECH_RECOGNIZERS["whisper"]
+    _SPEECH_META["default"] = {
+        "label": "Whisper (stub default)",
+        "public": False,
+        "description": "Stub de desenvolvimento; configure um provider real.",
+    }
 
 
 def register_speech_recognizer(
-    name: str, factory: Callable[[], SpeechRecognizer]
+    name: str,
+    factory: Callable[[], SpeechRecognizer],
+    *,
+    label: str | None = None,
+    description: str | None = None,
+    public: bool = True,
 ) -> None:
     _SPEECH_RECOGNIZERS[name.lower()] = factory
+    _SPEECH_META[name.lower()] = {
+        "label": label or name,
+        "description": description or "",
+        "public": public,
+    }
 
 
 def get_speech_recognizer(provider: str | None) -> SpeechRecognizer:
@@ -85,22 +203,40 @@ def get_speech_recognizer(provider: str | None) -> SpeechRecognizer:
     factory = _SPEECH_RECOGNIZERS.get(key) or _SPEECH_RECOGNIZERS["whisper"]
     return factory()
 
+def list_speech_recognizers(public_only: bool = True) -> list[str]:
+    names = sorted(_SPEECH_RECOGNIZERS.keys())
+    if not public_only:
+        return names
+    return [n for n in names if _SPEECH_META.get(n, {}).get("public", True)]
 
-def create_speech_recognition_service(provider: str) -> SpeechRecognizer:
-    """Backward-compatible helper used in legacy tests."""
-    return get_speech_recognizer(provider)
+
+def speech_recognizer_meta(name: str) -> Dict[str, Any]:
+    return _SPEECH_META.get(name, {"label": name, "description": "", "public": True})
 
 
 # ----------------- Text extractors -----------------
 _TEXT_EXTRACTORS: Dict[str, Callable[[], TextExtractorPort]] = {
     "default": lambda: TextExtractor(),
 }
+_TEXT_META: Dict[str, Dict[str, Any]] = {
+    "default": {"label": "Text extractor padrão", "public": True, "description": ""},
+}
 
 
 def register_text_extractor(
-    name: str, factory: Callable[[], TextExtractorPort]
+    name: str,
+    factory: Callable[[], TextExtractorPort],
+    *,
+    label: str | None = None,
+    description: str | None = None,
+    public: bool = True,
 ) -> None:
     _TEXT_EXTRACTORS[name.lower()] = factory
+    _TEXT_META[name.lower()] = {
+        "label": label or name,
+        "description": description or "",
+        "public": public,
+    }
 
 
 def get_text_extractor(provider: str | None = None) -> TextExtractorPort:
@@ -108,15 +244,40 @@ def get_text_extractor(provider: str | None = None) -> TextExtractorPort:
     factory = _TEXT_EXTRACTORS.get(key) or _TEXT_EXTRACTORS["default"]
     return factory()
 
+def list_text_extractors(public_only: bool = True) -> list[str]:
+    names = sorted(_TEXT_EXTRACTORS.keys())
+    if not public_only:
+        return names
+    return [n for n in names if _TEXT_META.get(n, {}).get("public", True)]
+
+
+def text_extractor_meta(name: str) -> Dict[str, Any]:
+    return _TEXT_META.get(name, {"label": name, "description": "", "public": True})
+
 
 # ----------------- OCR providers -----------------
 _OCR_PROVIDERS: Dict[str, Callable[[], OCRProviderPort]] = {
     "default": lambda: OCRProvider(),
 }
+_OCR_META: Dict[str, Dict[str, Any]] = {
+    "default": {"label": "OCR padrão", "public": True, "description": ""},
+}
 
 
-def register_ocr_provider(name: str, factory: Callable[[], OCRProviderPort]) -> None:
+def register_ocr_provider(
+    name: str,
+    factory: Callable[[], OCRProviderPort],
+    *,
+    label: str | None = None,
+    description: str | None = None,
+    public: bool = True,
+) -> None:
     _OCR_PROVIDERS[name.lower()] = factory
+    _OCR_META[name.lower()] = {
+        "label": label or name,
+        "description": description or "",
+        "public": public,
+    }
 
 
 def get_ocr_provider(provider: str | None = None) -> OCRProviderPort:
@@ -124,33 +285,68 @@ def get_ocr_provider(provider: str | None = None) -> OCRProviderPort:
     factory = _OCR_PROVIDERS.get(key) or _OCR_PROVIDERS["default"]
     return factory()
 
-# ----------------- Event bus passthrough -----------------
-def get_event_bus():
-    from src.shared.infrastructure.messaging.event_bus_provider import resolve_event_bus
+def list_ocr_providers(public_only: bool = True) -> list[str]:
+    names = sorted(_OCR_PROVIDERS.keys())
+    if not public_only:
+        return names
+    return [n for n in names if _OCR_META.get(n, {}).get("public", True)]
 
-    return resolve_event_bus()
 
+def ocr_provider_meta(name: str) -> Dict[str, Any]:
+    return _OCR_META.get(name, {"label": name, "description": "", "public": True})
 
 # ----------------- Video adapters -----------------
 _AUDIO_EXTRACTORS: Dict[str, Callable[[], VideoAudioExtractorPort]] = {}
+_AUDIO_META: Dict[str, Dict[str, Any]] = {}
 if FFmpegVideoAudioExtractor:
     _AUDIO_EXTRACTORS["ffmpeg"] = lambda: FFmpegVideoAudioExtractor()
+    _AUDIO_META["ffmpeg"] = {
+        "label": "FFmpeg Audio Extractor",
+        "public": True,
+        "description": "",
+    }
 
 _THUMBNAIL_GENERATORS: Dict[str, Callable[[], VideoThumbnailGeneratorPort]] = {}
+_THUMBNAIL_META: Dict[str, Dict[str, Any]] = {}
 if FFmpegVideoThumbnailGenerator:
     _THUMBNAIL_GENERATORS["ffmpeg"] = lambda: FFmpegVideoThumbnailGenerator()
+    _THUMBNAIL_META["ffmpeg"] = {
+        "label": "FFmpeg Thumbnail",
+        "public": True,
+        "description": "",
+    }
 
 
 def register_audio_extractor(
-    name: str, factory: Callable[[], VideoAudioExtractorPort]
+    name: str,
+    factory: Callable[[], VideoAudioExtractorPort],
+    *,
+    label: str | None = None,
+    description: str | None = None,
+    public: bool = True,
 ) -> None:
     _AUDIO_EXTRACTORS[name.lower()] = factory
+    _AUDIO_META[name.lower()] = {
+        "label": label or name,
+        "description": description or "",
+        "public": public,
+    }
 
 
 def register_thumbnail_generator(
-    name: str, factory: Callable[[], VideoThumbnailGeneratorPort]
+    name: str,
+    factory: Callable[[], VideoThumbnailGeneratorPort],
+    *,
+    label: str | None = None,
+    description: str | None = None,
+    public: bool = True,
 ) -> None:
     _THUMBNAIL_GENERATORS[name.lower()] = factory
+    _THUMBNAIL_META[name.lower()] = {
+        "label": label or name,
+        "description": description or "",
+        "public": public,
+    }
 
 
 def get_audio_extractor(provider: str | None = None) -> VideoAudioExtractorPort:
@@ -158,33 +354,63 @@ def get_audio_extractor(provider: str | None = None) -> VideoAudioExtractorPort:
     factory = _AUDIO_EXTRACTORS.get(key) or _AUDIO_EXTRACTORS["ffmpeg"]
     return factory()
 
+def list_audio_extractors(public_only: bool = True) -> list[str]:
+    names = sorted(_AUDIO_EXTRACTORS.keys())
+    if not public_only:
+        return names
+    return [n for n in names if _AUDIO_META.get(n, {}).get("public", True)]
+
+
+def audio_extractor_meta(name: str) -> Dict[str, Any]:
+    return _AUDIO_META.get(name, {"label": name, "description": "", "public": True})
+
 
 def get_thumbnail_generator(provider: str | None = None) -> VideoThumbnailGeneratorPort:
     key = (provider or "ffmpeg").lower()
     factory = _THUMBNAIL_GENERATORS.get(key) or _THUMBNAIL_GENERATORS["ffmpeg"]
     return factory()
 
+def list_thumbnail_generators(public_only: bool = True) -> list[str]:
+    names = sorted(_THUMBNAIL_GENERATORS.keys())
+    if not public_only:
+        return names
+    return [n for n in names if _THUMBNAIL_META.get(n, {}).get("public", True)]
+
+
+def thumbnail_generator_meta(name: str) -> Dict[str, Any]:
+    return _THUMBNAIL_META.get(name, {"label": name, "description": "", "public": True})
+
 
 def get_event_bus(event_bus: SupportsEventBus | None = None) -> SupportsEventBus:
-    """Retorna o event bus fornecido pelo bootstrap.
-
-    Não realiza fallback para singletons globais: se None for passado, falha
-    explicitamente, mantendo a dependência clara e injetada.
-    """
+    """Retorna o event bus recebido do bootstrap; falha se não for fornecido."""
     if event_bus is None:
-        event_bus = resolve_event_bus()
+        raise RuntimeError(
+            "MediaProcessing event bus não foi fornecido. Passe via bootstrap/tasks "
+            "para evitar acoplamento a estado global."
+        )
     return event_bus
 
 
 __all__ = [
     "get_speech_recognizer",
     "register_speech_recognizer",
+    "list_speech_recognizers",
+    "speech_recognizer_meta",
     "get_text_extractor",
     "register_text_extractor",
+    "list_text_extractors",
+    "text_extractor_meta",
     "get_ocr_provider",
     "register_ocr_provider",
+    "list_ocr_providers",
+    "ocr_provider_meta",
     "get_audio_extractor",
     "register_audio_extractor",
+    "list_audio_extractors",
+    "audio_extractor_meta",
     "get_thumbnail_generator",
     "register_thumbnail_generator",
+    "list_thumbnail_generators",
+    "thumbnail_generator_meta",
+    "get_event_bus",
 ]

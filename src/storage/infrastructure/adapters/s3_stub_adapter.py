@@ -52,7 +52,7 @@ class S3StorageService(StorageRepositoryPort):
                 updated_at=datetime.utcfromtimestamp(stat.st_mtime)
             )
         except Exception as exc:
-            raise Exception(f"Failed to store file on S3 stub: {exc}") from exc
+            raise Exception(f"Falha ao gravar arquivo no stub S3: {exc}") from exc
 
     @create_retry_policy(exceptions=(Exception,))
     async def retrieve(self, file_path: FilePath) -> Optional[bytes]:
@@ -62,7 +62,7 @@ class S3StorageService(StorageRepositoryPort):
         try:
             return await asyncio.to_thread(source.read_bytes)
         except Exception as exc:
-            raise Exception(f"Failed to download file from S3 stub: {exc}") from exc
+            raise Exception(f"Falha ao baixar arquivo do stub S3: {exc}") from exc
 
     @create_retry_policy(exceptions=(Exception,))
     async def remove(self, file_path: FilePath) -> bool:
@@ -73,7 +73,7 @@ class S3StorageService(StorageRepositoryPort):
             await asyncio.to_thread(target.unlink)
             return True
         except Exception as exc:
-            raise Exception(f"Failed to delete file from S3 stub: {exc}") from exc
+            raise Exception(f"Falha ao excluir arquivo do stub S3: {exc}") from exc
 
     async def exists(self, file_path: FilePath) -> bool:
         return self._resolve_path(file_path).exists()
@@ -95,7 +95,7 @@ class S3StorageService(StorageRepositoryPort):
                 updated_at=datetime.utcfromtimestamp(stat.st_mtime)
             )
         except Exception as exc:
-            raise Exception(f"Failed to get metadata from S3 stub: {exc}") from exc
+            raise Exception(f"Falha ao obter metadados no stub S3: {exc}") from exc
 
     async def list_files(self, prefix: str = "") -> List[str]:
         """Lists files in the stub storage (local filesystem)."""
@@ -118,7 +118,7 @@ class S3StorageService(StorageRepositoryPort):
         try:
             return await asyncio.to_thread(_gather)
         except Exception as exc:
-            raise Exception(f"Failed to list files from S3 stub: {exc}") from exc
+            raise Exception(f"Falha ao listar arquivos no stub S3: {exc}") from exc
 
     def _resolve_path(self, file_path: FilePath) -> Path:
         path = file_path.to_path()

@@ -69,7 +69,10 @@ def register_module_dependencies(
         if module is None:
             if spec.optional:
                 continue
-            raise KeyError(f"Missing module instance for '{spec.name}'.")
+            raise KeyError(
+                f"Instância do módulo '{spec.name}' não fornecida. "
+                "Verifique o bootstrap e DEFAULT_MODULE_SPECS."
+            )
 
         binder = _import_string(spec.binder_path)
         binder(app, module)
@@ -85,7 +88,10 @@ def include_module_routers(
         if module_instances is not None and module_instances.get(spec.name) is None:
             if spec.optional:
                 continue
-            raise KeyError(f"Missing module instance for '{spec.name}'.")
+            raise KeyError(
+                f"Instância do módulo '{spec.name}' não fornecida. "
+                "Verifique o bootstrap e DEFAULT_MODULE_SPECS."
+            )
 
         for router_path in spec.routers:
             try:

@@ -1,4 +1,7 @@
-"""Simplified webhook adapter for local usage."""
+"""Webhook adapter (stub / no-op).
+
+Não entrega webhooks reais; use apenas para desenvolvimento/teste.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +10,7 @@ from typing import Any, Dict
 
 
 class WebhookAdapter:
-    """Stub webhook adapter that records a payload asynchronously."""
+    """Stub webhook adapter that simulates asynchronous delivery."""
 
     async def send(self, payload: str, metadata: Dict[str, Any] | None = None) -> None:
         await asyncio.sleep(0)

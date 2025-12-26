@@ -72,6 +72,8 @@ class TranscriptionService:
         storage_provider: str,
         transcription_provider: str,
         language: str,
+        *,
+        final_attempt: bool = False,
         summarization_provider: Optional[str] = None,
         sentiment_provider: Optional[str] = None,
         topic_modeling_provider: Optional[str] = None,
@@ -80,8 +82,24 @@ class TranscriptionService:
         """Executes the transcription process: download, transcribe, and publish."""
         if self._event_bus:
             await self._event_bus.publish(
-                MediaProcessingStarted(media_id=str(media_id))
+                MediaProcessingStarted(
+                    media_id=str(media_id),
+                    stage="transcription",
+                    correlation_id=correlation_id,
+                    metadata={
+                        "storage_provider": storage_provider,
+                        "transcription_provider": transcription_provider,
+                        "language": language,
+                        "file_path": file_path,
+                    },
+                )
             )
+
+        transcription = await self._repo.get_by_id(transcription_id)
+        if not transcription:
+            raise ResourceNotFoundError("Transcription", str(transcription_id))
+        transcription.mark_as_processing()
+        await self._repo.save(transcription)
 
         # Retrieve File
         content = await self._storage.retrieve(FilePath(file_path))
@@ -95,15 +113,16 @@ class TranscriptionService:
             tmp_path = tmp.name
 
         try:
+            lang_for_model = None if not language or language.lower() == "auto" else language
             recognizer = self._speech_recognizer_factory(transcription_provider)
             # Support both sync and async recognizers
             if asyncio.iscoroutinefunction(recognizer.transcribe):
-                result = await recognizer.transcribe(tmp_path, language=language)
+                result = await recognizer.transcribe(tmp_path, language=lang_for_model)
             else:
                 result = await asyncio.to_thread(
                     recognizer.transcribe,
                     tmp_path,
-                    language=language,
+                    language=lang_for_model,
                 )
 
             # Inject downstream provider preferences into result metadata for the event
@@ -117,6 +136,7 @@ class TranscriptionService:
                 result,
                 transcription_provider,
                 success=True,
+                final_attempt=final_attempt,
                 correlation_id=correlation_id,
             )
             return result
@@ -128,6 +148,7 @@ class TranscriptionService:
                 transcription_provider,
                 success=False,
                 error_message=str(exc),
+                final_attempt=final_attempt,
                 correlation_id=correlation_id,
             )
             raise
@@ -244,6 +265,8 @@ class TranscriptionService:
         provider: str,
         success: bool,
         error_message: Optional[str] = None,
+        *,
+        final_attempt: bool = False,
         correlation_id: Optional[str] = None,
     ) -> None:
         """Handles the result of an asynchronous transcription task."""
@@ -259,7 +282,12 @@ class TranscriptionService:
         if success:
             transcription.mark_as_completed(result_data)
         else:
-            transcription.mark_as_failed(error_message or "Unknown error")
+            if final_attempt:
+                transcription.mark_as_failed(error_message or "Erro desconhecido")
+            else:
+                transcription.record_processing_error(
+                    error_message or "Erro durante tentativa de processamento"
+                )
 
         await self._repo.save(transcription)
 
@@ -267,9 +295,13 @@ class TranscriptionService:
             await self._logger.log_operation(
                 operation="process_transcription_result",
                 media_id=str(media_id),
+                provider=provider,
+                success=success,
+                duration=result_data.get("duration") or 0.0,
                 transcription_id=str(transcription_id),
                 status="COMPLETED" if success else "FAILED",
                 original_status=original_status.value,
+                error_message=error_message,
             )
         if hasattr(self._metrics, "set_context"):
             maybe = self._metrics.set_context
@@ -279,15 +311,15 @@ class TranscriptionService:
                 maybe(str(media_id))
         if hasattr(self._metrics, "record_operation"):
             record = self._metrics.record_operation
+            duration = result_data.get("duration") or 0.0
+            input_len = result_data.get("input_audio_length_seconds") or 0.0
             payload = dict(
                 operation="process_transcription_result",
                 provider=provider,
                 success=success,
                 status=transcription.status.value,
-                duration=result_data.get("duration", 0),
-                input_audio_length_seconds=result_data.get(
-                    "input_audio_length_seconds", 0.0
-                ),
+                duration=duration,
+                input_audio_length_seconds=input_len,
                 output_text_length_chars=len(transcription.text),
             )
             if asyncio.iscoroutinefunction(record):
@@ -320,7 +352,7 @@ class TranscriptionService:
                         correlation_id=correlation_id,
                     )
                 )
-            else:
+            elif final_attempt:
                 metadata = {
                     "provider": provider,
                     "correlation_id": correlation_id,

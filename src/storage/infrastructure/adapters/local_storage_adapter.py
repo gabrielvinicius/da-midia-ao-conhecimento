@@ -129,7 +129,4 @@ class LocalStorageProvider(BaseStorageProvider):
                         files.append(str(relative_path))
         return files
 
-    async def _post_write(self, file_path: FilePath, metadata: FileMetadata) -> None:
-        """Hook for post-write operations."""
-        # Could add checksums, backups, etc.
-        pass
+    # Hook pós-write já é noop no BaseStorageProvider.

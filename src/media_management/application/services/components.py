@@ -92,10 +92,8 @@ class MediaEventPublisher:
     def __init__(
         self,
         event_bus: EventBusPort | None,
-        emit_legacy_task: bool = False,
     ) -> None:
         self._event_bus = event_bus
-        self._emit_legacy_task = emit_legacy_task
 
     async def publish_uploaded(self, *, media, upload_metadata: UploadMetadata) -> None:
         if not self._event_bus:
@@ -144,20 +142,8 @@ class MediaEventPublisher:
 class MediaUploadSideEffectPublisher:
     """Orchestrates the side-effects triggered after a successful upload."""
 
-    async def publish(
-        self,
-        media,
-        upload_metadata: UploadMetadata,
-    ) -> None:  # pragma: no cover - interface
+    async def publish(self, media, upload_metadata: UploadMetadata) -> None:  # pragma: no cover - interface
         raise NotImplementedError
-
-
-class DefaultMediaMetricsPublisher(MediaMetricsPublisher):
-    """Backward-compatible alias."""
-
-
-class DefaultMediaEventPublisher(MediaEventPublisher):
-    """Backward-compatible alias."""
 
 
 class DefaultMediaUploadSideEffectPublisher(MediaUploadSideEffectPublisher):
@@ -193,7 +179,5 @@ __all__ = [
     "MediaMetricsPublisher",
     "MediaEventPublisher",
     "MediaUploadSideEffectPublisher",
-    "DefaultMediaMetricsPublisher",
-    "DefaultMediaEventPublisher",
     "DefaultMediaUploadSideEffectPublisher",
 ]

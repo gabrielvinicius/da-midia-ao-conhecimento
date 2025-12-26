@@ -1,12 +1,12 @@
-# src/storage/__init__.py
-"""Lightweight storage package exposing the utilities required by tests."""
+"""Pacote `storage`.
+
+Mantém exports estáveis (ports, VOs e services) sem acoplar o módulo a bootstraps.
+"""
 
 from src.storage.application.ports import (
     StorageConfigurationPort as StorageConfiguration,
 )
-from src.storage.application.ports import (
-    StorageProviderError,
-)
+from src.storage.application.ports import StorageProviderError
 from src.storage.application.ports import (
     StorageProviderFactoryPort as StorageProviderFactory,
 )
@@ -24,12 +24,8 @@ from src.storage.infrastructure.persistence.local_storage_repository import (
     LocalStorageService,
 )
 
-# Alias for backward compatibility if needed, or just remove if tests adapt
-StorageException = StorageProviderError
-
 __all__ = [
     "StorageService",
-    "StorageException",
     "FileMetadata",
     "FilePath",
     "FileSize",

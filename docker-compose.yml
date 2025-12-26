@@ -110,9 +110,12 @@ services:
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DB_HOST=postgres
-      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@${DB_HOST:-postgres}:${DB_PORT:-5432}/${DB_NAME:-video_summarizer}
+      # Evita interpolação usando variáveis do host (ex.: DB_HOST=localhost),
+      # garantindo que dentro do container o hostname seja o service do Compose.
+      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:${DB_PORT:-5432}/${DB_NAME:-video_summarizer}
       - REDIS_HOST=redis
       - REDIS_PASSWORD=
+      - REDIS_URL=redis://redis:6379/0
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
       - WHISPER_CACHE_DIR=/app/.cache/whisper
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -163,9 +166,10 @@ services:
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - DB_HOST=postgres
-      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@${DB_HOST:-postgres}:${DB_PORT:-5432}/${DB_NAME:-video_summarizer}
+      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:${DB_PORT:-5432}/${DB_NAME:-video_summarizer}
       - REDIS_HOST=redis
       - REDIS_PASSWORD=
+      - REDIS_URL=redis://redis:6379/0
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
       - WHISPER_CACHE_DIR=/app/.cache/whisper
       - CELERY_BROKER_URL=redis://redis:6379/0

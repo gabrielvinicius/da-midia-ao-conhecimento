@@ -8,7 +8,8 @@ from src.media_processing.application.dtos import RequestTranscriptionCommand
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
-from src.media_processing.domain import Transcription
+from src.media_processing.domain import Transcription, TranscriptionStatus
+from src.shared.domain.events import TranscriptionFailed
 
 
 @pytest.fixture
@@ -107,3 +108,79 @@ async def test_execute_transcription_success(service_dependencies):
     # Verify TranscriptionCompleted was published
     call_args = event_bus.publish.call_args_list
     assert len(call_args) >= 2 # Started + Completed
+
+
+@pytest.mark.asyncio
+async def test_execute_transcription_failure_intermediate_does_not_publish_failed(
+    service_dependencies,
+):
+    (
+        service,
+        repo,
+        _,
+        _metrics,
+        storage,
+        recognizer,
+        _media_queries,
+        event_bus,
+    ) = service_dependencies
+
+    media_id = uuid4()
+    transcription_id = uuid4()
+    transcription = Transcription(media_id=media_id, provider="whisper")
+    repo.get_by_id.return_value = transcription
+
+    storage.retrieve.return_value = b"audio-bytes"
+    recognizer.transcribe.side_effect = RuntimeError("falha transitória")
+
+    with pytest.raises(RuntimeError):
+        await service.execute_transcription(
+            transcription_id=transcription_id,
+            media_id=media_id,
+            file_path="/tmp/file.wav",
+            storage_provider="local",
+            transcription_provider="whisper",
+            language="en",
+            final_attempt=False,
+        )
+
+    assert transcription.status == TranscriptionStatus.PROCESSING
+    published = [c.args[0] for c in event_bus.publish.call_args_list]
+    assert not any(isinstance(e, TranscriptionFailed) for e in published)
+
+
+@pytest.mark.asyncio
+async def test_execute_transcription_failure_final_publishes_failed(service_dependencies):
+    (
+        service,
+        repo,
+        _,
+        _metrics,
+        storage,
+        recognizer,
+        _media_queries,
+        event_bus,
+    ) = service_dependencies
+
+    media_id = uuid4()
+    transcription_id = uuid4()
+    transcription = Transcription(media_id=media_id, provider="whisper")
+    repo.get_by_id.return_value = transcription
+
+    storage.retrieve.return_value = b"audio-bytes"
+    recognizer.transcribe.side_effect = RuntimeError("falha permanente")
+
+    with pytest.raises(RuntimeError):
+        await service.execute_transcription(
+            transcription_id=transcription_id,
+            media_id=media_id,
+            file_path="/tmp/file.wav",
+            storage_provider="local",
+            transcription_provider="whisper",
+            language="en",
+            final_attempt=True,
+        )
+
+    assert transcription.status == TranscriptionStatus.FAILED
+    published = [c.args[0] for c in event_bus.publish.call_args_list]
+    assert any(isinstance(e, TranscriptionFailed) for e in published)

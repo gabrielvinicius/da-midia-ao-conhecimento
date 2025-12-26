@@ -6,8 +6,14 @@ from uuid import UUID
 
 import structlog
 
-from src.media_processing.application.services.media_processing_service import (
-    MediaProcessingService,
+from src.media_processing.application.services.text_extraction_service import (
+    TextExtractionService,
+)
+from src.media_processing.application.services.transcription_service import (
+    TranscriptionService,
+)
+from src.media_processing.application.services.video_processing_service import (
+    VideoProcessingService,
 )
 from src.shared.domain.enums import MediaType as _MediaType
 from src.shared.domain.events import MediaUploaded, TextContentReady
@@ -22,9 +28,13 @@ class MediaProcessingEventHandlers:
 
     def __init__(
         self,
-        media_processing_service: MediaProcessingService,
+        transcription_service: TranscriptionService,
+        text_extraction_service: TextExtractionService,
+        video_processing_service: VideoProcessingService,
     ) -> None:
-        self._media_processing_service = media_processing_service
+        self._transcription_service = transcription_service
+        self._text_extraction_service = text_extraction_service
+        self._video_processing_service = video_processing_service
         self._logger = structlog.get_logger(__name__).bind(
             component="media_processing.event_handlers"
         )
@@ -91,7 +101,7 @@ class MediaProcessingEventHandlers:
                 actor_id=getattr(event, "actor_id", None) or context.get("actor_id"),
                 correlation_id=getattr(event, "correlation_id", None),
             )
-            await self._media_processing_service.request_text_extraction(command)
+            await self._text_extraction_service.request_text_extraction(command)
             self._logger.debug(
                 "media_uploaded.text_extraction_delegated",
                 media_id=str(media_id),
@@ -153,7 +163,7 @@ class MediaProcessingEventHandlers:
                 actor_id=getattr(event, "actor_id", None) or context.get("actor_id"),
                 correlation_id=getattr(event, "correlation_id", None),
             )
-            await self._media_processing_service.request_transcription(command)
+            await self._transcription_service.request_transcription_generation(command)
             self._logger.debug(
                 "media_uploaded.transcription_delegated",
                 media_id=str(media_id),
@@ -190,7 +200,7 @@ class MediaProcessingEventHandlers:
                 actor_id=getattr(event, "actor_id", None) or context.get("actor_id"),
                 correlation_id=getattr(event, "correlation_id", None),
             )
-            await self._media_processing_service.request_video_processing(command)
+            await self._video_processing_service.request_video_processing(command)
             self._logger.debug(
                 "media_uploaded.video_processing_delegation_failed",
                 media_id=str(media_id),

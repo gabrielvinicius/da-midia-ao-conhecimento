@@ -41,6 +41,44 @@ class StorageUploaderAdapter(StorageUploadPort):
         )
 
 
+class StorageServiceFactoryUploader(StorageUploaderPort):
+    """Uploader que escolhe o provider dinamicamente a partir do command.
+
+    Isto evita acoplamento a um provider fixo ("local") e garante que a seleção
+    feita no upload (frontend/API) reflita o storage realmente utilizado.
+    """
+
+    def __init__(
+        self,
+        factory: StorageServiceFactory,
+        *,
+        default_provider: str = "local",
+    ) -> None:
+        self._factory = factory
+        self._default_provider = default_provider
+
+    async def upload(
+        self,
+        command,
+        media_id: uuid.UUID,
+        content_type: str,
+    ) -> UploadResult:
+        now = datetime.now(timezone.utc)
+        safe_filename = os.path.basename(command.filename)
+        destination_path = (
+            f"{command.user_id}/{now.year}/{now.month:02d}/{media_id}/{safe_filename}"
+        )
+
+        provider = getattr(command, "storage_provider", None) or self._default_provider
+        storage = self._factory.create_storage_service(str(provider))
+        metadata = await storage.upload(
+            file_data=command.file,
+            destination=destination_path,
+            content_type=content_type,
+        )
+        return UploadResult(destination_path=destination_path, metadata=metadata)
+
+
 class DefaultUploadMetadataMapper(UploadMetadataMapperPort):
     """Standard implementation of metadata mapping."""
 
@@ -87,6 +125,7 @@ class DefaultStorageUploader(StorageUploaderPort):
 
 __all__ = [
     "StorageUploaderAdapter",
+    "StorageServiceFactoryUploader",
     "UploadResult",
     "UploadMetadata",
     "DefaultUploadMetadataMapper",

@@ -23,10 +23,10 @@ from src.media_management.application.ports import (
     UploadMetadataMapperPort,
 )
 from src.media_management.application.services.components import (
-    DefaultMediaEventPublisher,
-    DefaultMediaMetricsPublisher,
     DefaultMediaUploadSideEffectPublisher,
     FileSizeMediaFileValidator,
+    MediaEventPublisher,
+    MediaMetricsPublisher,
 )
 from src.media_management.config.settings import media_settings
 from src.media_management.domain import Media
@@ -50,6 +50,7 @@ from ..dtos import (
     GetMediaStatisticsQuery,
     ListMediaQuery,
     ReprocessMediaCommand,
+    PaginatedMedia,
 )
 from .media_read_service import MediaReadService
 from .validators import MediaUploadValidator
@@ -91,7 +92,6 @@ class MediaService:
         upload_validator: MediaUploadValidator,
         media_read_service: MediaReadService,
         event_bus: EventBusPort | None = None,
-        emit_legacy_task: bool = False,
         storage_maintenance: StorageMaintenanceService | None = None,
         transcription_cleanup: TranscriptionCleanupPort | None = None,
     ) -> None:
@@ -102,7 +102,6 @@ class MediaService:
         self.upload_validator = upload_validator
         self.media_read_service = media_read_service
         self.event_bus = event_bus
-        self.emit_legacy_task = emit_legacy_task
 
         # Provider allowlists per bounded context (soft validation: warn if unknown)
         self._allowed_storage_providers: Set[str] = set(
@@ -118,13 +117,8 @@ class MediaService:
         self._allowed_topic = set(media_settings.topic_providers_allowed or [])
 
         self.side_effect_publisher = DefaultMediaUploadSideEffectPublisher(
-            metrics_publisher=DefaultMediaMetricsPublisher(
-                metrics_service=metrics_service
-            ),
-            event_publisher=DefaultMediaEventPublisher(
-                event_bus=event_bus,
-                emit_legacy_task=emit_legacy_task,
-            ),
+            metrics_publisher=MediaMetricsPublisher(metrics_service=metrics_service),
+            event_publisher=MediaEventPublisher(event_bus=event_bus),
         )
         self.file_validator = FileSizeMediaFileValidator(
             min_size_bytes=self.MIN_FILE_SIZE_BYTES,
@@ -200,6 +194,7 @@ class MediaService:
             user_id=validated_command.user_id,
             filename=validated_command.filename,
             file_size_bytes=upload_metadata.file_size,
+            mime_type=content_type,
             media_type=media_type,
             storage_provider=validated_command.storage_provider,
             original_file_path=upload_metadata.stored_path,
@@ -235,7 +230,7 @@ class MediaService:
 
         media = await self.media_repository.get_by_id(command.media_id)
         if not media:
-            raise ValueError(f"Media {command.media_id} not found")
+            raise ValueError(f"Mídia {command.media_id} não encontrada")
 
         # Access Check
         effective_user = user_id
@@ -299,7 +294,7 @@ class MediaService:
 
         media = await self.media_repository.get_by_id(command.media_id)
         if not media:
-            raise ValueError(f"Media {command.media_id} not found")
+            raise ValueError(f"Mídia {command.media_id} não encontrada")
 
         self.access_policy.ensure_can_access(media, user_id, user_role)
 
@@ -399,7 +394,7 @@ class MediaService:
         """Retrieves a single media entity."""
         return await self.media_read_service.get_media(query)
 
-    async def list_media(self, query: ListMediaQuery) -> List[Media]:
+    async def list_media(self, query: ListMediaQuery):
         """Lists media entities with pagination and filtering."""
         return await self.media_read_service.list_media(query)
 

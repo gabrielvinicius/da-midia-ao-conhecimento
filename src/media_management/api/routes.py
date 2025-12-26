@@ -19,6 +19,7 @@ from src.media_management.application.dtos import (
     CreateMediaCommand,
     DeleteMediaCommand,
     GetMediaQuery,
+    GetMediaStatisticsQuery,
     ListMediaQuery,
     ReprocessMediaCommand,
 )
@@ -33,6 +34,7 @@ from src.shared.infrastructure.observability.logging.logging_config import get_l
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.user_management.api.dependencies import get_current_user
 from src.user_management.domain import User
+from src.user_management.domain import UserRole
 
 from .dependencies import get_media_service
 from .schemas import MediaResponse
@@ -110,7 +112,7 @@ async def create_media(
 
 @router.get(
     "/",
-    response_model=List[MediaResponse],
+    response_model=dict,
     summary="List all media for the current user",
 )
 async def list_user_media(
@@ -119,16 +121,18 @@ async def list_user_media(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
 ):
     query = ListMediaQuery(
         user_id=current_user.id,
         page=page,
         limit=limit,
         search=search,
+        order=order,
     )
-    media_list = await service.list_media(query)
+    page_data = await service.list_media(query)
 
-    return [
+    items = [
         MediaResponse(
             id=media.id,
             filename=media.filename,
@@ -141,8 +145,29 @@ async def list_user_media(
             language=media.language,
             duration=media.duration
         )
-        for media in media_list
+        for media in page_data.items
     ]
+
+    return {
+        "items": items,
+        "total": page_data.total,
+        "page": page_data.page,
+        "pages": page_data.pages,
+        "limit": page_data.limit,
+    }
+
+
+@router.get(
+    "/stats",
+    summary="Obter estatísticas das mídias do usuário atual",
+)
+async def media_stats(
+    current_user: User = Depends(get_current_user),
+    service: MediaService = Depends(get_media_service),
+):
+    query = GetMediaStatisticsQuery(user_id=current_user.id)
+    stats = await service.get_media_statistics(query)
+    return stats
 
 
 @router.get(
@@ -160,10 +185,10 @@ async def get_media_by_id(
         media = await service.get_media(query)
 
         if not media:
-            raise ValueError("Media not found")
+            raise ValueError("Mídia não encontrada")
 
-        if media.user_id != current_user.id and current_user.role != "ADMIN":
-            raise PermissionError("Not authorized")
+        if media.user_id != current_user.id and current_user.role != UserRole.ADMIN:
+            raise PermissionError("Não autorizado")
 
         return MediaResponse(
             id=media.id,
@@ -202,7 +227,7 @@ async def delete_media(
             user_role=current_user.role,
         )
     except PermissionError:
-        raise HTTPException(status_code=404, detail="Media not found or not authorized")
+        raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
@@ -219,15 +244,15 @@ async def stream_media(
         media = await service.get_media(query)
 
         if not media:
-             raise ValueError("Media not found")
+             raise ValueError("Mídia não encontrada")
 
-        if media.user_id != current_user.id and current_user.role != "ADMIN":
-             raise PermissionError("Not authorized")
+        if media.user_id != current_user.id and current_user.role != UserRole.ADMIN:
+             raise PermissionError("Não autorizado")
     except (ValueError, PermissionError):
-        raise HTTPException(status_code=404, detail="Media not found or not authorized")
+        raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")
 
     if not media.original_file_path:
-        raise HTTPException(status_code=404, detail="Media file unavailable")
+        raise HTTPException(status_code=404, detail="Arquivo de mídia indisponível")
 
     storage_provider = getattr(media, "storage_provider", None) or "local"
     storage_factory = StorageServiceFactory()
@@ -236,11 +261,11 @@ async def stream_media(
     try:
         file_bytes = await storage_client.download_file(media.original_file_path)
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Media file missing from storage")
+        raise HTTPException(status_code=404, detail="Arquivo de mídia ausente no storage")
 
     file_size = len(file_bytes)
     if file_size == 0:
-        raise HTTPException(status_code=404, detail="Media file is empty")
+        raise HTTPException(status_code=404, detail="Arquivo de mídia vazio")
 
     filename = media.filename or media.original_file_path.split("/")[-1]
     mime_type = getattr(media, "mime_type", None) or "application/octet-stream"
@@ -255,7 +280,7 @@ async def stream_media(
         range_header = range_header.strip()
         match = RANGE_HEADER_PATTERN.match(range_header)
         if not match:
-            raise HTTPException(status_code=416, detail="Invalid Range header")
+            raise HTTPException(status_code=416, detail="Cabeçalho Range inválido")
 
         start = int(match.group(1))
         end = int(match.group(2)) if match.group(2) is not None else file_size - 1
@@ -314,7 +339,7 @@ async def reprocess_media(
         )
 
     except PermissionError:
-        raise HTTPException(status_code=404, detail="Media not found or not authorized")
+        raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")
     except ValueError as e:
         return create_error_response(
             error=str(e),

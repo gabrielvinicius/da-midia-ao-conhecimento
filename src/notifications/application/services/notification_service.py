@@ -63,6 +63,8 @@ class NotificationService:
     async def send_notification(
         self,
         command: SendNotificationCommand,
+        *,
+        final_attempt: bool = False,
     ) -> UUID:
         """Sends a notification to a user, handling creation and delivery."""
         start_time = time.monotonic()
@@ -94,8 +96,12 @@ class NotificationService:
             if await self.delivery.send_to_user(
                 command.user_id,
                 {
+                    "notification_id": str(notification_id),
                     "type": command.notification_type.value,
                     "message": command.message,
+                    "priority": command.priority.value,
+                    "created_at": saved_notification.created_at,
+                    "variables": saved_notification.variables,
                 },
             ):
                 saved_notification.status = NotificationStatus.SENT
@@ -126,8 +132,10 @@ class NotificationService:
             if notification_id:
                 notification = await self.repo.find_by_id(notification_id)
                 if notification:
-                    notification.status = NotificationStatus.FAILED
-                    notification.error_message = str(e)
+                    if final_attempt:
+                        notification.mark_as_failed(str(e))
+                    else:
+                        notification.record_transient_error(str(e))
                     await self.repo.save(notification)
             raise
         finally:

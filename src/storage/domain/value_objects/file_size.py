@@ -11,7 +11,7 @@ class FileSize:
 
     def __post_init__(self) -> None:
         if self.bytes < 0:
-            raise ValueError("File size must be non-negative")
+            raise ValueError("O tamanho do arquivo deve ser não negativo")
 
     def __int__(self) -> int:
         return self.bytes

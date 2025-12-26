@@ -37,8 +37,40 @@ class MediaRepositoryAdapter(MediaRepositoryPort):
     async def count_by_user_and_status(self, user_id: UUID, status):
         return await self._repo.count_by_user_and_status(user_id, status)
 
-    async def list_paginated(self, page: int, limit: int):
-        return await self._repo.list_paginated(page=page, limit=limit)
+    async def count_by_type(self, media_type):
+        return await self._repo.count_by_type(media_type)
+
+    async def count_by_user_and_type(self, user_id: UUID, media_type):
+        return await self._repo.count_by_user_and_type(user_id, media_type)
+
+    async def count_filtered(
+        self,
+        *,
+        user_id=None,
+        status=None,
+        search=None,
+    ):
+        return await self._repo.count_filtered(
+            user_id=user_id, status=status, search=search
+        )
+
+    async def list_paginated(
+        self,
+        page: int,
+        limit: int,
+        user_id=None,
+        status=None,
+        search=None,
+        order: str = "desc",
+    ):
+        return await self._repo.list_paginated(
+            page=page,
+            limit=limit,
+            user_id=user_id,
+            status=status,
+            search=search,
+            order=order,
+        )
 
 
 __all__ = ["MediaRepositoryAdapter"]

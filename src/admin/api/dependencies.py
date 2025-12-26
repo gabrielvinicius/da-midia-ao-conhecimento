@@ -3,14 +3,39 @@ from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.admin.application.services.admin_read_service import AdminReadService
 from src.admin.application.services.admin_audit_service import AdminAuditService
 from src.admin.application.services.admin_media_service import AdminMediaService
 from src.admin.application.services.admin_service import AdminService
 from src.admin.application.services.admin_user_service import AdminUserService
-from src.media_management.api.dependencies import get_media_queries
+from src.admin.infrastructure.dependencies.providers import (
+    get_media_admin_adapter,
+    get_media_read_adapter,
+    get_user_admin_adapter,
+    get_user_read_adapter,
+)
+from src.media_management.api.dependencies import get_media_service
+from src.media_management.application.services.media_service import MediaService
+from src.media_management.infrastructure.repositories.media_repository import (
+    MediaRepository,
+)
+from src.shared.infrastructure.database.db import get_db
 from src.user_management.api.dependencies import get_auth_queries
+from src.user_management.application.auth_queries import UserReadService
+from src.user_management.application.services.permission_service import (
+    UserPermissionService,
+)
+from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import (
+    UserRepository,
+)
+from src.admin.infrastructure.adapters.user_repository_adapter import (
+    UserRepositoryAdapter,
+)
+from src.admin.infrastructure.adapters.media_repository_adapter import (
+    MediaRepositoryAdapter,
+)
 
 
 class AdminDependenciesNotConfiguredError(RuntimeError):
@@ -26,10 +51,67 @@ class AdminDependencies:
     service: AdminService
 
 
-def get_admin_dependencies() -> AdminDependencies:
-    raise AdminDependenciesNotConfiguredError(
-        "Admin dependencies are not configured. "
-        "Register providers in the lifespan handler."
+def get_admin_dependencies(
+    session: AsyncSession = Depends(get_db),
+    auth_queries: UserReadService = Depends(get_auth_queries),
+    media_service: MediaService = Depends(get_media_service),
+) -> AdminDependencies:
+    """Provider padrão (por request) para o módulo admin.
+
+    Evita compartilhar AsyncSession globalmente entre requests.
+    """
+
+    permission_service = UserPermissionService()
+    audit_service = AdminAuditService()
+
+    user_repo_adapter = UserRepositoryAdapter(UserRepository(db=session))
+    media_repo = MediaRepository(db=session)
+    media_repo_adapter = MediaRepositoryAdapter(media_repo)
+
+    media_read_adapter = get_media_read_adapter(media_repo_adapter)
+    user_read_adapter = get_user_read_adapter(auth_queries)
+    admin_queries = AdminReadService(
+        user_read_port=user_read_adapter,
+        media_read_port=media_read_adapter,
+    )
+
+    user_service = AdminUserService(
+        user_repository=user_repo_adapter,
+        permission_service=permission_service,
+        audit_service=audit_service,
+    )
+    admin_media_service = AdminMediaService(
+        media_repository=media_repo_adapter,
+        permission_service=permission_service,
+        audit_service=audit_service,
+        media_service=media_service,
+    )
+
+    user_adapter = get_user_admin_adapter(
+        auth_queries=auth_queries,
+        admin_user_service=user_service,
+    )
+    media_adapter = get_media_admin_adapter(
+        media_service=media_service,
+        admin_media_service=admin_media_service,
+        auth_queries=auth_queries,
+    )
+
+    service = AdminService(
+        admin_read_service=admin_queries,
+        audit_service=audit_service,
+        admin_user_service=user_service,
+        admin_media_service=admin_media_service,
+        user_adapter=user_adapter,
+        media_adapter=media_adapter,
+    )
+
+    return AdminDependencies(
+        admin_queries=admin_queries,
+        audit_service=audit_service,
+        user_service=user_service,
+        media_service=admin_media_service,
+        service=service,
     )
 
 
@@ -67,5 +149,4 @@ __all__ = [
     "get_admin_user_service",
     "get_admin_service",
     "get_auth_queries",
-    "get_media_queries",
 ]

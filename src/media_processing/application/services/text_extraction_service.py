@@ -88,6 +88,8 @@ class TextExtractionService:
         media_id: UUID,
         file_path: str,
         storage_provider: str,
+        *,
+        final_attempt: bool = False,
         correlation_id: str | None = None,
         user_id: str | None = None,
         filename: str | None = None,
@@ -97,11 +99,21 @@ class TextExtractionService:
             await self._event_bus.publish(
                 MediaProcessingStarted(
                     media_id=str(media_id),
+                    stage="text_extraction",
                     correlation_id=correlation_id,
+                    metadata={
+                        "storage_provider": storage_provider,
+                        "file_path": file_path,
+                        "user_id": user_id,
+                        "filename": filename,
+                    },
                 )
             )
 
         transcription = await self._repo.get_by_media_id(media_id)
+        if transcription:
+            transcription.mark_as_processing()
+            await self._repo.save(transcription)
 
         # Retrieve content
         content = await self._storage.retrieve(FilePath(file_path))
@@ -148,7 +160,16 @@ class TextExtractionService:
                     await self._event_bus.publish(
                         MediaProcessingCompleted(
                             media_id=str(media_id),
+                            stage="text_extraction",
+                            result_id=str(transcription.id),
                             correlation_id=correlation_id,
+                            metadata={
+                                "provider": provider_used,
+                                "storage_provider": storage_provider,
+                                "file_path": file_path,
+                                "user_id": user_id or getattr(transcription, "user_id", None),
+                                "filename": filename or getattr(transcription, "filename", None),
+                            },
                         )
                     )
                     await self._event_bus.publish(
@@ -168,15 +189,24 @@ class TextExtractionService:
 
         except Exception as exc:
             if transcription:
-                transcription.status = TranscriptionStatus.FAILED
-                transcription.error_message = str(exc)
+                if final_attempt:
+                    transcription.mark_as_failed(str(exc))
+                else:
+                    transcription.record_processing_error(str(exc))
                 await self._repo.save(transcription)
-            if self._event_bus:
+            if self._event_bus and final_attempt:
                 await self._event_bus.publish(
                     MediaProcessingFailed(
                         media_id=str(media_id),
+                        stage="text_extraction",
                         error_message=str(exc),
                         correlation_id=correlation_id,
+                        metadata={
+                            "storage_provider": storage_provider,
+                            "file_path": file_path,
+                            "user_id": user_id or getattr(transcription, "user_id", None),
+                            "filename": filename or getattr(transcription, "filename", None),
+                        },
                     )
                 )
             raise

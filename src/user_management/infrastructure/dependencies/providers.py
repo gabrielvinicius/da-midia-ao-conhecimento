@@ -45,6 +45,34 @@ class JwtTokenProvider(TokenProviderPort):
             algorithm=user_settings.algorithm,
         )
 
+    def create_refresh_token(self, user_id):
+        expire = utcnow() + timedelta(
+            minutes=user_settings.refresh_token_expire_minutes
+        )
+        payload = {
+            "sub": str(user_id),
+            "exp": expire,
+            "type": "refresh",
+        }
+        return jwt.encode(
+            payload,
+            user_settings.secret_key,
+            algorithm=user_settings.algorithm,
+        )
+
+    def verify_refresh_token(self, token: str) -> dict | None:
+        try:
+            payload = jwt.decode(
+                token,
+                user_settings.secret_key,
+                algorithms=[user_settings.algorithm],
+            )
+            if payload.get("type") != "refresh":
+                return None
+            return payload
+        except JWTError:
+            return None
+
     def verify_token(self, token: str) -> dict | None:
         try:
             payload = jwt.decode(

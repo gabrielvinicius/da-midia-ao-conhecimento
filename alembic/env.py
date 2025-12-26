@@ -15,7 +15,7 @@ sys.path.append(os.getcwd())
 import src.media_management.infrastructure.persistence.models  # noqa: F401
 import src.media_processing.infrastructure.persistence.models  # noqa: F401
 import src.notifications.infrastructure.persistence.models  # noqa: F401
-import src.text_analysis.infrastructure.repositories.sqlalchemy_analysis_repository  # noqa: F401
+import src.text_analysis.infrastructure.persistence.models  # noqa: F401
 import src.user_management.infrastructure.persistence.models  # noqa: F401
 from src.shared.infrastructure.config.settings import settings
 from src.shared.infrastructure.database import Base  # SQLAlchemy Base

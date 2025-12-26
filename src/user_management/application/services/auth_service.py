@@ -96,7 +96,7 @@ class AuthService:
 
     def require_admin_role(self, user: User) -> None:
         if user.role != UserRole.ADMIN:
-            raise PermissionError("Admin role required")
+            raise PermissionError("Perfil de admin é obrigatório")
 
     def can_modify_user(self, current_user: User, target_user_id: UUID) -> bool:
         if current_user.role == UserRole.ADMIN:

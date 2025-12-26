@@ -1,4 +1,8 @@
-"""Simplified SMTP adapter for local testing."""
+"""SMTP adapter (stub / no-op).
+
+Este adapter não envia email de fato. Mantenha-o fora do catálogo público
+até que um envio SMTP real seja implementado.
+"""
 
 from __future__ import annotations
 
@@ -7,14 +11,14 @@ from typing import Optional
 
 
 class SMTPAdapter:
-    """Coarse SMTP adapter that pretends to send emails."""
+    """Stub que não envia email (placeholder controlado)."""
 
     def __init__(
         self,
-        host: str,
-        port: int,
-        username: Optional[str],
-        password: Optional[str],
+        host: str = "",
+        port: int = 0,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
     ) -> None:
         self._host = host
         self._port = port
@@ -23,7 +27,8 @@ class SMTPAdapter:
 
     async def send(self, recipient: Optional[str], subject: str, body: str) -> None:
         if not recipient:
-            raise ValueError("recipient email is required")
+            raise ValueError("Email do destinatário é obrigatório")
+        # No-op: não envia
         await asyncio.sleep(0)
 
 

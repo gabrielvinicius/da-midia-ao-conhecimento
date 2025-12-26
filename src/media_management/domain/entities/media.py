@@ -14,6 +14,8 @@ class Media(BaseEntity):
     user_id: UUID
     filename: str
     file_size_bytes: int
+    mime_type: Optional[str]
+    duration: Optional[int]
     media_type: MediaType
     storage_provider: str
     original_file_path: str
@@ -33,6 +35,8 @@ class Media(BaseEntity):
         user_id: UUID,
         filename: str,
         file_size_bytes: int,
+        mime_type: Optional[str],
+        duration: Optional[int],
         media_type: MediaType,
         storage_provider: str,
         original_file_path: str,
@@ -50,6 +54,8 @@ class Media(BaseEntity):
         self.user_id = user_id
         self.filename = filename
         self.file_size_bytes = file_size_bytes
+        self.mime_type = mime_type
+        self.duration = duration
         self.media_type = media_type
         self.storage_provider = storage_provider
         self.original_file_path = original_file_path
@@ -73,6 +79,8 @@ class Media(BaseEntity):
         media_type: MediaType,
         storage_provider: str,
         original_file_path: str,
+        mime_type: Optional[str] = None,
+        duration: Optional[int] = None,
         transcription_provider: Optional[str] = None,
         summarization_provider: Optional[str] = None,
         sentiment_provider: Optional[str] = None,
@@ -87,6 +95,8 @@ class Media(BaseEntity):
             media_type=media_type,
             storage_provider=storage_provider,
             original_file_path=original_file_path,
+            mime_type=mime_type,
+            duration=duration,
             transcription_provider=transcription_provider,
             summarization_provider=summarization_provider,
             sentiment_provider=sentiment_provider,
@@ -112,12 +122,17 @@ class Media(BaseEntity):
         filename: Optional[str] = None,
         file_size: Optional[int] = None,
         mime_type: Optional[str] = None,
+        duration: Optional[int] = None,
         created_at: Optional[datetime.datetime] = None,
     ) -> Media:
         if filename:
             self.filename = filename
         if file_size is not None:
             self.file_size_bytes = file_size
+        if mime_type is not None:
+            self.mime_type = mime_type
+        if duration is not None:
+            self.duration = duration
         if created_at:
             self.created_at = created_at
         self.updated_at = datetime.datetime.now(datetime.timezone.utc)
@@ -130,5 +145,5 @@ class Media(BaseEntity):
     def process(self) -> None:
         """Trigger processing state transition."""
         if self.status == MediaStatus.FAILED:
-             self.error_message = None
+            self.error_message = None
         self.mark_as_processing()

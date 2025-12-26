@@ -6,11 +6,13 @@ from typing import List, Optional
 from uuid import UUID
 
 import structlog
+from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.domain import Media
 from src.shared.domain.enums import MediaStatus
+from src.shared.domain.enums import MediaType
 
 from ..mappers import MediaMapper
 from ..persistence.models import MediaEntity
@@ -26,6 +28,7 @@ class MediaRepository:
         self._mapper = mapper or MediaMapper()
 
     async def get_by_id(self, media_id: UUID) -> Optional[Media]:
+        await self.db.rollback()  # garante conexão livre
         result = await self.db.execute(
             select(MediaEntity).where(MediaEntity.id == media_id)
         )
@@ -69,12 +72,14 @@ class MediaRepository:
         *,
         error_message: Optional[str] = None,
     ) -> Media:
+        await self.db.rollback()  # garante conexão livre
         result = await self.db.execute(
             select(MediaEntity).where(MediaEntity.id == media_id)
         )
         entity = result.scalar_one()
         entity.status = status
         entity.error_message = error_message
+        entity.updated_at = datetime.utcnow()
         await self.db.commit()
         await self.db.refresh(entity)
         aggregate = self._mapper.to_domain(entity)
@@ -89,7 +94,9 @@ class MediaRepository:
         user_id: Optional[UUID] = None,
         status: Optional[MediaStatus] = None,
         search: Optional[str] = None,
+        order: str = "desc",
     ) -> List[Media]:
+        await self._ensure_clean()
         stmt = select(MediaEntity)
         if user_id is not None:
             stmt = stmt.where(MediaEntity.user_id == user_id)
@@ -99,7 +106,9 @@ class MediaRepository:
             stmt = stmt.where(MediaEntity.original_file_path.ilike(f"%{search}%"))
 
         offset = max(page - 1, 0) * limit
-        stmt = stmt.order_by(MediaEntity.created_at.desc()).offset(offset).limit(limit)
+        stmt = stmt.order_by(
+            MediaEntity.created_at.desc() if order == "desc" else MediaEntity.created_at.asc()
+        ).offset(offset).limit(limit)
 
         result = await self.db.execute(stmt)
         return [self._mapper.to_domain(entity) for entity in result.scalars().all()]
@@ -126,6 +135,7 @@ class MediaRepository:
         user_id: Optional[UUID] = None,
         status: Optional[MediaStatus] = None,
     ) -> List[Media]:
+        await self._ensure_clean()
         return await self.list_paginated(
             page=1,
             limit=10_000,
@@ -134,10 +144,12 @@ class MediaRepository:
         )
 
     async def count_all(self) -> int:
+        await self._ensure_clean()
         result = await self.db.execute(select(func.count()).select_from(MediaEntity))
         return result.scalar_one()
 
     async def count_by_status(self, status: MediaStatus) -> int:
+        await self._ensure_clean()
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
@@ -147,6 +159,7 @@ class MediaRepository:
         return result.scalar_one()
 
     async def count_by_user(self, user_id: UUID) -> int:
+        await self._ensure_clean()
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
@@ -156,6 +169,7 @@ class MediaRepository:
         return result.scalar_one()
 
     async def count_by_user_and_status(self, user_id: UUID, status: MediaStatus) -> int:
+        await self._ensure_clean()
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
@@ -164,3 +178,32 @@ class MediaRepository:
         )
         result = await self.db.execute(stmt)
         return result.scalar_one()
+
+    async def count_by_type(self, media_type: MediaType) -> int:
+        await self._ensure_clean()
+        stmt = (
+            select(func.count())
+            .select_from(MediaEntity)
+            .where(MediaEntity.media_type == media_type)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one()
+
+    async def count_by_user_and_type(self, user_id: UUID, media_type: MediaType) -> int:
+        await self._ensure_clean()
+        stmt = (
+            select(func.count())
+            .select_from(MediaEntity)
+            .where(MediaEntity.user_id == user_id)
+            .where(MediaEntity.media_type == media_type)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one()
+
+    async def _ensure_clean(self) -> None:
+        """Rolls back any pending transaction to avoid asyncpg state errors."""
+        try:
+            await self.db.rollback()
+        except Exception:
+            # Best-effort cleanup; leave session as-is if rollback fails
+            pass

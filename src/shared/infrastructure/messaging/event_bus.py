@@ -71,7 +71,10 @@ class EventPublisher:
     async def publish(self, event: DomainEvent) -> None:
         """Forward the event to the registered listener."""
         if not self._running or self._listener is None:
-            raise RuntimeError("EventPublisher is not running")
+            raise RuntimeError(
+                "EventPublisher não está em execução. "
+                "Garanta que event_bus.start(listener) foi chamado no bootstrap."
+            )
         await self._listener(event)
 
     async def start(self, listener: EventListener) -> None:
@@ -105,7 +108,10 @@ class AsyncQueueBrokerPublisher:
     async def publish(self, event: DomainEvent) -> None:
         """Enqueue an event to be processed by the background worker."""
         if not self._running:
-            raise RuntimeError("AsyncQueueBrokerPublisher is not running")
+            raise RuntimeError(
+                "AsyncQueueBrokerPublisher não está em execução. "
+                "Chame start(listener) antes de publicar eventos."
+            )
         await self._queue.put(event)
 
     async def start(self, listener: EventListener) -> None:
@@ -140,7 +146,10 @@ class AsyncQueueBrokerPublisher:
     async def emit(self, event: DomainEvent) -> None:
         """Directly dispatch an event to the listener (used in tests)."""
         if self._listener is None:
-            raise RuntimeError("Listener not registered")
+            raise RuntimeError(
+                f"Listener não registrado para {type(event).__name__}. "
+                "Registre handlers antes de emitir eventos."
+            )
         await self._listener(event)
 
     @property

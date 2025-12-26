@@ -32,6 +32,14 @@ from .infrastructure.metrics.prometheus_metrics import PrometheusTextAnalysisMet
 from .infrastructure.repositories.inmemory_analysis_repository import (
     InMemoryAnalysisRepository,
 )
+from .infrastructure.dependencies import registry as ta_registry
+from .infrastructure.dependencies.registry import needs_health_refresh, update_health_timestamp
+from src.shared.infrastructure.observability.metrics.prometheus_metrics import SharedPrometheusMetrics
+
+try:
+    import httpx  # noqa: F401
+except Exception:  # pragma: no cover
+    httpx = None  # type: ignore
 
 
 def _prom_available() -> bool:
@@ -75,8 +83,8 @@ async def build_text_analysis_module(
     if transcription_queries is None:
         if session is None:
             raise RuntimeError(
-                "TextAnalysis requires transcription_queries "
-                "or a session to build default adapter"
+                "TextAnalysis requires transcription_queries or a DB session to "
+                "build the default adapter (media_processing.TranscriptionRepository)."
             )
         try:
             from src.media_processing.infrastructure.dependencies import (
@@ -93,11 +101,14 @@ async def build_text_analysis_module(
             )
         except Exception as exc:  # pragma: no cover - defensive
             raise RuntimeError(
-                "Failed to build default transcription query adapter"
+                "Failed to build default transcription query adapter; "
+                "inject transcription_queries explicitly in the bootstrap."
             ) from exc
 
     # Normalizar acesso de leitura via serviço dedicado
     transcription_queries = TranscriptionReadService(transcription_queries)
+
+    _update_registry_availability()
 
     sentiment = get_sentiment_adapter(config)
     embeddings = get_embedding_adapter(config)
@@ -145,3 +156,63 @@ def bind_text_analysis_module(app: FastAPI, module: TextAnalysisModule) -> None:
 
 def _seed_text_analysis_providers(_: Any | None) -> None:
     """No-op: provider registry removed in per-context ownership model."""
+
+
+def _update_registry_availability() -> None:
+    """Marca disponibilidade no registry sem carregar modelos pesados."""
+    if not needs_health_refresh():
+        return
+
+    metrics = SharedPrometheusMetrics().get_provider_health_checks_total()
+
+    # Transformers (HF): verifica import leve
+    try:
+        import transformers  # noqa: F401
+        hf_available = True
+    except Exception:
+        hf_available = False
+
+    for entry in ta_registry.TEXT_GEN_PROVIDERS:
+        if entry.name.startswith("hf:"):
+            entry.available = hf_available
+            metrics.labels(provider_type="textgen_hf", status="up" if hf_available else "down").inc()
+
+    # Ollama: ping /api/tags com timeout curto
+    ollama_ok = False
+    if httpx:
+        try:  # pragma: no cover - ambiente externo
+            with httpx.Client(timeout=1.5) as client:
+                resp = client.get("http://localhost:11434/api/tags")
+                resp.raise_for_status()
+                ollama_ok = True
+        except Exception:
+            ollama_ok = False
+    for entry in ta_registry.TEXT_GEN_PROVIDERS:
+        if entry.name.startswith("ollama:"):
+            entry.available = ollama_ok
+            metrics.labels(provider_type="textgen_ollama", status="up" if ollama_ok else "down").inc()
+
+    # Topic modeling
+    try:
+        import bertopic  # noqa: F401
+        bertopic_ok = True
+    except Exception:
+        bertopic_ok = False
+    for entry in ta_registry.TOPIC_PROVIDERS:
+        if entry.name == "bertopic":
+            entry.available = bertopic_ok
+            metrics.labels(provider_type="topic_bertopic", status="up" if bertopic_ok else "down").inc()
+
+    # TF-IDF deps
+    try:
+        import sklearn  # noqa: F401
+        import numpy  # noqa: F401
+        tfidf_ok = True
+    except Exception:
+        tfidf_ok = False
+    for entry in ta_registry.TOPIC_PROVIDERS:
+        if entry.name == "tfidf":
+            entry.available = tfidf_ok
+            metrics.labels(provider_type="topic_tfidf", status="up" if tfidf_ok else "down").inc()
+
+    update_health_timestamp()

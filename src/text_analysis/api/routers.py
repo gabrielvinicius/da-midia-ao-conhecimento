@@ -2,21 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Optional
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.media_management.api.dependencies import get_media_queries
-from src.media_management.application.queries.media_queries import MediaQueries
-from src.media_processing.transcription.api.dependencies import (
-    get_transcription_queries,
-)
-from src.media_processing.transcription.application.queries import TranscriptionQueries
+from src.media_management.api.dependencies import get_media_read_service
+from src.media_management.application.dtos import GetMediaQuery
+from src.media_management.application.services.media_read_service import MediaReadService
 from src.shared.api.dependencies import get_current_user
-from src.user_management.domain import User
+from src.user_management.domain import User, UserRole
 
-from ..application.service import TextAnalysisService
+from ..application.dtos import (
+    AnalyzeTextCommand,
+    GetAnalysisByMediaIdQuery,
+    GetAnalysisQuery,
+)
+from ..application.services.text_analysis_service import TextAnalysisService
 from .dependencies import AnalyzeRequest, AnalyzeResponse, get_text_analysis_service
 
 router = APIRouter(prefix="/text-analysis", tags=["text-analysis"])
@@ -26,78 +28,39 @@ router = APIRouter(prefix="/text-analysis", tags=["text-analysis"])
 async def analyze_text(
     payload: AnalyzeRequest,
     service: TextAnalysisService = Depends(get_text_analysis_service),
-    media_queries: MediaQueries = Depends(get_media_queries),
-    transcription_queries: TranscriptionQueries = Depends(get_transcription_queries),
+    media_read_service: MediaReadService = Depends(get_media_read_service),
     current_user: Annotated[User, Depends(get_current_user)] = None,
 ):
-    media = None
-    if payload.media_id:
-        media = await media_queries.get_by_id(payload.media_id)
+    try:
+        if payload.media_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Informe um media_id para análise",
+            )
+
+        media = await media_read_service.get_media(GetMediaQuery(media_id=payload.media_id))
         if not media:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Media not found",
+                detail="Mídia não encontrada",
             )
-        if (
-            str(media.user_id) != str(current_user.id)
-            and current_user.role.value != "admin"
-        ):
+        if current_user and media.user_id != current_user.id and current_user.role != UserRole.ADMIN:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied",
+                detail="Acesso negado",
             )
 
-    transcription = None
-    transcription_id: Optional[UUID] = payload.transcription_id
-    if payload.transcription_id:
-        transcription = await transcription_queries.get_by_id(payload.transcription_id)
-        if not transcription:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Transcription not found",
-            )
-    elif payload.media_id:
-        transcription = await transcription_queries.get_by_media_id(payload.media_id)
-        if transcription:
-            transcription_id = transcription.id
-
-    text_source = payload.text or (
-        getattr(transcription, "text", None) if transcription else None
-    )
-    if not text_source:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No text available for analysis",
+        command = AnalyzeTextCommand(
+            media_id=payload.media_id,
+            document_id=payload.transcription_id or payload.media_id,
+            text_content=payload.text or "",
+            user_id=current_user.id if current_user else None,
+            transcription_id=payload.transcription_id,
+            language=payload.language,
         )
-
-    segments = (
-        [s.dict() for s in payload.segments]
-        if payload.segments
-        else getattr(transcription, "segments", None)
-    )
-    language = payload.language or getattr(transcription, "language", None)
-
-    try:
-        result = await service.analyze_text_content(
-            media_id=str(payload.media_id) if payload.media_id else None,
-            transcription_id=str(transcription_id) if transcription_id else None,
-            text_content=text_source,
-            segments=segments,
-            language=language,
-            provider=payload.provider,
-            options={
-                "chunk_size": payload.chunk_size,
-                "chunk_overlap": payload.chunk_overlap,
-                "use_transformer_topic_representation": (
-                    payload.use_transformer_topic_representation
-                ),
-                "transformer_representation_model": (
-                    payload.transformer_representation_model
-                ),
-                "llm_model": payload.llm_model,
-            },
-            user_id=str(current_user.id) if current_user else None,
-        )
+        result = await service.analyze_text_content(command)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -113,16 +76,18 @@ async def get_analysis_result(
     current_user: Annotated[User, Depends(get_current_user)] = None,
 ):
     try:
-        result = service.get_analysis(analysis_id)
+        result = await service.get_analysis(
+            GetAnalysisQuery(analysis_id=UUID(analysis_id))
+        )
         owner = result.get("user_id")
         if (
             owner
             and str(owner) != str(current_user.id)
-            and current_user.role.value != "admin"
+            and current_user.role != UserRole.ADMIN
         ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied",
+                detail="Acesso negado",
             )
         return result
     except HTTPException:
@@ -142,22 +107,24 @@ async def get_analysis_by_media(
 ):
     """Retrieve the latest text analysis result for a given media ID."""
     try:
-        result = service.get_analysis_by_media_id(media_id)
+        result = await service.get_analysis_by_media_id(
+            GetAnalysisByMediaIdQuery(media_id=UUID(media_id))
+        )
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Analysis not found for this media",
+                detail="Análise não encontrada para esta mídia",
             )
 
         owner = result.get("user_id")
         if (
             owner
             and str(owner) != str(current_user.id)
-            and current_user.role.value != "admin"
+            and current_user.role != UserRole.ADMIN
         ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied",
+                detail="Acesso negado",
             )
         return result
     except HTTPException:
@@ -176,17 +143,19 @@ async def get_topics(
     current_user: Annotated[User, Depends(get_current_user)] = None,
 ):
     try:
-        topics = service.list_topics(analysis_id)
-        analysis = service.get_analysis(analysis_id)
+        analysis = await service.get_analysis(
+            GetAnalysisQuery(analysis_id=UUID(analysis_id))
+        )
+        topics = analysis.get("topics", [])
         owner = analysis.get("user_id")
         if (
             owner
             and str(owner) != str(current_user.id)
-            and current_user.role.value != "admin"
+            and current_user.role != UserRole.ADMIN
         ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied",
+                detail="Acesso negado",
             )
         return topics
     except HTTPException:

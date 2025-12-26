@@ -36,6 +36,6 @@ class MediaAccessPolicy:
     ) -> None:
         """Raise PermissionError when the user lacks access to the media."""
         if not self.can_access(media, user_id, user_role):
-            raise PermissionError("User is not authorized to access this media")
+            raise PermissionError("Usuário não está autorizado a acessar esta mídia")
 
     # Additional helpers can be added here when needed.

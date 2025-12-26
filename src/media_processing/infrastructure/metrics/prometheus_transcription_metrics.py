@@ -26,17 +26,19 @@ class PrometheusTranscriptionMetrics:
         provider: str,
         duration: float,
         success: bool,
-        input_audio_length_seconds: float,
-        output_text_length_chars: int
+        input_audio_length_seconds: float = 0.0,
+        output_text_length_chars: int = 0,
+        status: str | None = None,
+        **_: Any,
     ) -> None:
         """Record transcription operation metrics."""
-        status = "success" if success else "failure"
+        status_label = status or ("success" if success else "failure")
 
         # Increment operation counter
         self._operation_counter.labels(
             operation=operation,
             provider=provider,
-            status=status
+            status=status_label
         ).inc()
 
         # Record operation duration
@@ -65,8 +67,10 @@ class InMemoryTranscriptionMetrics:
         provider: str,
         duration: float,
         success: bool,
-        input_audio_length_seconds: float,
-        output_text_length_chars: int
+        input_audio_length_seconds: float = 0.0,
+        output_text_length_chars: int = 0,
+        status: str | None = None,
+        **_: Any,
     ) -> None:
         """Record operation metrics in memory."""
         key = f"{operation}_{provider}"
@@ -116,8 +120,10 @@ class NoOpTranscriptionMetrics:
         provider: str,
         duration: float,
         success: bool,
-        input_audio_length_seconds: float,
-        output_text_length_chars: int
+        input_audio_length_seconds: float = 0.0,
+        output_text_length_chars: int = 0,
+        status: str | None = None,
+        **_: Any,
     ) -> None:
         """No-op implementation."""
-        pass
+        return None

@@ -1,17 +1,28 @@
-# src/user_management/api/dependencies.py
 from dataclasses import dataclass
 from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, Query, WebSocket, status
-from jose import JWTError, jwt
+from fastapi import Depends, HTTPException, Query, WebSocket, WebSocketException, status
+from jose import JWTError, ExpiredSignatureError, jwt
 
 from src.user_management.application.auth_queries import UserReadService
 from src.user_management.application.dtos import GetUserQuery  # New import
 from src.user_management.application.services.auth_service import AuthService
 from src.user_management.application.services.user_service import UserService
-from src.user_management.config.settings import UserSettings
+from src.user_management.config.settings import UserSettings, user_settings
 from src.user_management.domain import User, UserRole
 from src.user_management.infrastructure.adapters.auth.oauth2_scheme import oauth2_scheme
+from src.user_management.infrastructure.adapters.user_repository_adapter import (
+    UserRepositoryAdapter,
+)
+from src.user_management.infrastructure.dependencies.providers import (
+    get_password_hasher,
+    get_token_provider,
+)
+from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import (
+    UserRepository,
+)
+from src.shared.infrastructure.database.db import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class AuthDependenciesNotConfiguredError(RuntimeError):
@@ -28,17 +39,33 @@ class AuthDependencies:
     settings: UserSettings
 
 
-def get_auth_dependencies() -> AuthDependencies:
-    """Base provider to be overridden during application startup.
+def get_auth_dependencies(
+    session: AsyncSession = Depends(get_db),
+) -> AuthDependencies:
+    """Provider padrão (por request) para dependências de autenticação.
 
-    Em produção/testes de integração o bootstrap (`bind_user_management_module`)
-    deve registrar um override que devolve as dependências reais. Mantemos a
-    exceção explícita para evitar acoplamento com fakes definidos em `tests/`
-    e para falhar rápido caso o módulo não tenha sido devidamente ligado.
+    Motivação: evitar session global/singleton (AsyncSession não é thread-safe e
+    não deve ser compartilhada entre requests).
     """
-    raise AuthDependenciesNotConfiguredError(
-        "Auth dependencies are not configured. "
-        "Register overrides via bind_user_management_module during startup."
+
+    user_repo = UserRepository(db=session)
+    user_repo_adapter = UserRepositoryAdapter(user_repo)
+    auth_queries = UserReadService(user_repository=user_repo_adapter)
+
+    user_service = UserService(
+        user_repository=user_repo_adapter,
+        user_read_service=auth_queries,
+        password_hasher=get_password_hasher(),
+        token_provider=get_token_provider(),
+        settings=user_settings,
+    )
+    auth_service = AuthService(user_service=user_service, settings=user_settings)
+
+    return AuthDependencies(
+        user_service=user_service,
+        auth_service=auth_service,
+        auth_queries=auth_queries,
+        settings=user_settings,
     )
 
 
@@ -81,7 +108,7 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    user = await deps.auth_queries.get_user_by_id(GetUserQuery(user_id=user_id))
+    user = await deps.auth_queries.get_user_by_id(GetUserQuery(user_id=user_id).user_id)
     if user is None:
         raise credentials_exception
     return user
@@ -101,11 +128,9 @@ async def get_current_user_websocket(
     deps: AuthDeps,
     token: Annotated[Optional[str], Query()] = None,
 ) -> User:
-    # Simple check, ideally use same logic
     if not token:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        raise HTTPException(status_code=401)
-    # Logic similar to get_current_user
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Token ausente")
+
     try:
         payload = jwt.decode(
             token,
@@ -113,14 +138,14 @@ async def get_current_user_websocket(
             algorithms=[deps.settings.algorithm],
         )
         user_id: str = payload.get("sub")
-    except Exception:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        raise HTTPException(status_code=401)
+    except ExpiredSignatureError:
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Token expirado")
+    except JWTError:
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Token inválido")
 
-    user = await deps.auth_queries.get_user_by_id(GetUserQuery(user_id=user_id))
+    user = await deps.auth_queries.get_user_by_id(GetUserQuery(user_id=user_id).user_id)
     if not user:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        raise HTTPException(status_code=401)
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Usuário não encontrado")
     return user
 
 __all__ = [

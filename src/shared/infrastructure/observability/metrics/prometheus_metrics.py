@@ -200,6 +200,79 @@ class SharedPrometheusMetrics:
             Histogram,
         )
 
+    # --- Health / Providers ---
+    def get_provider_health_checks_total(self) -> Counter:
+        return self._get_or_create_metric(
+            "counter",
+            "provider_health_checks_total",
+            "Total provider health checks",
+            ["provider_type", "status"],
+            Counter,
+        )
+
+    def get_textgen_ollama_attempts(self) -> Counter:
+        return self._get_or_create_metric(
+            "counter",
+            "textgen_ollama_attempts_total",
+            "Ollama text generation attempts",
+            ["model"],
+            Counter,
+        )
+
+    def get_textgen_ollama_failures(self) -> Counter:
+        return self._get_or_create_metric(
+            "counter",
+            "textgen_ollama_failures_total",
+            "Ollama text generation failures",
+            ["model"],
+            Counter,
+        )
+
+    def get_textgen_ollama_retries(self) -> Counter:
+        return self._get_or_create_metric(
+            "counter",
+            "textgen_ollama_retries_total",
+            "Ollama text generation retries",
+            ["model"],
+            Counter,
+        )
+
+    def get_textgen_transformers_attempts(self) -> Counter:
+        return self._get_or_create_metric(
+            "counter",
+            "textgen_transformers_attempts_total",
+            "Transformers text generation attempts",
+            ["model"],
+            Counter,
+        )
+
+    def get_textgen_transformers_failures(self) -> Counter:
+        return self._get_or_create_metric(
+            "counter",
+            "textgen_transformers_failures_total",
+            "Transformers text generation failures",
+            ["model"],
+            Counter,
+        )
+
+    def get_textgen_transformers_success(self) -> Counter:
+        return self._get_or_create_metric(
+            "counter",
+            "textgen_transformers_success_total",
+            "Transformers text generation successes",
+            ["model"],
+            Counter,
+        )
+
+    def get_textgen_ollama_success(self) -> Counter:
+        return self._get_or_create_metric(
+            "counter",
+            "textgen_ollama_success_total",
+            "Ollama text generation successes",
+            ["model"],
+            Counter,
+        )
+
     def get_topic_modeling_input_text_length_chars(self) -> Histogram:
         return self._get_or_create_metric(
             "histogram",

@@ -15,9 +15,10 @@ class AnalysisModel(Base):
     id = Column(String, primary_key=True)
     document_id = Column(String, nullable=False)
 
-    media_id = Column(Uuid(as_uuid=True), ForeignKey("media.id"), nullable=True, index=True)
-    user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
-    transcription_id = Column(Uuid(as_uuid=True), ForeignKey("transcriptions.id"), nullable=True, index=True)
+    # Foreign keys removidos para evitar dependência de criação cruzada; IDs ainda armazenados
+    media_id = Column(Uuid(as_uuid=True), nullable=True, index=True)
+    user_id = Column(Uuid(as_uuid=True), nullable=True, index=True)
+    transcription_id = Column(Uuid(as_uuid=True), nullable=True, index=True)
 
     payload = Column(JSONB, nullable=False)
 

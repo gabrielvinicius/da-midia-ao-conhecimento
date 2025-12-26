@@ -1,26 +1,24 @@
-"""SQLAlchemy-backed repository for text analysis results."""
+"""Async SQLAlchemy-backed repository for text analysis results."""
 
 from __future__ import annotations
 
 import uuid
 from typing import List, Optional
 
-from sqlalchemy.future import select
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.text_analysis.application.ports import AnalysisRepositoryPort
+from src.text_analysis.application.ports.repository import AnalysisRepositoryPort
 from src.text_analysis.domain import Analysis, Topic
 from src.text_analysis.infrastructure.persistence.models import AnalysisModel
 
 
 class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
-    def __init__(self, session: Session):
+    def __init__(self, session: AsyncSession):
         self.session = session
 
-    def save(self, analysis: Analysis) -> str:
-        # Domain entities now use UUIDs, ORM expects UUID objects for FKs, String for ID
-
-        data = {
+    async def save(self, analysis: Analysis) -> str:
+        payload = {
             "analysis_id": str(analysis.id),
             "document_id": str(analysis.document.id),
             "overall_sentiment": (
@@ -42,44 +40,46 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
             media_id=analysis.media_id,
             user_id=analysis.user_id,
             transcription_id=analysis.transcription_id,
-            payload=data
+            payload=payload,
         )
-        self.session.merge(record)
+        await self.session.merge(record)
         try:
-            self.session.commit()
+            await self.session.commit()
         except Exception:
-            self.session.rollback()
+            await self.session.rollback()
             raise
         return str(analysis.id)
 
-    def get(self, analysis_id: str) -> Optional[Analysis]:
+    async def get(self, analysis_id: str) -> Optional[Analysis]:
         stmt = select(AnalysisModel).where(AnalysisModel.id == analysis_id)
-        record = self.session.execute(stmt).scalar_one_or_none()
+        result = await self.session.execute(stmt)
+        record = result.scalar_one_or_none()
         if not record:
             return None
         payload = record.payload or {}
         return self._payload_to_analysis(payload)
 
-    def get_by_media_id(self, media_id: str) -> Optional[Analysis]:
-        # Query using the indexed column
+    async def get_by_media_id(self, media_id: str) -> Optional[Analysis]:
         try:
             media_uuid = uuid.UUID(media_id)
         except ValueError:
             return None
 
         stmt = select(AnalysisModel).where(AnalysisModel.media_id == media_uuid)
-        record = self.session.execute(stmt).first()
+        result = await self.session.execute(stmt)
+        record = result.scalar_one_or_none()
         if not record:
             return None
-        return self._payload_to_analysis(record[0].payload)
+        payload = record.payload or {}
+        return self._payload_to_analysis(payload)
 
-    def list_topics(self, analysis_id: str) -> List[Topic]:
-        analysis = self.get(analysis_id)
+    async def list_topics(self, analysis_id: str) -> List[Topic]:
+        analysis = await self.get(analysis_id)
         return analysis.topics if analysis else []
 
     def _payload_to_analysis(self, payload: dict) -> Analysis:
-        from ..domain import Analysis as AnalysisEntity
-        from ..domain import Document, Sentiment, SentimentLabel, TextChunk, Topic
+        from src.text_analysis.domain import Analysis as AnalysisEntity
+        from src.text_analysis.domain import Document, Sentiment, SentimentLabel, TextChunk, Topic
 
         doc_id = (
             uuid.UUID(str(payload.get("document_id")))
@@ -118,43 +118,59 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
             user_id=user_id,
         )
 
-        chunks = []
-        for item in payload.get("sentiment_items", []):
-            chunks.append(
-                TextChunk(
-                    id=item.get("chunk_id", ""),
-                    text=item.get("text", ""),
-                )
-            )
-        analysis.chunks = chunks
-
         sentiments = []
-        for item in payload.get("sentiment_items", []):
+        for raw in payload.get("sentiment_items") or []:
+            try:
+                label = SentimentLabel[str(raw.get("label", "NEUTRAL")).upper()]
+            except Exception:
+                label = SentimentLabel.NEUTRAL
             sentiments.append(
                 Sentiment(
-                    chunk_id=item.get("chunk_id", ""),
-                    label=SentimentLabel(item.get("label", "NEU")),
-                    score=item.get("score", 0.0),
+                    chunk_id=str(raw.get("chunk_id", "")),
+                    label=label,
+                    score=float(raw.get("score", 0.0)),
+                    text=str(raw.get("text", "")),
                 )
             )
         analysis.sentiments = sentiments
 
         topics = []
-        for t in payload.get("topics", []):
+        for raw in payload.get("topics") or []:
             topics.append(
                 Topic(
-                    topic_id=t.get("topic_id", 0),
-                    keywords=t.get("keywords", []),
-                    snippets=t.get("representative_snippets", t.get("snippets", [])),
-                    title=t.get("title"),
-                    summary_md=t.get("summary_md"),
-                    size=t.get("size", 0),
-                    diagnostics=t.get("diagnostics"),
+                    id=str(raw.get("id", "")),
+                    title=raw.get("title"),
+                    keywords=list(raw.get("keywords", []) or []),
+                    snippets=list(raw.get("snippets", []) or []),
+                    summary=raw.get("summary"),
+                    diagnostics=raw.get("diagnostics") or {},
                 )
             )
         analysis.topics = topics
-        analysis.overall_sentiment = SentimentLabel(
-            payload.get("overall_sentiment", "NEU")
-        )
-        analysis.diagnostics = payload.get("diagnostics", {})
+
+        analysis.diagnostics = payload.get("diagnostics") or {}
+        overall = payload.get("overall_sentiment")
+        if overall:
+            try:
+                analysis.overall_sentiment = SentimentLabel[str(overall).upper()]
+            except Exception:
+                analysis.overall_sentiment = None
+
+        # Chunks são opcionais no payload atual
+        chunks = []
+        for raw in payload.get("chunks") or []:
+            chunks.append(
+                TextChunk(
+                    id=str(raw.get("id", "")),
+                    text=str(raw.get("text", "")),
+                    start=int(raw.get("start", 0)),
+                    end=int(raw.get("end", 0)),
+                )
+            )
+        analysis.chunks = chunks
+
         return analysis
+
+
+__all__ = ["SqlAlchemyAnalysisRepository"]
+

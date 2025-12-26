@@ -13,7 +13,7 @@ class FilePath:
     @staticmethod
     def from_path(raw: str) -> "FilePath":
         if not raw or raw.strip() == "":
-            raise ValueError("File path cannot be empty")
+            raise ValueError("O caminho do arquivo não pode ser vazio")
         # Normalize to POSIX style for storage consistency
         normalized = PurePosixPath(raw)
         return FilePath(path=normalized)

@@ -33,7 +33,7 @@ async def request_notification(
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to send notification for this user",
+            detail="Não autorizado a enviar notificação para este usuário",
         )
     try:
         command = SendNotificationCommand(
@@ -44,7 +44,7 @@ async def request_notification(
         )
         notification_id = await service.send_notification(command)
         return {
-            "message": "Notification request accepted and is being processed.",
+            "message": "Solicitação de notificação aceita e em processamento.",
             "notification_id": str(notification_id),
         }
     except ValueError as e:
@@ -61,14 +61,14 @@ async def get_notification_by_id(
     query = GetNotificationQuery(notification_id=notification_id)
     notification = await service.get_notification_by_id(query)
     if not notification:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise HTTPException(status_code=404, detail="Notificação não encontrada")
     if (
         str(notification.user_id) != str(current_user.id)
         and current_user.role != UserRole.ADMIN
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to access this notification",
+            detail="Não autorizado a acessar esta notificação",
         )
 
     # Explicit mapping Domain Entity -> DTO

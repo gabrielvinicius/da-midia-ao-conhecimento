@@ -110,18 +110,69 @@ async def login_for_access_token(
     if cookie_samesite == "none" and not cookie_secure:
         cookie_samesite = "lax"
 
+    # Refresh token via cookie httpOnly; access token via body/header
+    if result.get("refresh_token"):
+        response.set_cookie(
+            key="refresh_token",
+            value=result["refresh_token"],
+            httponly=True,
+            samesite=cookie_samesite,
+            secure=cookie_secure,
+            path="/",
+        )
+    return {
+        "message": "Authentication successful",
+        "access_token": result["access_token"],
+        "token_type": "bearer",
+    }
+
+
+@router.post("/refresh")
+async def refresh_token(
+    request: Request,
+    response: Response,
+    auth_service: AuthService = Depends(get_auth_service),
+    settings=Depends(get_auth_settings),
+):
+    refresh_cookie = request.cookies.get("refresh_token")
+    if not refresh_cookie:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token ausente")
+
+    payload = auth_service.user_service.token_provider.verify_refresh_token(refresh_cookie)  # type: ignore[attr-defined]
+    if not payload or not payload.get("sub"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido")
+
+    user_id = payload["sub"]
+    new_access = auth_service.user_service.token_provider.create_access_token(user_id)
+    new_refresh = auth_service.user_service.token_provider.create_refresh_token(user_id)  # type: ignore[attr-defined]
+
+    cookie_secure = settings.cookie_secure
+    cookie_samesite = settings.cookie_samesite
+    if cookie_samesite == "none" and not cookie_secure:
+        cookie_samesite = "lax"
+
     response.set_cookie(
-        key="access_token_cookie",
-        value=result["token"],
+        key="refresh_token",
+        value=new_refresh,
         httponly=True,
         samesite=cookie_samesite,
         secure=cookie_secure,
+        path="/",
     )
+
     return {
-        "message": "Authentication successful",
-        "access_token": result["token"],
+        "message": "Token refresh bem-sucedido",
+        "access_token": new_access,
         "token_type": "bearer",
     }
+
+
+@router.post("/logout")
+async def logout(response: Response):
+    """Remove refresh cookie no cliente."""
+    response.delete_cookie("refresh_token", path="/")
+    response.delete_cookie("access_token_cookie", path="/")
+    return {"message": "Logout realizado"}
 
 
 @router.get("/me", response_model=UserResponse)

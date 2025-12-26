@@ -8,7 +8,7 @@ class UserPermissionService(PermissionServicePort):
     def validate_admin_operation(self, admin_user: User, target_user_id: UUID) -> None:
         role_value = admin_user.role.value if admin_user.role else ""
         if role_value.upper() != UserRole.ADMIN.value:
-            raise PermissionError("Only administrators can perform this operation.")
+            raise PermissionError("Apenas administradores podem executar esta operação.")
 
         if admin_user.id == target_user_id:
             raise PermissionError(

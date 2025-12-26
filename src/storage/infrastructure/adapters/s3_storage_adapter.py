@@ -206,12 +206,4 @@ class S3StorageProvider(BaseStorageProvider):
 
         return objects
 
-    async def _pre_write(self, file_path: FilePath, content: bytes) -> None:
-        """Hook for pre-write operations."""
-        # Could add encryption, compression, etc.
-        pass
-
-    async def _post_write(self, file_path: FilePath, metadata: FileMetadata) -> None:
-        """Hook for post-write operations."""
-        # Could add tagging, lifecycle rules, etc.
-        pass
+    # Hooks pós-write já são tratados em `BaseStorageProvider` (noop por padrão).

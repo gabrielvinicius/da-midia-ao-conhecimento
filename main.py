@@ -2,18 +2,23 @@ import os
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
-from fastapi import Depends, FastAPI, Response, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+    WebSocketException,
+)
 from fastapi.middleware.cors import CORSMiddleware
 
 # OpenTelemetry Imports
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from src.admin.bootstrap import build_admin_module
-from src.media_management.bootstrap import build_media_components
 from src.media_processing.application.event_handlers import MediaProcessingEventHandlers
-from src.notifications.bootstrap import build_notifications_module
 from src.shared.api.monitoring_router import router as monitoring_router
+from src.shared.api.providers_router import router as providers_router
 from src.shared.application.lifecycle import (
     ApplicationResources,
     start_application_resources,
@@ -22,15 +27,9 @@ from src.shared.application.lifecycle import (
 from src.shared.application.modules import (
     DEFAULT_MODULE_SPECS,
     include_module_routers,
-    register_module_dependencies,
-)
-from src.shared.application.service_registry import (
-    FastAPIModuleRegistry,
-    build_domain_service_registry,
 )
 from src.shared.domain.events import (
     MediaUploaded,
-    TextContentReady,
 )
 
 # metrics_collector disabled (psutil dep)
@@ -66,10 +65,11 @@ from src.shared.infrastructure.observability.logging.logging_config import (
 )
 from src.shared.infrastructure.observability.tracing.tracer import configure_tracer
 from src.storage.infrastructure.dependencies import StorageServiceFactory
-from src.text_analysis.bootstrap import build_text_analysis_module
 from src.user_management.api.dependencies import get_current_user_websocket
-from src.user_management.bootstrap import build_user_management_module
 from src.user_management.domain import User
+from src.notifications.infrastructure.realtime.redis_pubsub_bridge import (
+    RedisNotificationPubSubBridge,
+)
 
 # Ensure Celery app is importable during API startup
 try:  # noqa: SIM105 - best-effort import
@@ -86,12 +86,37 @@ def build_event_bus():
 def register_domain_event_handlers(
     event_bus,
     *,
-    media_processing_service,
+    storage_factory: StorageServiceFactory,
 ) -> None:
-    """Attach domain event handlers to the bus."""
-    handlers = MediaProcessingEventHandlers(media_processing_service)
-    event_bus.subscribe(MediaUploaded, handlers.handle_media_uploaded)
-    event_bus.subscribe(TextContentReady, handlers.handle_text_content_ready)
+    """Registra handlers do pipeline no processo da API.
+
+    Decisão arquitetural:
+    - Event bus é apenas in-process (memory).
+    - Integração entre processos ocorre via Celery/DB.
+    - Portanto, a API assina somente o evento de entrada do pipeline
+      (`MediaUploaded`) para agendar o processamento no worker.
+
+    Motivação técnica:
+    - AsyncSession não pode ser singleton (concorrência) e não deve ser
+      compartilhada entre requests/eventos.
+    """
+
+    async def _handle_media_uploaded(event: MediaUploaded) -> None:
+        async with AsyncSessionLocal() as session:
+            from src.media_processing.infrastructure.dependencies.builders import (
+                build_media_processing_event_handlers,
+            )
+
+            provider_name = getattr(event, "storage_provider", None) or "local"
+            handlers = build_media_processing_event_handlers(
+                session=session,
+                storage_factory=storage_factory,
+                event_bus=event_bus,
+                storage_provider=provider_name,
+            )
+            await handlers.handle_media_uploaded(event)
+
+    event_bus.subscribe(MediaUploaded, _handle_media_uploaded)
 
 
 @asynccontextmanager
@@ -125,71 +150,56 @@ async def lifespan(app: FastAPI):
             error=str(exc),
         )
 
-    logger.info("Inicializando módulos e compondo aplicação", component="bootstrap")
-    async with AsyncSessionLocal() as session:
-        storage_factory = StorageServiceFactory()
-        auth_module = build_user_management_module(
-            session,
-            lightweight_mode=lightweight_mode,
-        )
-        notification_module = await build_notifications_module(
-            session=session,
-            auth_queries=auth_module.auth_queries,
-            event_bus=event_bus,
-        )
+    logger.info("Inicializando serviços compartilhados", component="bootstrap")
 
-        media_module, media_admin_context = build_media_components(
-            session=session,
-            storage_service_factory=storage_factory,
-            metrics_service=None,  # monitoring removido; métricas seguem nos módulos
-            event_bus=event_bus,
-            emit_legacy_media_task=not lightweight_mode,
-        )
+    storage_factory = StorageServiceFactory()
 
-        if not lightweight_mode:
-            text_analysis_module = await build_text_analysis_module(
-                session=session,
-                event_bus=event_bus,
-                transcription_queries=media_module.transcription_queries,
-            )
-        else:
-            logger.warning("text_analysis.bootstrap_skipped", reason="lightweight_mode")
-            text_analysis_module = SimpleNamespace(service=None)
-
-        admin_module = build_admin_module(
-            session=session,
-            auth_queries=auth_module.auth_queries,
-            media_service=media_module.media_service,
-        )
-
-    module_instances = {
-        "auth": auth_module,
-        "media": media_module,
-        "notifications": notification_module,
-        "admin": admin_module,
-    }
-    if text_analysis_module is not None:
-        module_instances["text_analysis"] = text_analysis_module
-
-    register_module_dependencies(
-        app,
-        module_instances=module_instances,
-        specs=DEFAULT_MODULE_SPECS,
+    # Read-model: catálogo de providers expostos no pipeline (sem vazar adapters internos)
+    from src.media_processing.infrastructure.adapters.provider_catalog_adapter import (
+        MediaProcessingProvidersCatalogAdapter,
+    )
+    from src.shared.application.services.providers_read_service import (
+        ProvidersReadService,
+    )
+    from src.storage.infrastructure.adapters.provider_catalog_adapter import (
+        StorageProvidersCatalogAdapter,
+    )
+    from src.text_analysis.infrastructure.adapters.provider_catalog_adapter import (
+        TextAnalysisProvidersCatalogAdapter,
+    )
+    from src.notifications.infrastructure.adapters.provider_catalog_adapter import (
+        NotificationProvidersCatalogAdapter,
     )
 
-    domain_registry = build_domain_service_registry(
-        user_management=auth_module,
-        media_management=media_module,
-        media_processing=media_module.processing_service,
-        text_analysis=text_analysis_module,
+    app.state.providers_read_service = ProvidersReadService(
+        catalogs=[
+            StorageProvidersCatalogAdapter(storage_factory),
+            MediaProcessingProvidersCatalogAdapter(),
+            TextAnalysisProvidersCatalogAdapter(),
+            NotificationProvidersCatalogAdapter(),
+        ]
     )
-    FastAPIModuleRegistry(domain_registry).attach(app)
-    resources = ApplicationResources(cache=cache, event_bus=event_bus)
 
+    # Event handlers do pipeline (sessão por evento)
     register_domain_event_handlers(
         event_bus,
-        media_processing_service=media_module.processing_service,
+        storage_factory=storage_factory,
     )
+
+    notifications_bridge = None
+    if not lightweight_mode:
+        try:
+            notifications_bridge = RedisNotificationPubSubBridge()
+            await notifications_bridge.start()
+            app.state.notifications_bridge = notifications_bridge
+        except Exception as exc:  # pragma: no cover - infraestrutura opcional
+            logger.warning(
+                "notifications.realtime.bridge_start_failed",
+                error=str(exc),
+            )
+            notifications_bridge = None
+
+    resources = ApplicationResources(cache=cache, event_bus=event_bus)
 
     default_admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "user@example.com").strip()
     default_admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "Admin123!")
@@ -199,11 +209,40 @@ async def lifespan(app: FastAPI):
 
     if not lightweight_mode and default_admin_email and default_admin_password:
         try:
-            admin_user = await auth_module.user_service.ensure_admin_user(
-                email=default_admin_email,
-                default_password=default_admin_password,
-                force_password_reset=force_admin_password,
-            )
+            async with AsyncSessionLocal() as session:
+                from src.user_management.application.auth_queries import UserReadService
+                from src.user_management.application.services.user_service import (
+                    UserService,
+                )
+                from src.user_management.config.settings import user_settings
+                from src.user_management.infrastructure.adapters.user_repository_adapter import (
+                    UserRepositoryAdapter,
+                )
+                from src.user_management.infrastructure.dependencies.providers import (
+                    get_password_hasher,
+                    get_token_provider,
+                )
+                from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import (
+                    UserRepository,
+                )
+
+                user_repo = UserRepository(db=session)
+                user_repo_adapter = UserRepositoryAdapter(user_repo)
+                auth_queries = UserReadService(user_repository=user_repo_adapter)
+                user_service = UserService(
+                    user_repository=user_repo_adapter,
+                    user_read_service=auth_queries,
+                    password_hasher=get_password_hasher(),
+                    token_provider=get_token_provider(),
+                    settings=user_settings,
+                )
+
+                admin_user = await user_service.ensure_admin_user(
+                    email=default_admin_email,
+                    default_password=default_admin_password,
+                    force_password_reset=force_admin_password,
+                )
+
             logger.info(
                 "auth.ensure_admin.success",
                 email=default_admin_email,
@@ -228,6 +267,11 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        if notifications_bridge is not None:
+            try:
+                await notifications_bridge.stop()
+            except Exception:
+                pass
         logger.info("Finalizando recursos", component="shutdown")
         if not lightweight_mode:
             try:
@@ -303,6 +347,7 @@ def create_app() -> FastAPI:
     include_module_routers(app, specs=DEFAULT_MODULE_SPECS)
     app.include_router(health_router)
     app.include_router(monitoring_router)
+    app.include_router(providers_router)
 
     # Add WebSocket endpoints for real-time notifications
     @app.websocket("/ws/notifications")
@@ -310,11 +355,37 @@ def create_app() -> FastAPI:
         websocket: WebSocket,
         current_user: User = Depends(get_current_user_websocket),
     ):
-        from src.notifications.infrastructure.connection_manager import manager
+        from src.notifications.infrastructure.adapters.websockets.connection_manager import (
+            manager,
+        )
+        from src.notifications.infrastructure.repositories.notification_repository import (
+            NotificationRepository,
+        )
+        from src.shared.infrastructure.database.db import AsyncSessionLocal
 
         user_id = str(current_user.id)
         try:
             await manager.connect(user_id, websocket)
+
+            # Envia backlog de notificações ainda não entregues via realtime.
+            async with AsyncSessionLocal() as session:
+                repo = NotificationRepository(db=session)
+                pending = await repo.list_undelivered_by_user(user_id, limit=50)
+                for notif in pending:
+                    ok = await manager.send_to_user(
+                        user_id,
+                        {
+                            "notification_id": str(notif.id),
+                            "type": notif.type.value,
+                            "message": notif.content,
+                            "priority": notif.priority.value,
+                            "created_at": notif.created_at,
+                            "variables": notif.variables,
+                        },
+                    )
+                    if ok:
+                        await repo.mark_as_delivered(str(notif.id))
+
             try:
                 while True:
                     data = await websocket.receive_text()
@@ -323,6 +394,8 @@ def create_app() -> FastAPI:
             except WebSocketDisconnect:
                 manager.disconnect(user_id, websocket)
                 print(f"WebSocket connection for user {user_id} closed")
+        except WebSocketException as exc:
+            await websocket.close(code=exc.code, reason=exc.reason or "Unauthorized")
         except Exception as e:
             print(f"WebSocket error: {e}")
             await websocket.close(code=1000)

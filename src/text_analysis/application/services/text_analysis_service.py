@@ -5,6 +5,7 @@ Consolidates command and query logic into a single Service class.
 
 from __future__ import annotations
 
+import inspect
 import logging
 import time
 from statistics import mean
@@ -178,15 +179,17 @@ class TextAnalysisService:
         analysis.chunks = chunks
         logger.info("Chunked document into %d parts", len(chunks))
 
-        sentiments = await self.sentiment_service.analyze(chunks, language)
+        sentiments_result = self.sentiment_service.analyze(chunks, language)
+        sentiments = await sentiments_result if inspect.isawaitable(sentiments_result) else sentiments_result
         analysis.sentiments = sentiments
         analysis.overall_sentiment = self._aggregate_sentiment(sentiments)
 
-        embeddings = await self.embedding_service.embed(
-            [chunk.text for chunk in chunks]
-        )
-        topics, diagnostics = await self.topic_modeling.model_topics(
-            chunks, embeddings, language
+        embeddings_result = self.embedding_service.embed([chunk.text for chunk in chunks])
+        embeddings = await embeddings_result if inspect.isawaitable(embeddings_result) else embeddings_result
+
+        topics_result = self.topic_modeling.model_topics(chunks, embeddings, language)
+        topics, diagnostics = (
+            await topics_result if inspect.isawaitable(topics_result) else topics_result
         )
 
         topics_with_summaries = await self._summarize_topics(topics, language)
@@ -198,13 +201,22 @@ class TextAnalysisService:
 
         if self.event_bus is not None:
             try:
-                self._emit_completed_event(analysis)
+                await self._emit_completed_event(analysis)
             except Exception as exc:
                 logger.warning("text_analysis.event_emit_failed", error=str(exc))
 
         return analysis_to_dto(analysis)
 
-    def _emit_completed_event(self, analysis: Analysis) -> None:
+    async def _publish_event(self, event: Any) -> None:
+        publish = getattr(self.event_bus, "publish", None)
+        if publish is None:
+            return
+
+        result = publish(event)
+        if inspect.isawaitable(result):
+            await result
+
+    async def _emit_completed_event(self, analysis: Analysis) -> None:
         overall_score = 0.0
         if analysis.sentiments:
             overall_score = sum(s.score for s in analysis.sentiments) / len(
@@ -228,7 +240,7 @@ class TextAnalysisService:
             status="success",
             correlation_id=getattr(analysis, "correlation_id", None),
         )
-        self.event_bus.publish(sentiment_event)
+        await self._publish_event(sentiment_event)
 
         summarization_event = SummarizationCompleted(
             analysis_id=str(analysis.id),
@@ -241,7 +253,7 @@ class TextAnalysisService:
             status="success",
             correlation_id=getattr(analysis, "correlation_id", None),
         )
-        self.event_bus.publish(summarization_event)
+        await self._publish_event(summarization_event)
 
         topic_event = TopicModelingCompleted(
             analysis_id=str(analysis.id),
@@ -254,7 +266,7 @@ class TextAnalysisService:
             status="success",
             correlation_id=getattr(analysis, "correlation_id", None),
         )
-        self.event_bus.publish(topic_event)
+        await self._publish_event(topic_event)
 
     def _aggregate_sentiment(self, sentiments: List[Sentiment]) -> SentimentLabel:
         if not sentiments:
@@ -315,14 +327,14 @@ class TextAnalysisService:
 
     async def get_analysis(self, query: GetAnalysisQuery) -> Dict[str, Any]:
         """Retrieve analysis by ID."""
-        return self.text_analysis_read_service.get_analysis(query)
+        return await self.text_analysis_read_service.get_analysis(query)
 
     async def get_analysis_by_media_id(
         self, query: GetAnalysisByMediaIdQuery
     ) -> Optional[Dict[str, Any]]:
         """Retrieve analysis by Media ID."""
-        return self.text_analysis_read_service.get_analysis_by_media_id(query)
+        return await self.text_analysis_read_service.get_analysis_by_media_id(query)
 
     async def list_topics(self, query: ListTopicsQuery) -> List[Topic]:
         """List topics for a given analysis."""
-        return self.text_analysis_read_service.list_topics(query)
+        return await self.text_analysis_read_service.list_topics(query)

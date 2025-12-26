@@ -35,7 +35,7 @@ class AdminUserService:
 
         user = await self.user_repository.find_by_id(user_id)
         if not user:
-            raise ValueError(f"User with id {user_id} not found")
+            raise ValueError(f"Usuário com id {user_id} não foi encontrado")
 
         role_enum = new_role if isinstance(new_role, UserRole) else UserRole(new_role)
         old_role = user.role.value if user.role else "none"
@@ -70,11 +70,11 @@ class AdminUserService:
 
         user = await self.user_repository.find_by_id(user_id)
         if not user:
-            raise ValueError(f"User with id {user_id} not found")
+            raise ValueError(f"Usuário com id {user_id} não foi encontrado")
 
         success = await self.user_repository.delete(user_id)
         if not success:
-            raise ValueError("User could not be deleted")
+            raise ValueError("Usuário não pôde ser removido")
 
         await self.audit_service.log_admin_action(
             admin_user=admin_user,

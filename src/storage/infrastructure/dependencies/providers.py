@@ -1,9 +1,9 @@
-"""Factory and helpers to resolve storage services."""
+"""Factory e helpers para resolver serviços de storage."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import structlog
 
@@ -48,6 +48,11 @@ class StorageClientAdapter:
             "metadata": metadata or {},
             "size": file_meta.size.bytes
         }
+
+    async def retrieve(self, path: Any):
+        """Compat: usado por services que esperam StoragePort.retrieve(FilePath)."""
+        normalized_path = str(path)
+        return await self.service.retrieve_file(normalized_path)
 
     async def download(self, file_path: str):
         # Legacy expects tuple (bytes, filename) or similar?
@@ -153,6 +158,21 @@ class StorageServiceFactory:
             # Stub S3 provider backed by filesystem for dev/test; replace with real provider when configured
             "s3": S3StorageService(),
         }
+        # metadados (label/description/public/capabilities)
+        self._meta: Dict[str, Dict[str, Any]] = {
+            "local": {
+                "label": "Local (Filesystem)",
+                "description": "Armazenamento local no filesystem",
+                "public": True,
+                "capabilities": {"upload": True, "download": True},
+            },
+            "s3": {
+                "label": "S3 / MinIO",
+                "description": "Compatível com S3/MinIO (stub filesystem para dev)",
+                "public": True,
+                "capabilities": {"upload": True, "download": True},
+            },
+        }
         self._allowed = set(
             storage_settings.providers_allowed or self._repositories.keys()
         )
@@ -167,7 +187,7 @@ class StorageServiceFactory:
             service = StorageService(repository=repo)
             return StorageClientAdapter(service, provider)
         except KeyError as exc:
-            raise ValueError(f"Provider '{provider}' not supported") from exc
+            raise ValueError(f"Provider '{provider}' não suportado") from exc
 
     def create_storage_service(self, provider: str) -> Any:
         """Returns an adapter compatible with current media module callers."""
@@ -185,10 +205,30 @@ class StorageServiceFactory:
             # Both Local and S3 (stub) expose _root.
             root = getattr(repo, "_root", None)
             if root is None:
-                raise ValueError(f"Provider '{provider}' does not expose local path")
+                raise ValueError(f"Provider '{provider}' não expõe caminho local")
             return root
         except KeyError as exc:
-            raise ValueError(f"Provider '{provider}' not supported") from exc
+            raise ValueError(f"Provider '{provider}' não suportado") from exc
+
+    def list_allowed_providers(self) -> List[str]:
+        """Lista providers permitidos e efetivamente registrados.
+
+        Usado por endpoints de read-model (ex.: `GET /providers`) sem expor
+        detalhes internos dos adapters.
+        """
+
+        available = set(self._repositories.keys())
+        allowed = sorted(self._allowed.intersection(available))
+        return allowed
+
+    def provider_meta(self, name: str) -> Dict[str, Any]:
+        base = self._meta.get(name, {})
+        return {
+            "label": base.get("label", name),
+            "description": base.get("description", ""),
+            "public": base.get("public", True),
+            "capabilities": base.get("capabilities", {}),
+        }
 
 
 def get_storage_service_factory() -> StorageServiceFactory:

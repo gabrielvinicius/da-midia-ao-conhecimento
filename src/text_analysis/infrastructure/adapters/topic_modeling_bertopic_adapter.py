@@ -54,10 +54,17 @@ class BERTopicAdapter(TopicModelingPort):
     def model_topics(
         self, chunks: List[TextChunk], embeddings: List[list[float]], language: str
     ) -> Tuple[List[Topic], dict]:
-        if self._model:
+        if self._model and embeddings:
             try:
+                import numpy as np  # lazy import to avoid hard dep at import time
+
                 docs = [chunk.text for chunk in chunks]
-                topics, probs = self._model.fit_transform(docs, embeddings)
+                np_embeddings = (
+                    embeddings
+                    if hasattr(embeddings, "shape")
+                    else np.array(embeddings, dtype="float32")
+                )
+                topics, probs = self._model.fit_transform(docs, np_embeddings)
                 info = self._model.get_topic_info()
                 topics_out: List[Topic] = []
                 for topic_id in set(topics):
@@ -67,7 +74,7 @@ class BERTopicAdapter(TopicModelingPort):
                     ]
                     topics_out.append(
                         Topic(
-                            topic_id=int(topic_id),
+                            id=int(topic_id),
                             keywords=words[:10],
                             snippets=snippets[:5],
                             title=words[0] if words else None,
@@ -88,7 +95,7 @@ class BERTopicAdapter(TopicModelingPort):
         tokens = [t.lower() for t in text_all.split() if len(t) > 3]
         common = [word for word, _ in Counter(tokens).most_common(10)]
         topic = Topic(
-            topic_id=0,
+            id=0,
             keywords=common or ["geral"],
             snippets=[chunk.text for chunk in chunks[:3]],
             title=common[0] if common else "Geral",

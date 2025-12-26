@@ -12,19 +12,19 @@ class InMemoryAnalysisRepository(AnalysisRepositoryPort):
     def __init__(self) -> None:
         self._store: Dict[str, Analysis] = {}
 
-    def save(self, analysis: Analysis) -> str:
+    async def save(self, analysis: Analysis) -> str:
         self._store[analysis.id] = analysis
         return analysis.id
 
-    def get(self, analysis_id: str) -> Optional[Analysis]:
+    async def get(self, analysis_id: str) -> Optional[Analysis]:
         return self._store.get(analysis_id)
 
-    def list_topics(self, analysis_id: str) -> List[Topic]:
+    async def list_topics(self, analysis_id: str) -> List[Topic]:
         analysis = self._store.get(analysis_id)
         return analysis.topics if analysis else []
 
     # Optional helper for compatibility
-    def get_by_media_id(self, media_id) -> Optional[Analysis]:
+    async def get_by_media_id(self, media_id) -> Optional[Analysis]:
         for analysis in self._store.values():
             if str(getattr(analysis, "media_id", "")) == str(media_id):
                 return analysis

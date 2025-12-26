@@ -8,6 +8,9 @@ from src.admin.application.dtos import (
     BulkReprocessFailedMediaCommand,
     DeleteMediaCommand,
     DeleteUserCommand,
+    GetMediaProcessingStatsQuery,
+    GetSystemHealthQuery,
+    GetSystemStatsQuery,
     GetUserActivityQuery,
     ReprocessMediaCommand,
     UpdateUserRoleCommand,
@@ -43,7 +46,7 @@ router = APIRouter(
 )
 async def get_system_stats(service: AdminService = Depends(get_admin_service)):
     """Retrieves global statistics about the system, such as total users, media, etc."""
-    return await service.get_system_stats()
+    return await service.get_system_stats(GetSystemStatsQuery())
 
 
 @router.get(
@@ -57,15 +60,16 @@ async def list_all_users(
     limit: int = Query(10, ge=1, le=100, description="Items per page"),
     search: Optional[str] = Query(None, description="Search term for user email"),
 ):
-    """Lists all users with pagination and search capabilities."""
+    """Lists all users com paginação e busca."""
     result = await service.list_users(
         ListUsersQuery(page=page, limit=limit, search=search)
     )
     return PaginatedResponse[UserResponse](
-        total_items=result["total_items"],
-        total_pages=result["total_pages"],
-        current_page=result["current_page"],
         items=result["items"],
+        total=result["total_items"],
+        page=result["current_page"],
+        pages=result["total_pages"],
+        limit=limit,
     )
 
 
@@ -139,11 +143,22 @@ async def list_all_media(
     result = await service.list_media(
         ListMediaQuery(page=page, limit=limit, search=search)
     )
+
+    if isinstance(result, dict):
+        total = result.get("total", 0)
+        items = result.get("items", [])
+    else:
+        total = getattr(result, "total", 0)
+        items = getattr(result, "items", [])
+
+    total_pages = (total + limit - 1) // limit if limit else 1
+
     return PaginatedResponse[MediaResponse](
-        total_items=result["total_items"],
-        total_pages=result["total_pages"],
-        current_page=result["current_page"],
-        items=result["items"],
+        items=items,
+        total=total,
+        page=page,
+        pages=total_pages,
+        limit=limit,
     )
 
 
@@ -208,7 +223,7 @@ async def reprocess_media(
 @router.get("/stats/health", summary="Get system health status")
 async def get_system_health(service: AdminService = Depends(get_admin_service)):
     """Get comprehensive system health status."""
-    return await service.get_system_health()
+    return await service.get_system_health(GetSystemHealthQuery())
 
 
 @router.get(
@@ -219,7 +234,7 @@ async def get_media_processing_stats(
     service: AdminService = Depends(get_admin_service),
 ):
     """Get detailed media processing statistics."""
-    return await service.get_media_processing_stats()
+    return await service.get_media_processing_stats(GetMediaProcessingStatsQuery())
 
 
 @router.get("/users/{user_id}/activity", summary="Get user activity statistics")

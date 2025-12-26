@@ -19,13 +19,16 @@ class PrometheusMediaMetrics:
         *,
         operation: str,
         duration: float,
-        success: bool,
+        success: bool | None = None,
         media_id: Optional[str] = None,
         media_type: Optional[str] = None,
         provider: Optional[str] = None,
         user_id: Optional[str] = None,
         status: Optional[str] = None, # sometimes passed explicitly
     ) -> None:
+        if success is None and status is None:
+            # se vier sem sucesso, assume failure defensiva
+            success = False
         status_label = status or ("success" if success else "failure")
         provider_label = provider or "unknown"
         media_id_label = media_id or "unknown"
