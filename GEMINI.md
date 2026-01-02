@@ -1,12 +1,15 @@
 # Project Context: Video Summarizer (Modular Monolith)
 
-> **Last Updated:** 2025-12-12
+> **Last Updated:** 2025-12-27
 > **Architecture:** Modular Monolith (DDD + Clean Architecture)
-> **Status:** Stable, Refactored, Event-Driven
+> **Status:** Stable, Highly Optimized, Multi-Hardware Ready
 
 **Notas recentes**
-- Rota de monitoring/health centralizada em `shared/api/monitoring_router.py`; módulo `monitoring/` removido.
-- Storage segue ports em `storage/application/ports.py` e adapters em `storage/infrastructure/adapters/` (sem `providers/`).
+- **Suporte Multi-Hardware:** Docker configurado para CPU, NVIDIA (CUDA 13.0) e AMD (ROCm 6.2) via overlays.
+- **Otimização de Memória:** Implementado *Lazy Loading* em todos os adaptadores de IA; o processo da API (backend) agora é leve e não carrega modelos de ML.
+- **Text Analysis v2:** Unificação da resposta com campo `summary` global e suporte a Markdown básico no frontend.
+- **Resiliência de Deleção:** Implementada exclusão coordenada (Análise -> Transcrição -> Mídia -> Pasta no Storage) para evitar `IntegrityError` e arquivos órfãos.
+- **Sincronização:** Padronização do campo `text` em todo o pipeline de eventos e API.
 
 ---
 

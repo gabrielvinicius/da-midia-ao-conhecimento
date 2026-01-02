@@ -8,7 +8,7 @@ from typing import Optional
 
 class TextGenerationPort(ABC):
     @abstractmethod
-    def summarize_topic(
+    async def summarize_topic(
         self,
         title_hint: Optional[str],
         content: str,

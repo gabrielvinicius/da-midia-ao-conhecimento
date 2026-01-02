@@ -1,35 +1,42 @@
-"""SentenceTransformer embedding adapter with fallback."""
-
 from __future__ import annotations
 
-import logging
 import math
-from typing import List
+from typing import Optional
 
+from src.shared.infrastructure.observability.logging.logging_config import get_logger
+from src.shared.infrastructure.config.settings import settings
 from src.text_analysis.application.ports.embeddings import EmbeddingServicePort
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SentenceTransformerEmbeddingAdapter(EmbeddingServicePort):
-    def __init__(self, model_name: str) -> None:
+    def __init__(self, model_name: str, device: str | None = None) -> None:
         self.model_name = model_name
+        self.device = device or settings.resolved_device
         self._model = None
-        try:  # pragma: no cover - optional dependency
-            from sentence_transformers import SentenceTransformer
+        self._initialized = False
 
-            self._model = SentenceTransformer(model_name)
-        except Exception as exc:
-            logger.warning(
-                "Embedding model unavailable (%s). Using hash fallback.", exc
-            )
+    def _get_model(self):
+        if not self._initialized:
+            try:  # pragma: no cover
+                from sentence_transformers import SentenceTransformer
 
-    def embed(self, texts: List[str]) -> List[list[float]]:
-        if self._model:
+                self._model = SentenceTransformer(self.model_name, device=self.device)
+            except Exception as exc:
+                logger.warning(
+                    "Embedding model unavailable", error=str(exc)
+                )
+            self._initialized = True
+        return self._model
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        model = self._get_model()
+        if model:
             try:
-                return [list(vec) for vec in self._model.encode(texts)]
+                return [list(vec) for vec in model.encode(texts)]
             except Exception as exc:  # pragma: no cover
-                logger.error("Embedding encode failed: %s", exc)
+                logger.error("Embedding encode failed", error=str(exc))
         return [self._hash_vector(text) for text in texts]
 
     def _hash_vector(self, text: str, dim: int = 10) -> list[float]:

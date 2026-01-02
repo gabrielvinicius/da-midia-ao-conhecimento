@@ -1,40 +1,16 @@
-# Multi-stage Dockerfile optimized for Video Summarizer
-FROM python:3.12-slim AS base
+# syntax=docker/dockerfile:1
+ARG BASE_IMAGE=python:3.12-slim
+FROM ${BASE_IMAGE} AS base
 
-# Set environment variables
+# Configurações globais
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    # Prefer CUDA-enabled wheels (host provides NVIDIA driver); see https://download.pytorch.org/whl/cu124
-    PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu124
-
-# Stage 1: Builder
-FROM base AS builder
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
-# Install system dependencies needed for build
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    build-essential \
-    pkg-config \
-    libffi-dev \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Upgrade pip and install Python dependencies
-COPY requirements.txt .
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install --user --no-warn-script-location -r requirements.txt
-
-# Stage 2: Runtime
-FROM base AS runtime
-
-WORKDIR /app
-
-# Install only necessary runtime dependencies
+# Instalação de dependências de sistema comuns
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsm6 \
@@ -43,34 +19,51 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender1 \
     libgomp1 \
     curl \
+    git \
+    dumb-init \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# --- Stage de Build ---
+FROM base AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ build-essential pkg-config libffi-dev libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy Python dependencies from builder
+# ARG para definir qual versão do Torch instalar (cpu, cu124, rocm6.1, etc)
+ARG PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
+
+COPY requirements.txt .
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install --user --no-warn-script-location \
+    --extra-index-url ${PYTORCH_EXTRA_INDEX_URL} \
+    -r requirements.txt
+
+# --- Stage Final ---
+FROM base AS runtime
+
+# Criar usuário não-root
+RUN groupadd -r appuser && useradd -m -r -g appuser appuser
+
+# Copiar dependências do builder
 COPY --from=builder /root/.local /home/appuser/.local
-
-# Copy application code
-COPY --chown=appuser:appuser . .
-COPY --chown=appuser:appuser docker/backend-entrypoint.sh /app/backend-entrypoint.sh
-RUN chmod +x /app/backend-entrypoint.sh
-
-# Create necessary directories
-RUN mkdir -p /app/logs /app/media /app/storage /app/data /app/.cache/whisper /home/appuser/.cache && \
-    chown -R appuser:appuser /app /home/appuser/.cache
-
-# Add user's local directory to PATH
 ENV PATH=/home/appuser/.local/bin:$PATH
 
-# Switch to non-root user
+# Copiar código e configurar permissões
+COPY --chown=appuser:appuser . .
+RUN chmod +x /app/docker/*.sh
+
+# Persistência e Cache
+RUN mkdir -p /app/logs /app/media /app/storage /app/data /app/.cache && \
+    chown -R appuser:appuser /app /home/appuser
+
 USER appuser
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+
 
 EXPOSE 8000
 
-ENTRYPOINT ["/app/backend-entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/app/docker/backend-entrypoint.sh"]
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+

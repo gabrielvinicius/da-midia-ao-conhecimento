@@ -56,6 +56,10 @@ class TranscriptionCleanupPort(Protocol):
     async def delete_by_media_id(self, media_id: UUID) -> None: ...
 
 
+class TextAnalysisCleanupPort(Protocol):
+    async def delete_by_media_id(self, media_id: UUID) -> None: ...
+
+
 @dataclass
 class UploadResult:
     destination_path: str

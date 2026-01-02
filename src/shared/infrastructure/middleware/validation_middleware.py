@@ -31,10 +31,8 @@ def register_validation_middleware(app: FastAPI) -> None:
     ) -> JSONResponse:
         logger.warning(
             "http.request.validation_failed",
-            extra={
-                "path": request.url.path,
-                "method": request.method,
-                **_safe_validation_payload(exc),
-            },
+            path=request.url.path,
+            method=request.method,
+            **_safe_validation_payload(exc),
         )
         return JSONResponse(status_code=422, content={"detail": exc.errors()})

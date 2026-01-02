@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, List
-
 from src.shared.application.ports import PipelineProviderCatalogPort
 from src.shared.application.provider_catalog import ProviderOption
 from src.text_analysis.infrastructure.dependencies.registry import (
@@ -15,7 +13,7 @@ from src.text_analysis.infrastructure.dependencies.registry import ProviderEntry
 class TextAnalysisProvidersCatalogAdapter(PipelineProviderCatalogPort):
     """Expõe providers do pipeline de análise de texto (sumarização/sentimento/tópicos)."""
 
-    def list_pipeline_providers(self) -> Dict[str, List[ProviderOption]]:
+    def list_pipeline_providers(self) -> dict[str, list[ProviderOption]]:
         tfidf_available = self._check_tfidf()
 
         providers = {

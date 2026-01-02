@@ -2,6 +2,11 @@
 
 Visão breve de como a API compõe os bounded contexts, recursos compartilhados e o ciclo de vida em `main.py`.
 
+## Abstração de Hardware e IA
+- **Hardware Agnostic:** O sistema detecta automaticamente o melhor hardware disponível (NVIDIA CUDA, AMD ROCm ou CPU) através da propriedade `resolved_device` nas configurações globais.
+- **Lazy Loading de Modelos:** Para otimizar o consumo de memória, os adaptadores de IA (Whisper, BERT, Llama) carregam seus pesos pesados apenas no primeiro uso (Lazy Initialization). Isso permite que o processo da API permaneça leve e estável, enquanto o Worker concentra a carga computacional.
+- **Multi-Hardware Docker:** Suporte nativo a diferentes aceleradores via overlays do Docker Compose (`cuda.yml`, `rocm.yml`), garantindo builds otimizados para cada plataforma.
+
 ## Ciclo de vida (`main.lifespan`)
 1) Configura logging/OTel.
 2) Abre engine + sessão async SQLAlchemy.

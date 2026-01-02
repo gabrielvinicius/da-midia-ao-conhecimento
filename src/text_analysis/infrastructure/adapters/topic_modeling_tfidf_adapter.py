@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import logging
-from typing import List, Tuple
-
+from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.text_analysis.application.ports.topic_modeling import TopicModelingPort
 from src.text_analysis.domain import Topic, TextChunk
 from src.text_analysis.infrastructure.dependencies.registry import STOPWORDS_LANGS
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class TFIDFTopicModelingAdapter(TopicModelingPort):
@@ -22,14 +20,14 @@ class TFIDFTopicModelingAdapter(TopicModelingPort):
         self.n_init = 10
 
     async def model_topics(
-        self, chunks: List[TextChunk], embeddings: List[List[float]], language: str
-    ) -> Tuple[List[Topic], dict]:
+        self, chunks: list[TextChunk], embeddings: list[list[float]], language: str
+    ) -> tuple[list[Topic], dict]:
         try:  # Lazy imports para evitar falhas em ambientes sem sklearn/numpy
             import numpy as np  # type: ignore
             from sklearn.cluster import KMeans  # type: ignore
             from sklearn.feature_extraction.text import TfidfVectorizer  # type: ignore
         except Exception as exc:  # pragma: no cover
-            logger.warning("tfidf_topic_modeling.unavailable", extra={"error": str(exc)})
+            logger.warning("tfidf_topic_modeling.unavailable", error=str(exc))
             return [], {"error": "sklearn/numpy indisponível"}
 
         texts = [c.text for c in chunks]
@@ -53,7 +51,7 @@ class TFIDFTopicModelingAdapter(TopicModelingPort):
             centroids = km.cluster_centers_
             feature_names = vectorizer.get_feature_names_out()
 
-            topics: List[Topic] = []
+            topics: list[Topic] = []
             for idx in range(k):
                 mask = labels == idx
                 indices = np.where(mask)[0]
@@ -73,7 +71,7 @@ class TFIDFTopicModelingAdapter(TopicModelingPort):
             diagnostics = {"method": "tfidf-kmeans", "k": k}
             return topics, diagnostics
         except Exception as exc:  # pragma: no cover
-            logger.warning("tfidf_topic_modeling.failed", extra={"error": str(exc)})
+            logger.warning("tfidf_topic_modeling.failed", error=str(exc))
             return [], {"error": str(exc)}
 
 

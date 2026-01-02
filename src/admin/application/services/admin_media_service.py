@@ -8,7 +8,6 @@ import structlog
 from src.admin.application.ports import AdminMediaRepositoryPort
 from src.admin.application.ports import AdminAuditPort
 from src.media_management.application.dtos import (
-    CleanupOrphanedFilesCommand,
     DeleteMediaCommand,
     ReprocessMediaCommand,
     ListMediaQuery,
@@ -86,11 +85,6 @@ class AdminMediaService:
                 )
         return reprocessed_count
 
-    async def _dispatch_cleanup_orphans(self, admin_user: User) -> int:
-        return await self.media_service.cleanup_orphaned_files(
-            command=CleanupOrphanedFilesCommand(actor_id=str(admin_user.id))
-        )
-
     async def list_media(self, query: ListMediaQuery) -> PaginatedMedia:
         return await self.media_service.list_media(query)
 
@@ -151,17 +145,6 @@ class AdminMediaService:
         )
 
         return reprocessed_count
-
-    async def cleanup_orphaned_files(self, admin_user: User) -> int:
-        cleaned_count = await self._dispatch_cleanup_orphans(admin_user)
-        await self.audit_service.log_admin_action(
-            admin_user=admin_user,
-            action="cleanup_orphaned_files",
-            target_type="storage",
-            target_id=UUID(int=0),
-            details={"cleaned_count": cleaned_count},
-        )
-        return cleaned_count
 
     async def get_media_by_status(self, status: MediaStatus) -> List[Media]:
         return await self.media_repository.list_by_status(status)

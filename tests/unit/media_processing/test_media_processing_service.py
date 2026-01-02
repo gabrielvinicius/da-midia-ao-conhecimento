@@ -36,7 +36,7 @@ async def test_handle_text_content_ready_noops_on_empty():
         video_processing_service=AsyncMock(),
     )
 
-    event = TextContentReady(media_id=str(uuid4()), text_content="")
+    event = TextContentReady(media_id=str(uuid4()), text="")
     await handler.handle_text_content_ready(event)
 
     # Não deve lançar nem chamar serviços

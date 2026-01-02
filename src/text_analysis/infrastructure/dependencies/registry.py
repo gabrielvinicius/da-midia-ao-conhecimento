@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Mapping, Optional
+from typing import Mapping, Optional
 
 
 @dataclass(slots=True)

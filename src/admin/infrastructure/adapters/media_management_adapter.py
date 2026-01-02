@@ -10,7 +10,6 @@ from src.admin.application.dtos import BulkReprocessFailedMediaCommand
 from src.admin.application.ports import MediaAdminPort
 from src.admin.application.services.admin_media_service import AdminMediaService
 from src.media_management.application.dtos import (
-    CleanupOrphanedFilesCommand,
     DeleteMediaCommand,
     GetMediaStatisticsQuery,
     ListMediaQuery,
@@ -56,12 +55,6 @@ class MediaManagementAdapter(MediaAdminPort):
     ) -> int:
         admin_user = await self._resolve_admin(command.admin_user_id)
         return await self.admin_media_service.bulk_reprocess_failed_media(admin_user)
-
-    async def cleanup_orphaned_files(self, command: CleanupOrphanedFilesCommand) -> int:
-        if not command.actor_id:
-            raise PermissionError("actor_id (admin) é obrigatório para cleanup.")
-        admin_user = await self._resolve_admin(UUID(command.actor_id))
-        return await self.admin_media_service.cleanup_orphaned_files(admin_user)
 
     async def _resolve_admin(self, admin_id: Optional[UUID]) -> User:
         if not admin_id:

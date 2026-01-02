@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from ..domain import Analysis, SentimentLabel, TextChunk
 from .dtos import AnalysisResultDTO, SentimentItemDTO, TopicDTO
 
@@ -43,13 +41,14 @@ def analysis_to_dto(analysis: Analysis) -> AnalysisResultDTO:
 
     overall = analysis.overall_sentiment or SentimentLabel.NEUTRAL
     return AnalysisResultDTO(
-        analysis_id=analysis.id,
-        document_id=analysis.document.id,
+        analysis_id=str(analysis.id),
+        document_id=str(analysis.document.id),
         overall_sentiment=overall.value,
         sentiment_items=sentiments,
         topics=topics,
         diagnostics=analysis.diagnostics,
-        media_id=analysis.media_id,
-        transcription_id=analysis.transcription_id,
-        user_id=analysis.user_id,
+        media_id=str(analysis.media_id) if analysis.media_id else None,
+        transcription_id=str(analysis.transcription_id) if analysis.transcription_id else None,
+        user_id=str(analysis.user_id) if analysis.user_id else None,
+        summary=analysis.summary,
     )

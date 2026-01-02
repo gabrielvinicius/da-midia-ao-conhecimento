@@ -3,21 +3,31 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict
 
-import whisper
-
 from src.media_processing.application.ports import SpeechRecognizer
+from src.shared.infrastructure.config.settings import settings
 
 
 class OpenAIWhisperTranscriber(SpeechRecognizer):
     """Adapter para o modelo Whisper oficial (biblioteca openai-whisper)."""
 
     def __init__(self, model_size: str = "base", device: str | None = None, **kwargs: Any) -> None:
-        # load_model escolhe automaticamente CPU/GPU se device não for informado
-        self._model = whisper.load_model(model_size, device=device, **kwargs)
+        self.model_size = model_size
+        self.device = device or settings.resolved_device
+        self.kwargs = kwargs
+        self._model = None
+        self._initialized = False
+
+    def _get_model(self):
+        if not self._initialized:
+            import whisper
+            self._model = whisper.load_model(self.model_size, device=self.device, **self.kwargs)
+            self._initialized = True
+        return self._model
 
     def _transcribe_sync(self, path: str, language: str | None):
         # language=None ativa detecção automática do whisper
-        result = self._model.transcribe(path, language=language)
+        model = self._get_model()
+        result = model.transcribe(path, language=language)
         return result
 
     async def transcribe(self, path: str, language: str = "auto") -> Dict[str, Any]:

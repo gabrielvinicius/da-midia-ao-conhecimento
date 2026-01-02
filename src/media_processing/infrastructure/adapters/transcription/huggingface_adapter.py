@@ -1,5 +1,4 @@
 import io
-import logging
 import os
 import tempfile
 from typing import Dict
@@ -7,19 +6,29 @@ from typing import Dict
 import av
 import numpy as np
 import resampy
+import structlog
 from src.media_processing.transcription.infrastructure.dependencies import (
     register_speech_recognition,
 )
 from transformers import pipeline
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @register_speech_recognition("huggingface")
 class HuggingfaceTranscriber:
     def __init__(self, model_name: str = "openai/whisper-base"):
-        self.model = pipeline(task="automatic-speech-recognition", model=model_name)
+        self.model_name = model_name
+        self._model = None
+        self._initialized = False
         self.sample_rate = 16000  # Whisper expects 16kHz audio
+
+    def _get_model(self):
+        if not self._initialized:
+            from transformers import pipeline
+            self._model = pipeline(task="automatic-speech-recognition", model=self.model_name)
+            self._initialized = True
+        return self._model
 
     @property
     def provider_name(self) -> str:
@@ -28,9 +37,10 @@ class HuggingfaceTranscriber:
     async def transcribe(self, file: bytes, language: str = "en") -> Dict[str, object]:
         path = None
         try:
+            model = self._get_model()
             path = await self._decode_file_bytes(file)
             # The Hugging Face pipeline can use the language if the model supports it
-            result = self.model(path, generate_kwargs={"language": language})
+            result = model(path, generate_kwargs={"language": language})
             text = result["text"].strip()
             return {
                 "text": text,
@@ -41,7 +51,7 @@ class HuggingfaceTranscriber:
         except Exception as e:
             logger.error(
                 "huggingface.transcription_failed",
-                extra={"error": str(e)},
+                error=str(e),
                 exc_info=True,
             )
             raise RuntimeError(f"Erro de transcrição (huggingface): {str(e)}")
@@ -83,7 +93,7 @@ class HuggingfaceTranscriber:
             return audio
 
         except Exception as e:
-            logger.error("huggingface.audio_decode_failed", extra={"error": str(e)})
+            logger.error("huggingface.audio_decode_failed", error=str(e))
             raise RuntimeError(f"Erro ao decodificar áudio: {str(e)}")
 
     async def _decode_file_bytes(self, file_bytes: bytes) -> str:

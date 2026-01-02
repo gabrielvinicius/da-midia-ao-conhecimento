@@ -66,7 +66,8 @@ class FFmpegVideoAudioExtractor:
         except Exception as e:
             logger.error(
                 "Audio extraction failed",
-                extra={"error": str(e), "filename": filename},
+                error=str(e),
+                filename=filename,
             )
             raise
 

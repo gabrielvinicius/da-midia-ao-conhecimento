@@ -56,7 +56,8 @@ class FallbackCache:
         except Exception as e:
             logger.warning(
                 "Fallback cache get error",
-                extra={"key": cache_key, "error": str(e)},
+                key=cache_key,
+                error=str(e),
             )
             return None
 
@@ -81,7 +82,8 @@ class FallbackCache:
         except Exception as e:
             logger.error(
                 "Fallback cache set error",
-                extra={"key": cache_key, "error": str(e)},
+                key=cache_key,
+                error=str(e),
             )
             return False
 
@@ -100,7 +102,8 @@ class FallbackCache:
         except Exception as e:
             logger.error(
                 "Fallback cache delete error",
-                extra={"key": cache_key, "error": str(e)},
+                key=cache_key,
+                error=str(e),
             )
             return False
 
@@ -128,7 +131,8 @@ class FallbackCache:
         except Exception as e:
             logger.error(
                 "Fallback cache pattern delete error",
-                extra={"pattern": pattern, "error": str(e)},
+                pattern=pattern,
+                error=str(e),
             )
             return 0
 
@@ -174,7 +178,8 @@ class FallbackCache:
         except Exception as e:
             logger.error(
                 "Fallback rate limit check error",
-                extra={"key": key, "error": str(e)},
+                key=key,
+                error=str(e),
             )
             # Fail open - allow the request if cache is down
             return {
@@ -203,7 +208,8 @@ class FallbackCache:
         except Exception as e:
             logger.error(
                 "Fallback cache increment error",
-                extra={"key": cache_key, "error": str(e)},
+                key=cache_key,
+                error=str(e),
             )
             return 0
 

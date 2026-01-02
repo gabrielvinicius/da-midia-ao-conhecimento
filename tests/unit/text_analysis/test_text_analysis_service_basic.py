@@ -36,8 +36,11 @@ class FakeTopics:
 
 
 class FakeTextGen:
-    async def summarize_topic(self, topic, chunks, language):
-        return "summary"
+    def is_available(self):
+        return True
+
+    async def summarize_topic(self, title, content, keywords, language):
+        return f"Summary of {title}"
 
 
 class InMemoryRepo:

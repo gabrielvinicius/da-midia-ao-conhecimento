@@ -1,0 +1,25 @@
+services:
+  backend:
+    image: video-summarizer-app:cuda
+    build:
+      args:
+        - PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu130
+    environment:
+      - AI_DEVICE=cuda
+
+  worker:
+    image: video-summarizer-app:cuda
+    runtime: nvidia
+    build:
+      args:
+        - PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu130
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - AI_DEVICE=cuda
+      - AI_COMPUTE_TYPE=float16

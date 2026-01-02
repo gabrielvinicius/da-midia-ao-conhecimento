@@ -9,7 +9,7 @@ import inspect
 import logging
 import time
 from statistics import mean
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from src.shared.domain.events import (
@@ -17,6 +17,7 @@ from src.shared.domain.events import (
     SummarizationCompleted,
     TopicModelingCompleted,
 )
+from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.text_analysis.config.settings import text_analysis_settings
 
 from ...domain import Analysis, Document, SentimentLabel
@@ -42,7 +43,7 @@ from ..ports import (
 )
 from .text_analysis_read_service import TextAnalysisReadService
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class TextAnalysisService:
@@ -83,7 +84,7 @@ class TextAnalysisService:
     async def analyze_text_content(
         self,
         command: AnalyzeTextCommand,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Main orchestrator for analyzing text."""
         resolved_provider = self._validate_provider(command.language)
 
@@ -139,23 +140,23 @@ class TextAnalysisService:
                 result["user_id"] = str(user_id)
             success = True
             return result
-                    finally:
-                        try:
-                            if hasattr(self.metrics, "set_context"):
-                                self.metrics.set_context(str(media_id), str(user_id))
-                            await self.metrics.record_operation(
-                                operation="analyze_text_content",
-                                duration=time.perf_counter() - start,
-                                success=success,
-                                provider=resolved_provider,
-                            )
-                        except Exception as exc:
-                            logger.warning(
-                                "text_analysis.metrics_failed",
-                                error=str(exc),
-                                media_id=str(media_id) if media_id else None,
-                            )
-            async def _perform_analysis(
+        finally:
+            try:
+                if hasattr(self.metrics, "set_context"):
+                    self.metrics.set_context(str(media_id), str(user_id))
+                await self.metrics.record_operation(
+                    operation="analyze_text_content",
+                    duration=time.perf_counter() - start,
+                    success=success,
+                    provider=resolved_provider,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "text_analysis.metrics_failed",
+                    error=str(exc),
+                    media_id=str(media_id) if media_id else None,
+                )
+    async def _perform_analysis(
         self,
         text: str,
         segments: Optional[list[dict]],
@@ -197,6 +198,16 @@ class TextAnalysisService:
 
         topics_with_summaries = await self._summarize_topics(topics, language)
         analysis.topics = topics_with_summaries
+        
+        # Generate consolidated summary from topics
+        summary_parts = []
+        for topic in topics_with_summaries:
+            if topic.summary:
+                summary_parts.append(topic.summary)
+        
+        if summary_parts:
+            analysis.summary = "\n\n".join(summary_parts)
+
         analysis.diagnostics = diagnostics
 
         analysis_id = await self.repository.save(analysis)
@@ -226,47 +237,49 @@ class TextAnalysisService:
                 analysis.sentiments
             )
 
-        sentiment_event = SentimentAnalysisCompleted(
+        def _safe_event(cls, **kwargs):
+            # Signature inspection to avoid "unexpected keyword argument" if worker code is out of sync
+            sig = inspect.signature(cls)
+            filtered = {k: v for k, v in kwargs.items() if k in sig.parameters}
+            return cls(**filtered)
+
+        sentiment_event = _safe_event(
+            SentimentAnalysisCompleted,
             analysis_id=str(analysis.id),
             transcription_id=(
-                str(analysis.transcription_id) if analysis.transcription_id else ""
+                str(analysis.transcription_id) if analysis.transcription_id else None
             ),
             media_id=str(analysis.media_id) if analysis.media_id else None,
-            user_id=str(analysis.user_id) if analysis.user_id else None,
             sentiment_score=overall_score,
             overall_sentiment=(
                 analysis.overall_sentiment.value
                 if analysis.overall_sentiment
                 else None
             ),
-            provider="text_analysis",
-            status="success",
             correlation_id=getattr(analysis, "correlation_id", None),
         )
         await self._publish_event(sentiment_event)
 
-        summarization_event = SummarizationCompleted(
+        summarization_event = _safe_event(
+            SummarizationCompleted,
             analysis_id=str(analysis.id),
             transcription_id=(
                 str(analysis.transcription_id) if analysis.transcription_id else None
             ),
             media_id=str(analysis.media_id) if analysis.media_id else None,
-            user_id=str(analysis.user_id) if analysis.user_id else None,
-            provider="text_analysis",
-            status="success",
+            summary=analysis.summary,
             correlation_id=getattr(analysis, "correlation_id", None),
         )
         await self._publish_event(summarization_event)
 
-        topic_event = TopicModelingCompleted(
+        topic_event = _safe_event(
+            TopicModelingCompleted,
             analysis_id=str(analysis.id),
             transcription_id=(
                 str(analysis.transcription_id) if analysis.transcription_id else None
             ),
             media_id=str(analysis.media_id) if analysis.media_id else None,
-            user_id=str(analysis.user_id) if analysis.user_id else None,
-            provider="text_analysis",
-            status="success",
+            topics=analysis.topics,
             correlation_id=getattr(analysis, "correlation_id", None),
         )
         await self._publish_event(topic_event)
@@ -295,12 +308,16 @@ class TextAnalysisService:
             summary_md = None
             try:
                 if self.text_generation.is_available():
-                    summary_md = await self.text_generation.summarize_topic(
+                    result = self.text_generation.summarize_topic(
                         topic.title,
                         "\n".join(topic.snippets),
                         topic.keywords,
                         language,
                     )
+                    if inspect.isawaitable(result):
+                        summary_md = await result
+                    else:
+                        summary_md = result
             except Exception as exc:
                 logger.warning("LLM summary failed: %s", exc)
             if not summary_md:

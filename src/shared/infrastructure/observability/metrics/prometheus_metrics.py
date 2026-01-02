@@ -84,7 +84,7 @@ class SharedPrometheusMetrics:
             "histogram",
             "media_operation_duration_seconds",
             "Duration of media operations in seconds",
-            ["operation", "provider", "media_id", "status"],
+            ["operation", "provider", "status", "media_id"],
             Histogram,
         )
 
@@ -169,7 +169,7 @@ class SharedPrometheusMetrics:
             "text_analysis_operations_total",
             "Total number of text analysis operations",
             ["operation", "provider", "status", "media_id", "user_id"],
-            Counter,
+            Counter
         )
 
     def get_text_analysis_duration_seconds(self) -> Histogram:
@@ -177,7 +177,7 @@ class SharedPrometheusMetrics:
             "histogram",
             "text_analysis_operation_duration_seconds",
             "Duration of text analysis operations in seconds",
-            ["operation", "provider", "media_id", "user_id", "status"],
+            ["operation", "provider", "status", "media_id", "user_id"],
             Histogram,
         )
 

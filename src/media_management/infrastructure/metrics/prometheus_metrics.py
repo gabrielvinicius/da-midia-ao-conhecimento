@@ -33,16 +33,12 @@ class PrometheusMediaMetrics:
         provider_label = provider or "unknown"
         media_id_label = media_id or "unknown"
 
-        self._operations_total.labels(
-            operation=operation,
-            provider=provider_label,
-            status=status_label,
-            media_id=media_id_label
-        ).inc()
+        # Standard order: operation, provider, status, media_id
+        labels = (operation, provider_label, status_label, media_id_label)
 
-        self._duration_seconds.labels(
-            operation=operation,
-            provider=provider_label,
-            media_id=media_id_label,
-            status=status_label
-        ).observe(duration)
+        try:
+            self._operations_total.labels(*labels).inc()
+            self._duration_seconds.labels(*labels).observe(duration)
+        except ValueError:
+            # defensive catch if REGISTRY has old label set
+            pass

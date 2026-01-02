@@ -46,6 +46,23 @@ class Settings(BaseSettings):
     sentiment_default_provider: str = "vader"
     topic_modeling_default_provider: str = "bertopic"
 
+    # AI / Machine Learning Hardware
+    # Options: "auto", "cuda", "cpu", "rocm"
+    ai_device: str = "auto"
+    # Options: "float16", "float32", "int8", "int8_float16"
+    ai_compute_type: str = "default"
+
+    @property
+    def resolved_device(self) -> str:
+        """Determines the actual device to use based on settings and hardware."""
+        import torch
+        if self.ai_device == "auto":
+            if torch.cuda.is_available():
+                return "cuda"
+            # ROCm typically maps to 'cuda' in torch if properly installed
+            return "cpu"
+        return self.ai_device
+
     @property
     def sync_database_url(self) -> str:
         if "aiosqlite" in self.database_url:

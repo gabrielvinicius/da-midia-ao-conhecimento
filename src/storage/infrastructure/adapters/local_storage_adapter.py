@@ -2,6 +2,7 @@
 """Local filesystem storage provider - OCP and SRP compliance.
 """
 import asyncio
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import AsyncIterator, Optional
@@ -84,6 +85,16 @@ class LocalStorageProvider(BaseStorageProvider):
             path.unlink()
             return True
         return False
+
+    async def _do_delete_folder(self, folder_path: str) -> None:
+        """Recursively delete a folder."""
+        full_path = self._root / folder_path
+        await asyncio.to_thread(self._sync_delete_folder, full_path)
+
+    def _sync_delete_folder(self, path: Path) -> None:
+        """Synchronous recursive delete."""
+        if path.exists() and path.is_dir():
+            shutil.rmtree(path)
 
     async def exists(self, file_path: FilePath) -> bool:
         """Check if file exists."""

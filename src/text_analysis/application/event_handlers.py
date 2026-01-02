@@ -16,7 +16,7 @@ def build_text_content_ready_handler(
     transcription_queries: TranscriptionQueryPort | None = None,
 ) -> Callable[[TextContentReady], Awaitable[None]]:
     async def handler(event: TextContentReady) -> None:
-        if not event.text_content:
+        if not event.text:
             return
 
         metadata = event.metadata or {}
@@ -33,7 +33,7 @@ def build_text_content_ready_handler(
         command = AnalyzeTextCommand(
             media_id=media_id,
             document_id=transcription_id or media_id,  # fallback
-            text_content=event.text_content,
+            text_content=event.text,
             transcription_id=transcription_id,
             language=metadata.get("language"),
             user_id=user_id,

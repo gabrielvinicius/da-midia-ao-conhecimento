@@ -85,10 +85,11 @@ def build_text_extraction_service(
     storage_adapter = StorageDownloadAdapter(storage_factory)
 
     return TextExtractionService(
-        transcription_repo=repo,
-        text_extractor_factory=lambda provider: get_text_extractor(provider),
-        ocr_provider_factory=lambda provider: get_ocr_provider(provider),
+        repository=repo,
+        task_scheduler=None,  # Worker executa direto
         storage_service=storage_adapter,
+        text_extractor=get_text_extractor(),
+        ocr_provider=get_ocr_provider(),
         event_bus=event_bus,
         metrics=metrics,
         logger=logger,
@@ -100,21 +101,17 @@ def build_video_processing_service(
     event_bus: SupportsEventBus,
     storage_provider: str = "local",
 ) -> VideoProcessingService:
-    repo = TranscriptionRepository(session)
     metrics = PrometheusVideoProcessingMetrics()
-    logger = StructuredTranscriptionLogger()
     storage_factory = StorageServiceFactory()
     storage_adapter = StorageDownloadAdapter(storage_factory)
 
     return VideoProcessingService(
-        transcription_repo=repo,
         video_audio_extractor=get_audio_extractor(),
         video_thumbnail_generator=get_thumbnail_generator(),
         video_processing_task_scheduler=None,  # executado inline no worker
         storage_factory=storage_adapter,
         event_bus=event_bus,
-        metrics=metrics,
-        logger=logger,
+        video_processing_metrics=metrics,
     )
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -59,3 +59,4 @@ class AnalyzeResponse(BaseModel):
     transcription_id: str | None = None
     provider: str | None = None
     user_id: str | None = None
+    summary: str | None = None

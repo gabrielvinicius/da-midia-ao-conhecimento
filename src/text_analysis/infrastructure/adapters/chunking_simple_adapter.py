@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import List
 from uuid import uuid4
 
 from src.text_analysis.application.ports.chunking import ChunkingServicePort
@@ -11,7 +10,7 @@ from src.text_analysis.domain import Document, TextChunk
 
 
 class SimpleChunker(ChunkingServicePort):
-    def chunk(self, document: Document, size: int, overlap: int) -> List[TextChunk]:
+    def chunk(self, document: Document, size: int, overlap: int) -> list[TextChunk]:
         if document.segments:
             return [
                 TextChunk(
@@ -31,7 +30,7 @@ class SimpleChunker(ChunkingServicePort):
         if not sentences:
             return [TextChunk(id=str(uuid4()), text=text, start=0.0)]
 
-        chunks: List[TextChunk] = []
+        chunks: list[TextChunk] = []
         buffer: list[str] = []
         current_len = 0
         start = 0.0

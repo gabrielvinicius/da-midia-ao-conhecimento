@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from uuid import UUID
 
-from ...domain import Analysis, Topic
+from src.text_analysis.domain import Analysis, Topic
 
 
 class AnalysisRepositoryPort(ABC):

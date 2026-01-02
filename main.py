@@ -138,13 +138,13 @@ async def lifespan(app: FastAPI):
 
     try:
         if lightweight_mode:
-            # Em modo leve, cria as tabelas usando o engine síncrono para evitar
-            # o overhead do driver assíncrono em testes.
+            # Em modo leve (testes unitários), cria as tabelas em memória/sqlite.
             Base.metadata.create_all(bind=engine_sync)
         else:
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-    except Exception as exc:  # pragma: no cover - bootstrap fallback for missing types
+            # Em produção/dev com Postgres, usamos Alembic.
+            # O create_all aqui impediria o Alembic de detectar mudanças.
+            logger.info("Database managed by Alembic, skipping metadata.create_all", component="database")
+    except Exception as exc:  # pragma: no cover
         logger.warning(
             "database.metadata_create_all_failed",
             error=str(exc),

@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 from src.admin.application.ports import MediaAdminPort, UserAdminPort
 from src.media_management.application.dtos import (
-    CleanupOrphanedFilesCommand,
     ListMediaQuery,
 )
 from src.user_management.application.dtos import GetUserQuery, ListUsersQuery
@@ -90,8 +89,3 @@ class AdminService:
         self, command: BulkReprocessFailedMediaCommand
     ) -> int:
         return await self.media_adapter.bulk_reprocess_failed_media(command)
-
-    async def cleanup_orphaned_files(
-        self, command: CleanupOrphanedFilesCommand
-    ) -> int:
-        return await self.media_adapter.cleanup_orphaned_files(command)

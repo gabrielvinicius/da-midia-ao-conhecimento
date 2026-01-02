@@ -19,6 +19,8 @@ class TranscriptionResponse(BaseModel):
     processed_at: Optional[datetime] = None
     error_message: Optional[str] = None
     text: str
+    language: Optional[str] = None
+    confidence_score: Optional[float] = None
     segments: List[Dict[str, Any]] = Field(default_factory=list)
     speaker_aliases: Dict[str, str] = Field(default_factory=dict)
 

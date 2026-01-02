@@ -156,7 +156,7 @@ def _bind_worker_subscribers(event_bus) -> None:
                 )
 
     async def _on_text_content_ready(event: TextContentReady) -> None:
-        if not getattr(event, "text_content", None):
+        if not getattr(event, "text", None):
             return
 
         async with AsyncSessionLocal() as session:
@@ -181,7 +181,7 @@ def _bind_worker_subscribers(event_bus) -> None:
             ),
             "user_id": getattr(event, "user_id", None),
             "filename": getattr(event, "filename", None),
-            "text_content": getattr(event, "text_content", None),
+            "text_content": getattr(event, "text", None),
             "language": (
                 (event.metadata or {}).get("language")
                 if isinstance(getattr(event, "metadata", None), dict)
@@ -549,11 +549,9 @@ def process_transcription_task(
     except Exception as e:
         logger.error(
             "transcription.task_failed",
-            extra={
-                "media_id": media_id,
-                "error": str(e),
-                "correlation_id": correlation_id,
-            },
+            media_id=media_id,
+            error=str(e),
+            correlation_id=correlation_id,
             exc_info=True,
         )
         raise

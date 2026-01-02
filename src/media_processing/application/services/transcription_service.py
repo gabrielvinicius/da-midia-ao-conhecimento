@@ -344,10 +344,10 @@ class TranscriptionService:
                 }
                 await self._event_bus.publish(
                     TranscriptionCompleted(
-                        media_id=media_id,
-                        transcription_id=transcription_id,
-                        user_id=transcription.user_id,
-                        text_content=transcription.text,
+                        media_id=str(media_id),
+                        transcription_id=str(transcription_id),
+                        user_id=str(transcription.user_id) if transcription.user_id else None,
+                        text=transcription.text,
                         metadata=metadata,
                         correlation_id=correlation_id,
                     )

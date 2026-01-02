@@ -80,7 +80,8 @@ class FFmpegVideoThumbnailGenerator:
         except Exception as e:
             logger.error(
                 "Thumbnail generation failed",
-                extra={"error": str(e), "filename": filename},
+                error=str(e),
+                filename=filename,
             )
             raise
 

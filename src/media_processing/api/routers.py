@@ -86,13 +86,13 @@ async def get_transcription_by_media_id(
     return TranscriptionResponse(
         id=transcription.id,
         media_id=transcription.media_id,
-        content=transcription.text,
+        text=transcription.text,
         language=transcription.language,
         status=transcription.status.value,
         confidence_score=transcription.confidence_score,
         created_at=transcription.created_at,
         processed_at=transcription.processed_at,
-        speaker_labels=transcription.speaker_labels,
+        speaker_aliases=transcription.speaker_aliases,
         segments=transcription.segments,
         error_message=transcription.error_message
     )
@@ -120,13 +120,13 @@ async def get_transcription_by_id(
     return TranscriptionResponse(
         id=transcription.id,
         media_id=transcription.media_id,
-        content=transcription.text,
+        text=transcription.text,
         language=transcription.language,
         status=transcription.status.value,
         confidence_score=transcription.confidence_score,
         created_at=transcription.created_at,
         processed_at=transcription.processed_at,
-        speaker_labels=transcription.speaker_labels,
+        speaker_aliases=transcription.speaker_aliases,
         segments=transcription.segments,
         error_message=transcription.error_message
     )

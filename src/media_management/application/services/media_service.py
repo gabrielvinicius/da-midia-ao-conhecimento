@@ -22,6 +22,7 @@ from src.media_management.application.ports import (
     StorageDownloaderPort,
     StorageUploaderPort,
     TranscriptionCleanupPort,
+    TextAnalysisCleanupPort,
     UploadMetadataMapperPort,
 )
 from src.media_management.application.services.components import (
@@ -99,6 +100,7 @@ class MediaService:
         event_bus: EventBusPort | None = None,
         storage_maintenance: StorageMaintenanceService | None = None,
         transcription_cleanup: TranscriptionCleanupPort | None = None,
+        text_analysis_cleanup: TextAnalysisCleanupPort | None = None,
         storage_downloader: StorageDownloaderPort | None = None,
     ) -> None:
         self.media_repository = media_repository
@@ -136,6 +138,7 @@ class MediaService:
         self.access_policy = MediaAccessPolicy()
         self.storage_maintenance = storage_maintenance
         self.transcription_cleanup = transcription_cleanup
+        self.text_analysis_cleanup = text_analysis_cleanup
 
     async def create_media(self, command: CreateMediaCommand) -> Media:
         """Uploads and creates a new media entity."""
@@ -467,21 +470,33 @@ class MediaService:
         return name
 
     async def _delete_associated_records(self, media_id: uuid.UUID) -> None:
-        if not self.transcription_cleanup:
-            return
-        try:
-            await self.transcription_cleanup.delete_by_media_id(media_id)
-        except Exception as exc:
-            logger.warning(
-                "media.delete.transcription_failed",
-                media_id=str(media_id),
-                error=str(exc),
-            )
+        # 1. Clean up Text Analysis first (avoids FK violation in transcription)
+        if self.text_analysis_cleanup:
+            try:
+                await self.text_analysis_cleanup.delete_by_media_id(media_id)
+            except Exception as exc:
+                logger.warning(
+                    "media.delete.text_analysis_failed",
+                    media_id=str(media_id),
+                    error=str(exc),
+                )
+
+        # 2. Clean up Transcriptions
+        if self.transcription_cleanup:
+            try:
+                await self.transcription_cleanup.delete_by_media_id(media_id)
+            except Exception as exc:
+                logger.warning(
+                    "media.delete.transcription_failed",
+                    media_id=str(media_id),
+                    error=str(exc),
+                )
 
     async def _delete_original_file(self, media: Media) -> None:
         file_path = getattr(media, "original_file_path", None)
         if not file_path:
             return
+        
         provider = (getattr(media, "storage_provider", None) or "local").lower()
         if not self.storage_maintenance:
             logger.warning(
@@ -490,11 +505,23 @@ class MediaService:
                 provider=provider,
             )
             return
+
         try:
-            await self.storage_maintenance.delete_file(provider, file_path)
+            # Our path convention is user_id/year/month/media_id/filename
+            # We want to delete the media_id folder to clean up derived files too.
+            path_parts = file_path.split("/")
+            if len(path_parts) >= 4:
+                # user_id/year/month/media_id
+                folder_path = "/".join(path_parts[:4])
+                await self.storage_maintenance.delete_folder(provider, folder_path)
+                logger.info("media.delete.folder_deleted", path=folder_path, provider=provider)
+            else:
+                # Fallback to single file delete if path doesn't match convention
+                await self.storage_maintenance.delete_file(provider, file_path)
+                logger.info("media.delete.file_deleted", path=file_path, provider=provider)
         except Exception as exc:
             logger.warning(
-                "media.delete.file_failed",
+                "media.delete.storage_cleanup_failed",
                 path=file_path,
                 provider=provider,
                 error=str(exc),

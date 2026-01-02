@@ -146,6 +146,23 @@ class S3StorageProvider(BaseStorageProvider):
             Key=file_path
         )
 
+    async def _do_delete_folder(self, folder_path: str) -> None:
+        """Delete all objects with given prefix."""
+        await asyncio.to_thread(self._sync_delete_folder, folder_path)
+
+    def _sync_delete_folder(self, folder_path: str) -> None:
+        """Synchronous folder (prefix) delete."""
+        bucket = self._config.bucket_name
+        # S3 folders are just prefixes. Delete all objects with the prefix.
+        paginator = self._client.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=bucket, Prefix=folder_path):
+            if 'Contents' in page:
+                delete_keys = [{'Key': obj['Key']} for obj in page['Contents']]
+                self._client.delete_objects(
+                    Bucket=bucket,
+                    Delete={'Objects': delete_keys}
+                )
+
     async def exists(self, file_path: FilePath) -> bool:
         """Check if file exists in S3."""
         try:

@@ -35,3 +35,4 @@ class Sentiment:
     chunk_id: str
     label: SentimentLabel
     score: float
+    text: str = ""

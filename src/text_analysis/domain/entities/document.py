@@ -28,6 +28,7 @@ class Analysis:
     sentiments: list = field(default_factory=list)
     overall_sentiment: Optional[SentimentLabel] = None
     topics: list = field(default_factory=list)
+    summary: Optional[str] = None
     diagnostics: dict = field(default_factory=dict)
     chunks: list = field(default_factory=list)
 

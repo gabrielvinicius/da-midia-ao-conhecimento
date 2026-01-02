@@ -41,6 +41,9 @@ class BaseStorageProvider(StorageProviderPort, ABC):
         path = self._ensure_file_path(file_path)
         return await self._do_delete(path)
 
+    async def delete_folder(self, folder_path: str) -> None:
+        await self._do_delete_folder(folder_path)
+
     def _ensure_file_path(self, file_path: FilePath | str) -> FilePath:
         if isinstance(file_path, FilePath):
             return file_path
@@ -60,6 +63,10 @@ class BaseStorageProvider(StorageProviderPort, ABC):
 
     @abstractmethod
     async def _do_delete(self, file_path: FilePath) -> bool:
+        ...
+
+    @abstractmethod
+    async def _do_delete_folder(self, folder_path: str) -> None:
         ...
 
 

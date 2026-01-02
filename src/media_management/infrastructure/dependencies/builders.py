@@ -26,6 +26,12 @@ from src.media_processing.infrastructure.adapters.transcription_cleanup_adapter 
 from src.media_processing.infrastructure.repositories.transcription_repository import (
     TranscriptionRepository,
 )
+from src.text_analysis.infrastructure.adapters.text_analysis_cleanup_adapter import (
+    TextAnalysisCleanupAdapter,
+)
+from src.text_analysis.infrastructure.repositories.sqlalchemy_analysis_repository import (
+    SqlAlchemyAnalysisRepository,
+)
 from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
 from src.storage.application.services.maintenance_service import (
     StorageMaintenanceService,
@@ -63,6 +69,9 @@ def build_media_service(
             storage_port=StorageMaintenanceAdapter(storage_factory),
         ),
         transcription_cleanup=TranscriptionCleanupAdapter(transcription_repo),
+        text_analysis_cleanup=TextAnalysisCleanupAdapter(
+            SqlAlchemyAnalysisRepository(session)
+        ),
     )
 
 

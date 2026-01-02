@@ -1,0 +1,23 @@
+services:
+  backend:
+    image: video-summarizer-app:rocm
+    build:
+      args:
+        - PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/rocm6.2.4
+    environment:
+      - AI_DEVICE=cuda # ROCm mapeia como cuda no Torch
+
+  worker:
+    image: video-summarizer-app:rocm
+    devices:
+      - "/dev/kfd:/dev/kfd"
+      - "/dev/dri:/dev/dri"
+    group_add:
+      - video
+      - render
+    build:
+      args:
+        - PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/rocm6.2.4
+    environment:
+      - AI_DEVICE=cuda
+      - AI_COMPUTE_TYPE=float16

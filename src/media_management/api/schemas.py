@@ -44,6 +44,13 @@ class MediaResponse(BaseModel):
     language: Optional[str] = None
     duration: Optional[float] = None
 
+    # Providers
+    storage_provider: Optional[str] = None
+    transcription_provider: Optional[str] = None
+    summarization_provider: Optional[str] = None
+    sentiment_provider: Optional[str] = None
+    topic_modeling_provider: Optional[str] = None
+
     @classmethod
     def from_domain(cls, media: Media) -> "MediaResponse":
         return cls(
@@ -57,6 +64,11 @@ class MediaResponse(BaseModel):
             error_message=media.error_message,
             language=media.language,
             duration=media.duration,
+            storage_provider=media.storage_provider,
+            transcription_provider=media.transcription_provider,
+            summarization_provider=media.summarization_provider,
+            sentiment_provider=media.sentiment_provider,
+            topic_modeling_provider=media.topic_modeling_provider,
         )
 
     @computed_field(return_type=List[str])

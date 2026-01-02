@@ -1,19 +1,13 @@
-# Compose specification (v2), version field no longer required
-
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:latest
     container_name: video_summarizer_postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-video_summarizer}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
-    ports:
-      - "${DB_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backups:/backups:rw
+      - postgres_data:/var/lib/postgresql
     networks:
       - app-network
     restart: unless-stopped
@@ -22,32 +16,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
 
   redis:
-    image: redis:7.2-alpine
+    image: redis:latest
     container_name: video_summarizer_redis
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis_data:/data
     networks:
       - app-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       retries: 5
-      start_period: 10s
 
   minio:
     image: minio/minio:latest
     container_name: video_summarizer_minio
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     environment:
       MINIO_ROOT_USER: ${ACCESS_KEY:-minio}
       MINIO_ROOT_PASSWORD: ${SECRET_KEY_S3:-minio123}
@@ -56,166 +40,73 @@ services:
       - minio_data:/data
     networks:
       - app-network
-    restart: unless-stopped
 
   jaeger:
-    image: jaegertracing/all-in-one:1.58
+    image: jaegertracing/all-in-one:latest
     container_name: video_summarizer_jaeger
-    ports:
-      - "6831:6831/udp" # Jaeger agent
-      - "16686:16686"   # Jaeger UI
-      - "4317:4317"     # OTLP gRPC
-      - "4318:4318"     # OTLP HTTP
     networks:
       - app-network
-    restart: unless-stopped
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
 
   backend:
     build:
       context: .
-      dockerfile: Dockerfile
       target: runtime
+    image: video-summarizer-app:latest
     container_name: video_summarizer_backend
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --log-level info
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
+    env_file: [.env]
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
     volumes:
       - ./src:/app/src:ro
-      - ./main.py:/app/main.py:ro
-      - ./alembic:/app/alembic:rw
-      - ./alembic.ini:/app/alembic.ini:rw
       - media_data:/app/media
-      - media_data:/app/storage
-      - ./logs:/app/logs
+      - ai_models_cache:/app/.cache
     networks:
       - app-network
-    restart: unless-stopped
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     environment:
-      - ENVIRONMENT=${ENVIRONMENT:-development}
       - DB_HOST=postgres
-      # Evita interpolação usando variáveis do host (ex.: DB_HOST=localhost),
-      # garantindo que dentro do container o hostname seja o service do Compose.
-      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:${DB_PORT:-5432}/${DB_NAME:-video_summarizer}
       - REDIS_HOST=redis
-      - REDIS_PASSWORD=
       - REDIS_URL=redis://redis:6379/0
-      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
-      - WHISPER_CACHE_DIR=/app/.cache/whisper
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - HF_TOKEN=${HF_TOKEN}
 
   worker:
     build:
       context: .
-      dockerfile: Dockerfile
       target: runtime
+    image: video-summarizer-app:latest
     container_name: video_summarizer_worker
-    command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=2 --without-gossip --without-mingle
-    env_file:
-      - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      backend:
-        condition: service_started
-    volumes:
-      - ./src:/app/src:ro
-      - ./alembic:/app/alembic:rw
-      - ./alembic.ini:/app/alembic.ini:rw
-      - media_data:/app/media
-      - media_data:/app/storage
-      - ./logs:/app/logs
+    entrypoint: /app/docker/worker-entrypoint.sh
     networks:
       - app-network
-    restart: unless-stopped
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     environment:
-      - ENVIRONMENT=${ENVIRONMENT:-development}
       - DB_HOST=postgres
-      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:${DB_PORT:-5432}/${DB_NAME:-video_summarizer}
       - REDIS_HOST=redis
-      - REDIS_PASSWORD=
       - REDIS_URL=redis://redis:6379/0
-      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
-      - WHISPER_CACHE_DIR=/app/.cache/whisper
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    healthcheck:
-      test: ["CMD", "bash", "-c", "celery -A src.celery_app:celery inspect ping --timeout=3"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - HF_TOKEN=${HF_TOKEN}
+
 
   frontend:
     build:
       context: .
       dockerfile: docker/frontend.Dockerfile
-      target: production
     container_name: video_summarizer_frontend
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-    environment:
-      - VITE_API_URL=http://backend:8000
+    ports: ["3000:80"]
+    depends_on: [backend]
     networks:
       - app-network
-    restart: unless-stopped
-    #profiles:
-     # - frontend
 
 volumes:
   postgres_data:
-    driver: local
-    name: video_summarizer_postgres_data
-  redis_data:
-    driver: local
-    name: video_summarizer_redis_data
   minio_data:
-    driver: local
-    name: video_summarizer_minio_data
   media_data:
-    driver: local
-    name: video_summarizer_media_data
+  ai_models_cache:
 
 networks:
   app-network:
-    driver: bridge
     name: video_summarizer_network

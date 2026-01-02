@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from src.shared.application.utils.serialization import to_json_serializable
 
 # --- Commands ---
 
@@ -79,9 +81,10 @@ class AnalysisResultDTO:
     media_id: Optional[str] = None
     transcription_id: Optional[str] = None
     user_id: Optional[str] = None
+    summary: Optional[str] = None
 
     def to_dict(self) -> dict:
-        return {
+        data = {
             "analysis_id": self.analysis_id,
             "document_id": self.document_id,
             "overall_sentiment": self.overall_sentiment,
@@ -91,4 +94,6 @@ class AnalysisResultDTO:
             "media_id": self.media_id,
             "transcription_id": self.transcription_id,
             "user_id": self.user_id,
+            "summary": self.summary,
         }
+        return to_json_serializable(data)

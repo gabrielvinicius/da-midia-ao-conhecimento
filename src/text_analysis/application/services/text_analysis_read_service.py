@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from ...domain.errors import DomainError
 from ...domain import Topic
@@ -17,7 +17,7 @@ class TextAnalysisReadService:
     def __init__(self, repository: AnalysisRepositoryPort) -> None:
         self.repository = repository
 
-    async def get_analysis(self, query: GetAnalysisQuery) -> Dict[str, Any]:
+    async def get_analysis(self, query: GetAnalysisQuery) -> dict[str, Any]:
         """Retrieve analysis by ID."""
         analysis = await self.repository.get(str(query.analysis_id))
         if not analysis:
@@ -26,14 +26,14 @@ class TextAnalysisReadService:
 
     async def get_analysis_by_media_id(
         self, query: GetAnalysisByMediaIdQuery
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[dict[str, Any]]:
         """Retrieve analysis by Media ID."""
         analysis = await self.repository.get_by_media_id(str(query.media_id))
         if not analysis:
             return None
         return analysis_to_dto(analysis).to_dict()
 
-    async def list_topics(self, query: ListTopicsQuery) -> List[Topic]:
+    async def list_topics(self, query: ListTopicsQuery) -> list[Topic]:
         """List topics for a given analysis."""
         topics = await self.repository.list_topics(str(query.analysis_id))
         if topics is None:

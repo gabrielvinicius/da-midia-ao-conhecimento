@@ -87,7 +87,7 @@ class MediaProcessingFailed(DomainEvent):
 class TranscriptionCompleted(DomainEvent):
     media_id: str = ""
     transcription_id: str = ""
-    text_content: Optional[str] = None
+    text: Optional[str] = None
     user_id: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -104,7 +104,7 @@ class TranscriptionFailed(DomainEvent):
 class TextContentReady(DomainEvent):
     media_id: str = ""
     transcription_id: Optional[str] = None
-    text_content: Optional[str] = None
+    text: Optional[str] = None
     user_id: Optional[str] = None
     filename: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -113,6 +113,7 @@ class TextContentReady(DomainEvent):
 # --- Text analysis outputs ---
 @dataclass
 class SummarizationCompleted(DomainEvent):
+    analysis_id: str = ""
     media_id: Optional[str] = None
     transcription_id: Optional[str] = None
     summary: Optional[str] = None
@@ -120,13 +121,16 @@ class SummarizationCompleted(DomainEvent):
 
 @dataclass
 class SentimentAnalysisCompleted(DomainEvent):
+    analysis_id: str = ""
     media_id: Optional[str] = None
     transcription_id: Optional[str] = None
     sentiment_score: Optional[float] = None
+    overall_sentiment: Optional[str] = None
 
 
 @dataclass
 class TopicModelingCompleted(DomainEvent):
+    analysis_id: str = ""
     media_id: Optional[str] = None
     transcription_id: Optional[str] = None
     topics: Optional[Any] = None

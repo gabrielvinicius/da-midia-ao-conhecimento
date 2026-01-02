@@ -10,10 +10,7 @@ from src.admin.application.dtos import (
     ReprocessMediaCommand,
     UpdateUserRoleCommand,
 )
-from src.media_management.application.dtos import (
-    CleanupOrphanedFilesCommand,
-    ListMediaQuery,
-)
+from src.media_management.application.dtos import ListMediaQuery
 from src.user_management.application.dtos import GetUserQuery, ListUsersQuery
 from src.user_management.domain import UserRole, User
 
@@ -24,9 +21,6 @@ class MediaAdminPort(Protocol):
     async def reprocess_media(self, command: ReprocessMediaCommand) -> None: ...
     async def bulk_reprocess_failed_media(
         self, command: BulkReprocessFailedMediaCommand
-    ) -> int: ...
-    async def cleanup_orphaned_files(
-        self, command: CleanupOrphanedFilesCommand
     ) -> int: ...
 
 

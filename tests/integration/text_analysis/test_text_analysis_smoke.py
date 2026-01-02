@@ -47,7 +47,13 @@ class DummyTextGen(TextGenerationPort):
     async def summarize(self, text, language=None):
         return "summary"
 
-    async def summarize_topic(self, topic, language=None, **kwargs):
+    async def summarize_topic(
+        self,
+        title_hint: str | None,
+        content: str,
+        keywords: list[str],
+        language: str,
+    ) -> str:
         return "summary"
 
     def is_available(self) -> bool:
@@ -66,7 +72,7 @@ class DummyEmbeddings(EmbeddingServicePort):
 
 class AsyncInMemoryRepo(InMemoryAnalysisRepository):
     async def save(self, analysis):
-        return super().save(analysis)
+        return await super().save(analysis)
 
     async def get(self, analysis_id: str):
         return super().get(analysis_id)

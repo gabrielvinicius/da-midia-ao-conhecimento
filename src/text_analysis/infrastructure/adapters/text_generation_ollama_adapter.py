@@ -10,11 +10,12 @@ from typing import Optional
 import httpx
 
 from src.text_analysis.application.ports.text_generation import TextGenerationPort
+from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.shared.infrastructure.observability.metrics.prometheus_metrics import (
     SharedPrometheusMetrics,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass(slots=True)
@@ -115,12 +116,13 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
                         self._m_retries.labels(model=self.config.model).inc()
                         logger.warning(
                             "ollama.generation_retry",
-                            extra={"error": str(exc), "attempt": attempt + 1},
+                            error=str(exc),
+                            attempt=attempt + 1,
                         )
                 if last_exc:
                     raise last_exc
         except Exception as exc:  # pragma: no cover - chamada externa
-            logger.warning("ollama.generation_failed", extra={"error": str(exc)})
+            logger.warning("ollama.generation_failed", error=str(exc))
             self._available = False
             self._last_failure_ts = time.time()
             self._m_failures.labels(model=self.config.model).inc()

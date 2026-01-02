@@ -8,15 +8,15 @@ Decisão arquitetural:
 from __future__ import annotations
 
 import asyncio
-import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 try:
     from celery import shared_task
 except Exception:  # pragma: no cover - celery optional
     shared_task = None
 
+from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.shared.infrastructure.database.db import AsyncSessionLocal
 from src.shared.infrastructure.messaging.event_bus_factory import (
     get_event_bus as build_event_bus,
@@ -33,7 +33,7 @@ TASK_TEXT_ANALYSIS_TOPIC_MODELING = "text_analysis.topic_modeling"
 
 DEFAULT_MAX_RETRIES = 3
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 EVENT_BUS = build_event_bus()
 
@@ -72,7 +72,7 @@ async def _async_task_body(
 ) -> Dict[str, Any]:
     logger.info(
         "text_analysis.task.start",
-        extra={"payload_keys": list(payload.keys())},
+        payload_keys=list(payload.keys()),
     )
 
     start = time.perf_counter()

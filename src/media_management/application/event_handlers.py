@@ -62,7 +62,7 @@ class MediaEventHandlers:
                 text_event = TextContentReady(
                     media_id=str(media_id),
                     transcription_id=str(event.transcription_id),
-                    text_content=event.text_content,
+                    text=event.text,
                     user_id=event.user_id,
                     filename=event.metadata.get("filename")
                     if isinstance(event.metadata, dict)

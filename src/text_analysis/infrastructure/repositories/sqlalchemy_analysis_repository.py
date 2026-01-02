@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from typing import List, Optional
+from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.shared.application.utils.serialization import to_json_serializable
 from src.text_analysis.application.ports.repository import AnalysisRepositoryPort
 from src.text_analysis.domain import Analysis, Topic
 from src.text_analysis.infrastructure.persistence.models import AnalysisModel
@@ -32,7 +33,11 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
                 str(analysis.transcription_id) if analysis.transcription_id else None
             ),
             "user_id": str(analysis.user_id) if analysis.user_id else None,
+            "summary": analysis.summary,
         }
+
+        # Convert to serializable format (handle numpy arrays, etc.)
+        serializable_payload = to_json_serializable(payload)
 
         record = AnalysisModel(
             id=str(analysis.id),
@@ -40,7 +45,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
             media_id=analysis.media_id,
             user_id=analysis.user_id,
             transcription_id=analysis.transcription_id,
-            payload=payload,
+            payload=serializable_payload,
         )
         await self.session.merge(record)
         try:
@@ -73,9 +78,17 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         payload = record.payload or {}
         return self._payload_to_analysis(payload)
 
-    async def list_topics(self, analysis_id: str) -> List[Topic]:
+    async def list_topics(self, analysis_id: str) -> list[Topic]:
         analysis = await self.get(analysis_id)
         return analysis.topics if analysis else []
+
+    async def delete_by_media_id(self, media_id: uuid.UUID) -> None:
+        """Deletes all analysis results associated with a media ID."""
+        stmt = select(AnalysisModel).where(AnalysisModel.media_id == media_id)
+        result = await self.session.execute(stmt)
+        for record in result.scalars().all():
+            await self.session.delete(record)
+        await self.session.commit()
 
     def _payload_to_analysis(self, payload: dict) -> Analysis:
         from src.text_analysis.domain import Analysis as AnalysisEntity
@@ -148,6 +161,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
             )
         analysis.topics = topics
 
+        analysis.summary = payload.get("summary")
         analysis.diagnostics = payload.get("diagnostics") or {}
         overall = payload.get("overall_sentiment")
         if overall:

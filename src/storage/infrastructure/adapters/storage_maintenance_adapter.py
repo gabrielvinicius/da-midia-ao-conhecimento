@@ -16,5 +16,9 @@ class StorageMaintenanceAdapter(StorageMaintenancePort):
         service = self._factory.create_storage_service(provider_name)
         await service.delete(path)
 
+    async def delete_folder(self, provider_name: str, folder_path: str) -> None:
+        service = self._factory.create_storage_service(provider_name)
+        await service.delete_folder(folder_path)
+
 
 __all__ = ["StorageMaintenanceAdapter"]

@@ -18,7 +18,6 @@ from src.admin.application.dtos import (
 from src.admin.application.services.admin_service import AdminService
 from src.media_management.api.schemas import MediaResponse
 from src.media_management.application.dtos import (
-    CleanupOrphanedFilesCommand,
     ListMediaQuery,
 )
 from src.shared.application.schemas import PaginatedResponse
@@ -311,24 +310,6 @@ async def bulk_reprocess_failed_media(
                 f"Bulk reprocessing initiated for {reprocessed_count} media items"
             ),
             "reprocessed_count": reprocessed_count,
-        }
-    except PermissionError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
-
-
-@router.post("/maintenance/cleanup-orphaned-files", summary="Clean up orphaned files")
-async def cleanup_orphaned_files(
-    service: AdminService = Depends(get_admin_service),
-    current_admin: User = Depends(get_current_admin_user),
-):
-    """Clean up orphaned files in storage."""
-    try:
-        cleaned_count = await service.cleanup_orphaned_files(
-            CleanupOrphanedFilesCommand(actor_id=str(current_admin.id))
-        )
-        return {
-            "message": f"Cleanup completed, {cleaned_count} orphaned files removed",
-            "cleaned_count": cleaned_count,
         }
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))

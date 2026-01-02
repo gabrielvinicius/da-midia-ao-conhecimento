@@ -233,7 +233,7 @@ class MediaProcessingEventHandlers:
         """Trigger downstream text analysis once transcription finishes."""
         context = context or {}
 
-        text = (event.text_content or "").strip()
+        text = (event.text or "").strip()
         if not text:
             self._logger.info(
                 "text_content_ready.skipped",

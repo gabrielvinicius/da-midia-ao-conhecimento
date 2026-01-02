@@ -15,6 +15,11 @@ from tests.utils.test_data_factory import TestDataFactory
 # For coleções/lightweight defaults, habilita bootstrap leve antes da coleta
 def pytest_configure(config):
     os.environ.setdefault("LIGHTWEIGHT_BOOTSTRAP", "1")
+    try:
+        from src.shared.infrastructure.observability.logging.logging_config import configure_logging
+        configure_logging("test", level="DEBUG", debug_mode=True)
+    except ImportError:
+        pass
 
 # Configure pytest-asyncio
 pytest_plugins = ["pytest_asyncio"]

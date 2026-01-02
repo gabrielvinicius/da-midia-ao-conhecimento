@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Optional
 
 from src.text_analysis.application.ports.repository import AnalysisRepositoryPort
 from src.text_analysis.domain import Analysis, Topic
@@ -10,7 +10,7 @@ from src.text_analysis.domain import Analysis, Topic
 
 class InMemoryAnalysisRepository(AnalysisRepositoryPort):
     def __init__(self) -> None:
-        self._store: Dict[str, Analysis] = {}
+        self._store: dict[str, Analysis] = {}
 
     async def save(self, analysis: Analysis) -> str:
         self._store[analysis.id] = analysis
@@ -19,7 +19,7 @@ class InMemoryAnalysisRepository(AnalysisRepositoryPort):
     async def get(self, analysis_id: str) -> Optional[Analysis]:
         return self._store.get(analysis_id)
 
-    async def list_topics(self, analysis_id: str) -> List[Topic]:
+    async def list_topics(self, analysis_id: str) -> list[Topic]:
         analysis = self._store.get(analysis_id)
         return analysis.topics if analysis else []
 

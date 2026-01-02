@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from faster_whisper import WhisperModel
-
-from src.media_processing.application.ports import SpeechRecognizer
-
+from src.shared.infrastructure.config.settings import settings
 
 class FastWhisperTranscriber(SpeechRecognizer):
     """Adapter para o Faster-Whisper (CTranslate2)."""
@@ -13,19 +10,36 @@ class FastWhisperTranscriber(SpeechRecognizer):
     def __init__(
         self,
         model_size: str = "medium",
-        device: str = "auto",
-        compute_type: str = "default",
+        device: str | None = None,
+        compute_type: str | None = None,
         **kwargs: Any,
     ) -> None:
-        self._model = WhisperModel(
-            model_size,
-            device=device,
-            compute_type=compute_type,
-            **kwargs,
-        )
+        self.model_size = model_size
+        self.device = device or settings.resolved_device
+        self.compute_type = compute_type or settings.ai_compute_type
+        if self.compute_type == "default":
+            # For faster-whisper, default depends on device
+            self.compute_type = "float16" if self.device == "cuda" else "int8"
+        
+        self.kwargs = kwargs
+        self._model = None
+        self._initialized = False
+
+    def _get_model(self):
+        if not self._initialized:
+            from faster_whisper import WhisperModel
+            self._model = WhisperModel(
+                self.model_size,
+                device=self.device,
+                compute_type=self.compute_type,
+                **self.kwargs,
+            )
+            self._initialized = True
+        return self._model
 
     async def transcribe(self, path: str, language: str = "auto"):
-        segments, info = self._model.transcribe(path, language=language)
+        model = self._get_model()
+        segments, info = model.transcribe(path, language=language)
         text = " ".join([seg.text for seg in segments])
         return {
             "text": text,

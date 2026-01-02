@@ -17,6 +17,8 @@ class StorageMaintenancePort(Protocol):
 
     async def delete(self, provider_name: str, path: str) -> None: ...
 
+    async def delete_folder(self, provider_name: str, folder_path: str) -> None: ...
+
 
 class StorageMaintenanceService:
     """Handles storage maintenance operations such as cleaning up orphaned files."""
@@ -32,6 +34,10 @@ class StorageMaintenanceService:
     async def delete_file(self, provider_name: str, path: str) -> None:
         """Delete a single file, used by higher-level services (e.g., media delete)."""
         await self._storage.delete(provider_name, path)
+
+    async def delete_folder(self, provider_name: str, folder_path: str) -> None:
+        """Delete an entire folder/prefix, useful for deep media cleanup."""
+        await self._storage.delete_folder(provider_name, folder_path)
 
     async def cleanup_orphaned_files(
         self,

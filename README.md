@@ -76,28 +76,38 @@ cp .env.example .env
 
 #### Backend
 
-This command starts the entire backend infrastructure (API, database, Redis, etc.).
+Este projeto suporta execução otimizada para diferentes tipos de hardware (CPU, NVIDIA e AMD). Escolha o comando de acordo com sua máquina:
 
+**Opção A: Rodar em CPU (Qualquer máquina)**
 ```bash
-docker-compose up --build
+docker compose up -d --build
+```
+
+**Opção B: Rodar com NVIDIA (CUDA 13.0+)**
+*Requer NVIDIA Container Toolkit instalado no host.*
+```bash
+docker compose -f docker-compose.yml -f docker-compose.cuda.yml up -d --build
+```
+
+**Opção C: Rodar com AMD (ROCm 6.2+)**
+*Requer drivers ROCm instalados no host e usuário nos grupos `video` e `render`.*
+```bash
+docker compose -f docker-compose.yml -f docker-compose.rocm.yml up -d --build
 ```
 
 - **API**: `http://localhost:8000`
 - **API Docs**: `http://localhost:8000/docs`
 
-#### Frontend
+### 4. Autenticação Hugging Face (Modelos Gated)
 
-In a separate terminal, navigate to the `frontend` directory, install dependencies, and start the development server.
+Para utilizar modelos protegidos como o **Llama 3**, você deve:
+1. Solicitar acesso ao modelo no site do [Hugging Face](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct).
+2. Criar um Access Token (tipo "Read") em suas configurações.
+3. Adicionar ao seu arquivo `.env`: `HF_TOKEN=seu_token_aqui`.
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+O sistema realizará o login automaticamente durante a subida dos containers.
 
-- **Frontend App**: `http://localhost:5173` (or the port specified by Vite)
-
-### 4. Apply Database Migrations
+### 5. Apply Database Migrations
 
 After starting the containers for the first time, open a new terminal and run the Alembic migrations to set up the database schema.
 

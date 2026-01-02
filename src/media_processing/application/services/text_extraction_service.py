@@ -35,23 +35,22 @@ class TextExtractionService:
     def __init__(
         self,
         repository: TranscriptionRepositoryPort,
-        task_scheduler: TextExtractionTaskSchedulerPort,
+        task_scheduler: Optional[TextExtractionTaskSchedulerPort],
         storage_service: StoragePort,
+        text_extractor: TextExtractorPort,
+        ocr_provider: OCRProviderPort,
         event_bus: SupportsEventBus | None = None,
-        text_extractor: TextExtractorPort = None,
-        ocr_provider: OCRProviderPort = None,
+        metrics: Optional[MetricsPort] = None,
+        logger: Optional[Any] = None,
     ):
         self._repo = repository
         self._task_scheduler = task_scheduler
         self._storage = storage_service
-        self._event_bus = event_bus
-        if text_extractor is None or ocr_provider is None:
-            raise ValueError(
-                "TextExtractionService requires text_extractor and "
-                "ocr_provider adapters"
-            )
         self._text_extractor = text_extractor
         self._ocr_provider = ocr_provider
+        self._event_bus = event_bus
+        self._metrics = metrics
+        self._logger = logger or structlog.get_logger(__name__)
 
     async def request_text_extraction(
         self, command: RequestTextExtractionCommand
@@ -176,7 +175,7 @@ class TextExtractionService:
                         TextContentReady(
                             media_id=str(media_id),
                             transcription_id=str(transcription.id),
-                            text_content=extracted_text,
+                            text=extracted_text,
                             user_id=user_id or getattr(transcription, "user_id", None),
                             filename=filename
                             or getattr(transcription, "filename", None),
