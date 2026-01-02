@@ -104,17 +104,21 @@ const MediaDetailPage = () => {
   };
 
   const formattedDate = format(new Date(media.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR });
-  const displayName = media.filename || media.original_file_path?.split("/").pop() || media.id;
+  // Fallback para filename ou ID, já que original_file_path foi removido
+  const displayName = media.filename || media.id;
   const rawFileSize = media.size ?? null;
-  const fileSizeMb = media.file_size_mb ?? (rawFileSize ? rawFileSize / (1024 * 1024) : undefined);
+  // Cálculo de MB no frontend, já que o backend manda bytes
+  const fileSizeMb = rawFileSize ? rawFileSize / (1024 * 1024) : undefined;
   const formattedFileSize = fileSizeMb ? `${fileSizeMb.toFixed(2)} MB` : "Indisponível";
   const derivedLanguage = media.language || transcriptionData?.language;
   const languageLabel = derivedLanguage ? derivedLanguage.toUpperCase() : "Indefinido";
   const pipelineFlags = media.processing_pipeline ?? [];
   const providerCount = pipelineFlags.length;
-  const summaryConfigured = true;
-  const sentimentConfigured = true;
-  const topicsConfigured = true;
+  
+  // Analisa dinamicamente se as etapas foram configuradas no upload ou se já foram concluídas
+  const summaryConfigured = Boolean(media.summarization_provider) || media.status === MediaStatus.COMPLETED;
+  const sentimentConfigured = Boolean(media.sentiment_provider) || media.status === MediaStatus.COMPLETED;
+  const topicsConfigured = Boolean(media.topic_modeling_provider) || media.status === MediaStatus.COMPLETED;
 
   const computeStageStatus = (primary?: string | null, configured = true): string => {
     if (!configured) return "SKIPPED";
@@ -281,7 +285,7 @@ const MediaDetailPage = () => {
               <FileText className="h-4 w-4 text-sky-600" />
               <span>ID: {media.id}</span>
             </div>
-            {user?.role === UserRole.ADMIN && media.status === MediaStatus.FAILED && (
+            {(user?.role === UserRole.ADMIN || media.user_id === user?.id) && media.status === MediaStatus.FAILED && (
               <Button
                 onClick={handleReprocess}
                 disabled={reprocessMutation.isPending}
@@ -348,29 +352,11 @@ const MediaDetailPage = () => {
             })}
           </CardContent>
         </Card>
-        <Card className="border border-[#ede4d5] bg-white">
-          <CardHeader>
-            <CardTitle>Provedores vinculados</CardTitle>
-            <CardDescription>Origem de cada etapa do pipeline.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {providerList.map((provider) => (
-              <div key={provider.label} className="rounded-xl border border-[#f2eadf] bg-[#fdfbf6] p-3 text-sm">
-                <p className="text-muted-foreground">{provider.label}</p>
-                <p className="font-medium text-foreground">{provider.value ?? "Automático"}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
       </section>
 
       <Card className="border border-[#ede4d5] bg-white">
         <CardHeader>
           <CardTitle>Pré-visualização</CardTitle>
-          <CardDescription className="text-sm text-muted-foreground">
-            Local: {media.storage_provider ?? "Desconhecido"}
-            {media.original_file_path && <> · {media.original_file_path}</>}
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {isPlayable ? (
@@ -392,10 +378,6 @@ const MediaDetailPage = () => {
               Prévia indisponível para este tipo de arquivo.
             </p>
           )}
-          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-            <span>Armazenamento: {media.storage_provider ?? "—"}</span>
-            {media.original_file_path && <span className="truncate">Caminho: {media.original_file_path}</span>}
-          </div>
         </CardContent>
       </Card>
 

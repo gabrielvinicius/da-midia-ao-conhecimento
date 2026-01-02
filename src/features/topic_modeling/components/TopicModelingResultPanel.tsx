@@ -47,6 +47,10 @@ const providerMeta: Record<string, { label: string; description: string }> = {
     label: "BERTopic",
     description: "Modelo avançado baseado em embeddings e UMAP/HDBSCAN.",
   },
+  "tfidf-kmeans": {
+    label: "TF-IDF + K-Means",
+    description: "Extração estatística de tópicos baseada em frequência de termos.",
+  },
 };
 
 export const TopicModelingResultPanel = ({ mediaId, mediaStatus }: TopicModelingResultPanelProps) => {
@@ -128,18 +132,33 @@ export const TopicModelingResultPanel = ({ mediaId, mediaStatus }: TopicModeling
             >
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{topic.title || `Tópico ${index + 1}`}</p>
               {topic.summary_md ? (
-                <p className="mt-2 font-medium text-slate-900 whitespace-pre-wrap">{topic.summary_md}</p>
+                <div className="mt-2 text-slate-900">
+                   {topic.summary_md.split('\n').map((line, i) => {
+                     const tl = line.trim();
+                     if (tl.startsWith('- ') || tl.startsWith('* ')) return (
+                       <div key={i} className="flex gap-2 ml-1 text-xs">
+                         <span className="text-slate-400 mt-1.5 h-1 w-1 rounded-full bg-slate-400 shrink-0" />
+                         <span>{tl.substring(2)}</span>
+                       </div>
+                     );
+                     return <p key={i} className={cn("mt-1", tl.startsWith('#') ? "font-bold" : "font-medium")}>{line}</p>;
+                   })}
+                </div>
               ) : (
-                <p className="mt-2 text-muted-foreground">
+                <p className="mt-2 text-muted-foreground italic">
                   {topic.keywords?.length
                     ? `Principais termos: ${topic.keywords.slice(0, 5).join(", ")}`
                     : "Sem resumo disponível."}
                 </p>
               )}
               {topic.keywords?.length > 0 && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Palavras-chave: {topic.keywords.slice(0, 6).join(", ")}
-                </p>
+                <div className="mt-3 pt-2 border-t border-slate-200/50 flex flex-wrap gap-1.5">
+                  {topic.keywords.slice(0, 5).map(kw => (
+                    <span key={kw} className="text-[10px] bg-slate-200/50 text-slate-600 px-1.5 py-0.5 rounded">
+                      {kw}
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
           ))}

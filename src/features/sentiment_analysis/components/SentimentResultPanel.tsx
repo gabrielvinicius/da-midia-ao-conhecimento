@@ -50,6 +50,11 @@ export const SentimentResultPanel = ({ mediaId, mediaStatus }: SentimentResultPa
     const label = String(analysis.overall_sentiment || "NEUTRAL").toUpperCase();
     const config = sentimentConfig[label] || sentimentConfig.NEUTRAL;
     const chunks = analysis.sentiment_items?.length ?? 0;
+    
+    // Calculate average score if possible
+    const avgScore = analysis.sentiment_items?.length 
+      ? (analysis.sentiment_items.reduce((acc, curr) => acc + curr.score, 0) / analysis.sentiment_items.length) * 100
+      : null;
 
     return (
       <div className="space-y-5">
@@ -59,7 +64,15 @@ export const SentimentResultPanel = ({ mediaId, mediaStatus }: SentimentResultPa
           </div>
           <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">sentimento</p>
           <p className="text-2xl font-bold text-slate-900">{config.label}</p>
-          <p className="text-sm text-muted-foreground">Baseado em {chunks} blocos de texto</p>
+          {avgScore !== null && (
+            <div className="mt-2 flex items-center justify-center gap-2">
+               <div className="h-1.5 w-24 rounded-full bg-slate-200 overflow-hidden">
+                  <div className={cn("h-full transition-all", config.accent.replace('text-', 'bg-'))} style={{ width: `${avgScore}%` }} />
+               </div>
+               <span className="text-[10px] font-medium text-slate-500">{avgScore.toFixed(0)}%</span>
+            </div>
+          )}
+          <p className="mt-2 text-[10px] text-muted-foreground uppercase tracking-widest">Baseado em {chunks} blocos</p>
         </div>
 
         {(analysis.sentiment_items || []).slice(0, 4).length > 0 && (

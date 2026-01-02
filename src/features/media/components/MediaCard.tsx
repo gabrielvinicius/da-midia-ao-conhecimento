@@ -73,7 +73,7 @@ export const MediaCard = ({ media }: MediaCardProps) => {
   const { icon: statusIcon, color: statusColor, label: statusLabel, bgColor: statusBgColor } = statusConfig[media.status] || statusConfig[MediaStatus.PENDING];
   const { icon: typeIcon, label: typeLabel, color: typeColor } = mediaTypeConfig[media.media_type] || mediaTypeConfig[MediaType.TEXT];
 
-  const filename = media.original_file_path?.split('/').pop() || 'Arquivo';
+  const filename = media.filename || media.id;
   const createdAt = new Date(media.created_at);
 
   const handleReprocess = (e: MouseEvent) => {
@@ -168,18 +168,6 @@ export const MediaCard = ({ media }: MediaCardProps) => {
             </Button>
           )}
         </div>
-
-        {/* Providers info */}
-        {(media.transcription_provider || media.summarization_provider) && (
-          <div className="text-xs text-muted-foreground space-y-1">
-            {media.transcription_provider && (
-              <div>Transcrição: {media.transcription_provider}</div>
-            )}
-            {media.summarization_provider && (
-              <div>Sumarização: {media.summarization_provider}</div>
-            )}
-          </div>
-        )}
 
         <div className="mt-4 pt-3 border-t">
           <Link to={`/media/${media.id}`} className="block">

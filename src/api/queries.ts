@@ -28,29 +28,6 @@ type RawTranscription = Partial<Transcription> & {
   content?: string | null;
 };
 
-const normalizeMediaShape = (payload: any): Media => {
-  const media_type = String(payload.media_type || payload.mediaType || '').toUpperCase() as MediaType;
-  const status = String(payload.status || '').toUpperCase() as MediaStatus;
-  return {
-    id: String(payload.id),
-    filename: payload.filename ?? null,
-    content_type: payload.mime_type ?? payload.content_type ?? null,
-    size: payload.file_size ?? payload.size ?? null,
-    media_type,
-    status,
-    created_at: String(payload.created_at),
-    error_message: payload.error_message ?? null,
-    language: payload.language ?? null,
-    duration: payload.duration ?? null,
-    original_file_path: payload.original_file_path ?? null,
-    storage_provider: payload.storage_provider ?? null,
-    transcription_provider: payload.transcription_provider ?? null,
-    summarization_provider: payload.summarization_provider ?? null,
-    sentiment_provider: payload.sentiment_provider ?? null,
-    topic_modeling_provider: payload.topic_modeling_provider ?? null,
-  } as Media;
-};
-
 const normalizeTranscription = (payload: RawTranscription): Transcription => {
   const segments = Array.isArray(payload.segments) ? payload.segments : [];
   return {
@@ -75,16 +52,16 @@ const normalizeTranscription = (payload: RawTranscription): Transcription => {
 
 export const getMediaById = async (mediaId: string): Promise<Media> => {
   const response = await api.get<Media>(`/media/${mediaId}`);
-  return normalizeMediaShape(response.data);
+  return response.data;
 };
 
 export const getMediaByUser = async (
   page = 1,
-  limit = 100, // API permite até 100
+  limit = 100,
   order: 'asc' | 'desc' = 'desc',
   search: string = "",
 ): Promise<PaginatedMedia> => {
-  const response = await api.get<Partial<Paginated<Media>>>('/media/', {
+  const response = await api.get<PaginatedMedia>('/media/', {
     params: {
       page,
       limit,
@@ -93,21 +70,7 @@ export const getMediaByUser = async (
     },
   });
 
-  const items = Array.isArray(response.data?.items)
-    ? response.data.items.map(normalizeMediaShape)
-    : [];
-  const total = typeof response.data?.total === 'number' ? response.data.total : items.length;
-  const resolvedLimit = response.data?.limit ?? limit;
-  const resolvedPage = response.data?.page ?? page;
-  const resolvedPages = response.data?.pages ?? Math.max(1, Math.ceil(total / resolvedLimit));
-
-  return {
-    items,
-    total,
-    page: resolvedPage,
-    pages: resolvedPages,
-    limit: resolvedLimit,
-  };
+  return response.data;
 };
 
 // Estatísticas das mídias do usuário atual

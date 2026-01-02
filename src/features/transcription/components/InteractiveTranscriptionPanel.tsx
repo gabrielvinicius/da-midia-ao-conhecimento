@@ -85,26 +85,32 @@ export const InteractiveTranscriptionPanel = ({ mediaId, currentTime, onSeek }: 
           <div className="text-center text-sm text-muted-foreground p-2">Identifying speakers...</div>
         )}
         <div className="h-96 overflow-y-auto space-y-2 rounded-md border p-4 bg-muted/20">
-          {resolvedSegments.map((segment, index) => {
-            const isActive = currentTime >= segment.start && currentTime < segment.end;
-            const speakerId = segment.speaker || 'UNKNOWN';
-            // Use the alias if it exists, otherwise fall back to the speaker ID
-            const speakerLabel = transcription.speaker_aliases?.[speakerId] || speakerId;
-            const speakerColor = isDiarized ? getSpeakerColor(speakerId) : 'text-foreground';
+          {resolvedSegments.length > 0 ? (
+            resolvedSegments.map((segment, index) => {
+              const isActive = currentTime >= segment.start && currentTime < segment.end;
+              const speakerId = segment.speaker || 'UNKNOWN';
+              const speakerLabel = transcription.speaker_aliases?.[speakerId] || speakerId;
+              const speakerColor = isDiarized ? getSpeakerColor(speakerId) : 'text-foreground';
 
-            return (
-              <div
-                key={index}
-                onClick={() => handleSegmentClick(segment)}
-                className={`cursor-pointer rounded-md p-2 transition-colors ${isActive ? 'bg-primary/20' : 'hover:bg-accent'}`}>
-                {isDiarized ? (
-                  <p><span className={`font-bold ${speakerColor}`}>{speakerLabel}:</span> {segment.text}</p>
-                ) : (
-                  <p>{segment.text}</p>
-                )}
-              </div>
-            );
-          })}
+              return (
+                <div
+                  key={index}
+                  onClick={() => handleSegmentClick(segment)}
+                  className={`cursor-pointer rounded-md p-2 transition-colors ${isActive ? 'bg-primary/20 shadow-sm border border-primary/10' : 'hover:bg-accent'}`}
+                >
+                  {isDiarized ? (
+                    <p><span className={`font-bold ${speakerColor}`}>{speakerLabel}:</span> {segment.text}</p>
+                  ) : (
+                    <p>{segment.text}</p>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="p-2 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap italic">
+              {resolvedText || "Transcrição disponível apenas em formato bruto (sem sincronização temporal)."}
+            </div>
+          )}
         </div>
       </div>
     );

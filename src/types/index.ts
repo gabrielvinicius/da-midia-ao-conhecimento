@@ -50,20 +50,16 @@ export interface Media {
   status: MediaStatus;
   created_at: string;
   
-  // Optional fields that might be present depending on context
-  error_message?: string;
+  // Optional fields
+  error_message?: string | null;
   language?: string | null;
   duration?: number | null;
-
-  // Campos estendidos (podem não estar presentes em todas as rotas)
-  original_file_path?: string | null;
+  processing_pipeline?: string[];
   storage_provider?: string | null;
   transcription_provider?: string | null;
   summarization_provider?: string | null;
   sentiment_provider?: string | null;
   topic_modeling_provider?: string | null;
-  processing_pipeline?: string[] | null;
-  file_size_mb?: number | null;
 }
 
 // Legacy Video interface for backward compatibility
@@ -169,6 +165,7 @@ export interface TextAnalysisResponse {
   transcription_id?: string | null;
   provider?: string | null;
   user_id?: string | null;
+  summary?: string | null;
 }
 
 // Admin types

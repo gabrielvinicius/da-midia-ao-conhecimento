@@ -37,10 +37,13 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
     socketRef.current = ws;
 
     ws.onopen = () => {
+      console.log('WebSocket connected');
       setConnectionStatus('OPEN');
+      shouldReconnectRef.current = true;
     };
 
     ws.onclose = (event) => {
+      console.log(`WebSocket disconnected (code: ${event.code})`);
       setConnectionStatus('CLOSED');
       socketRef.current = null;
 
@@ -118,6 +121,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
               );
               queryClient.invalidateQueries({ queryKey: ['media', mediaId] });
               queryClient.invalidateQueries({ queryKey: ['media-list'] });
+              queryClient.invalidateQueries({ queryKey: ['media-stats'] });
             }
             break;
           }
@@ -159,6 +163,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
 
             if (normalized === 'media') {
               queryClient.invalidateQueries({ queryKey: ['media-list'] });
+              queryClient.invalidateQueries({ queryKey: ['media-stats'] });
             }
             break;
           }
@@ -178,6 +183,8 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
                   : oldData
               );
               queryClient.invalidateQueries({ queryKey: ['media', media_id] });
+              queryClient.invalidateQueries({ queryKey: ['media-list'] });
+              queryClient.invalidateQueries({ queryKey: ['media-stats'] });
               queryClient.invalidateQueries({ queryKey: ['transcription', media_id] });
               queryClient.invalidateQueries({ queryKey: ['text-analysis', media_id] });
             }

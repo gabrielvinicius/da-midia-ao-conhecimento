@@ -44,6 +44,9 @@ interface SummaryPanelProps {
 }
 
 const buildSummaryText = (analysis: TextAnalysisResponse): string => {
+  if (analysis.summary) {
+    return analysis.summary;
+  }
   const topics = analysis.topics || [];
   const summaries = topics
     .map((t) => (t.summary_md || "").trim())
@@ -58,6 +61,56 @@ const buildSummaryText = (analysis: TextAnalysisResponse): string => {
     .filter(Boolean)
     .slice(0, 20);
   return snippets.join("\n");
+};
+
+const renderSummaryText = (text: string) => {
+  if (!text) return null;
+
+  // Split into lines to apply basic styling for markdown-like syntax
+  const lines = text.split("\n");
+  
+  return (
+    <div className="space-y-2 text-sm leading-relaxed text-slate-800">
+      {lines.map((line, i) => {
+        const trimmed = line.trim();
+        
+        // H1
+        if (trimmed.startsWith("# ")) {
+          return <h3 key={i} className="text-xl font-bold text-slate-900 mt-4 mb-2">{trimmed.replace("# ", "")}</h3>;
+        }
+        // H2
+        if (trimmed.startsWith("## ")) {
+          return <h4 key={i} className="text-lg font-semibold text-slate-900 mt-3 mb-1">{trimmed.replace("## ", "")}</h4>;
+        }
+        // List item
+        if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+          return (
+            <div key={i} className="flex gap-2 ml-2">
+              <span className="text-amber-500 mt-1.5 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+              <span>{trimmed.substring(2)}</span>
+            </div>
+          );
+        }
+        // Bold segments (simple regex for **text**)
+        if (trimmed.includes("**")) {
+          const parts = trimmed.split(/(\*\*.*?\*\*)/g);
+          return (
+            <p key={i}>
+              {parts.map((part, j) => 
+                part.startsWith("**") && part.endsWith("**") 
+                  ? <strong key={j} className="font-bold text-slate-950">{part.slice(2, -2)}</strong> 
+                  : part
+              )}
+            </p>
+          );
+        }
+        
+        if (trimmed === "") return <div key={i} className="h-2" />;
+        
+        return <p key={i}>{line}</p>;
+      })}
+    </div>
+  );
 };
 
 export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
@@ -112,16 +165,17 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
     return (
       <div className="space-y-4">
         {summaryText ? (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{summaryText}</p>
+          renderSummaryText(summaryText)
         ) : (
           <p className="text-sm text-muted-foreground">
             A análise foi gerada, mas ainda não há um resumo consolidado disponível.
           </p>
         )}
         {keyTopics.length > 0 && (
-          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+          <div className="mt-6 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span className="w-full text-[10px] uppercase tracking-widest text-slate-400 mb-1">Assuntos Relacionados</span>
             {keyTopics.map((topic, index) => (
-              <Badge key={`${topic}-${index}`} variant="outline" className="rounded-full bg-slate-50">
+              <Badge key={`${topic}-${index}`} variant="outline" className="rounded-full bg-slate-50 border-slate-200 text-slate-600">
                 {topic}
               </Badge>
             ))}
