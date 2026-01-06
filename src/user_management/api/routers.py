@@ -1,7 +1,7 @@
 import os
 import json
 import uuid
-from typing import Annotated, List, Optional
+from typing import Annotated, Optional
 
 from fastapi import (
     APIRouter,
@@ -14,6 +14,7 @@ from fastapi import (
 )
 from fastapi.security import OAuth2PasswordRequestForm
 
+from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.user_management.api.dependencies import (
     get_current_admin_user,
     get_current_user,
@@ -30,6 +31,8 @@ from src.user_management.config.settings import user_settings
 
 from .dependencies import get_auth_service, get_auth_settings, get_user_service
 from .schemas import UserCreate, UserResponse
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -67,8 +70,10 @@ async def register(
         result = await user_service.register_user(command)
         return UserResponse(**result["user"])
     except UserAlreadyExistsError as e:
+        logger.warning("auth.register.conflict", email=user_data.email, error=str(e))
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
+        logger.warning("auth.register.validation_error", email=user_data.email, error=str(e))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
@@ -188,7 +193,7 @@ async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]
 
 @router.get(
     "/users",
-    response_model=List[UserResponse],
+    response_model=list[UserResponse],
     dependencies=[Depends(get_current_admin_user)],
 )
 async def list_all_users(

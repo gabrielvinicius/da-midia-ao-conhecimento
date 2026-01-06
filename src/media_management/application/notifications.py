@@ -8,7 +8,7 @@ import structlog
 
 from src.notifications.domain import NotificationType
 from src.notifications.application.tasks import send_notification_task
-from src.shared.domain.enums import MediaStatus
+from src.media_management.domain.enums import MediaStatus
 
 logger = structlog.get_logger(__name__)
 

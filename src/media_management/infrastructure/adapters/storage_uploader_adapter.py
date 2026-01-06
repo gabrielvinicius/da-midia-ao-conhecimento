@@ -12,15 +12,15 @@ from src.media_management.application.ports import (
     UploadMetadataMapperPort,
     UploadResult,
 )
-from src.storage.infrastructure.dependencies import StorageServiceFactory
+from src.storage.application.ports import StorageServiceResolverPort  # Use Port
 
 
 class StorageUploaderAdapter(StorageUploadPort):
-    """Adapter wrapping StorageServiceFactory to FileStoragePort."""
+    """Adapter wrapping StorageServiceResolverPort to FileStoragePort."""
 
     def __init__(
         self,
-        factory: StorageServiceFactory,
+        factory: StorageServiceResolverPort,
         provider_name: str = "local",
     ) -> None:
         self._factory = factory
@@ -42,15 +42,11 @@ class StorageUploaderAdapter(StorageUploadPort):
 
 
 class StorageServiceFactoryUploader(StorageUploaderPort):
-    """Uploader que escolhe o provider dinamicamente a partir do command.
-
-    Isto evita acoplamento a um provider fixo ("local") e garante que a seleção
-    feita no upload (frontend/API) reflita o storage realmente utilizado.
-    """
+    """Uploader que escolhe o provider dinamicamente a partir do command."""
 
     def __init__(
         self,
-        factory: StorageServiceFactory,
+        factory: StorageServiceResolverPort,  # Use Port
         *,
         default_provider: str = "local",
     ) -> None:

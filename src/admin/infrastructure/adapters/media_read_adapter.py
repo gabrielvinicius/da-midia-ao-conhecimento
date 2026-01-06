@@ -6,7 +6,7 @@ from src.admin.application.ports import AdminMediaReadPort
 from src.media_management.application.services.media_read_service import (
     MediaReadService,
 )
-from src.shared.domain.enums import MediaStatus
+from src.media_management.domain.enums import MediaStatus
 
 
 class MediaReadAdapter(AdminMediaReadPort):

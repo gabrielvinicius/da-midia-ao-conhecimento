@@ -33,7 +33,7 @@ from src.media_management.application.services.components import (
 )
 from src.media_management.config.settings import media_settings
 from src.media_management.domain import Media
-from src.shared.domain.enums import MediaStatus, MediaType
+from src.media_management.domain.enums import MediaStatus, MediaType
 from src.shared.domain.errors import ValidationError
 from src.shared.domain.events import (
     MediaDeleted,

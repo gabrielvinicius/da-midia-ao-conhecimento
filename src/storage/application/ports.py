@@ -100,7 +100,18 @@ class FileStoragePort(Protocol):
         file_data: bytes,
         destination: str,
         content_type: str,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]: ...
+
+    async def download_file(self, file_path: str) -> bytes: ...
+
+
+class StorageServiceResolverPort(Protocol):
+    """Port for resolving storage services by provider name."""
+
+    def create_storage_service(self, provider: str) -> FileStoragePort: ...
+    
+    def get_download_service(self, provider: str) -> FileStoragePort: ...
 
 
 class FileReferenceValidatorPort(Protocol):
@@ -120,5 +131,6 @@ __all__ = [
     "StorageOperationLoggerPort",
     "StorageRepositoryPort",
     "FileStoragePort",
+    "StorageServiceResolverPort",
     "FileReferenceValidatorPort",
 ]

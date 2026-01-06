@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from src.admin.application.ports import MediaAdminPort, UserAdminPort
 from src.media_management.application.dtos import (
@@ -54,38 +55,48 @@ class AdminService:
         return await self.admin_read_service.get_user_activity_stats(query.user_id)
 
     # --- Users --------------------------------------------------------------
-    async def list_users(
-        self,
-        query: ListUsersQuery,
-    ):
-        return await self.user_adapter.list_users(query)
+    async def list_users(self, query: ListUsersQuery):
+        return await self.admin_user_service.list_users(query)
 
     async def update_user_role(
         self,
-        command: UpdateUserRoleCommand,
+        user_id: UUID,
+        new_role: Any,
+        admin_user: User,
     ) -> User:
-        return await self.user_adapter.update_user_role(command)
+        return await self.admin_user_service.update_user_role(
+            user_id=user_id,
+            new_role=new_role,
+            admin_user=admin_user
+        )
 
-    async def delete_user(self, command: DeleteUserCommand) -> None:
-        await self.user_adapter.delete_user(command)
+    async def delete_user(self, user_id: UUID, admin_user: User) -> None:
+        await self.admin_user_service.delete_user(
+            user_id=user_id,
+            admin_user=admin_user
+        )
 
-    async def activate_user(self, query: GetUserQuery) -> User:
-        return await self.user_adapter.activate_user(query)
+    async def activate_user(self, user_id: UUID, admin_user: User) -> User:
+        return await self.admin_user_service.activate_user(user_id, admin_user)
 
-    async def deactivate_user(self, query: GetUserQuery) -> User:
-        return await self.user_adapter.deactivate_user(query)
+    async def deactivate_user(self, user_id: UUID, admin_user: User) -> User:
+        return await self.admin_user_service.deactivate_user(user_id, admin_user)
 
     # --- Media --------------------------------------------------------------
     async def list_media(self, query: ListMediaQuery):
-        return await self.media_adapter.list_media(query)
+        return await self.admin_media_service.list_media(query)
 
-    async def delete_media(self, command: DeleteMediaCommand) -> None:
-        await self.media_adapter.delete_media(command)
+    async def delete_media(self, media_id: UUID, admin_user: User) -> None:
+        await self.admin_media_service.delete_media(
+            media_id=media_id,
+            admin_user=admin_user
+        )
 
-    async def reprocess_media(self, command: ReprocessMediaCommand) -> None:
-        await self.media_adapter.reprocess_media(command)
+    async def reprocess_media(self, media_id: UUID, admin_user: User) -> None:
+        await self.admin_media_service.reprocess_media(
+            media_id=media_id,
+            admin_user=admin_user
+        )
 
-    async def bulk_reprocess_failed_media(
-        self, command: BulkReprocessFailedMediaCommand
-    ) -> int:
-        return await self.media_adapter.bulk_reprocess_failed_media(command)
+    async def bulk_reprocess_failed_media(self, admin_user: User) -> int:
+        return await self.admin_media_service.bulk_reprocess_failed_media(admin_user)

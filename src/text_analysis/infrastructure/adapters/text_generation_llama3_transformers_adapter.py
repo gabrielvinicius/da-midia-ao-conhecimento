@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Optional
@@ -56,7 +57,7 @@ class Llama3TransformersTextGenerationAdapter(TextGenerationPort):
 
         if self._pipe is None:
             try:  # Lazy load
-                token = os.getenv("HF_TOKEN")
+                token = settings.hf_token
                 if token:
                     logger.info("llama3.initializing_with_token", token_prefix=token[:4] + "...")
                 else:
@@ -65,13 +66,16 @@ class Llama3TransformersTextGenerationAdapter(TextGenerationPort):
                 # Map 'cpu' or device ID
                 device_idx = -1 if self.device == "cpu" else 0
 
-                self._pipe = pipeline(
-                    task="text-generation",
-                    model=self.model_name,
-                    device=device_idx,
-                    return_full_text=False,
-                    token=token,
-                )
+                def _load():
+                    return pipeline(
+                        task="text-generation",
+                        model=self.model_name,
+                        device=device_idx,
+                        return_full_text=False,
+                        token=token,
+                    )
+
+                self._pipe = await asyncio.to_thread(_load)
             except Exception as exc:  # pragma: no cover
                 logger.warning("llama3.load_failed", error=str(exc))
                 self._available = False
@@ -88,13 +92,17 @@ class Llama3TransformersTextGenerationAdapter(TextGenerationPort):
             "## Pontos principais\n- ponto 1\n- ponto 2\n"
             "## Riscos/Oportunidades\n- item\n"
         )
-        try:
-            out = self._pipe(
+
+        def _generate_sync():
+            return self._pipe(
                 prompt,
                 max_new_tokens=self.max_new_tokens,
                 temperature=self.temperature,
                 do_sample=self.temperature > 0,
             )
+
+        try:
+            out = await asyncio.to_thread(_generate_sync)
             text = out[0]["generated_text"].strip()
             self._m_success.labels(model=self.model_name).inc()
             return text

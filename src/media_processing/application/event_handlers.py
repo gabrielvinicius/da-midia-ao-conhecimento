@@ -15,7 +15,7 @@ from src.media_processing.application.services.transcription_service import (
 from src.media_processing.application.services.video_processing_service import (
     VideoProcessingService,
 )
-from src.shared.domain.enums import MediaType as _MediaType
+from src.media_management.domain.enums import MediaType as _MediaType
 from src.shared.domain.events import MediaUploaded, TextContentReady
 
 logger = structlog.get_logger(__name__).bind(
@@ -214,7 +214,7 @@ class MediaProcessingEventHandlers:
 
     def _resolve_media_type(self, media_type_value):
         try:
-            from src.shared.domain.enums import MediaType as _MediaType
+            from src.media_management.domain.enums import MediaType as _MediaType
             if isinstance(media_type_value, _MediaType):
                 return media_type_value
             elif media_type_value is not None:

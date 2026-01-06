@@ -11,8 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.domain import Media
-from src.shared.domain.enums import MediaStatus
-from src.shared.domain.enums import MediaType
+from src.media_management.domain.enums import MediaStatus, MediaType
 
 from ..mappers import MediaMapper
 from ..persistence.models import MediaEntity

@@ -5,7 +5,7 @@ from typing import Optional
 from uuid import UUID
 
 from src.shared.domain.base_entity import BaseEntity
-from src.shared.domain.enums import MediaStatus, MediaType
+from src.media_management.domain.enums import MediaStatus, MediaType
 
 
 class Media(BaseEntity):

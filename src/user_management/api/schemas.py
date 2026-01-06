@@ -16,6 +16,11 @@ class UserCreate(BaseModel):
         description="The user's password (min 8 characters).",
         json_schema_extra={"example": "a_strong_password"},
     )
+    role: str = Field(
+        default="user",
+        description="The user's role (admin or user).",
+        json_schema_extra={"example": "user"},
+    )
 
 
 class TokenRequest(BaseModel):

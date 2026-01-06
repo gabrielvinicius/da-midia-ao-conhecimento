@@ -73,6 +73,10 @@ class PipelineNotificationService:
                 "created_at": saved.created_at,
                 "variables": saved.variables,
             }
+            # Flatten variables into payload for easier frontend handling
+            if saved.variables:
+                payload.update(saved.variables)
+
             await self._delivery.send_to_user(user_id, payload)
             saved.mark_as_sent()
             # Em adapters SQLAlchemy, o segundo save deve ser merge/upsert; garantimos no repo.

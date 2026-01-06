@@ -15,6 +15,12 @@ from src.admin.infrastructure.adapters.media_read_adapter import MediaReadAdapte
 from src.admin.infrastructure.adapters.media_repository_adapter import (
     MediaRepositoryAdapter,
 )
+from src.admin.infrastructure.adapters.media_management_adapter import (
+    MediaManagementAdapter,
+)
+from src.admin.infrastructure.adapters.user_management_adapter import (
+    UserManagementAdapter,
+)
 from src.admin.infrastructure.adapters.user_read_adapter import UserReadAdapter
 from src.admin.infrastructure.adapters.user_repository_adapter import (
     UserRepositoryAdapter,
@@ -30,6 +36,7 @@ from src.media_management.infrastructure.repositories.media_repository import (
     MediaRepository,
 )
 from src.user_management.application.auth_queries import UserReadService
+from src.user_management.application.services.user_service import UserService
 from src.user_management.application.services.permission_service import (
     UserPermissionService,
 )
@@ -50,15 +57,14 @@ class AdminModule:
 def build_admin_module(
     session: AsyncSession,
     auth_queries: UserReadService,
-    media_service: MediaService,
+    user_service_core: UserService, # Core service
+    media_service_core: MediaService, # Core service
 ) -> AdminModule:
     # Core components (no DI container)
     permission_service = UserPermissionService()
     audit_service = AdminAuditService()
 
-    user_repo = UserRepository(db=session)
     media_repo = MediaRepository(db=session)
-    user_repo_adapter = UserRepositoryAdapter(user_repo)
     media_repo_adapter = MediaRepositoryAdapter(media_repo)
 
     # Read adapters via ports
@@ -69,9 +75,13 @@ def build_admin_module(
         media_read_port=media_read_adapter,
     )
 
+    # Wrap external services in Adapters
+    media_admin_adapter = MediaManagementAdapter(media_service_core)
+    user_admin_adapter = UserManagementAdapter(user_service_core, auth_queries)
+
     # Services
     user_service = AdminUserService(
-        user_repository=user_repo_adapter,
+        user_service=user_admin_adapter,
         permission_service=permission_service,
         audit_service=audit_service,
     )
@@ -79,15 +89,16 @@ def build_admin_module(
         media_repository=media_repo_adapter,
         permission_service=permission_service,
         audit_service=audit_service,
-        media_service=media_service,
+        media_service=media_admin_adapter,
     )
 
-    user_adapter = get_user_admin_adapter(
+    # Legacy adapters for routers (if still needed)
+    user_api_adapter = get_user_admin_adapter(
         auth_queries=auth_queries,
         admin_user_service=user_service,
     )
-    media_adapter = get_media_admin_adapter(
-        media_service=media_service,
+    media_api_adapter = get_media_admin_adapter(
+        media_service=media_service_core,
         admin_media_service=admin_media_service,
         auth_queries=auth_queries,
     )
@@ -97,8 +108,8 @@ def build_admin_module(
         audit_service=audit_service,
         admin_user_service=user_service,
         admin_media_service=admin_media_service,
-        user_adapter=user_adapter,
-        media_adapter=media_adapter,
+        user_adapter=user_api_adapter,
+        media_adapter=media_api_adapter,
     )
 
     return AdminModule(

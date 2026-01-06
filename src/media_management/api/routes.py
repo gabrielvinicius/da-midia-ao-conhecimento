@@ -32,7 +32,7 @@ from src.shared.application.schemas import (
 )
 from src.shared.domain.errors import DomainError
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
-from src.user_management.api.dependencies import get_current_user
+from src.user_management.api.dependencies import get_current_user, get_current_user_from_query
 from src.user_management.domain import User
 from src.user_management.domain import UserRole
 
@@ -201,7 +201,7 @@ async def delete_media(
 async def stream_media(
     media_id: UUID,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_query),
     service: MediaService = Depends(get_media_service),
 ):
     try:

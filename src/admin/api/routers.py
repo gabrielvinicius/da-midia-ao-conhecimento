@@ -86,11 +86,9 @@ async def update_user(
     """Updates a user's role. Requires admin privileges."""
     try:
         return await service.update_user_role(
-            UpdateUserRoleCommand(
-                user_id=user_id,
-                new_role=update_data.role,
-                admin_user_id=current_admin.id,
-            )
+            user_id=user_id,
+            new_role=update_data.role,
+            admin_user=current_admin,
         )
     except (ValueError, PermissionError) as e:
         status_code = (
@@ -114,7 +112,8 @@ async def delete_user(
     """Deletes a user from the system. Requires admin privileges."""
     try:
         await service.delete_user(
-            DeleteUserCommand(user_id=user_id, admin_user_id=current_admin.id)
+            user_id=user_id,
+            admin_user=current_admin,
         )
     except (ValueError, PermissionError) as e:
         status_code = (
@@ -123,6 +122,7 @@ async def delete_user(
             else status.HTTP_403_FORBIDDEN
         )
         raise HTTPException(status_code=status_code, detail=str(e))
+
 
 
 @router.get(
@@ -174,10 +174,8 @@ async def delete_media(
     """Deletes a media item and its associated files from storage."""
     try:
         await service.delete_media(
-            DeleteMediaCommand(
-                media_id=media_id,
-                admin_user_id=current_admin.id,
-            )
+            media_id=media_id,
+            admin_user=current_admin,
         )
     except (ValueError, PermissionError) as e:
         status_code = (
@@ -201,11 +199,8 @@ async def reprocess_media(
     """Triggers reprocessing for a media item that previously failed."""
     try:
         await service.reprocess_media(
-            ReprocessMediaCommand(
-                media_id=media_id,
-                admin_user_id=current_admin.id,
-                force=False,
-            )
+            media_id=media_id,
+            admin_user=current_admin,
         )
         return {"message": "Reprocessing initiated."}
     except (ValueError, PermissionError) as e:
@@ -303,7 +298,7 @@ async def bulk_reprocess_failed_media(
     """Reprocess all failed media items in bulk."""
     try:
         reprocessed_count = await service.bulk_reprocess_failed_media(
-            BulkReprocessFailedMediaCommand(admin_user_id=current_admin.id)
+            admin_user=current_admin
         )
         return {
             "message": (
@@ -313,3 +308,4 @@ async def bulk_reprocess_failed_media(
         }
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+

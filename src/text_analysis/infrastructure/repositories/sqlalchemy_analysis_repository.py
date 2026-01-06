@@ -15,11 +15,14 @@ from src.text_analysis.infrastructure.persistence.models import AnalysisModel
 
 
 class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
+    CURRENT_SCHEMA_VERSION = 2 # Increment when structure changes
+
     def __init__(self, session: AsyncSession):
         self.session = session
 
     async def save(self, analysis: Analysis) -> str:
         payload = {
+            "schema_version": self.CURRENT_SCHEMA_VERSION, # Versioning for Level 6.0
             "analysis_id": str(analysis.id),
             "document_id": str(analysis.document.id),
             "overall_sentiment": (
@@ -62,7 +65,28 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         if not record:
             return None
         payload = record.payload or {}
+        
+        # Level 6.0: Automated Schema Evolution on Read
+        version = payload.get("schema_version", 1)
+        if version < self.CURRENT_SCHEMA_VERSION:
+            payload = self._upcast_payload(payload, from_version=version)
+            # Optional: trigger background update to migrate DB record permanently
+            
         return self._payload_to_analysis(payload)
+
+    def _upcast_payload(self, payload: dict, from_version: int) -> dict:
+        """Transforms legacy data formats into the current version format."""
+        updated = payload.copy()
+        
+        if from_version == 1:
+            # Example: In V1 topics might have been a simple list of strings
+            # In V2 they are objects with keywords and summaries.
+            if "topics" in updated and updated["topics"] and isinstance(updated["topics"][0], str):
+                updated["topics"] = [{"title": t, "keywords": [t], "summary": ""} for t in updated["topics"]]
+            updated["schema_version"] = 2
+            
+        # Add future migrations here: if from_version == 2: ...
+        return updated
 
     async def get_by_media_id(self, media_id: str) -> Optional[Analysis]:
         try:

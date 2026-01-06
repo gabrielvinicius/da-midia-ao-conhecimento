@@ -7,15 +7,15 @@ import structlog
 
 from src.admin.application.ports import AdminMediaRepositoryPort
 from src.admin.application.ports import AdminAuditPort
+from src.admin.application.ports.external import MediaAdminPort  # NEW
 from src.media_management.application.dtos import (
     DeleteMediaCommand,
     ReprocessMediaCommand,
     ListMediaQuery,
     PaginatedMedia,
 )
-from src.media_management.application.services.media_service import MediaService
 from src.media_management.domain import Media
-from src.shared.domain.enums import MediaStatus
+from src.media_management.domain.enums import MediaStatus
 from src.user_management.application.ports import PermissionServicePort
 from src.user_management.domain import User, UserRole
 
@@ -30,7 +30,7 @@ class AdminMediaService:
         media_repository: AdminMediaRepositoryPort,
         permission_service: PermissionServicePort,
         audit_service: AdminAuditPort,
-        media_service: MediaService,
+        media_service: MediaAdminPort,  # Updated type hint
     ) -> None:
         self.media_repository = media_repository
         self.permission_service = permission_service

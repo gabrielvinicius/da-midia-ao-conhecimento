@@ -53,7 +53,7 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
                     task="summarization",
                     model=self.model_name,
                     device=device_idx,
-                    token=os.getenv("HF_TOKEN"),
+                    token=settings.hf_token,
                 )
             except Exception as exc:  # pragma: no cover - runtime path
                 logger.warning("transformers_generation.load_failed", error=str(exc))

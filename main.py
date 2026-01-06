@@ -27,6 +27,22 @@ from src.shared.application.lifecycle import (
 from src.shared.application.modules import (
     DEFAULT_MODULE_SPECS,
     include_module_routers,
+    register_module_dependencies,
+)
+from src.media_management.bootstrap import (
+    build_media_components,
+)
+from src.user_management.bootstrap import (
+    build_user_management_components,
+)
+from src.admin.bootstrap import (
+    build_admin_module,
+)
+from src.notifications.bootstrap import (
+    build_notifications_module,
+)
+from src.notifications.infrastructure.adapters.auth_queries_adapter import (
+    NotificationsAuthQueriesAdapter,
 )
 from src.shared.domain.events import (
     MediaUploaded,
@@ -185,6 +201,44 @@ async def lifespan(app: FastAPI):
         event_bus,
         storage_factory=storage_factory,
     )
+
+    # --- Manually build and bind the Media Module ---
+    # This is critical to ensure dependencies like storage_downloader are injected
+    # instead of using the default (empty) dependencies in routes.
+    async with AsyncSessionLocal() as session:
+        media_module, _ = build_media_components(
+            session=session,
+            storage_service_factory=storage_factory,
+            metrics_service=None,
+            event_bus=event_bus,
+        )
+        user_management_module = build_user_management_components(session=session)
+        
+        # Build notifications module using auth queries from the same session context
+        notifications_module = build_notifications_module(
+            session=session,
+            auth_queries=NotificationsAuthQueriesAdapter(db_session=session),
+            event_bus=event_bus
+        )
+
+        admin_module = build_admin_module(
+            session=session,
+            auth_queries=user_management_module.auth_queries,
+            user_service_core=user_management_module.user_service,
+            media_service=media_module.media_service,
+        )
+
+        # Register all built modules so FastAPI uses the correct instances
+        register_module_dependencies(
+            app,
+            module_instances={
+                "media": media_module,
+                "auth": user_management_module,
+                "notifications": notifications_module,
+                "admin": admin_module,
+            },
+            specs=DEFAULT_MODULE_SPECS,
+        )
 
     notifications_bridge = None
     if not lightweight_mode:

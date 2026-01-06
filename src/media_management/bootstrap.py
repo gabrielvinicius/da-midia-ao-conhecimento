@@ -154,6 +154,15 @@ def build_media_components(
         MediaFileReferenceValidator(media_repository)
     )
 
+    # Text analysis cleanup adapter (needed for media deletion)
+    from src.text_analysis.infrastructure.adapters.text_analysis_cleanup_adapter import (
+        TextAnalysisCleanupAdapter,
+    )
+    from src.text_analysis.infrastructure.repositories.sqlalchemy_analysis_repository import (
+        SqlAlchemyAnalysisRepository,
+    )
+    analysis_repo = SqlAlchemyAnalysisRepository(session)
+
     media_service = MediaService(
         media_repository=media_repo_adapter,
         storage_uploader=DefaultStorageUploader(StorageUploaderAdapter(storage_service_factory)),
@@ -164,6 +173,7 @@ def build_media_components(
         event_bus=event_bus,
         storage_maintenance=storage_maintenance_service,
         transcription_cleanup=TranscriptionCleanupAdapter(transcription_repository),
+        text_analysis_cleanup=TextAnalysisCleanupAdapter(analysis_repo),
         storage_downloader=StorageDownloaderAdapter(storage_service_factory),
     )
     transcription_service = TranscriptionService(

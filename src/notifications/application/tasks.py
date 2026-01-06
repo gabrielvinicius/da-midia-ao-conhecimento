@@ -7,32 +7,9 @@ from celery import shared_task
 from pydantic import ValidationError
 
 from src.notifications.application.schemas import NotificationTaskPayload
-from src.notifications.application.services.notification_service import (
-    NotificationService,
-)
 from src.notifications.application.dtos import SendNotificationCommand
 from src.notifications.domain import NotificationType
-from src.notifications.application.services.notification_read_service import (
-    NotificationReadService,
-)
-from src.notifications.infrastructure.adapters.auth_queries_adapter import (
-    NotificationsAuthQueriesAdapter,
-)
-from src.notifications.infrastructure.adapters.notification_logger_adapter import (
-    NotificationLoggerAdapter,
-)
-from src.notifications.infrastructure.adapters.notification_metrics_adapter import (
-    NotificationMetricsAdapter,
-)
-from src.notifications.infrastructure.adapters.notification_repository_adapter import (
-    NotificationRepositoryAdapter,
-)
-from src.notifications.infrastructure.adapters.redis_notification_delivery_adapter import (
-    RedisNotificationDeliveryAdapter,
-)
-from src.notifications.infrastructure.repositories.notification_repository import (
-    NotificationRepository,
-)
+from src.notifications.bootstrap import bootstrap_task_service
 from src.shared.infrastructure.database.db import get_sync_session
 
 logger = structlog.get_logger(__name__)
@@ -94,18 +71,8 @@ def _run_notification_sending_sync(
     correlation_id=None,
     final_attempt: bool = False,
 ):
-    repo = NotificationRepository(db=db_session)
-    repo_adapter = NotificationRepositoryAdapter(repo)
-    read_service = NotificationReadService(notification_repo=repo_adapter)
-    auth_queries = NotificationsAuthQueriesAdapter(db_session=db_session)
-    service = NotificationService(
-        notification_repo=repo_adapter,
-        delivery=RedisNotificationDeliveryAdapter(),
-        auth_queries=auth_queries,
-        notification_logger=NotificationLoggerAdapter(),
-        notification_metrics=NotificationMetricsAdapter(),
-        notification_read_service=read_service,
-    )
+    # Use the bootstrap helper to create the service with correct dependencies
+    service = bootstrap_task_service(db_session)
 
     try:
         notif_type = NotificationType(payload.notification_type)
@@ -118,11 +85,16 @@ def _run_notification_sending_sync(
         return None
 
     async def _async_call():
+        # Merge contact_info into variables, preserving correlation_id
+        variables = payload.contact_info.copy()
+        if correlation_id:
+            variables["correlation_id"] = correlation_id
+
         command = SendNotificationCommand(
             user_id=payload.user_id,
             message=payload.message,
             notification_type=notif_type,
-            variables={"correlation_id": correlation_id},
+            variables=variables,
         )
         return await service.send_notification(
             command,

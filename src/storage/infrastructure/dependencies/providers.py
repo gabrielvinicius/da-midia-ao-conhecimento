@@ -8,7 +8,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import structlog
 
 from src.storage.infrastructure.adapters.s3_stub_adapter import S3StorageService
-from src.storage.application.ports import StorageRepositoryPort
+from src.storage.application.ports import (
+    StorageRepositoryPort,
+    StorageServiceResolverPort,
+    FileStoragePort,
+)
 from src.storage.application.services.storage_service import StorageService
 from src.storage.config.settings import storage_settings
 from src.storage.infrastructure.persistence.local_storage_repository import (
@@ -19,7 +23,7 @@ logger = structlog.get_logger(__name__)
 
 
 @dataclass
-class StorageClientAdapter:
+class StorageClientAdapter(FileStoragePort):
     """Adapter exposing a uniform interface for upload/download used by other modules.
     Wraps the Application Service to maintain backward compatibility.
     """
@@ -32,7 +36,7 @@ class StorageClientAdapter:
         *,
         file_data: bytes,
         destination: str,
-        content_type: Optional[str] = None,
+        content_type: str,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         # Ensure deterministic path layout
@@ -55,11 +59,6 @@ class StorageClientAdapter:
         return await self.service.retrieve_file(normalized_path)
 
     async def download(self, file_path: str):
-        # Legacy expects tuple (bytes, filename) or similar?
-        # Old LocalStorageService returned (bytes, filename).
-        # S3Stub returned (bytes, filename).
-        # New Service returns bytes or None.
-
         normalized_path = str(Path(file_path))
         data = await self.service.retrieve_file(normalized_path)
         if data is None:
@@ -148,14 +147,13 @@ class StorageClientAdapter:
         return await self.service.list_files(prefix)
 
 
-class StorageServiceFactory:
+class StorageServiceFactory(StorageServiceResolverPort):
     """Resolves storage services based on the provider."""
 
     def __init__(self) -> None:
         # Initialize repositories
         self._repositories: Dict[str, StorageRepositoryPort] = {
             "local": LocalStorageService(),
-            # Stub S3 provider backed by filesystem for dev/test; replace with real provider when configured
             "s3": S3StorageService(),
         }
         # metadados (label/description/public/capabilities)
@@ -189,11 +187,11 @@ class StorageServiceFactory:
         except KeyError as exc:
             raise ValueError(f"Provider '{provider}' não suportado") from exc
 
-    def create_storage_service(self, provider: str) -> Any:
+    def create_storage_service(self, provider: str) -> FileStoragePort:
         """Returns an adapter compatible with current media module callers."""
         return self._get_service(provider)
 
-    def get_download_service(self, provider: str) -> Any:
+    def get_download_service(self, provider: str) -> FileStoragePort:
         """Resolves a download service."""
         return self.create_storage_service(provider)
 
@@ -201,8 +199,6 @@ class StorageServiceFactory:
         """Returns the root directory of the configured provider (when applicable)."""
         try:
             repo = self._repositories[provider]
-            # Assuming implementations expose _root or we can access it.
-            # Both Local and S3 (stub) expose _root.
             root = getattr(repo, "_root", None)
             if root is None:
                 raise ValueError(f"Provider '{provider}' não expõe caminho local")
@@ -211,12 +207,7 @@ class StorageServiceFactory:
             raise ValueError(f"Provider '{provider}' não suportado") from exc
 
     def list_allowed_providers(self) -> List[str]:
-        """Lista providers permitidos e efetivamente registrados.
-
-        Usado por endpoints de read-model (ex.: `GET /providers`) sem expor
-        detalhes internos dos adapters.
-        """
-
+        """Lista providers permitidos e efetivamente registrados."""
         available = set(self._repositories.keys())
         allowed = sorted(self._allowed.intersection(available))
         return allowed

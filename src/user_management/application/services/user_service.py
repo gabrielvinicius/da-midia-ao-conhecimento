@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from src.user_management.application.ports import (
@@ -162,7 +162,9 @@ class UserService:
 
         return existing
 
-    async def authenticate_user(self, email: str, password: str) -> Dict[str, Any]:
+    async def authenticate_user(
+        self, email: str, password: str
+    ) -> dict[str, Any]:
         user = await self.user_read_service.get_user_by_email(email)
         if user is None or not self.password_hasher.verify(
             password, user.password_hash

@@ -5,7 +5,7 @@ from typing import Any, Dict
 from uuid import UUID
 
 from src.admin.application.ports import AdminMediaReadPort, AdminUserReadPort
-from src.shared.domain.enums import MediaStatus
+from src.media_management.domain.enums import MediaStatus
 from src.user_management.application.dtos import GetUserQuery
 
 

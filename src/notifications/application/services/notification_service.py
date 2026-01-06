@@ -93,16 +93,21 @@ class NotificationService:
 
             # 2. Attempt delivery (WebSocket, Email, SMS, Push)
             # WebSocket delivery
+            ws_payload = {
+                "notification_id": str(notification_id),
+                "type": command.notification_type.value,
+                "message": command.message,
+                "priority": command.priority.value,
+                "created_at": saved_notification.created_at,
+                "variables": saved_notification.variables,
+            }
+            # Flatten variables into payload for easier frontend handling (e.g. kind="MEDIA_STATUS")
+            if saved_notification.variables:
+                ws_payload.update(saved_notification.variables)
+
             if await self.delivery.send_to_user(
                 command.user_id,
-                {
-                    "notification_id": str(notification_id),
-                    "type": command.notification_type.value,
-                    "message": command.message,
-                    "priority": command.priority.value,
-                    "created_at": saved_notification.created_at,
-                    "variables": saved_notification.variables,
-                },
+                ws_payload,
             ):
                 saved_notification.status = NotificationStatus.SENT
                 await self.repo.save(saved_notification)

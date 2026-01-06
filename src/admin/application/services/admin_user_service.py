@@ -4,8 +4,8 @@ from uuid import UUID
 
 import structlog
 
-from src.admin.application.ports import AdminUserRepositoryPort
 from src.admin.application.ports import AdminAuditPort
+from src.admin.application.ports.external import UserAdminPort
 from src.user_management.application.ports import PermissionServicePort
 from src.user_management.domain import User, UserRole
 
@@ -17,11 +17,11 @@ class AdminUserService:
 
     def __init__(
         self,
-        user_repository: AdminUserRepositoryPort,
+        user_service: UserAdminPort, # Use the Port
         permission_service: PermissionServicePort,
         audit_service: AdminAuditPort,
     ) -> None:
-        self.user_repository = user_repository
+        self.user_service = user_service
         self.permission_service = permission_service
         self.audit_service = audit_service
 
@@ -33,15 +33,11 @@ class AdminUserService:
     ) -> User:
         self.permission_service.validate_admin_operation(admin_user, user_id)
 
-        user = await self.user_repository.find_by_id(user_id)
-        if not user:
-            raise ValueError(f"Usuário com id {user_id} não foi encontrado")
-
-        role_enum = new_role if isinstance(new_role, UserRole) else UserRole(new_role)
-        old_role = user.role.value if user.role else "none"
-
-        user.role = role_enum
-        updated_user = await self.user_repository.save(user)
+        updated_user = await self.user_service.update_user_role(
+            user_id=user_id,
+            new_role=new_role,
+            admin_user=admin_user,
+        )
 
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
@@ -49,18 +45,10 @@ class AdminUserService:
             target_type="user",
             target_id=user_id,
             details={
-                "old_role": old_role,
-                "new_role": role_enum.value,
-                "target_email": user.email,
+                "old_role": "unknown", # Port simplified
+                "new_role": new_role.value if hasattr(new_role, 'value') else str(new_role),
+                "target_email": updated_user.email,
             },
-        )
-
-        logger.info(
-            "admin.user.role_updated",
-            admin_id=str(admin_user.id),
-            target_user_id=str(user_id),
-            old_role=old_role,
-            new_role=role_enum.value,
         )
 
         return updated_user
@@ -68,13 +56,7 @@ class AdminUserService:
     async def delete_user(self, user_id: UUID, admin_user: User) -> None:
         self.permission_service.validate_admin_operation(admin_user, user_id)
 
-        user = await self.user_repository.find_by_id(user_id)
-        if not user:
-            raise ValueError(f"Usuário com id {user_id} não foi encontrado")
-
-        success = await self.user_repository.delete(user_id)
-        if not success:
-            raise ValueError("Usuário não pôde ser removido")
+        await self.user_service.delete_user(user_id=user_id, admin_user=admin_user)
 
         await self.audit_service.log_admin_action(
             admin_user=admin_user,
@@ -82,13 +64,35 @@ class AdminUserService:
             target_type="user",
             target_id=user_id,
             details={
-                "target_email": user.email,
-                "target_role": user.role.value if user.role else "none",
+                "target_id": str(user_id),
             },
         )
 
-        logger.info(
-            "admin.user.deleted",
-            admin_id=str(admin_user.id),
-            target_user_id=str(user_id),
+    async def list_users(self, query: Any) -> dict:
+        # Permission check for listing might be higher level (API) but service can double check
+        return await self.user_service.list_users(query)
+
+    async def activate_user(self, user_id: UUID, admin_user: User) -> User:
+        self.permission_service.validate_admin_operation(admin_user, user_id)
+        user = await self.user_service.activate_user(user_id, admin_user)
+        
+        await self.audit_service.log_admin_action(
+            admin_user=admin_user,
+            action="activate_user",
+            target_type="user",
+            target_id=user_id,
         )
+        return user
+
+    async def deactivate_user(self, user_id: UUID, admin_user: User) -> User:
+        self.permission_service.validate_admin_operation(admin_user, user_id)
+        user = await self.user_service.deactivate_user(user_id, admin_user)
+        
+        await self.audit_service.log_admin_action(
+            admin_user=admin_user,
+            action="deactivate_user",
+            target_type="user",
+            target_id=user_id,
+        )
+        return user
+

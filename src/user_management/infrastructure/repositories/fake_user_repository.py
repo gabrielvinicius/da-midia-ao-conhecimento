@@ -1,7 +1,7 @@
 """In-memory repository used for lightweight/tests to avoid DB dependencies."""
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID, uuid4
 
 from src.user_management.domain.entities.user import User
@@ -33,8 +33,8 @@ class FakeUserRepository:
         return await self.find_by_email(email)
 
     async def list_all(
-        self, *, page: int, limit: int, search: Optional[str]
-    ) -> List[User]:
+        self, *, page: int = 1, limit: int = 10, search: str | None = None
+    ) -> list[User]:
         users = list(self._users.values())
         if search:
             users = [u for u in users if search.lower() in u.email.lower()]

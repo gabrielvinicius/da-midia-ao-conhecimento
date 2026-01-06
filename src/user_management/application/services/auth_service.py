@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from uuid import UUID
 
-import structlog
-
+from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.user_management.domain import User, UserRole
 
 from .user_service import UserService
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 class AuthService:
@@ -23,7 +22,7 @@ class AuthService:
         self.user_service = user_service
         self.settings = settings
 
-    async def authenticate_user(self, email: str, password: str) -> Dict[str, Any]:
+    async def authenticate_user(self, email: str, password: str) -> dict[str, Any]:
         logger.info("auth.authenticate.started", email=email)
         try:
             result = await self.user_service.authenticate_user(email, password)
@@ -38,7 +37,7 @@ class AuthService:
         return result
 
     # Sync methods removed or deprecated as UserService is async-only
-    # def authenticate_user_sync(self, email: str, password: str) -> Dict[str, Any]: ...
+    # def authenticate_user_sync(self, email: str, password: str) -> dict[str, Any]: ...
 
     async def create_user(self, email: str, password: str, role: str = "user"):
         from ..dtos import CreateUserCommand
@@ -109,6 +108,6 @@ class AuthService:
     async def get_user_by_email(self, email: str):
         return await self.user_service.user_read_service.get_user_by_email(email)
 
-    async def list_users(self) -> List[User]:
+    async def list_users(self) -> list[User]:
         from ..dtos import ListUsersQuery
         return await self.user_service.user_read_service.list_all()

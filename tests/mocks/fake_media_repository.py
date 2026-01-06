@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from src.media_management.application.ports import MediaRepositoryPort
 from src.media_management.domain import Media
-from src.shared.domain.enums import MediaStatus
+from src.media_management.domain.enums import MediaStatus
 
 
 class FakeMediaRepository(MediaRepositoryPort):

@@ -2,7 +2,7 @@
 
 from src.media_management.domain import Media
 from src.media_management.infrastructure.persistence.models import MediaEntity
-from src.shared.domain.enums import MediaStatus, MediaType
+from src.media_management.domain.enums import MediaStatus, MediaType
 import datetime
 
 

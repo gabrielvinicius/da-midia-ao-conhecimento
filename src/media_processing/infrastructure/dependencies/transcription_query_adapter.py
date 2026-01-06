@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from typing import Optional
 from uuid import UUID
 
-from src.media_processing.application.ports import TranscriptionQueryPort
 from src.media_processing.infrastructure.repositories.transcription_repository import (
     TranscriptionRepository,
+)
+from src.text_analysis.application.ports.transcription_port import (
+    TextSourceData,
+    TranscriptionQueryPort,
 )
 
 
@@ -14,11 +18,24 @@ class TranscriptionQueryAdapter(TranscriptionQueryPort):
     def __init__(self, repo: TranscriptionRepository):
         self._repo = repo
 
-    async def get_by_media_id(self, media_id: UUID):
-        return await self._repo.get_by_media_id(media_id)
+    async def get_text_source(self, media_id: UUID) -> Optional[TextSourceData]:
+        """Retrieves standardized text source data for a given media ID."""
+        transcription = await self._repo.get_by_media_id(media_id)
+        if not transcription:
+            return None
 
-    async def get_by_id(self, transcription_id: UUID):
-        return await self._repo.get_by_id(transcription_id)
+        # Prioritize 'text' field, fallback to 'content' if legacy
+        text_content = getattr(transcription, "text", "") or getattr(
+            transcription, "content", ""
+        )
+
+        return TextSourceData(
+            id=transcription.id,
+            text=text_content,
+            language=transcription.language or "auto",
+            segments=transcription.segments or [],
+            media_id=transcription.media_id,
+        )
 
 
 __all__ = ["TranscriptionQueryAdapter"]

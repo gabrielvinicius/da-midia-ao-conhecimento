@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.shared.domain.enums import MediaStatus
+from src.media_management.domain.enums import MediaStatus
 
 
 class CreateMediaCommand(BaseModel):

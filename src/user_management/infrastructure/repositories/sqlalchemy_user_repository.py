@@ -1,5 +1,5 @@
 # src/user_management/infrastructure/user_repository.py
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -72,7 +72,7 @@ class UserRepository:
         page: int = 1,
         limit: int = 10,
         search: Optional[str] = None,
-    ) -> List[User]:
+    ) -> list[User]:
         """Lists all users with pagination and search."""
         if isinstance(self.db, AsyncSession):
             query = select(UserModel)
@@ -92,7 +92,7 @@ class UserRepository:
         page: int = 1,
         limit: int = 10,
         search: Optional[str] = None,
-    ) -> List[User]:
+    ) -> list[User]:
         """Lists all users with pagination and search."""
         from sqlalchemy import select
         query = select(UserModel)

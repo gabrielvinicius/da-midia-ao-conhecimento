@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: Optional[str] = None
 
+    # Hugging Face
+    hf_token: Optional[str] = None
+
     # MinIO / S3
     minio_endpoint: str = "localhost:9000"
     minio_access_key: str = "minioadmin"

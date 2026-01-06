@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from src.media_management.domain import Media
 from src.media_processing.domain import Transcription, TranscriptionStatus
-from src.shared.domain.enums import MediaStatus, MediaType
+from src.media_management.domain.enums import MediaStatus, MediaType
 from src.user_management.domain.entities.user import User, UserRole
 
 

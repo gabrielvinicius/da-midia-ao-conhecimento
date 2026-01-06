@@ -8,7 +8,7 @@ from uuid import UUID
 
 from src.media_management.application.ports import MediaRepositoryPort
 from src.media_management.domain import Media
-from src.shared.domain.enums import MediaStatus, MediaType
+from src.media_management.domain.enums import MediaStatus, MediaType
 
 from ..dtos import (
     GetMediaQuery,

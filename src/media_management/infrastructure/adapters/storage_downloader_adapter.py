@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from src.media_management.application.ports import StorageDownloaderPort
-from src.storage.infrastructure.dependencies.providers import StorageServiceFactory
+from src.storage.application.ports import StorageServiceResolverPort
 
 
 class StorageDownloaderAdapter(StorageDownloaderPort):
     """Adapter for downloading files from storage."""
 
-    def __init__(self, factory: StorageServiceFactory) -> None:
+    def __init__(self, factory: StorageServiceResolverPort) -> None:
         self._factory = factory
 
     async def download(self, provider_name: str, path: str) -> bytes:

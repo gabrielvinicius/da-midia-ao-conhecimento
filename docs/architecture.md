@@ -1,56 +1,58 @@
-# Panorama arquitetural (estado em 2025-12)
+# Architecture Deep Dive (Level 6.0 - January 2026)
 
-Visão breve de como a API compõe os bounded contexts, recursos compartilhados e o ciclo de vida em `main.py`.
+This document provides a technical overview of the Video Summarizer platform, now operating at **Maturity Level 6.0 (Autonomous & Adaptive)**.
 
-## Abstração de Hardware e IA
-- **Hardware Agnostic:** O sistema detecta automaticamente o melhor hardware disponível (NVIDIA CUDA, AMD ROCm ou CPU) através da propriedade `resolved_device` nas configurações globais.
-- **Lazy Loading de Modelos:** Para otimizar o consumo de memória, os adaptadores de IA (Whisper, BERT, Llama) carregam seus pesos pesados apenas no primeiro uso (Lazy Initialization). Isso permite que o processo da API permaneça leve e estável, enquanto o Worker concentra a carga computacional.
-- **Multi-Hardware Docker:** Suporte nativo a diferentes aceleradores via overlays do Docker Compose (`cuda.yml`, `rocm.yml`), garantindo builds otimizados para cada plataforma.
+## 1. Core Principles
 
-## Ciclo de vida (`main.lifespan`)
-1) Configura logging/OTel.
-2) Abre engine + sessão async SQLAlchemy.
-3) Cria *event bus* (InMemory, por processo) e executa os bootstraps de cada módulo.
-4) Registra dependências/routers via `DEFAULT_MODULE_SPECS` (`shared/application/modules.py`).
-5) Conecta cache Redis (quando habilitado) e inicia/desliga o bus no startup/shutdown.
+### 1.1 Pure Dependency Injection (Composition Root)
+The system rejects global singletons and "magic" frameworks. All dependencies are composed manually at the application entry point (`main.py`).
+- **Bootstrap Pattern:** Each module has a `bootstrap.py` file that contains a `build_module_components` factory.
+- **Explicit Binding:** The `main.py` orchestrates these factories, passing shared resources (Database, Event Bus, Storage Factory) and registering them with FastAPI's `dependency_overrides`.
 
-## Módulos e superfícies públicas
-| Contexto | Superfície exposta | Integrações chave |
-| --- | --- | --- |
-| user_management | Services/queries; tokens e hashing via providers no bootstrap | Fornece `UserReadService` p/ notifications/admin |
-| media_management | `MediaModule`, `MediaAdminContext`; `MediaService` é entrada única | Usa `StorageServiceFactory` (storage BC) e publica `MediaUploaded` |
-| media_processing | Services de vídeo/transcrição/texto; schedulers Celery ficam em `application/tasks.py` | Assina `MediaUploaded`; depende de providers via registries e de `StorageServiceFactory` |
-| text_analysis | `TextAnalysisModule` (text, summarize, sentiment, topic) | Consome `TextContentReady`/`MediaUploaded`; ports próprios p/ transcriptions/embeddings/event bus |
-| notifications | `NotificationModule` | Assina `NotificationRequested`; usa ports de delivery/metrics/logging e `AuthQueriesPort` (fornecido pelo `UserReadService`) |
-| admin | `AdminModule` | Fachada sobre ports de mídia/usuários; adapters em `admin/infrastructure/adapters` |
-| storage (técnico) | Ports em `storage/application/ports.py`; adapters locais/S3-stub em `storage/infrastructure/adapters`; fábrica `StorageServiceFactory` | Consumido por media_* e pipelines de texto |
-| shared (cross-cutting) | Event bus, cache, observability ports (logger/metrics), middleware | Não contém adapters de storage (removido); apenas contratos/utilidades |
+### 1.2 Modular Monolith & DDD
+The codebase is strictly divided into Bounded Contexts.
+- **media_management:** Owner of the Media aggregate and state machine.
+- **user_management:** Security, Auth, and RBAC.
+- **media_processing:** Worker-focused domain for Whisper/FFmpeg.
+- **text_analysis:** NLP pipeline (Summarization, Topics, Sentiment).
+- **storage:** Abstracted persistence layer.
+- **notifications:** Real-time feedback loop.
 
-## Event bus
-- `InMemoryEventBus` é criado por processo (`event_bus_factory.get_event_bus`). API o guarda em `app.state`; workers Celery criam sua instância (variáveis `EVENT_BUS` em tasks).
-- Providers `get_event_bus` não usam singletons implícitos; preferir passar o bus pelo bootstrap. Fallback a `resolve_event_bus()` só quando explicitamente necessário.
-- Eventos principais: `MediaUploaded`, `TextContentReady`, `NotificationRequested`. Handlers registrados nos bootstraps de media_processing, text_analysis e notifications.
+### 1.3 Hexagonal Architecture (Ports & Adapters)
+Dependencies always point inward. The application layer defines **Ports** (Protocols), and the infrastructure layer provides **Adapters**. For example, the `Admin` module interacts with `Media` through a `MediaAdminPort`, ensuring that changes in Media internal implementation never break the Admin interface.
 
-## Tarefas Celery
-- Entrypoints e schedulers em `src/media_processing/application/tasks.py` (text, transcription, video) e `src/text_analysis/tasks.py`; notifications em `src/notifications/application/tasks.py`.
-- Bootstraps de worker concentram composição de serviços (deps, repos, métricas, bus): `media_processing/application/worker_bootstrap.py`, `text_analysis/worker_bootstrap.py`, `notifications/worker_bootstrap.py`.
-- Payloads validados com Pydantic v2 nos schemas de cada módulo.
+## 2. Level 6.0 Intelligence Components
 
-## Storage
-- Contratos únicos em `storage/application/ports.py` (provider/repo/logger/metrics/file port).
-- Adapters: `local` e `s3` (stub) em `storage/infrastructure/adapters`; fábrica em `storage/infrastructure/dependencies.py`.
-- `media_management` e pipelines de texto/vídeo consomem storage via factory (sem aliases em shared).
+### 2.1 Hardware Advisor & Intelligent Orchestration
+Located in `src/shared/infrastructure/monitoring/hardware_advisor.py`, this component makes the system "hardware-conscious".
+- **Real-time Monitoring:** Tracks VRAM usage and CPU pressure.
+- **Dynamic Failover:** If the GPU is saturated, the system automatically redirects tasks to fallback providers or simpler models (e.g., swapping Llama 3 for a heuristic summary) to maintain availability.
+- **Circuit Breaker:** Automatically "quarantines" AI providers that fail consecutively, preventing system-wide degradation.
 
-## Observabilidade
-- Ports em `shared/infrastructure/observability/ports.py` (logger/metrics).
-- Adapters específicos por contexto em `infrastructure/logging/` de cada módulo (ex.: transcription logger, storage logger).
-- Métricas Prometheus locais por módulo (`infrastructure/metrics`).
+### 2.2 Granular Analysis Pipeline
+The `text_analysis` service has been refactored from a monolithic function into a **Granular Pipeline** (`src/text_analysis/application/pipeline`).
+- **Step Isolation:** Each stage (Chunking, Sentiment, Topics, Summary) is an independent object.
+- **Partial Persistence:** Results are saved to the database after each successful stage. If the final LLM summarization fails, the user still receives sentiment and topic data.
+- **Self-Healing Retries:** If a pipeline fails due to context limits, the system adapts (e.g., reduces chunk size) and auto-retries the task.
 
-## Testes
-- Unit + smoke verdes localmente (`poetry run pytest tests/unit -q`, `tests/smoke -q`).
-- Integração depende de Postgres/Redis/Celery ativos.
+### 2.3 Predictive Observability
+The `ResourcePredictor` (`src/shared/infrastructure/monitoring/resource_predictor.py`) quantifies the "cost" of a task before execution.
+- **Cost Estimation:** Predicts VRAM needs and duration based on media length.
+- **Proactive Mitigation:** If a task is predicted to cause an OOM (Out Of Memory) error, the system proactively adjusts parameters (e.g., forces high-compression quantization) before starting.
 
-## Convenções
-- Bootstraps em `src/*/bootstrap.py` definem containers e binders de FastAPI.
-- Routers montados via `include_module_routers` a partir de `DEFAULT_MODULE_SPECS`.
-- Sem módulos legacy `monitoring`/`providers`; loggers/storage centralizados conforme acima.
+## 3. Persistent Data & Evolution
+
+### 3.1 Zero-Downtime Schema Evolution
+We use a "Schema-on-Read" strategy for complex payloads.
+- **Versioning:** Payloads include a `schema_version`.
+- **Upcasters:** The `SqlAlchemyAnalysisRepository` contains logic to transform legacy JSON structures into the current domain model at runtime. This allows seamless updates without blocking the database for migrations.
+
+## 4. Frontend Intelligence (Adaptive UI)
+
+The frontend is a fully reactive observer of the system's state.
+- **Adaptive UI:** The `SystemHealthBanner` informs users of server load, adjusting the interface behavior based on the `HardwareAdvisor` reports.
+- **Predictive Pre-fetching:** Hovering over items triggers background data loading, making navigation feel instantaneous.
+- **Accessible Design:** Full WCAG compliance with keyboard-navigable interactive transcriptions and ARIA-compliant status reporting.
+
+---
+This architecture ensures that the Video Summarizer is not just a tool, but a resilient, self-governing media intelligence platform. 💎🚀

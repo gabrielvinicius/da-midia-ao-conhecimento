@@ -59,7 +59,7 @@ services:
       redis: { condition: service_healthy }
     volumes:
       - ./src:/app/src:ro
-      - media_data:/app/media
+      - media_data:/app/storage
       - ai_models_cache:/app/.cache
     networks:
       - app-network
@@ -79,6 +79,14 @@ services:
     image: video-summarizer-app:latest
     container_name: video_summarizer_worker
     entrypoint: /app/docker/worker-entrypoint.sh
+    command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=2
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      backend: { condition: service_started }
+    volumes:
+      - media_data:/app/storage
+      - ai_models_cache:/app/.cache
     networks:
       - app-network
     environment:
