@@ -122,6 +122,18 @@ class VideoThumbnailGeneratorPort(Protocol):
         ...
 
 
+class VisualAnalysisPort(Protocol):
+    """Port for multimodal AI to 'see' and describe video frames."""
+    async def describe_frame(self, frame_bytes: bytes, prompt: str = "Describe this scene in detail.") -> str:
+        ...
+
+
+class VideoFrameExtractorPort(Protocol):
+    """Port for extracting raw frames from video data."""
+    async def extract_frame(self, video_data: bytes, timestamp: float) -> bytes:
+        ...
+
+
 class StorageDownloadServicePort(Protocol):
     async def download_file(self, path: str) -> bytes:
         ...

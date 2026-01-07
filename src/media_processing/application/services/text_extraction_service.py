@@ -4,12 +4,13 @@ import mimetypes
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 import structlog
 
 from src.media_processing.application.ports import (
+    MetricsPort, # Add this
     OCRProviderPort,
     StoragePort,
     TextExtractionTaskSchedulerPort,

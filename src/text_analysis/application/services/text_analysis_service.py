@@ -55,7 +55,8 @@ class TextAnalysisService:
         self,
         *,
         repository: AnalysisRepositoryPort,
-        pipeline: AnalysisPipeline, # NEW: Explicit Pipeline injection
+        pipeline: AnalysisPipeline,
+        feedback_repo: Any, # NEW
         config: Optional[AnalysisConfig] = None,
         metrics: TextAnalysisMetrics | None = None,
         event_bus: Any | None = None,
@@ -65,12 +66,27 @@ class TextAnalysisService:
     ) -> None:
         self.repository = repository
         self.pipeline = pipeline
+        self.feedback_repo = feedback_repo # NEW
         self.config = config or AnalysisConfig()
         self.metrics = metrics or NoOpTextAnalysisMetrics()
         self.event_bus = event_bus
         self.transcription_queries = transcription_queries
         self.text_analysis_read_service = text_analysis_read_service
         self.settings = settings
+
+    async def submit_feedback(self, analysis_id: str, user_id: UUID, score: int, comment: str | None = None) -> bool:
+        """Saves user feedback for an analysis."""
+        await self.feedback_repo.save_feedback(analysis_id, user_id, score, comment)
+        logger.info("text_analysis.feedback_submitted", analysis_id=analysis_id, score=score)
+        return True
+
+    async def correct_summary(self, analysis_id: str, new_summary: str) -> bool:
+        """Allows manual correction of the AI summary."""
+        success = await self.repository.update_summary(analysis_id, new_summary)
+        if success:
+            logger.info("text_analysis.summary_corrected_by_human", analysis_id=analysis_id)
+        return success
+
 
     async def analyze_text_content(
         self,
@@ -95,24 +111,18 @@ class TextAnalysisService:
             except Exception as exc:
                 logger.warning("text_analysis.fetch_text_failed", media_id=str(media_id), error=str(exc))
 
+        # Level 7.0: Fetch media metadata for multimodal pipeline
+        media_info = {}
+        if media_id and self.transcription_queries:
+            try:
+                media_info = await self.transcription_queries.get_media_info(media_id) or {}
+            except Exception: pass
+
         start = time.perf_counter()
         success = False
         try:
             # 2. Level 6.0: Predictive Observability
-            from src.shared.infrastructure.monitoring.resource_predictor import ResourcePredictor, RiskLevel
-            predictor = ResourcePredictor()
-            prediction = predictor.predict_analysis_cost(len(text_content or ""))
-            
-            logger.info("text_analysis.predictive_cost", 
-                        estimated_duration=f"{prediction.estimated_duration_seconds}s",
-                        vram_needed=f"{prediction.vram_required_gb}GB",
-                        risk=prediction.risk_level.value)
-
-            if prediction.risk_level == RiskLevel.DANGEROUS:
-                logger.warning("text_analysis.proactive_mitigation_active", reason=prediction.recommendation)
-                # Proactively reduce chunk size to mitigate predicted OOM
-                self.pipeline.steps[0].size = (self.config.chunk_size or 500) // 2
-
+            # ...
             # 3. Create Analysis Aggregate
             document = Document.from_payload(text_content or "", None)
             analysis = Analysis.new(
@@ -121,6 +131,10 @@ class TextAnalysisService:
                 transcription_id=transcription_id,
                 user_id=user_id,
             )
+            
+            # Inject media context for the pipeline
+            if media_info:
+                analysis.diagnostics.update(media_info)
 
             # 4. Run Granular Pipeline
             try:

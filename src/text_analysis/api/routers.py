@@ -19,9 +19,25 @@ from ..application.dtos import (
     GetAnalysisQuery,
 )
 from ..application.services.text_analysis_service import TextAnalysisService
-from .dependencies import AnalyzeRequest, AnalyzeResponse, get_text_analysis_service
+from .dependencies import AnalyzeRequest, AnalyzeResponse, get_text_analysis_service, get_knowledge_service
 
 router = APIRouter(prefix="/text-analysis", tags=["text-analysis"])
+
+
+@router.get("/search")
+async def semantic_search(
+    query: str = Query(..., min_length=3),
+    limit: int = Query(5, ge=1, le=20),
+    service: KnowledgeBaseService = Depends(get_knowledge_service),
+):
+    """Semantic search across all processed media."""
+    try:
+        return await service.search(query, limit=limit)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro na busca semântica: {str(exc)}",
+        )
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
@@ -150,6 +166,33 @@ async def estimate_analysis_cost(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Não foi possível gerar estimativa: {str(exc)}",
         )
+
+
+@router.post("/{analysis_id}/feedback")
+async def submit_analysis_feedback(
+    analysis_id: str,
+    score: int = Query(..., ge=-1, le=5),
+    comment: Optional[str] = Query(None),
+    service: TextAnalysisService = Depends(get_text_analysis_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Level 7.0: Submit human feedback for AI analysis."""
+    await service.submit_feedback(analysis_id, current_user.id, score, comment)
+    return {"message": "Feedback registrado com sucesso"}
+
+
+@router.put("/{analysis_id}/summary")
+async def correct_analysis_summary(
+    analysis_id: str,
+    new_summary: str = Query(...),
+    service: TextAnalysisService = Depends(get_text_analysis_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Level 7.0: Correct an AI-generated summary."""
+    success = await service.correct_summary(analysis_id, new_summary)
+    if not success:
+        raise HTTPException(status_code=404, detail="Análise não encontrada")
+    return {"message": "Resumo atualizado com sucesso"}
 
 
 @router.get("/{analysis_id}/topics")

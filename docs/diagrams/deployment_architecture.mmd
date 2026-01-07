@@ -1,24 +1,37 @@
 graph TD
-    A[Client (Browser)] --> B[Nginx (Reverse Proxy)];
-
-    subgraph "Application Server (Docker)"
-        B --> C[API (Gunicorn + Uvicorn)];
-        D[Worker (Celery)];
+    subgraph "Public Network"
+        FE[Frontend - React/Vite]
+        NG[Nginx Proxy]
+        API[API Backend - FastAPI]
     end
 
-    subgraph "Infrastructure Services (Docker)"
-        E[Database (PostgreSQL)];
-        F[Message Broker (Redis)];
-        G[Object Storage (MinIO/S3)];
+    subgraph "Backend Network (Internal)"
+        WRK[Worker - Celery]
+        DB[(PostgreSQL)]
+        RD[Redis - Messaging/Cache]
+        S3[MinIO - Object Storage]
     end
 
-    C -- Sends Tasks --> F;
-    D -- Consumes Tasks --> F;
+    subgraph "Intelligence Loop"
+        ADV[Hardware Advisor]
+        PRD[Resource Predictor]
+    end
 
-    C -- Reads/Writes --> E;
-    D -- Reads/Writes --> E;
-
-    C -- Reads/Writes --> G;
-    D -- Reads/Writes --> G;
-
-    classDef default fill:#2D2D2D,stroke:#FFF,stroke-width:2px,color:#FFF;
+    NG --> FE
+    NG --> API
+    API --> RD
+    API --> DB
+    WRK --> RD
+    WRK --> DB
+    WRK --> S3
+    API --> S3
+    
+    WRK -.-> ADV
+    WRK -.-> PRD
+    API -.-> ADV
+    
+    style FE fill:#f9f,stroke:#333
+    style WRK fill:#bbf,stroke:#333
+    style DB fill:#dfd,stroke:#333
+    style RD fill:#fdd,stroke:#333
+    style ADV fill:#ffd,stroke:#333

@@ -34,7 +34,17 @@ class MediaSettings(BaseSettings):
         "webm",
         "flv",
     ]
-    media_allowed_text_extensions: List[str] = ["txt", "pdf", "doc", "docx"]
+    media_allowed_text_extensions: List[str] = [
+        "txt",
+        "pdf",
+        "doc",
+        "docx",
+        "png",
+        "jpg",
+        "jpeg",
+        "tiff",
+        "bmp",
+    ]
 
     model_config = SettingsConfigDict(
         env_prefix="MEDIA_",

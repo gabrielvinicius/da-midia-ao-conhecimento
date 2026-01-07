@@ -18,6 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfontconfig1 \
     libxrender1 \
     libgomp1 \
+    tesseract-ocr \
+    tesseract-ocr-por \
     curl \
     git \
     dumb-init \
@@ -33,13 +35,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ARG PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
 
 COPY requirements.txt .
-RUN pip install --upgrade pip setuptools wheel && \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip setuptools wheel && \
     pip install --user --no-warn-script-location \
     --extra-index-url ${PYTORCH_EXTRA_INDEX_URL} \
     -r requirements.txt
 
 # --- Stage Final ---
 FROM base AS runtime
+
+LABEL org.opencontainers.image.title="Video Summarizer API" \
+      org.opencontainers.image.description="Enterprise Autonomous Media Intelligence" \
+      org.opencontainers.image.version="2.0.0" \
+      org.opencontainers.image.authors="Gemini Level 6.0 Agent"
 
 # Criar usuário não-root
 RUN groupadd -r appuser && useradd -m -r -g appuser appuser

@@ -87,6 +87,11 @@ class MediaService:
         ".pdf": MediaType.TEXT,
         ".doc": MediaType.TEXT,
         ".docx": MediaType.TEXT,
+        ".png": MediaType.TEXT,
+        ".jpg": MediaType.TEXT,
+        ".jpeg": MediaType.TEXT,
+        ".tiff": MediaType.TEXT,
+        ".bmp": MediaType.TEXT,
     }
 
     def __init__(

@@ -1,58 +1,51 @@
-# Architecture Deep Dive (Level 6.0 - January 2026)
+# Architecture Deep Dive (Level 7.0 Precursor - January 2026)
 
-This document provides a technical overview of the Video Summarizer platform, now operating at **Maturity Level 6.0 (Autonomous & Adaptive)**.
+This document provides a technical overview of the Video Summarizer platform, now operating at **Maturity Level 7.0 Precursor (Sovereign Knowledge Base)**.
 
 ## 1. Core Principles
 
 ### 1.1 Pure Dependency Injection (Composition Root)
-The system rejects global singletons and "magic" frameworks. All dependencies are composed manually at the application entry point (`main.py`).
-- **Bootstrap Pattern:** Each module has a `bootstrap.py` file that contains a `build_module_components` factory.
-- **Explicit Binding:** The `main.py` orchestrates these factories, passing shared resources (Database, Event Bus, Storage Factory) and registering them with FastAPI's `dependency_overrides`.
+Dependencies are composed manually at the entry point (`main.py`) via `bootstrap.py` factories, ensuring absolute decoupling and testability.
 
 ### 1.2 Modular Monolith & DDD
-The codebase is strictly divided into Bounded Contexts.
-- **media_management:** Owner of the Media aggregate and state machine.
-- **user_management:** Security, Auth, and RBAC.
-- **media_processing:** Worker-focused domain for Whisper/FFmpeg.
-- **text_analysis:** NLP pipeline (Summarization, Topics, Sentiment).
-- **storage:** Abstracted persistence layer.
-- **notifications:** Real-time feedback loop.
+Strict Bounded Contexts ensure that modules can evolve independently. The system is ready to be split into microservices at any time.
 
 ### 1.3 Hexagonal Architecture (Ports & Adapters)
-Dependencies always point inward. The application layer defines **Ports** (Protocols), and the infrastructure layer provides **Adapters**. For example, the `Admin` module interacts with `Media` through a `MediaAdminPort`, ensuring that changes in Media internal implementation never break the Admin interface.
+Infrastructure is a detail. The core business logic interacts with external systems (DB, S3, LLMs) through stable, typed Interfaces (Ports).
 
-## 2. Level 6.0 Intelligence Components
+## 2. Intelligence & Autonomy (Level 6.0 & 7.0)
 
-### 2.1 Hardware Advisor & Intelligent Orchestration
-Located in `src/shared/infrastructure/monitoring/hardware_advisor.py`, this component makes the system "hardware-conscious".
-- **Real-time Monitoring:** Tracks VRAM usage and CPU pressure.
-- **Dynamic Failover:** If the GPU is saturated, the system automatically redirects tasks to fallback providers or simpler models (e.g., swapping Llama 3 for a heuristic summary) to maintain availability.
-- **Circuit Breaker:** Automatically "quarantines" AI providers that fail consecutively, preventing system-wide degradation.
+### 2.1 Multimodal Video Insight (Level 7.0)
+The system integrates **Moondream 2** within the analysis pipeline.
+- **Visual Description**: Extracts keyframes via FFmpeg and generates textual descriptions of visual events.
+- **Cognitive Link**: These descriptions complement the transcript, providing the LLM (Llama 3) with a full audio-visual context for summarization.
 
-### 2.2 Granular Analysis Pipeline
-The `text_analysis` service has been refactored from a monolithic function into a **Granular Pipeline** (`src/text_analysis/application/pipeline`).
-- **Step Isolation:** Each stage (Chunking, Sentiment, Topics, Summary) is an independent object.
-- **Partial Persistence:** Results are saved to the database after each successful stage. If the final LLM summarization fails, the user still receives sentiment and topic data.
-- **Self-Healing Retries:** If a pipeline fails due to context limits, the system adapts (e.g., reduces chunk size) and auto-retries the task.
+### 2.2 Global Semantic Knowledge Base (Level 7.0)
+Powered by **pgvector**, the system transforms processed media into a searchable vector space.
+- **Knowledge Indexing**: Every text chunk and its visual context are vectorized and stored.
+- **Semantic Search**: Natural language queries find relevant content across the entire library based on semantic similarity (Cosine Distance).
 
-### 2.3 Predictive Observability
-The `ResourcePredictor` (`src/shared/infrastructure/monitoring/resource_predictor.py`) quantifies the "cost" of a task before execution.
-- **Cost Estimation:** Predicts VRAM needs and duration based on media length.
-- **Proactive Mitigation:** If a task is predicted to cause an OOM (Out Of Memory) error, the system proactively adjusts parameters (e.g., forces high-compression quantization) before starting.
+### 2.3 Human-in-the-loop Feedback (Level 7.0)
+The system learns from its users.
+- **Correction Loop**: Users can rate and edit AI-generated summaries.
+- **Dataset Generation**: Original AI outputs and human corrections are stored side-by-side, creating a ground-truth dataset for future fine-tuning.
+
+### 2.4 Hardware-Aware Self-Healing (Level 6.0)
+The `HardwareAdvisor` and `ResourcePredictor` manage system health.
+- **Predictive Mitigation**: Adjusts chunking and model strategies pro-actively to prevent OOM errors.
+- **Active Redundancy**: Automatically falls back to lighter models or heuristic summaries if GPU resources are exhausted.
 
 ## 3. Persistent Data & Evolution
 
 ### 3.1 Zero-Downtime Schema Evolution
-We use a "Schema-on-Read" strategy for complex payloads.
-- **Versioning:** Payloads include a `schema_version`.
-- **Upcasters:** The `SqlAlchemyAnalysisRepository` contains logic to transform legacy JSON structures into the current domain model at runtime. This allows seamless updates without blocking the database for migrations.
+Uses a "Schema-on-Read" strategy with JSONB upcasters, allowing for non-breaking database updates.
 
 ## 4. Frontend Intelligence (Adaptive UI)
 
-The frontend is a fully reactive observer of the system's state.
-- **Adaptive UI:** The `SystemHealthBanner` informs users of server load, adjusting the interface behavior based on the `HardwareAdvisor` reports.
-- **Predictive Pre-fetching:** Hovering over items triggers background data loading, making navigation feel instantaneous.
-- **Accessible Design:** Full WCAG compliance with keyboard-navigable interactive transcriptions and ARIA-compliant status reporting.
+- **Adaptive UI**: The `SystemHealthBanner` reflects real-time server load.
+- **Predictive Pre-fetching**: Anticipates user navigation via hover-triggers.
+- **Explainable UI**: The `ProcessingTrace` provides full transparency on hardware and AI strategy usage.
 
 ---
-This architecture ensures that the Video Summarizer is not just a tool, but a resilient, self-governing media intelligence platform. 💎🚀
+The Video Summarizer is a resilient, self-governing media intelligence platform designed for the next generation of knowledge management. 💎🚀
+

@@ -88,6 +88,28 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         # Add future migrations here: if from_version == 2: ...
         return updated
 
+    async def update_summary(self, analysis_id: str, new_summary: str) -> bool:
+        """Updates the summary with a human-corrected version."""
+        stmt = select(AnalysisModel).where(AnalysisModel.id == analysis_id)
+        result = await self.session.execute(stmt)
+        record = result.scalar_one_or_none()
+        if not record:
+            return False
+            
+        # Store original summary in diagnostics if not already there
+        if "original_ai_summary" not in record.payload.get("diagnostics", {}):
+            record.payload.setdefault("diagnostics", {})["original_ai_summary"] = record.payload.get("summary")
+            
+        record.payload["summary"] = new_summary
+        record.payload["human_corrected"] = True
+        
+        # Mark record as modified for SQLAlchemy to detect change in JSONB
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(record, "payload")
+        
+        await self.session.commit()
+        return True
+
     async def get_by_media_id(self, media_id: str) -> Optional[Analysis]:
         try:
             media_uuid = uuid.UUID(media_id)

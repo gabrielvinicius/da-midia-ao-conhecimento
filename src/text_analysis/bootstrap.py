@@ -17,13 +17,21 @@ from .application import (
 from .application.event_handlers import build_text_content_ready_handler
 from .application.ports import TranscriptionQueryPort
 from .application.services.text_analysis_read_service import TextAnalysisReadService
+from .application.services.knowledge_base_service import KnowledgeBaseService
 from .application.pipeline.base import AnalysisPipeline
 from .application.pipeline.steps import (
     ChunkingStep,
     SentimentStep,
     TopicModelingStep,
     SummarizationStep,
+    KnowledgeIndexingStep,
+    VisualInsightStep,
 )
+from .infrastructure.repositories.vector_repository import VectorRepository
+from .infrastructure.repositories.feedback_repository import FeedbackRepository
+from src.media_processing.infrastructure.adapters.visual.moondream_adapter import MoondreamVisualAdapter
+from src.media_processing.infrastructure.adapters.video.ffmpeg_frame_extractor import FFmpegFrameExtractor
+from src.storage.infrastructure.dependencies import StorageServiceFactory
 from src.shared.infrastructure.monitoring.hardware_advisor import HardwareAdvisor
 from src.media_processing.application.services.transcription_read_service import (
     TranscriptionReadService,
@@ -60,6 +68,7 @@ class TextAnalysisModule:
     service: TextAnalysisService
     repository: Any
     config: AnalysisConfig
+    knowledge_service: KnowledgeBaseService
 
 
 async def build_text_analysis_module(
@@ -91,7 +100,13 @@ async def build_text_analysis_module(
         from src.media_processing.infrastructure.repositories.transcription_repository import (
             TranscriptionRepository,
         )
-        transcription_queries = TranscriptionQueryAdapter(TranscriptionRepository(session))
+        from src.media_management.infrastructure.repositories.media_repository import (
+            MediaRepository,
+        )
+        transcription_queries = TranscriptionQueryAdapter(
+            repo=TranscriptionRepository(session),
+            media_repo=MediaRepository(session)
+        )
 
     # Normalizar acesso de leitura via serviço dedicado
     transcription_queries = TranscriptionReadService(transcription_queries)
@@ -107,10 +122,18 @@ async def build_text_analysis_module(
 
     # --- Build Pipeline ---
     advisor = HardwareAdvisor()
+    vector_repo = VectorRepository(session)
+    feedback_repo = FeedbackRepository(session)
+    visual_adapter = MoondreamVisualAdapter()
+    frame_extractor = FFmpegFrameExtractor()
+    storage_factory = StorageServiceFactory()
+    
     pipeline = AnalysisPipeline(steps=[
         ChunkingStep(chunker_adapter, size=config.chunk_size, overlap=config.chunk_overlap),
         SentimentStep(sentiment_adapter, language=config.language),
         TopicModelingStep(topic_adapter, embedding_adapter, language=config.language),
+        KnowledgeIndexingStep(vector_repo),
+        VisualInsightStep(visual_adapter, frame_extractor, storage_factory), # Level 7.0 Ready
         SummarizationStep(gen_adapter, language=config.language, advisor=advisor),
     ])
 
@@ -123,12 +146,18 @@ async def build_text_analysis_module(
     service = TextAnalysisService(
         repository=repo,
         pipeline=pipeline, # Injected Pipeline
+        feedback_repo=feedback_repo, # NEW
         config=config,
         metrics=metrics,
         event_bus=event_bus,
         transcription_queries=transcription_queries,
         text_analysis_read_service=TextAnalysisReadService(repository=repo),
         settings=text_analysis_settings,
+    )
+
+    knowledge_service = KnowledgeBaseService(
+        vector_repo=vector_repo,
+        embedding_service=embedding_adapter
     )
 
     if event_bus:
@@ -139,12 +168,23 @@ async def build_text_analysis_module(
         service=service,
         repository=repo,
         config=config,
+        knowledge_service=knowledge_service
     )
 
 
 def bind_text_analysis_module(app: FastAPI, module: TextAnalysisModule) -> None:
-    from .api.dependencies import get_text_analysis_service
+
+
+    from .api.dependencies import get_text_analysis_service, get_knowledge_service
+
+
+
+
+
     app.dependency_overrides[get_text_analysis_service] = lambda: module.service
+
+
+    app.dependency_overrides[get_knowledge_service] = lambda: module.knowledge_service
 
 
 def _check_module_available(module_name: str) -> bool:

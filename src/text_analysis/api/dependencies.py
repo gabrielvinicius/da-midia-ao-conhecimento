@@ -31,59 +31,17 @@ from ..infrastructure.repositories.sqlalchemy_analysis_repository import (
     SqlAlchemyAnalysisRepository,
 )
 from .schemas import AnalyzeRequest, AnalyzeResponse
+from ..application.services.knowledge_base_service import KnowledgeBaseService
 
 
-def _prom_available() -> bool:
-    try:
-        import prometheus_client  # noqa: F401
-
-        return True
-    except Exception:
-        return False
+def get_text_analysis_service() -> TextAnalysisService:
+    """Returns the TextAnalysisService instance."""
+    raise NotImplementedError("TextAnalysisService not configured.")
 
 
-def get_text_analysis_service(
-    request: Request,
-    session: AsyncSession = Depends(get_db),
-) -> TextAnalysisService:
-    """Provider padrão (por request) do serviço de análise de texto."""
-
-    event_bus = getattr(request.app.state, "event_bus", None)
-
-    repo = SqlAlchemyAnalysisRepository(session)
-    config = AnalysisConfig()
-
-    transcription_repo = TranscriptionRepository(db=session)
-    transcription_queries = TranscriptionReadService(
-        TranscriptionQueryAdapter(transcription_repo)
-    )
-
-    sentiment = get_sentiment_adapter(config)
-    embeddings = get_embedding_adapter(config)
-    topic_modeling = get_topic_modeling_adapter(config)
-    text_generation = get_text_generation_adapter(config)
-    chunker = get_chunker_adapter(config)
-
-    metrics = (
-        PrometheusTextAnalysisMetrics()
-        if _prom_available()
-        else NoOpTextAnalysisMetrics()
-    )
-
-    return TextAnalysisService(
-        sentiment_service=sentiment,
-        embedding_service=embeddings,
-        topic_modeling=topic_modeling,
-        text_generation=text_generation,
-        chunker=chunker,
-        repository=repo,
-        config=config,
-        metrics=metrics,
-        event_bus=event_bus,
-        transcription_queries=transcription_queries,
-        text_analysis_read_service=TextAnalysisReadService(repository=repo),
-        settings=text_analysis_settings,
-    )
+def get_knowledge_service() -> KnowledgeBaseService:
+    """Returns the KnowledgeBaseService instance."""
+    raise NotImplementedError("KnowledgeBaseService not configured.")
 
 
-__all__ = ["get_text_analysis_service", "AnalyzeRequest", "AnalyzeResponse"]
+__all__ = ["get_text_analysis_service", "get_knowledge_service", "AnalyzeRequest", "AnalyzeResponse"]

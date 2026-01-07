@@ -49,12 +49,16 @@ async def _build_service(*, session, event_bus) -> TextAnalysisService:
     from src.media_processing.infrastructure.repositories.transcription_repository import (
         TranscriptionRepository,
     )
+    from src.media_management.infrastructure.repositories.media_repository import (
+        MediaRepository,
+    )
     from src.text_analysis.infrastructure.repositories.sqlalchemy_analysis_repository import (
         SqlAlchemyAnalysisRepository,
     )
 
     transcription_repo = TranscriptionRepository(session)
-    transcription_queries = TranscriptionQueryAdapter(transcription_repo)
+    media_repo = MediaRepository(session)
+    transcription_queries = TranscriptionQueryAdapter(transcription_repo, media_repo)
     repository = SqlAlchemyAnalysisRepository(session)
 
     module = build_text_analysis_service(

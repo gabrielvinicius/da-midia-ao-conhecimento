@@ -81,13 +81,12 @@ def build_text_extraction_service(
     repo = TranscriptionRepository(session)
     metrics = PrometheusTranscriptionMetrics()
     logger = StructuredTranscriptionLogger()
-    storage_factory = StorageServiceFactory()
-    storage_adapter = StorageDownloadAdapter(storage_factory)
+    storage = StorageServiceFactory().create_storage_service(storage_provider)
 
     return TextExtractionService(
         repository=repo,
         task_scheduler=None,  # Worker executa direto
-        storage_service=storage_adapter,
+        storage_service=storage,
         text_extractor=get_text_extractor(),
         ocr_provider=get_ocr_provider(),
         event_bus=event_bus,

@@ -13,6 +13,8 @@ from src.text_analysis.application.ports import (
     TextGenerationPort,
     TopicModelingPort,
 )
+from src.media_processing.application.ports import VideoFrameExtractorPort, VisualAnalysisPort
+from src.storage.application.ports import StorageServiceResolverPort
 from statistics import mean
 
 logger = structlog.get_logger(__name__)
@@ -85,6 +87,9 @@ class TopicModelingStep(AnalysisStep):
         embeddings_result = self.embedding_service.embed([chunk.text for chunk in analysis.chunks])
         embeddings = await embeddings_result if inspect.isawaitable(embeddings_result) else embeddings_result
 
+        # Store embeddings in diagnostics temporarily for the IndexingStep
+        analysis.diagnostics["_temp_embeddings"] = [e.tolist() if hasattr(e, 'tolist') else e for e in embeddings]
+
         topics, diagnostics = await self.topic_modeling.model_topics(analysis.chunks, embeddings, self.language)
         analysis.topics = topics
         analysis.diagnostics.update(diagnostics)
@@ -128,13 +133,7 @@ class SummarizationStep(AnalysisStep):
     async def _summarize_with_redundancy(self, topic: Any, analysis: Analysis) -> Optional[str]:
         """Tenta gerar o resumo usando o plano de redundância ativa."""
         primary = getattr(self.text_generation, "provider_name", "primary")
-        providers_to_try = [self.text_generation]
         
-        if self.advisor:
-            # Se o primário estiver doente ou falhar, o advisor sugere outros
-            # Aqui poderíamos instanciar outros adaptadores via Factory
-            pass 
-
         try:
             if self.text_generation.is_available():
                 result = await self.text_generation.summarize_topic(
@@ -155,3 +154,72 @@ class SummarizationStep(AnalysisStep):
         bullets = "\n".join(f"- {kw}" for kw in topic.keywords[:5])
         return f"# {topic.title or 'Tópico'}\n## Resumo (Automático)\n{bullets}\n"
 
+
+class KnowledgeIndexingStep(AnalysisStep):
+    # ... existing code ...
+            
+        return analysis
+
+class VisualInsightStep(AnalysisStep):
+    """Level 7.0: Multimodal insight. 'Sees' the video to complement the transcript."""
+    
+    def __init__(
+        self, 
+        visual_analyzer: VisualAnalysisPort, 
+        frame_extractor: VideoFrameExtractorPort,
+        storage_resolver: StorageServiceResolverPort, # Use resolver to get download service
+    ):
+        self.analyzer = visual_analyzer
+        self.extractor = frame_extractor
+        self.storage_resolver = storage_resolver
+
+    @property
+    def name(self) -> str:
+        return "visual_insight"
+
+    async def process(self, analysis: Analysis) -> Analysis:
+        if not analysis.media_id or not analysis.document.segments:
+            return analysis
+            
+        try:
+            # 1. Estimate duration from segments
+            duration = analysis.document.segments[-1].get("end", 0) if analysis.document.segments else 0
+            if duration <= 0:
+                return analysis
+
+            # 2. Resolve storage and download video data
+            # Use diagnostics or assume default provider if not set in Analysis entity (gap check)
+            # In Level 6.0, we should have this info.
+            provider = analysis.diagnostics.get("storage_provider", "local")
+            file_path = analysis.diagnostics.get("file_path")
+            
+            if not file_path:
+                return analysis
+
+            downloader = self.storage_resolver.get_download_service(provider)
+            video_data = await downloader.download_file(file_path)
+
+            # 3. Sample frames (10%, 50%, 90%)
+            timestamps = [duration * 0.1, duration * 0.5, duration * 0.9]
+            visual_descriptions = []
+            
+            for ts in timestamps:
+                try:
+                    frame_bytes = await self.extractor.extract_frame(video_data, ts)
+                    description = await self.analyzer.describe_frame(
+                        frame_bytes, 
+                        prompt="Describe what is happening in this video frame concisely."
+                    )
+                    timestamp_str = f"{int(ts // 60):02d}:{int(ts % 60):02d}"
+                    visual_descriptions.append(f"[Visual @ {timestamp_str}]: {description}")
+                except Exception as e:
+                    logger.warning("visual_insight.frame_failed", timestamp=ts, error=str(e))
+
+            if visual_descriptions:
+                analysis.diagnostics["visual_context"] = visual_descriptions
+                logger.info("knowledge_base.visual_insight_generated", media_id=str(analysis.media_id), count=len(visual_descriptions))
+            
+        except Exception as exc:
+            logger.error("knowledge_base.visual_insight_failed", error=str(exc))
+            
+        return analysis

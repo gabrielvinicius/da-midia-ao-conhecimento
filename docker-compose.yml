@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:latest
+    image: pgvector/pgvector:pg15
     container_name: video_summarizer_postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -9,7 +9,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
     networks:
-      - app-network
+      - backend-net
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-video_summarizer}"]
@@ -21,7 +21,7 @@ services:
     image: redis:latest
     container_name: video_summarizer_redis
     networks:
-      - app-network
+      - backend-net
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -39,13 +39,14 @@ services:
     volumes:
       - minio_data:/data
     networks:
-      - app-network
+      - backend-net
 
   jaeger:
     image: jaegertracing/all-in-one:latest
     container_name: video_summarizer_jaeger
     networks:
-      - app-network
+      - backend-net
+      - public-net
 
   backend:
     build:
@@ -62,7 +63,17 @@ services:
       - media_data:/app/storage
       - ai_models_cache:/app/.cache
     networks:
-      - app-network
+      - backend-net
+      - public-net
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     environment:
       - DB_HOST=postgres
       - REDIS_HOST=redis
@@ -83,12 +94,16 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
-      backend: { condition: service_started }
+      backend: { condition: service_healthy }
     volumes:
       - media_data:/app/storage
       - ai_models_cache:/app/.cache
     networks:
-      - app-network
+      - backend-net
+    deploy:
+      resources:
+        limits:
+          memory: 12G
     environment:
       - DB_HOST=postgres
       - REDIS_HOST=redis
@@ -107,7 +122,7 @@ services:
     ports: ["3000:80"]
     depends_on: [backend]
     networks:
-      - app-network
+      - public-net
 
 volumes:
   postgres_data:
@@ -116,5 +131,8 @@ volumes:
   ai_models_cache:
 
 networks:
-  app-network:
-    name: video_summarizer_network
+  public-net:
+    name: video_summarizer_public
+  backend-net:
+    name: video_summarizer_backend
+    internal: true

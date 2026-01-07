@@ -17,8 +17,13 @@ class TextSourceData:
 
 
 class TranscriptionQueryPort(Protocol):
-    """Port for retrieving transcription data."""
+    """Port for retrieving transcription and media data."""
 
     async def get_text_source(self, media_id: UUID) -> Optional[TextSourceData]:
         """Retrieves standardized text source data for a given media ID."""
         ...
+
+    async def get_media_info(self, media_id: UUID) -> Optional[Dict[str, Any]]:
+        """Retrieves media metadata (file_path, storage_provider, type)."""
+        ...
+

@@ -44,6 +44,9 @@ from src.notifications.bootstrap import (
 from src.notifications.infrastructure.adapters.auth_queries_adapter import (
     NotificationsAuthQueriesAdapter,
 )
+from src.text_analysis.bootstrap import (
+    build_text_analysis_module,
+)
 from src.shared.domain.events import (
     MediaUploaded,
 )
@@ -228,6 +231,11 @@ async def lifespan(app: FastAPI):
             media_service_core=media_module.media_service,
         )
 
+        text_analysis_module = await build_text_analysis_module(
+            session=session,
+            event_bus=event_bus,
+        )
+
         # Register all built modules so FastAPI uses the correct instances
         register_module_dependencies(
             app,
@@ -236,6 +244,7 @@ async def lifespan(app: FastAPI):
                 "auth": user_management_module,
                 "notifications": notifications_module,
                 "admin": admin_module,
+                "text_analysis": text_analysis_module,
             },
             specs=DEFAULT_MODULE_SPECS,
         )
