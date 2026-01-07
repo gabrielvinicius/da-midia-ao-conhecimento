@@ -24,6 +24,7 @@ from src.media_management.infrastructure.repositories.media_repository import (
     MediaRepository,
 )
 from src.user_management.application.auth_queries import UserReadService
+from src.user_management.application.services.user_service import UserService
 from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import (
     UserRepository,
 )
@@ -31,23 +32,20 @@ from src.user_management.infrastructure.repositories.sqlalchemy_user_repository 
 
 def get_media_admin_adapter(
     media_service: MediaService,
-    admin_media_service,
-    auth_queries: UserReadService,
+    **_kwargs,
 ) -> MediaManagementAdapter:
-    return MediaManagementAdapter(
-        media_service=media_service,
-        admin_media_service=admin_media_service,
-        auth_queries=auth_queries,
-    )
+    """Provides the media admin adapter."""
+    return MediaManagementAdapter(media_service=media_service)
 
 
 def get_user_admin_adapter(
+    user_service: UserService,
     auth_queries: UserReadService,
-    admin_user_service: AdminUserService,
 ) -> UserManagementAdapter:
+    """Provides the user management adapter."""
     return UserManagementAdapter(
-        auth_queries=auth_queries,
-        admin_user_service=admin_user_service,
+        user_service=user_service,
+        user_read_service=auth_queries,
     )
 
 

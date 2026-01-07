@@ -14,7 +14,7 @@ from src.media_management.application.services.media_read_service import (
 from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.services.validators import MediaUploadValidator
 from src.media_management.config.settings import media_settings
-from src.shared.domain.enums import MediaStatus
+from src.media_management.domain.enums import MediaStatus
 
 
 class FakeRepo:
@@ -89,9 +89,10 @@ async def test_delete_and_reprocess_flow():
         upload_validator=MediaUploadValidator(settings=media_settings),
         media_read_service=read_service,
         event_bus=bus,
-        emit_legacy_task=False,
         storage_maintenance=maintenance,
         transcription_cleanup=cleanup,
+        text_analysis_cleanup=None,
+        storage_downloader=None,
     )
 
     cmd = CreateMediaCommand(

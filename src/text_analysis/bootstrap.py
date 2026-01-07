@@ -147,6 +147,12 @@ def bind_text_analysis_module(app: FastAPI, module: TextAnalysisModule) -> None:
     app.dependency_overrides[get_text_analysis_service] = lambda: module.service
 
 
+def _check_module_available(module_name: str) -> bool:
+    """Helper to check if a heavy module is available without polluting sys.modules."""
+    import importlib.util
+    return importlib.util.find_spec(module_name) is not None
+
+
 def _update_registry_availability() -> None:
     """Marca disponibilidade no registry sem carregar modelos pesados."""
     if not needs_health_refresh():
@@ -155,21 +161,17 @@ def _update_registry_availability() -> None:
     metrics = SharedPrometheusMetrics().get_provider_health_checks_total()
 
     # Transformers (HF)
-    try:
-        import transformers  # noqa: F401
-        hf_available = True
-    except Exception:
-        hf_available = False
+    hf_available = _check_module_available("transformers")
 
     for entry in ta_registry.TEXT_GEN_PROVIDERS:
         if entry.name.startswith("hf:"):
             entry.available = hf_available
             metrics.labels(provider_type="textgen_hf", status="up" if hf_available else "down").inc()
 
-    # Ollama
+    # Ollama: ping /api/tags com timeout curto
     ollama_ok = False
     if httpx:
-        try:
+        try:  # pragma: no cover - ambiente externo
             with httpx.Client(timeout=1.5) as client:
                 resp = client.get("http://localhost:11434/api/tags")
                 resp.raise_for_status()
@@ -180,5 +182,19 @@ def _update_registry_availability() -> None:
         if entry.name.startswith("ollama:"):
             entry.available = ollama_ok
             metrics.labels(provider_type="textgen_ollama", status="up" if ollama_ok else "down").inc()
+
+    # Topic modeling
+    bertopic_ok = _check_module_available("bertopic")
+    for entry in ta_registry.TOPIC_PROVIDERS:
+        if entry.name == "bertopic":
+            entry.available = bertopic_ok
+            metrics.labels(provider_type="topic_bertopic", status="up" if bertopic_ok else "down").inc()
+
+    # TF-IDF deps
+    tfidf_ok = _check_module_available("sklearn") and _check_module_available("numpy")
+    for entry in ta_registry.TOPIC_PROVIDERS:
+        if entry.name == "tfidf":
+            entry.available = tfidf_ok
+            metrics.labels(provider_type="topic_tfidf", status="up" if tfidf_ok else "down").inc()
 
     update_health_timestamp()

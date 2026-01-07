@@ -1,4 +1,6 @@
 import structlog
+from uuid import UUID
+from typing import Any, Dict, Optional
 from asgiref.sync import async_to_sync
 from celery import shared_task
 from celery.signals import worker_process_init

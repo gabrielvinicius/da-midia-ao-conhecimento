@@ -94,13 +94,11 @@ def build_admin_module(
 
     # Legacy adapters for routers (if still needed)
     user_api_adapter = get_user_admin_adapter(
+        user_service=user_service_core,
         auth_queries=auth_queries,
-        admin_user_service=user_service,
     )
     media_api_adapter = get_media_admin_adapter(
         media_service=media_service_core,
-        admin_media_service=admin_media_service,
-        auth_queries=auth_queries,
     )
 
     service = AdminService(

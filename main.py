@@ -225,7 +225,7 @@ async def lifespan(app: FastAPI):
             session=session,
             auth_queries=user_management_module.auth_queries,
             user_service_core=user_management_module.user_service,
-            media_service=media_module.media_service,
+            media_service_core=media_module.media_service,
         )
 
         # Register all built modules so FastAPI uses the correct instances

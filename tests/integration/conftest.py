@@ -13,8 +13,7 @@ from src.media_management.config.settings import media_settings
 from src.media_management.infrastructure.adapters.storage_uploader_adapter import (
     DefaultUploadMetadataMapper,
 )
-from src.user_management.api.dependencies import AuthDependencies, get_auth_dependencies
-from src.user_management.api.dependencies import get_auth_service, get_user_service
+from src.user_management.api.dependencies import get_auth_service, get_user_service, get_auth_queries, get_auth_settings
 from tests.mocks.fake_auth import build_fake_auth, seed_default_user
 from tests.mocks.fake_media_repository import FakeMediaRepository
 from tests.mocks.fake_storage_uploader import FakeStorageUploadAdapter, FakeStorageUploader
@@ -49,12 +48,8 @@ async def client():
             async def authenticate_user(self, email, password):
                 return {"token": f"fake-{email}"}
 
-        app.dependency_overrides[get_auth_dependencies] = lambda: AuthDependencies(
-            user_service=user_service,
-            auth_service=auth_service,
-            auth_queries=auth_queries,
-            settings=user_service.settings,
-        )
+        app.dependency_overrides[get_auth_queries] = lambda: auth_queries
+        app.dependency_overrides[get_auth_settings] = lambda: user_service.settings
         app.dependency_overrides[get_user_service] = lambda: _FakeUserService()
         app.dependency_overrides[get_auth_service] = lambda: _FakeAuthService()
 
@@ -72,9 +67,10 @@ async def client():
             upload_validator=MediaUploadValidator(media_settings),
             media_read_service=media_read_service,
             event_bus=fake_event_bus,
-            emit_legacy_task=False,
             storage_maintenance=None,
             transcription_cleanup=None,
+            text_analysis_cleanup=None,
+            storage_downloader=None,
         )
         app.dependency_overrides[get_media_service] = lambda: media_service
 

@@ -7,7 +7,7 @@ import structlog
 
 from src.admin.application.ports import AdminMediaRepositoryPort
 from src.admin.application.ports import AdminAuditPort
-from src.admin.application.ports.external import MediaAdminPort  # NEW
+from src.admin.application.ports import MediaAdminPort
 from src.media_management.application.dtos import (
     DeleteMediaCommand,
     ReprocessMediaCommand,

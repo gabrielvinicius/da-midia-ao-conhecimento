@@ -24,7 +24,7 @@ from src.media_management.domain import Media
 from src.media_management.infrastructure.metrics.prometheus_metrics import (
     PrometheusMediaMetrics,
 )
-from src.shared.domain.enums import MediaStatus, MediaType
+from src.media_management.domain.enums import MediaStatus, MediaType
 from src.user_management.domain.entities.user import UserRole
 
 

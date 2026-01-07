@@ -84,17 +84,30 @@ class AsyncInMemoryRepo(InMemoryAnalysisRepository):
         return super().list_topics(analysis_id)
 
 
+from src.text_analysis.application.pipeline.base import AnalysisPipeline
+from src.text_analysis.application.pipeline.steps import (
+    ChunkingStep,
+    SentimentStep,
+    TopicModelingStep,
+    SummarizationStep,
+)
+
 @pytest.mark.integration
 @pytest.mark.anyio
 async def test_text_analysis_smoke():
     repo = AsyncInMemoryRepo()
+    
+    # Build pipeline with dummies
+    pipeline = AnalysisPipeline(steps=[
+        ChunkingStep(DummyChunker()),
+        SentimentStep(DummySentiment(), language="pt"),
+        TopicModelingStep(DummyTopic(), DummyEmbeddings(), language="pt"),
+        SummarizationStep(DummyTextGen(), language="pt"),
+    ])
+
     service = TextAnalysisService(
-        sentiment_service=DummySentiment(),
-        embedding_service=DummyEmbeddings(),
-        topic_modeling=DummyTopic(),
-        text_generation=DummyTextGen(),
-        chunker=DummyChunker(),
         repository=repo,
+        pipeline=pipeline,
         config=None,
         metrics=NoOpTextAnalysisMetrics(),
         event_bus=None,

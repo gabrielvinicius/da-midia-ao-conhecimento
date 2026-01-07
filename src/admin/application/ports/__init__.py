@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Dict, List, Optional, Protocol
 from uuid import UUID
 
 from src.admin.application.dtos import (
@@ -10,26 +10,51 @@ from src.admin.application.dtos import (
     ReprocessMediaCommand,
     UpdateUserRoleCommand,
 )
-from src.media_management.application.dtos import ListMediaQuery
+from src.media_management.application.dtos import ListMediaQuery, PaginatedMedia
 from src.user_management.application.dtos import GetUserQuery, ListUsersQuery
 from src.user_management.domain import UserRole, User
 
 
 class MediaAdminPort(Protocol):
-    async def list_media(self, query: ListMediaQuery) -> dict: ...
-    async def delete_media(self, command: DeleteMediaCommand) -> None: ...
-    async def reprocess_media(self, command: ReprocessMediaCommand) -> None: ...
+    """Port to interact with the Media Management context."""
+
+    async def delete_media(
+        self,
+        command: DeleteMediaCommand,
+        user_id: Optional[UUID] = None,
+        user_role: Optional[UserRole] = None,
+    ) -> None: ...
+
+    async def reprocess_media(
+        self,
+        command: ReprocessMediaCommand,
+        user_id: Optional[UUID] = None,
+        user_role: Optional[UserRole] = None,
+    ) -> None: ...
+
+    async def list_media(self, query: ListMediaQuery) -> PaginatedMedia: ...
+
     async def bulk_reprocess_failed_media(
         self, command: BulkReprocessFailedMediaCommand
     ) -> int: ...
 
 
 class UserAdminPort(Protocol):
+    """Port to interact with the User Management context."""
     async def list_users(self, query: ListUsersQuery) -> dict: ...
-    async def update_user_role(self, command: UpdateUserRoleCommand) -> object: ...
-    async def delete_user(self, command: DeleteUserCommand) -> None: ...
-    async def activate_user(self, query: GetUserQuery) -> object: ...
-    async def deactivate_user(self, query: GetUserQuery) -> object: ...
+
+    async def update_user_role(
+        self,
+        user_id: UUID,
+        new_role: UserRole,
+        admin_user: User,
+    ) -> User: ...
+
+    async def delete_user(self, user_id: UUID, admin_user: User) -> None: ...
+
+    async def activate_user(self, user_id: UUID, admin_user: User) -> User: ...
+
+    async def deactivate_user(self, user_id: UUID, admin_user: User) -> User: ...
 
 
 # Repository ports to decouple Admin services from infra
@@ -44,6 +69,7 @@ class AdminMediaRepositoryPort(Protocol):
     async def update(self, media): ...
     async def delete(self, media_id: UUID): ...
     async def list_paginated(self, page: int, limit: int): ...
+    async def list_by_status(self, status: Any) -> List[Any]: ...
 
 
 class AdminMediaReadPort(Protocol):
@@ -87,3 +113,14 @@ class AdminAuditPort(Protocol):
         format_type: str = "json",
     ) -> str: ...
     async def cleanup_old_audit_entries(self, days_to_keep: int = 365) -> int: ...
+
+
+__all__ = [
+    "MediaAdminPort",
+    "UserAdminPort",
+    "AdminUserRepositoryPort",
+    "AdminMediaRepositoryPort",
+    "AdminMediaReadPort",
+    "AdminUserReadPort",
+    "AdminAuditPort",
+]

@@ -16,7 +16,7 @@ from src.media_management.application.services.media_read_service import (
 from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.services.validators import MediaUploadValidator
 from src.media_management.config.settings import media_settings
-from src.shared.domain.enums import MediaType
+from src.media_management.domain.enums import MediaType
 
 
 class FakeMediaRepo(MediaRepositoryPort):
@@ -97,7 +97,10 @@ async def test_media_service_create_media_with_ports():
         upload_validator=MediaUploadValidator(settings=media_settings),
         media_read_service=read_service,
         event_bus=FakeEventBus(),
-        emit_legacy_task=False,
+        storage_maintenance=None,
+        transcription_cleanup=None,
+        text_analysis_cleanup=None,
+        storage_downloader=None,
     )
 
     cmd = CreateMediaCommand(

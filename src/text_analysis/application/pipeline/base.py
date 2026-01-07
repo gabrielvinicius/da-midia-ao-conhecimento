@@ -1,13 +1,13 @@
 """Abstração para passos do pipeline de análise de texto."""
 from __future__ import annotations
 
-import logging
+import structlog
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
 
 from src.text_analysis.domain import Analysis
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 T = TypeVar("T", bound=Analysis)
 

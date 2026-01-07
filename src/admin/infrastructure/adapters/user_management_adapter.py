@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from src.admin.application.ports.external import UserAdminPort
+from src.admin.application.ports import UserAdminPort
 from src.user_management.application.services.user_service import UserService
 from src.user_management.application.auth_queries import UserReadService
 from src.user_management.application.dtos import (

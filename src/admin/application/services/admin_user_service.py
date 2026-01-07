@@ -1,11 +1,12 @@
 """Admin-specific user management service."""
 
+from typing import List, Optional, Any
 from uuid import UUID
 
 import structlog
 
 from src.admin.application.ports import AdminAuditPort
-from src.admin.application.ports.external import UserAdminPort
+from src.admin.application.ports import UserAdminPort
 from src.user_management.application.ports import PermissionServicePort
 from src.user_management.domain import User, UserRole
 

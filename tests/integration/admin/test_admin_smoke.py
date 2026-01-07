@@ -11,7 +11,7 @@ from src.admin.application.ports import (
     AdminUserRepositoryPort,
 )
 from src.media_management.domain import Media
-from src.shared.domain.enums import MediaStatus
+from src.media_management.domain.enums import MediaStatus
 from src.user_management.domain import User, UserRole
 
 
@@ -105,8 +105,12 @@ async def test_admin_smoke():
     media.status = MediaStatus.FAILED
     media_repo.media[media.id] = media
 
-    admin_user_svc = AdminUserService(user_repository=user_repo, permission_service=DummyPermission(), audit_service=audit)
-    admin_media_svc = AdminMediaService(media_repository=media_repo, permission_service=DummyPermission(), audit_service=audit, media_service=None)  # type: ignore[arg-type]
+    from unittest.mock import AsyncMock
+    mock_user_port = AsyncMock()
+    mock_media_port = AsyncMock()
+
+    admin_user_svc = AdminUserService(user_service=mock_user_port, permission_service=DummyPermission(), audit_service=audit)
+    admin_media_svc = AdminMediaService(media_repository=media_repo, permission_service=DummyPermission(), audit_service=audit, media_service=mock_media_port)
     admin_read_svc = AdminReadService(user_read_port=user_repo, media_read_port=media_repo)
 
     admin_svc = AdminService(

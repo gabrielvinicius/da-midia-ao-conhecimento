@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import inspect
 from typing import Any, Optional
+import structlog
 from src.text_analysis.domain import Analysis, SentimentLabel
 from src.text_analysis.application.pipeline.base import AnalysisStep
 from src.text_analysis.application.ports import (
@@ -13,6 +14,8 @@ from src.text_analysis.application.ports import (
     TopicModelingPort,
 )
 from statistics import mean
+
+logger = structlog.get_logger(__name__)
 
 class ChunkingStep(AnalysisStep):
     def __init__(self, chunker: ChunkingServicePort, size: Optional[int] = None, overlap: Optional[int] = None):

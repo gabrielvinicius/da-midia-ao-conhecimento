@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Optional
 from uuid import UUID
 
-from src.admin.application.ports.external import MediaAdminPort
+from src.admin.application.ports import MediaAdminPort
 from src.media_management.application.dtos import (
     DeleteMediaCommand,
     ListMediaQuery,

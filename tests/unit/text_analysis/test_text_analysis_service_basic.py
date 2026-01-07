@@ -55,18 +55,33 @@ class InMemoryRepo:
         return self.saved.get(analysis_id)
 
 
+from src.text_analysis.application.pipeline.base import AnalysisPipeline
+from src.text_analysis.application.pipeline.steps import (
+    ChunkingStep,
+    SentimentStep,
+    TopicModelingStep,
+    SummarizationStep,
+)
+
 @pytest.mark.anyio
 async def test_analyze_text_service_saves_and_returns_dto():
     repo = InMemoryRepo()
     read_service = TextAnalysisReadService(repository=repo)
+    
+    config = AnalysisConfig(chunk_size=50, chunk_overlap=0)
+    
+    # Build pipeline with fakes
+    pipeline = AnalysisPipeline(steps=[
+        ChunkingStep(FakeChunker(), size=config.chunk_size, overlap=config.chunk_overlap),
+        SentimentStep(FakeSentiment(), language="en"),
+        TopicModelingStep(FakeTopics(), FakeEmbeddings(), language="en"),
+        SummarizationStep(FakeTextGen(), language="en"),
+    ])
+
     service = TextAnalysisService(
-        sentiment_service=FakeSentiment(),
-        embedding_service=FakeEmbeddings(),
-        topic_modeling=FakeTopics(),
-        text_generation=FakeTextGen(),
-        chunker=FakeChunker(),
         repository=repo,
-        config=AnalysisConfig(chunk_size=50, chunk_overlap=0),
+        pipeline=pipeline,
+        config=config,
         text_analysis_read_service=read_service,
     )
 

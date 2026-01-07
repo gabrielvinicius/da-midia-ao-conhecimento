@@ -5,6 +5,7 @@ import pytest
 from src.media_processing.application.services.text_extraction_service import (
     TextExtractionService,
 )
+from src.media_processing.domain import Transcription, TranscriptionStatus
 from src.media_processing.application.tasks import CeleryTextTaskScheduler
 from src.shared.domain.events import MediaProcessingCompleted, TextContentReady
 
@@ -63,8 +64,8 @@ async def test_text_extraction_publishes_events():
     )
 
     media_id = uuid4()
-    # seed repo entry
-    await repo.save(type("T", (), {"media_id": media_id, "id": media_id, "user_id": None})())
+    # seed repo entry with a real domain entity
+    await repo.save(Transcription(media_id=media_id, status=TranscriptionStatus.PENDING))
 
     await service.execute_text_extraction(
         media_id=media_id,

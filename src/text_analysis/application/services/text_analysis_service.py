@@ -6,8 +6,10 @@ Now uses a Pipeline pattern for granular and resilient processing.
 
 from __future__ import annotations
 
+import inspect
 import time
-from typing import Any, Optional
+from statistics import mean
+from typing import Any, Optional, List, Dict
 from uuid import UUID
 
 from src.shared.domain.events import (
@@ -19,6 +21,7 @@ from src.shared.infrastructure.observability.logging.logging_config import get_l
 from src.text_analysis.config.settings import text_analysis_settings
 
 from src.text_analysis.domain import Analysis, Document, SentimentLabel
+from src.text_analysis.domain import Sentiment, Topic
 from src.text_analysis.application.config import AnalysisConfig
 from src.text_analysis.application.dtos import (
     AnalysisResultDTO,
@@ -31,8 +34,8 @@ from src.text_analysis.application.mappers import analysis_to_dto
 from src.text_analysis.application.metrics import NoOpTextAnalysisMetrics, TextAnalysisMetrics
 from src.text_analysis.application.ports import (
     AnalysisRepositoryPort,
-    TranscriptionQueryPort,
 )
+from src.text_analysis.application.ports.transcription_port import TranscriptionQueryPort
 from src.text_analysis.application.pipeline.base import AnalysisPipeline
 from src.text_analysis.application.pipeline.steps import (
     ChunkingStep,
@@ -83,6 +86,7 @@ class TextAnalysisService:
         # 1. Fetch text source via Port if not provided
         if not text_content and media_id and self.transcription_queries:
             try:
+                # Explicit call to the port returning strict DTO
                 text_source = await self.transcription_queries.get_text_source(media_id)
                 if text_source:
                     text_content = text_source.text
@@ -118,15 +122,16 @@ class TextAnalysisService:
                 user_id=user_id,
             )
 
-                    # 3. Run Granular Pipeline
-                    try:
-                        # Inject initial hardware context into diagnostics
-                        analysis.diagnostics["engine"] = "Adaptive Pipeline v6.0"
-                        from src.shared.infrastructure.config.settings import settings
-                        analysis.diagnostics["hardware_target"] = settings.resolved_device
-                        analysis.diagnostics["compute_type"] = settings.ai_compute_type
-                        
-                        analysis = await self.pipeline.run(analysis)            except Exception as exc:
+            # 4. Run Granular Pipeline
+            try:
+                # Inject initial hardware context into diagnostics
+                analysis.diagnostics["engine"] = "Adaptive Pipeline v6.0"
+                from src.shared.infrastructure.config.settings import settings
+                analysis.diagnostics["hardware_target"] = settings.resolved_device
+                analysis.diagnostics["compute_type"] = settings.ai_compute_type
+                
+                analysis = await self.pipeline.run(analysis)
+            except Exception as exc:
                 logger.warning("text_analysis.pipeline_failed_attempting_self_healing", error=str(exc))
                 # Level 6.0 Self-Healing: Adaptive Recovery
                 # Reset analysis state partially to avoid mixed results from failed run
@@ -141,11 +146,11 @@ class TextAnalysisService:
                 
                 analysis = await self.pipeline.run(analysis)
 
-            # 4. Final Persistence
+            # 5. Final Persistence
             analysis_id = await self.repository.save(analysis)
             logger.info("text_analysis.stored", analysis_id=analysis_id)
 
-            # 5. Emit Events
+            # 6. Emit Events
             if self.event_bus:
                 await self._emit_completed_events(analysis)
 

@@ -49,7 +49,6 @@ async def test_register_user(client: AsyncClient):
     assert response.json()["email"] == "test@example.com"
 
 
-@pytest.mark.skip(reason="Auth/media travando; reativar após corrigir dependências.")
 @pytest.mark.asyncio
 async def test_login_for_access_token(client: AsyncClient, authenticated_user: User):
     """Test login for access token."""
@@ -58,10 +57,9 @@ async def test_login_for_access_token(client: AsyncClient, authenticated_user: U
         data={"username": "test@example.com", "password": "Password123"},
     )
     assert response.status_code == 200
-    assert "access_token_cookie" in response.cookies
+    assert "access_token" in response.json()
 
 
-@pytest.mark.skip(reason="Auth/media travando; reativar após corrigir dependências.")
 @pytest.mark.asyncio
 async def test_read_users_me(client: AsyncClient, authenticated_user: User):
     """Test reading the current user."""
@@ -70,7 +68,6 @@ async def test_read_users_me(client: AsyncClient, authenticated_user: User):
     assert response.json()["email"] == "test@example.com"
 
 
-@pytest.mark.skip(reason="Auth/media travando; reativar após corrigir dependências.")
 @pytest.mark.asyncio
 async def test_upload_media(client: AsyncClient, authenticated_user: User):
     """Test uploading media."""
@@ -81,7 +78,6 @@ async def test_upload_media(client: AsyncClient, authenticated_user: User):
     assert response.status_code == 201
 
 
-@pytest.mark.skip(reason="Auth/media travando; reativar após corrigir dependências.")
 @pytest.mark.asyncio
 async def test_get_media(client: AsyncClient, authenticated_user: User):
     """Test getting media."""
@@ -94,7 +90,7 @@ async def test_get_media(client: AsyncClient, authenticated_user: User):
     assert response.status_code == 200
 
 
-@pytest.mark.skip(reason="Auth/media travando; reativar após corrigir dependências.")
+@pytest.mark.skip(reason="Depends on background task completion not synchronized in this test.")
 @pytest.mark.asyncio
 async def test_get_transcription(client: AsyncClient, authenticated_user: User):
     """Test getting a transcription."""
