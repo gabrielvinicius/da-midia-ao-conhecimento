@@ -1,62 +1,46 @@
-# Repository Guidelines
+# Repository Guidelines (Level 7.0 Precursor - Sovereign Knowledge Base)
 
 ## Project Structure & Module Organization
-Backend code lives in `src/`, grouped by bounded contexts such as `media_management`, `media_processing`, `text_analysis`, `storage`, and `admin` (the orchestration facade). Shared helpers stay in `src/shared`, background jobs in each module’s `tasks.py`, and FastAPI boots from `main.py`. Database migrations reside in `alembic/`, while operational scripts live in `scripts/`. Automated suites sit in `tests/` (`unit`, `integration`, `e2e`, `smoke`). The React frontend remains in `frontend/` with feature folders inside `frontend/src`. Architecture notes sit in `docs/`.
+Backend code lives in `src/`, grouped by bounded contexts such as `media_management`, `media_processing`, `text_analysis`, `storage`, and `admin`. The system operates as a **Modular Monolith** with **Clean Architecture** and **DDD**.
 
-`media_processing`: serviços por pipeline, ports para storage/transcription/text; registry de providers. Handlers Celery ficam em `application/tasks.py`. `TranscriptionReadService` expõe leitura via `TranscriptionQueryPort` para `text_analysis` (CQRS read side). Tests de integração usam fakes/lightweight quando disponíveis.
+- `media_processing`: Orchestrates the Multimodal pipeline (Whisper for audio, Moondream 2 for vision). Handlers are in `tasks.py`.
+- `text_analysis`: Granular pipeline (Chunking -> Sentiment -> Topics -> Visual Integration -> Summary). Uses Llama 3 for synthesis.
+- `storage`: High-level ports for swappable backends (Local/S3/MinIO). Includes `StorageMaintenanceService` for cleanup.
+- `shared`: Common domain events, infrastructure middleware, and the `pgvector` semantic indexing bridge.
+
+### Core Architectural Mandates
+- **Pure Dependency Injection**: All dependencies MUST be composed in `main.py` via `bootstrap.py` factories. Avoid global singletons.
+- **Hexagonal Integrity**: Business logic interacts with the world only through Ports (`application/ports.py`). Adapters stay in `infrastructure/`.
+- **Granular Pipeline**: Analysis is step-based. Partial results MUST be saved to allow resilience and adaptive retries.
+- **Semantic indexing**: Every processed chunk is vectorized via `pgvector` for global semantic search.
 
 ### Module Deprecations & Cleanup Status
-- `media_management`: `MediaService` é o único ponto de entrada suportado. Os antigos utilitários (`application/services/file_*`, `media_type_classifier`, `media_uploader`, `media_event_manager`) e `application/commands/components` foram removidos após a migração dos testes. Novas features devem continuar plugadas apenas no `MediaService`/`MediaOrchestrator`.
-- `storage`: ports ficam em `storage/application/ports.py` (providers, configs, logger/metrics, repository). Adapters ficam em `storage/infrastructure/adapters` e `storage/infrastructure/metrics/logging`.
-- `monitoring`: módulo está legado/parcial (apenas `api/routers.py`). Não segue o padrão DDD/ports; considerar removê-lo ou reintroduzir camadas `application/domain/infrastructure` antes de novas features.
-- `shared`: registry de módulos agora é um port (`shared/application/ports.py`, `FastAPIModuleRegistry`).
+- `media_management`: `MediaService` is the unique orchestrator. Legacy `MediaOrchestrator` and utilities are removed.
+- `monitoring`: Partially legacy. Prefer using the new observability ports (`LoggerPort`, `MetricsPort`).
+- `tests`: Directories like `tests/unit/auth` are removed. Unit tests reside within context folders (e.g., `tests/unit/user_management`).
+
+## Intelligence & Autonomy Features
+- **Multimodal Vision**: Uses Moondream 2 to describe keyframes. Agent should ensure the `VisualAnalysisPort` is used for visual context.
+- **Human-in-the-loop (HITL)**: Supports rating and editing AI outputs. Updates to summaries must preserve versioning for future fine-tuning.
+- **Hardware Awareness**: `HardwareAdvisor` monitors GPU/RAM pressure. Pipelines should be "adaptive" (e.g., smaller chunks if VRAM is low).
+- **JSONB Upcasting**: Persistence uses JSONB for metadata to support zero-downtime schema evolution.
 
 ## Build, Test, and Development Commands
-Spin up dependencies via `python -m venv .venv && source .venv/bin/activate` or rely on Poetry with `poetry install`. Launch the API through `poetry run uvicorn main:app --reload`; for full stack services use `docker-compose up --build`. Apply migrations with `docker-compose exec backend alembic upgrade head`. Frontend cycle: `cd frontend && npm install`, then `npm run dev`. Match CI by running `poetry run pytest` and `poetry run mypy` before opening a PR.
+- **Backend**: `poetry run uvicorn main:app --reload` or `docker-compose up`.
+- **Migrations**: `docker-compose exec backend alembic upgrade head`.
+- **Tests**: `poetry run pytest` (Unit, Integration, E2E). 90+ tests must pass.
+- **Linting**: `poetry run ruff check --fix` and `poetry run mypy .`.
 
 ## Coding Style & Naming Conventions
-Python: 4-space indent, 88-column max, double quotes. Lint and format using `poetry run ruff check --fix`; enforce types with `poetry run mypy`. Follow the service/repository/schema layering already present in each bounded context (e.g., `src/media_processing/services`). TypeScript: respect the Vite ESLint config, using PascalCase for components and camelCase for hooks or utilities.
+- **Python**: 4-space indent, Ruff formatting, strict type hints.
+- **Layering**: Stick to `Domain` -> `Application` -> `Infrastructure`.
+- **TypeScript**: React 18 with TanStack Query. Use PascalCase for components.
 
 ## Testing Guidelines
-Use `poetry run pytest tests/unit` for fast feedback. Mark async tests with `@pytest.mark.asyncio`. Integration flows in `tests/integration` expect Postgres and Redis—bring them up with Docker first. Extend fixture factories from `tests/conftest.py`, and document any long-running scenarios so Stage 6 validation stays reproducible.
-
-### Backend Tests dentro dos Containers
-- A imagem `backend` já instala `pytest`, `pytest-asyncio` e `httpx` via `requirements.txt`.
-- Para validar rapidamente dentro do Docker: `docker compose exec backend python -m pytest test_db_connection.py -vv` e demais arquivos utilitários (`test_app.py`, etc.).
-- Sempre que editar `requirements.txt`, reconstrua os serviços (`docker compose up --build backend worker`).
-
-## Observabilidade (log/metrics)
-
-- Contratos comuns ficam em `src/shared/infrastructure/observability/ports.py` (`LoggerPort`, `MetricsPort`).
-- Cada bounded context implementa seus adapters específicos em `infrastructure/logging/` (ex.: `media_processing` tem logger de transcrição com `media_id`, `provider`; `storage` tem logger de operações com `file_path`).
-- Injetar loggers via bootstrap/DI; não importar logger global diretamente. Use o adapter do contexto ou um adapter compartilhado registrado no bootstrap.
-
-## MCP Agent Shortcuts
-The Codex CLI exposes several MCP servers.
-- `context7.resolve-library-id "fastapi"` → `context7.get-library-docs "<id>"` to pull official docs before coding.
-- `ddg-search.duckduckgo_web_search "<query>"` for current articles or specs.
-- `github.list_branches owner repo` / `github.create_branch owner repo branch` to sync with the `refactor/admin-facade` flow.
-- `magicuidesign.getUIComponents` (plus `getButtons`, `getAnimations`) for rapid UI scaffolds.
-- `playwright.browser_navigate "https://localhost:8000"` then `browser_wait_for` to script smoke checks.
-- `zen.consensus`, `zen.planner`, and `zen.testgen` support plan tracking, analysis, and suite design—run them before large architectural moves.
-- `zen.refactor` para encontrar oportunidades de limpeza arquitetural, `zen.thinkdeep` para investigações multi-etapas e `zen.sequentialthinking` para decompor tarefas grandes.
-- `mcp-compass.recommend-mcp-servers` ajuda a descobrir MCPs externos, `memory` guarda contexto persistente e o pacote `context7` cobre documentação técnica.
-- Use o MCP `github.*` (list/get/create PRs, branches, commits) para automatizar interações com o repositório remoto; comandos `git` locais seguem disponíveis quando for preciso inspecionar a working tree.
-
-### Event bus e workers (atualizado)
-- Bus é criado no bootstrap (API) e por processo de worker (`EVENT_BUS=...` via env). Tasks usam bootstraps de worker:
-  - `media_processing/application/worker_bootstrap.py`
-  - `text_analysis/worker_bootstrap.py`
-  - `notifications/worker_bootstrap.py`
-- Providers `get_event_bus` não usam singletons implícitos; passe a instância do bootstrap ou deixe o fallback resolver (`resolve_event_bus`) apenas quando explícito.
-
-### Simetria de adapters/ports
-- Adapters ficam em `infrastructure/adapters/`; providers em `infrastructure/dependencies/providers.py`.
-- Read services (CQRS) expostos em cada módulo (`TranscriptionReadService`, `TextAnalysisReadService`, `UserReadService`, `NotificationReadService`).
-
-### Testes
-- Suites rápidas: `poetry run pytest tests/unit -q` ou módulos específicos (ex.: `tests/unit/text_analysis/test_text_analysis_service_basic.py`).
-- Workers não usam singletons de bus; para testar tasks, inicialize `EVENT_BUS=memory` no ambiente.
+- Unit tests MUST use mocks for all external dependencies (Repositories, EventBus).
+- Integration tests verify Port/Adapter connectivity.
+- E2E tests (`tests/e2e`) validate the entire Multimodal flow from upload to summary correction.
 
 ## Commit & Pull Request Guidelines
-Commits follow Conventional style with context scopes (`refactor(admin): ...`). Keep messages in English, referencing the plan checkpoint (e.g., `Stage6-6.2.1`). PRs must list validation commands, link tracking issues, and add screenshots for UI updates. Ensure `poetry run pytest` and `npm run build` (when UI changes land) are green before requesting review.
+- **Conventional Commits**: `feat(vision): ...`, `fix(vector): ...`.
+- **PRs**: Must include validation logs and confirm that architectural purity (DI/Hexagonal) is maintained.
