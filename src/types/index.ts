@@ -27,17 +27,17 @@ export interface ChangePasswordPayload {
 }
 
 export enum MediaType {
-  VIDEO = "VIDEO",
-  AUDIO = "AUDIO",
-  TEXT = "TEXT",
+  VIDEO = "video",
+  AUDIO = "audio",
+  TEXT = "text",
 }
 
 export enum MediaStatus {
-  UPLOADED = "UPLOADED",
-  PENDING = "PENDING",
-  PROCESSING = "PROCESSING",
-  COMPLETED = "COMPLETED",
-  FAILED = "FAILED",
+  UPLOADED = "uploaded",
+  PENDING = "pending", // Deprecated: Backend uses UPLOADED
+  PROCESSING = "processing",
+  COMPLETED = "completed",
+  FAILED = "failed",
 }
 
 // Aligned with Backend DTO (MediaResponse)
@@ -69,10 +69,10 @@ export interface Video extends Media {
 }
 
 export enum TranscriptionStatus {
-  PENDING = "PENDING",
-  PROCESSING = "PROCESSING",
-  COMPLETED = "COMPLETED",
-  FAILED = "FAILED",
+  PENDING = "pending",
+  PROCESSING = "processing",
+  COMPLETED = "completed",
+  FAILED = "failed",
 }
 
 export interface TranscriptionSegment {

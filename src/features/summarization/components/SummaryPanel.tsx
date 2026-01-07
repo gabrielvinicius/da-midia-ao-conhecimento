@@ -1,9 +1,12 @@
+import { useState } from 'react'; // Add useState
 import { saveAs } from 'file-saver';
 import { useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
+import api from '@/lib/api'; // Import api for feedback calls
+import { toast } from 'react-toastify';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
-import { Download, Info, Sparkles } from "lucide-react";
+import { Download, Info, Sparkles, ThumbsUp, ThumbsDown, Edit3, Save, X } from "lucide-react";
 import { MediaStatus, TextAnalysisResponse } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -114,10 +117,42 @@ const renderSummaryText = (text: string) => {
 };
 
 export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
-  const { data: analysis, isLoading, isError } = useTextAnalysisByMediaIdQuery(mediaId);
+  const { data: analysis, isLoading, isError, refetch } = useTextAnalysisByMediaIdQuery(mediaId);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedText, setEditedText] = useState("");
+  const [feedbackGiven, setFeedbackGiven] = useState<number | null>(null);
+
   const provider = analysis?.provider || undefined;
   const providerInfo = provider ? SUMMARY_PROVIDER_META[provider] : undefined;
   const summaryText = analysis ? buildSummaryText(analysis) : "";
+
+  const handleFeedback = async (score: number) => {
+    if (!analysis) return;
+    try {
+      await api.post(`/text-analysis/${analysis.analysis_id}/feedback?score=${score}`);
+      setFeedbackGiven(score);
+      toast.success("Obrigado pelo feedback!");
+    } catch (err) {
+      toast.error("Falha ao registrar feedback.");
+    }
+  };
+
+  const handleSaveCorrection = async () => {
+    if (!analysis) return;
+    try {
+      await api.put(`/text-analysis/${analysis.analysis_id}/summary?new_summary=${encodeURIComponent(editedText)}`);
+      toast.success("Resumo atualizado!");
+      setIsEditing(false);
+      refetch();
+    } catch (err) {
+      toast.error("Falha ao salvar correção.");
+    }
+  };
+
+  const startEditing = () => {
+    setEditedText(summaryText);
+    setIsEditing(true);
+  };
 
   const handleDownload = () => {
     if (analysis && summaryText) {
@@ -164,14 +199,62 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
 
     return (
       <div className="space-y-4">
-        {summaryText ? (
-          renderSummaryText(summaryText)
+        {isEditing ? (
+          <div className="space-y-3">
+            <textarea
+              value={editedText}
+              onChange={(e) => setEditedText(e.target.value)}
+              className="w-full h-64 p-3 text-sm border rounded-xl focus:ring-2 focus:ring-primary/20 outline-none font-sans leading-relaxed"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
+                <X className="mr-1 h-4 w-4" /> Cancelar
+              </Button>
+              <Button size="sm" onClick={handleSaveCorrection}>
+                <Save className="mr-1 h-4 w-4" /> Salvar Alterações
+              </Button>
+            </div>
+          </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            A análise foi gerada, mas ainda não há um resumo consolidado disponível.
-          </p>
+          <>
+            {summaryText ? (
+              renderSummaryText(summaryText)
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                A análise foi gerada, mas ainda não há um resumo consolidado disponível.
+              </p>
+            )}
+            
+            {/* Level 7.0 Feedback Loop Toolbar */}
+            {analysis && (
+              <div className="mt-6 flex items-center justify-between py-3 border-t border-slate-100 animate-in fade-in duration-700">
+                <div className="flex items-center gap-4">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Avalie este resumo</span>
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={() => handleFeedback(1)}
+                      className={cn("p-1.5 rounded-full transition-colors", feedbackGiven === 1 ? "bg-emerald-100 text-emerald-600" : "hover:bg-slate-100 text-slate-400")}
+                    >
+                      <ThumbsUp className="h-4 w-4" />
+                    </button>
+                    <button 
+                      onClick={() => handleFeedback(-1)}
+                      className={cn("p-1.5 rounded-full transition-colors", feedbackGiven === -1 ? "bg-rose-100 text-rose-600" : "hover:bg-slate-100 text-slate-400")}
+                    >
+                      <ThumbsDown className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" onClick={startEditing} className="text-slate-500 hover:text-primary gap-1.5 h-8">
+                  <Edit3 className="h-3.5 w-3.5" />
+                  <span className="text-[10px] uppercase font-bold">Corrigir</span>
+                </Button>
+              </div>
+            )}
+          </>
         )}
-        {keyTopics.length > 0 && (
+        
+        {keyTopics.length > 0 && !isEditing && (
           <div className="mt-6 flex flex-wrap gap-2 text-xs text-muted-foreground">
             <span className="w-full text-[10px] uppercase tracking-widest text-slate-400 mb-1">Assuntos Relacionados</span>
             {keyTopics.map((topic, index) => (

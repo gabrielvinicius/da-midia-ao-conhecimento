@@ -8,7 +8,7 @@ const server = setupServer(
     return res(
       ctx.json({
         items: [
-          { id: '1', filename: 'video.mp4', media_type: 'VIDEO', status: 'COMPLETED', created_at: new Date().toISOString(), size: 100, content_type: 'video/mp4' },
+          { id: '1', filename: 'video.mp4', media_type: 'video', status: 'COMPLETED', created_at: new Date().toISOString(), size: 100, content_type: 'video/mp4' },
         ],
         total: 1,
         page: 1,
@@ -22,7 +22,7 @@ const server = setupServer(
       ctx.json({
         total: 1,
         by_status: { COMPLETED: 1, PROCESSING: 0, FAILED: 0, PENDING: 0, UPLOADED: 0 },
-        by_type: { VIDEO: 1, AUDIO: 0, TEXT: 0 },
+        by_type: { video: 1, audio: 0, text: 0 },
       })
     );
   }),

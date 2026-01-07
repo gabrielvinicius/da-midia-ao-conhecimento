@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Download } from "lucide-react";
 import { TranscriptionSegment, TranscriptionStatus } from '@/types';
-import { EditSpeakersDialog } from './EditSpeakersDialog'; // Import the new dialog
+import { EditSpeakersDialog } from './EditSpeakersDialog';
+import { cn } from "@/lib/utils";
 
 interface InteractiveTranscriptionPanelProps {
   mediaId: string;
@@ -39,9 +40,29 @@ export const InteractiveTranscriptionPanel = ({ mediaId, currentTime, onSeek }: 
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent, segment: TranscriptionSegment) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleSegmentClick(segment);
+    }
+  };
+
+  const activeSegmentRef = React.useRef<HTMLDivElement>(null);
+
+  // Auto-scroll logic
+  React.useEffect(() => {
+    if (activeSegmentRef.current) {
+      activeSegmentRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }
+  }, [currentTime]);
+
   const resolvedText = transcription?.text ?? "";
   const resolvedSegments = transcription?.segments ?? [];
   const isDiarized = resolvedSegments.some((segment) => Boolean(segment.speaker));
+  
   const durationSeconds = React.useMemo(() => {
     if (resolvedSegments.length > 0) {
       return resolvedSegments[resolvedSegments.length - 1].end;
@@ -77,14 +98,18 @@ export const InteractiveTranscriptionPanel = ({ mediaId, currentTime, onSeek }: 
       <div className="space-y-4">
         {formattedDuration && (
           <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>Duration</span>
+            <span>Duração</span>
             <span className="font-medium">{formattedDuration}</span>
           </div>
         )}
         {!isDiarized && transcription.status === TranscriptionStatus.COMPLETED && (
-          <div className="text-center text-sm text-muted-foreground p-2">Identifying speakers...</div>
+          <div className="text-center text-sm text-muted-foreground p-2">Identificando locutores...</div>
         )}
-        <div className="h-96 overflow-y-auto space-y-2 rounded-md border p-4 bg-muted/20">
+        <div 
+          className="h-96 overflow-y-auto space-y-2 rounded-md border p-4 bg-muted/20 focus-within:ring-2 focus-within:ring-primary/20 transition-all"
+          role="region"
+          aria-label="Transcrição interativa"
+        >
           {resolvedSegments.length > 0 ? (
             resolvedSegments.map((segment, index) => {
               const isActive = currentTime >= segment.start && currentTime < segment.end;
@@ -95,11 +120,22 @@ export const InteractiveTranscriptionPanel = ({ mediaId, currentTime, onSeek }: 
               return (
                 <div
                   key={index}
+                  ref={isActive ? activeSegmentRef : null}
                   onClick={() => handleSegmentClick(segment)}
-                  className={`cursor-pointer rounded-md p-2 transition-colors ${isActive ? 'bg-primary/20 shadow-sm border border-primary/10' : 'hover:bg-accent'}`}
+                  onKeyDown={(e) => handleKeyDown(e, segment)}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isActive}
+                  aria-label={`Locutor ${speakerLabel} em ${segment.start.toFixed(1)} segundos`}
+                  className={cn(
+                    "cursor-pointer rounded-md p-2 transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                    isActive 
+                      ? "bg-primary/20 shadow-sm border border-primary/10 font-medium" 
+                      : "hover:bg-accent border border-transparent"
+                  )}
                 >
                   {isDiarized ? (
-                    <p><span className={`font-bold ${speakerColor}`}>{speakerLabel}:</span> {segment.text}</p>
+                    <p><span className={cn("font-bold", speakerColor)}>{speakerLabel}:</span> {segment.text}</p>
                   ) : (
                     <p>{segment.text}</p>
                   )}
@@ -108,7 +144,7 @@ export const InteractiveTranscriptionPanel = ({ mediaId, currentTime, onSeek }: 
             })
           ) : (
             <div className="p-2 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap italic">
-              {resolvedText || "Transcrição disponível apenas em formato bruto (sem sincronização temporal)."}
+              {resolvedText || "Transcrição disponível apenas em formato bruto."}
             </div>
           )}
         </div>

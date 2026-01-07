@@ -8,6 +8,8 @@ import { FileText, CheckCircle, XCircle, Loader2, Clock, Video, Music, FileImage
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useDeleteUserMediaCommand, useReprocessMediaCommand } from "@/hooks/useCommands";
+import { useQueryClient } from "@tanstack/react-query";
+import { getMediaById } from "@/api/queries";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,37 +30,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/AlertDialog";
 
+import { MediaStatusBadge } from "@/components/MediaStatusBadge";
+
 interface MediaCardProps {
   media: Media;
 }
-
-// Status configuration for visual feedback
-const statusConfig: Record<MediaStatus, { icon: ReactNode; color: string; label: string; bgColor: string }> = {
-  [MediaStatus.PENDING]: { 
-    icon: <Clock className="h-4 w-4" />, 
-    color: "text-yellow-600", 
-    label: "Pendente",
-    bgColor: "bg-yellow-100 dark:bg-yellow-900/20"
-  },
-  [MediaStatus.PROCESSING]: { 
-    icon: <Loader2 className="h-4 w-4 animate-spin" />, 
-    color: "text-blue-600", 
-    label: "Processando",
-    bgColor: "bg-blue-100 dark:bg-blue-900/20"
-  },
-  [MediaStatus.COMPLETED]: { 
-    icon: <CheckCircle className="h-4 w-4" />, 
-    color: "text-green-600", 
-    label: "Concluído",
-    bgColor: "bg-green-100 dark:bg-green-900/20"
-  },
-  [MediaStatus.FAILED]: { 
-    icon: <XCircle className="h-4 w-4" />, 
-    color: "text-red-600", 
-    label: "Falhou",
-    bgColor: "bg-red-100 dark:bg-red-900/20"
-  },
-};
 
 // Media type icons
 const mediaTypeConfig: Record<MediaType, { icon: ReactNode; label: string; color: string }> = {
@@ -68,9 +44,18 @@ const mediaTypeConfig: Record<MediaType, { icon: ReactNode; label: string; color
 };
 
 export const MediaCard = ({ media }: MediaCardProps) => {
+  const queryClient = useQueryClient();
   const { mutate: reprocess, isPending: isReprocessing } = useReprocessMediaCommand();
   const { mutate: deleteMedia, isPending: isDeleting } = useDeleteUserMediaCommand();
-  const { icon: statusIcon, color: statusColor, label: statusLabel, bgColor: statusBgColor } = statusConfig[media.status] || statusConfig[MediaStatus.PENDING];
+  
+  const handlePrefetch = () => {
+    queryClient.prefetchQuery({
+      queryKey: ['media', media.id],
+      queryFn: () => getMediaById(media.id),
+      staleTime: 30000,
+    });
+  };
+
   const { icon: typeIcon, label: typeLabel, color: typeColor } = mediaTypeConfig[media.media_type] || mediaTypeConfig[MediaType.TEXT];
 
   const filename = media.filename || media.id;
@@ -83,7 +68,10 @@ export const MediaCard = ({ media }: MediaCardProps) => {
   };
 
   return (
-    <Card className="group hover:border-primary/50 hover:shadow-md transition-all duration-200 h-full">
+    <Card 
+      className="group hover:border-primary/50 hover:shadow-md transition-all duration-200 h-full"
+      onMouseEnter={handlePrefetch}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -149,12 +137,7 @@ export const MediaCard = ({ media }: MediaCardProps) => {
       
       <CardContent className="pt-0">
         <div className="flex items-center justify-between mb-4">
-          <Badge variant="outline" className={`${statusBgColor} ${statusColor} border-current`}>
-            <span className="flex items-center gap-1">
-              {statusIcon}
-              {statusLabel}
-            </span>
-          </Badge>
+          <MediaStatusBadge status={media.status} />
           
           {media.status === MediaStatus.FAILED && (
             <Button 

@@ -116,6 +116,30 @@ export const getTextAnalysisByMediaId = async (mediaId: string): Promise<TextAna
   }
 };
 
+export type AnalysisEstimation = {
+  estimated_seconds: number;
+  vram_gb: number;
+  risk: 'safe' | 'warning' | 'dangerous' | 'terminal';
+  recommendation: string;
+};
+
+export const getAnalysisEstimation = async (mediaId: string): Promise<AnalysisEstimation> => {
+  const response = await api.get<AnalysisEstimation>(`/text-analysis/media/${mediaId}/estimate`);
+  return response.data;
+};
+
+export type SystemStatusResponse = {
+  pressure: 'low' | 'moderate' | 'high' | 'critical';
+  cpu_usage: number;
+  ram_usage: number;
+  gpu_vram_usage: number | null;
+};
+
+export const getSystemStatus = async (): Promise<SystemStatusResponse> => {
+  const response = await api.get<SystemStatusResponse>('/monitoring/system-status');
+  return response.data;
+};
+
 // =============================================================================
 // AUTH QUERIES
 // =============================================================================

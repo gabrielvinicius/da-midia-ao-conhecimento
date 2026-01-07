@@ -40,6 +40,12 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
       console.log('WebSocket connected');
       setConnectionStatus('OPEN');
       shouldReconnectRef.current = true;
+      
+      // Level 6.0: Self-Healing State Reconciliation
+      // Invalidate active queries to sync state missed during disconnect
+      queryClient.invalidateQueries({ queryKey: ['media-list'] });
+      queryClient.invalidateQueries({ queryKey: ['media-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['system-status'] });
     };
 
     ws.onclose = (event) => {

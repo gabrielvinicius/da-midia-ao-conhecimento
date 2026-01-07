@@ -1,8 +1,9 @@
 import * as React from 'react';
+import { MediaType } from '@/types';
 
 interface MediaPlayerProps {
   src: string;
-  mediaType: 'AUDIO' | 'VIDEO';
+  mediaType: MediaType.AUDIO | MediaType.VIDEO;
   onTimeUpdate: (time: number) => void;
   playerRef: React.RefObject<HTMLMediaElement>;
 }
@@ -12,7 +13,7 @@ export const MediaPlayer = ({ src, mediaType, onTimeUpdate, playerRef }: MediaPl
     onTimeUpdate(e.currentTarget.currentTime);
   };
 
-  if (mediaType === 'VIDEO') {
+  if (mediaType === MediaType.VIDEO) {
     return (
       <video
         ref={playerRef as React.RefObject<HTMLVideoElement>}
@@ -24,7 +25,7 @@ export const MediaPlayer = ({ src, mediaType, onTimeUpdate, playerRef }: MediaPl
     );
   }
 
-  if (mediaType === 'AUDIO') {
+  if (mediaType === MediaType.AUDIO) {
     return (
       <audio
         ref={playerRef as React.RefObject<HTMLAudioElement>}

@@ -6,12 +6,13 @@ import ErrorState from "@/components/ui/ErrorState";
 import NumberTicker from "@/components/ui/NumberTicker";
 import { MagicSurface } from "@/components/ui/MagicSurface";
 import { MediaCard } from "../features/media/components/MediaCard";
+import { GenericStatCard } from "@/components/GenericStatCard";
 import { useMediaByUserQuery, useMediaStatsQuery } from "@/hooks/useQueries";
 import { PaginationState } from "@tanstack/react-table";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { useAuth } from "../contexts/AuthContext";
-import { UserRole } from "@/types";
+import { UserRole, MediaType } from "@/types";
 import {
   Upload,
   BarChart3,
@@ -88,9 +89,9 @@ const DashboardPage = () => {
     if (statsApi?.by_status) {
       return {
         total: statsApi.total ?? fallback.total,
-        videos: media.filter(m => m.media_type === 'VIDEO').length, // ausência de breakdown por tipo; mantém parcial
-        audios: media.filter(m => m.media_type === 'AUDIO').length,
-        texts: media.filter(m => m.media_type === 'TEXT').length,
+        videos: media.filter(m => m.media_type === MediaType.VIDEO).length, // ausência de breakdown por tipo; mantém parcial
+        audios: media.filter(m => m.media_type === MediaType.AUDIO).length,
+        texts: media.filter(m => m.media_type === MediaType.TEXT).length,
         processing: statsApi.by_status.PROCESSING ?? 0,
         completed: statsApi.by_status.COMPLETED ?? 0,
         failed: statsApi.by_status.FAILED ?? 0,
@@ -98,12 +99,12 @@ const DashboardPage = () => {
     }
     return {
       ...fallback,
-      videos: media.filter(m => m.media_type === 'VIDEO').length,
-      audios: media.filter(m => m.media_type === 'AUDIO').length,
-      texts: media.filter(m => m.media_type === 'TEXT').length,
-      processing: media.filter(m => m.status === 'PROCESSING').length,
-      completed: media.filter(m => m.status === 'COMPLETED').length,
-      failed: media.filter(m => m.status === 'FAILED').length,
+      videos: media.filter(m => m.media_type === MediaType.VIDEO).length,
+      audios: media.filter(m => m.media_type === MediaType.AUDIO).length,
+      texts: media.filter(m => m.media_type === MediaType.TEXT).length,
+      processing: media.filter(m => m.status === MediaStatus.PROCESSING).length,
+      completed: media.filter(m => m.status === MediaStatus.COMPLETED).length,
+      failed: media.filter(m => m.status === MediaStatus.FAILED).length,
     };
   }, [media, statsApi]);
 
@@ -118,68 +119,37 @@ const DashboardPage = () => {
     { label: "Texto", value: statsApi?.by_type?.TEXT ?? stats.texts, icon: <FileText className="h-4 w-4" />, color: "bg-sky-500" },
   ];
 
-  const StatCard = ({
-    title,
-    value,
-    suffix = "",
-    description,
-    icon,
-  }: {
-    title: string;
-    value: number;
-    suffix?: string;
-    description: string;
-    icon: React.ReactNode;
-  }) => (
-    <MagicSurface title={title} description={description}>
-      <div className="flex items-center justify-between">
-        <div className="text-3xl font-semibold text-slate-900">
-          <NumberTicker value={value} suffix={suffix} />
-        </div>
-        <div className="rounded-full bg-slate-100 p-2 text-slate-900">{icon}</div>
-      </div>
-    </MagicSurface>
-  );
-
-  const ProgressItem = ({ label, value, color }: { label: string; value: number; color: string }) => (
-    <div>
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{label}</span>
-        <span>{value.toFixed(1)}%</span>
-      </div>
-      <div className="mt-2 h-2 rounded-full bg-muted">
-        <div className={`h-2 rounded-full ${color}`} style={{ width: `${Math.min(value, 100)}%` }} />
-      </div>
-    </div>
-  );
-
   const renderStatsCards = () => (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <StatCard
+      <GenericStatCard
         title="Total monitorado"
         value={totalMedia}
         description={stats.processing ? `${stats.processing} em processamento` : "Nenhum processamento ativo"}
         icon={<FileText className="h-4 w-4" />}
+        isLoading={isLoading}
       />
-      <StatCard
+      <GenericStatCard
         title="Taxa de conclusão"
         value={completionRate}
         suffix="%"
         description="Resumo das últimas execuções"
         icon={<CheckCircle2 className="h-4 w-4" />}
+        isLoading={isLoading}
       />
-      <StatCard
+      <GenericStatCard
         title="Uploads recentes"
         value={totalMedia}
         description="Total de itens enviados"
         icon={<Upload className="h-4 w-4" />}
+        isLoading={isLoading}
       />
-      <StatCard
+      <GenericStatCard
         title="Taxa de falhas"
         value={failureRate}
         suffix="%"
         description={failureRate > 0 ? "Verifique itens com erro" : "Sem falhas no período"}
         icon={<AlertTriangle className="h-4 w-4" />}
+        isLoading={isLoading}
       />
     </div>
   );

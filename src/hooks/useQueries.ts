@@ -11,6 +11,12 @@ import {
   getAllUsers,
   getAllMediaAdmin,
   getMediaStats,
+  ProvidersResponse,
+  getProviders,
+  AnalysisEstimation,
+  getAnalysisEstimation,
+  getSystemStatus,
+  SystemStatusResponse,
 } from '@/api/queries';
 
 // =============================================================================
@@ -160,4 +166,22 @@ export const useMediaDetailQuery = (mediaId: string) => {
     isLoading: mediaQuery.isLoading,
     hasError: mediaQuery.isError,
   };
+};
+
+export const useAnalysisEstimationQuery = (mediaId: string, enabled: boolean = true) => {
+  return useQuery({
+    queryKey: ['analysis-estimation', mediaId],
+    queryFn: () => getAnalysisEstimation(mediaId),
+    enabled: !!mediaId && enabled,
+    staleTime: 1000 * 30, // 30 seconds
+  });
+};
+
+export const useSystemStatusQuery = () => {
+  return useQuery({
+    queryKey: ['system-status'],
+    queryFn: getSystemStatus,
+    refetchInterval: 30000, // Poll every 30 seconds
+    staleTime: 25000,
+  });
 };

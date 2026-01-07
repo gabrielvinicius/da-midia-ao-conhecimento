@@ -1,5 +1,5 @@
 import { Users, FolderKanban, Loader2, Activity, ShieldAlert, CheckCircle2 } from "lucide-react";
-import { StatCard } from "../components/StatCard";
+import { GenericStatCard } from "@/components/GenericStatCard";
 import { useSystemStats, useSystemHealth, useMediaProcessingStats } from "../hooks/useAdminQueries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -47,42 +47,42 @@ export const AdminDashboardPage = () => {
         <h1 className="text-3xl font-bold tracking-tight">Visão geral das operações</h1>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <StatCard
+        <GenericStatCard
           title="Usuários cadastrados"
           value={stats?.total_users ?? 0}
           icon={<Users className="h-4 w-4 text-muted-foreground" />}
           isLoading={isLoading}
           description="Contas ativas na plataforma"
         />
-        <StatCard
+        <GenericStatCard
           title="Usuários ativos"
           value={stats?.active_users ?? 0}
           icon={<Activity className="h-4 w-4 text-muted-foreground" />}
           isLoading={isLoading}
           description="Sessões ativas nas últimas 24h"
         />
-        <StatCard
+        <GenericStatCard
           title="Mídias registradas"
           value={stats?.total_media ?? 0}
           icon={<FolderKanban className="h-4 w-4 text-muted-foreground" />}
           isLoading={isLoading}
           description="Itens catalogados no pipeline"
         />
-        <StatCard
+        <GenericStatCard
           title="Processando agora"
           value={stats?.processing_media ?? 0}
           icon={<Loader2 className="h-4 w-4 text-muted-foreground" />}
           isLoading={isLoading}
           description="Fila atual de jobs"
         />
-        <StatCard
+        <GenericStatCard
           title="Falhas acumuladas"
           value={stats?.failed_media ?? 0}
           icon={<ShieldAlert className="h-4 w-4 text-muted-foreground" />}
           isLoading={isLoading}
           description="Mídias que exigem reprocessamento"
         />
-        <StatCard
+        <GenericStatCard
           title="Taxa de sucesso"
           value={stats?.success_rate ?? 0}
           suffix="%"

@@ -14,12 +14,16 @@ import { MagicSurface } from "@/components/ui/MagicSurface";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { MediaType, MediaStatus, TranscriptionStatus } from "@/types";
+import { MediaStatus, TranscriptionStatus, MediaType } from "@/types";
+import { cn } from "@/lib/utils";
 import { MediaPlayer } from "@/features/media/components/MediaPlayer";
 import { useTranscription } from "@/features/transcription/hooks/useTranscription";
 import { TranscriptionPanel } from "@/features/transcription/components/TranscriptionPanel";
 import { buildApiUrl } from "@/lib/api";
 import { SummaryPanel } from "@/features/summarization/components/SummaryPanel";
+import authService from "@/services/auth.service";
+import { PredictiveInsight } from "@/components/PredictiveInsight";
+import { ProcessingTrace } from "@/components/ProcessingTrace";
 
 type PipelineStep = {
   key: string;
@@ -94,7 +98,8 @@ const MediaDetailPage = () => {
 
   const isPlayable = media.media_type === MediaType.AUDIO || media.media_type === MediaType.VIDEO;
   const isTextMedia = media.media_type === MediaType.TEXT;
-  const streamUrl = buildApiUrl(`/media/${media.id}/stream`);
+  const token = authService.getToken();
+  const streamUrl = buildApiUrl(`/media/${media.id}/stream${token ? `?token=${token}` : ''}`);
 
   const handleSeek = (time: number) => {
     if (playerRef.current) {
@@ -170,6 +175,7 @@ const MediaDetailPage = () => {
         return { label: "Falhou", badge: "bg-red-500/10 text-red-600", icon: <AlertTriangle className="h-4 w-4 text-red-500" /> };
       case MediaStatus.PENDING:
       case TranscriptionStatus.PENDING:
+      case MediaStatus.UPLOADED:
       case "UPLOADED":
         return { label: "Aguardando", badge: "bg-muted text-muted-foreground", icon: <Loader2 className="h-4 w-4 text-muted-foreground" /> };
       case "SKIPPED":
@@ -248,7 +254,8 @@ const MediaDetailPage = () => {
 
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 h-full flex flex-col">
+      {/* Header Section */}
       <MagicSurface title="Detalhes da mídia" description="Contexto completo do arquivo enviado e do pipeline de processamento.">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-2">
@@ -261,51 +268,34 @@ const MediaDetailPage = () => {
                 {media.media_type}
               </Badge>
               <Badge className={statusToken(media.status).badge}>{statusToken(media.status).label}</Badge>
-            </div>
-            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <Languages className="h-3.5 w-3.5" /> {languageLabel}
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <Sparkles className="h-3.5 w-3.5" />
-                {providerCount > 0 ? `${providerCount} etapas configuradas` : "Pipeline automático"}
-              </span>
+              
+              {/* Level 6.0 Visual Observability */}
+              <ProcessingTrace media={media} analysis={textAnalysis} />
             </div>
           </div>
           <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <HardDrive className="h-4 w-4 text-emerald-600" />
-              <span>{media.storage_provider ?? "Storage padrão"}</span>
+            <div className="flex items-center gap-3">
+               {(user?.role === UserRole.ADMIN || media.user_id === user?.id) && media.status === MediaStatus.FAILED && (
+                <Button
+                  onClick={handleReprocess}
+                  disabled={reprocessMutation.isPending}
+                  variant="outline"
+                  size="sm"
+                >
+                  {reprocessMutation.isPending ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Reprocessando...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <RefreshCw className="h-4 w-4" />
+                      Reprocessar
+                    </span>
+                  )}
+                </Button>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-amber-600" />
-              <span>Tamanho: {formattedFileSize}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-sky-600" />
-              <span>ID: {media.id}</span>
-            </div>
-            {(user?.role === UserRole.ADMIN || media.user_id === user?.id) && media.status === MediaStatus.FAILED && (
-              <Button
-                onClick={handleReprocess}
-                disabled={reprocessMutation.isPending}
-                variant="outline"
-                size="sm"
-                className="mt-2"
-              >
-                {reprocessMutation.isPending ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Reprocessando...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4" />
-                    Reprocessar
-                  </span>
-                )}
-              </Button>
-            )}
           </div>
         </div>
         {media.status === MediaStatus.FAILED && media.error_message && (
@@ -316,81 +306,109 @@ const MediaDetailPage = () => {
         )}
       </MagicSurface>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-4">
-          <SummaryPanel mediaId={id} mediaStatus={media.status} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Content Consumption (Player + Transcript) */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Media Player Card */}
+          <Card className="border border-[#ede4d5] bg-black/5 overflow-hidden">
+            <CardContent className="p-0">
+              {isPlayable ? (
+                <MediaPlayer
+                  src={streamUrl}
+                  mediaType={media.media_type as MediaType.AUDIO | MediaType.VIDEO}
+                  playerRef={playerRef}
+                  onTimeUpdate={setCurrentTime}
+                />
+              ) : isTextMedia ? (
+                  <div className="p-6">
+                    <TextPreview
+                      isLoading={isTranscriptionLoading}
+                      isError={isTranscriptionError}
+                      transcription={transcriptionData?.text || ""}
+                      status={transcriptionData?.status}
+                    />
+                  </div>
+              ) : (
+                <div className="p-12 text-center text-muted-foreground">
+                  <Info className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>Prévia indisponível para este tipo de arquivo.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Interactive Transcription */}
+          <div className="min-h-[400px]">
+             {isPlayable && (
+              <InteractiveTranscriptionPanel mediaId={id} currentTime={currentTime} onSeek={handleSeek} />
+            )}
+            {!isPlayable && isTextMedia && <TranscriptionPanel mediaId={id} />}
+            {!isPlayable && !isTextMedia && (
+              <Card className="p-8 text-center text-muted-foreground border-dashed">
+                <p>Ainda não há transcrição disponível para este formato.</p>
+              </Card>
+            )}
+          </div>
         </div>
-        <div className="space-y-4">
+
+        {/* Right Column: Insights & Metadata */}
+        <div className="space-y-6">
+          {/* Level 6.0 Predictive Insight */}
+          <PredictiveInsight 
+            mediaId={id} 
+            isEnabled={media.status === MediaStatus.UPLOADED || media.status === MediaStatus.PROCESSING} 
+          />
+
+          {/* Intelligent Summary (Top Priority) */}
+          <SummaryPanel mediaId={id} mediaStatus={media.status} />
+
+          {/* Analysis Widgets */}
           <SentimentResultPanel mediaId={id} mediaStatus={media.status} />
           <TopicModelingResultPanel mediaId={id} mediaStatus={media.status} />
-        </div>
-      </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2 border border-[#ede4d5] bg-white">
-          <CardHeader>
-            <CardTitle className="text-lg">Status do pipeline</CardTitle>
-            <CardDescription>
-              Acompanhamento em tempo real das etapas espelhadas do backend (upload, vídeo, texto e análises).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {pipelineSteps.map((step) => {
-              const token = statusToken(step.status);
-              return (
-                <div key={step.key} className="flex items-start justify-between gap-3 rounded-xl border border-[#f2eadf] bg-[#fdfbf6] p-3">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      {token.icon}
-                      <span>{step.label}</span>
-                      <Badge className={token.badge}>{token.label}</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{step.description}</p>
-                  </div>
+          {/* Metadata / Pipeline Status (Secondary) */}
+          <Card className="border border-[#ede4d5] bg-white">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">Detalhes do Arquivo</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="flex justify-between py-2 border-b border-slate-100">
+                <span className="text-muted-foreground flex items-center gap-2"><FileText className="h-4 w-4"/> Nome</span>
+                <span className="font-medium truncate max-w-[150px]" title={media.filename || media.id}>{media.filename || media.id}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-slate-100">
+                <span className="text-muted-foreground flex items-center gap-2"><Shield className="h-4 w-4"/> Tamanho</span>
+                <span className="font-medium">{formattedFileSize}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-slate-100">
+                <span className="text-muted-foreground flex items-center gap-2"><HardDrive className="h-4 w-4"/> Storage</span>
+                <span className="font-medium">{media.storage_provider ?? "Local"}</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-slate-100">
+                <span className="text-muted-foreground flex items-center gap-2"><Languages className="h-4 w-4"/> Idioma</span>
+                <span className="font-medium">{languageLabel}</span>
+              </div>
+              
+              <div className="pt-4">
+                <p className="text-xs font-medium text-muted-foreground mb-3">Status do Pipeline</p>
+                <div className="space-y-2">
+                  {pipelineSteps.map((step) => {
+                    const token = statusToken(step.status);
+                    return (
+                      <div key={step.key} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          {token.icon}
+                          <span>{step.label}</span>
+                        </div>
+                        <Badge className={cn("text-[10px] px-1.5 h-5", token.badge)}>{token.label}</Badge>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      </section>
-
-      <Card className="border border-[#ede4d5] bg-white">
-        <CardHeader>
-          <CardTitle>Pré-visualização</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {isPlayable ? (
-            <MediaPlayer
-              src={streamUrl}
-              mediaType={media.media_type as MediaType.AUDIO | MediaType.VIDEO}
-              playerRef={playerRef}
-              onTimeUpdate={setCurrentTime}
-            />
-          ) : isTextMedia ? (
-              <TextPreview
-              isLoading={isTranscriptionLoading}
-              isError={isTranscriptionError}
-              transcription={transcriptionData?.text || ""}
-              status={transcriptionData?.status}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Prévia indisponível para este tipo de arquivo.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="space-y-8">
-        {isPlayable && (
-          <InteractiveTranscriptionPanel mediaId={id} currentTime={currentTime} onSeek={handleSeek} />
-        )}
-        {!isPlayable && isTextMedia && <TranscriptionPanel mediaId={id} />}
-        {!isPlayable && !isTextMedia && (
-          <p className="py-16 text-center text-muted-foreground">
-            Ainda não há transcrição disponível para este formato.
-          </p>
-        )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

@@ -3,7 +3,8 @@ import { Outlet, Link, NavLink, useLocation } from 'react-router-dom';
 import { Home, Users, FolderKanban, LogOut, BarChart3, Menu, UserCircle, Settings, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/Button';
-import { ConnectionStatusIndicator } from './ConnectionStatusIndicator'; // Import the new component
+import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
+import { SystemHealthBanner } from './SystemHealthBanner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,6 +71,7 @@ const AdminLayout = () => {
         </div>
       </div>
       <div className="flex flex-col">
+        <SystemHealthBanner />
         <header className="flex h-14 items-center gap-4 border-b border-[#f2eadf] bg-white/70 px-4 backdrop-blur lg:h-[60px] lg:px-6">
           <div className="w-full flex-1" />
           <div className="flex items-center gap-4">

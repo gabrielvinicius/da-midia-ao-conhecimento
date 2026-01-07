@@ -4,7 +4,8 @@ import { Home, Upload, LogOut, UserCircle, Settings, ShieldCheck, Menu } from 'l
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from './ui/Button';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
-import { ConnectionStatusIndicator } from './ConnectionStatusIndicator'; // Import the new component
+import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
+import { SystemHealthBanner } from './SystemHealthBanner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,6 +70,7 @@ const AppLayout = () => {
         </div>
       </div>
       <div className="flex flex-col">
+        <SystemHealthBanner />
         <header className="flex h-14 items-center gap-4 border-b border-[#f2eadf] bg-white/70 px-4 backdrop-blur lg:h-[60px] lg:px-6">
           <div className="w-full flex-1"></div>
           <div className="flex items-center gap-4">

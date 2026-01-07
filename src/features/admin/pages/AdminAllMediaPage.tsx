@@ -9,6 +9,7 @@ import { useAllMedia } from "../hooks/useAdminQueries";
 import { useDeleteMedia, useReprocessMedia, useBulkReprocessMedia, useCleanupOrphanedFiles } from "../hooks/useAdminMutations";
 import { DataTable } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
+import { MediaStatusBadge } from "@/components/MediaStatusBadge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import ErrorState from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
@@ -105,17 +106,7 @@ export const columns: ColumnDef<Media>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => {
-      const status = row.original.status;
-      const map: Record<MediaStatus, { label: string; variant: "default" | "secondary" | "destructive" }> = {
-        [MediaStatus.COMPLETED]: { label: "Concluída", variant: "default" },
-        [MediaStatus.FAILED]: { label: "Falhou", variant: "destructive" },
-        [MediaStatus.PROCESSING]: { label: "Processando", variant: "secondary" },
-        [MediaStatus.PENDING]: { label: "Pendente", variant: "secondary" },
-      };
-      const config = map[status] ?? map[MediaStatus.PENDING];
-      return <Badge variant={config.variant}>{config.label}</Badge>;
-    },
+    cell: ({ row }) => <MediaStatusBadge status={row.original.status} />,
   },
   {
     accessorKey: "created_at",
