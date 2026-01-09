@@ -25,10 +25,52 @@ TEXT_GEN_PROVIDERS: List[ProviderEntry] = [
         target="hf:mistralai/Mistral-7B-Instruct-v0.3",
     ),
     ProviderEntry(
+        name="hf:NousResearch/Meta-Llama-3.1-8B-Instruct",
+        label="Llama 3.1 8B (NousResearch)",
+        description="Versão aberta do Llama 3.1, sem restrições de acesso.",
+        target="hf:NousResearch/Meta-Llama-3.1-8B-Instruct",
+    ),
+    ProviderEntry(
+        name="hf:mistralai/Mistral-Nemo-Instruct-v1",
+        label="Mistral Nemo 12B",
+        description="Otimizado para GPUs de 12GB. Supera o Llama 8B em raciocínio técnico.",
+        target="hf:mistralai/Mistral-Nemo-Instruct-v1",
+    ),
+    ProviderEntry(
+        name="hf:nvidia/Nemotron-Orchestrator-8B",
+        label="NVIDIA Nemotron 8B",
+        description="Especialista em orquestração e análise técnica profunda.",
+        target="hf:nvidia/Nemotron-Orchestrator-8B",
+    ),
+    ProviderEntry(
+        name="hf:DavidAU/Llama3.3-8B-Instruct-Thinking-Heretic-Uncensored-Claude-4.5-Opus-High-Reasoning",
+        label="Llama 3.3 Heretic (High Reasoning)",
+        description="Modelo uncensored com raciocínio extremo e lógica avançada.",
+        target="hf:DavidAU/Llama3.3-8B-Instruct-Thinking-Heretic-Uncensored-Claude-4.5-Opus-High-Reasoning",
+    ),
+    ProviderEntry(
+        name="hf:meta-llama/Llama-3.1-8B-Instruct",
+        label="Llama 3.1 8B (Transformers/HF)",
+        description="Versão atualizada com melhor raciocínio e contexto expandido.",
+        target="hf:meta-llama/Llama-3.1-8B-Instruct",
+    ),
+    ProviderEntry(
         name="hf:meta-llama/Meta-Llama-3-8B-Instruct",
         label="Llama 3 8B (Transformers/HF)",
         description="Qualidade alta; preferir quantização em 12GB.",
         target="hf:meta-llama/Meta-Llama-3-8B-Instruct",
+    ),
+    ProviderEntry(
+        name="hf:NousResearch/Meta-Llama-3-8B-Instruct",
+        label="Llama 3 8B (NousResearch)",
+        description="Versão aberta do Llama 3, alta qualidade e sem restrições de acesso.",
+        target="hf:NousResearch/Meta-Llama-3-8B-Instruct",
+    ),
+    ProviderEntry(
+        name="hf:microsoft/Phi-3-mini-4k-instruct",
+        label="Phi-3 Mini 4k (Transformers/HF)",
+        description="Leve e rápido; excelente para summaries em CPU/GPU.",
+        target="hf:microsoft/Phi-3-mini-4k-instruct",
     ),
     ProviderEntry(
         name="hf:microsoft/Phi-3-small-8k-instruct",
@@ -70,6 +112,9 @@ TEXT_GEN_PROVIDERS: List[ProviderEntry] = [
 
 TEXT_GEN_ROUTING: Mapping[str, str] = {
     # nomes amigáveis -> destino transformers
+    "nemo": "hf:mistralai/Mistral-Nemo-Instruct-v1",
+    "nemotron": "hf:nvidia/Nemotron-Orchestrator-8B",
+    "llama3.3-heretic": "hf:DavidAU/Llama3.3-8B-Instruct-Thinking-Heretic-Uncensored-Claude-4.5-Opus-High-Reasoning",
     "mistral-7b": "hf:mistralai/Mistral-7B-Instruct-v0.3",
     "phi3-small": "hf:microsoft/Phi-3-small-8k-instruct",
     "gemma2-9b": "hf:google/gemma-2-9b-it",
@@ -114,6 +159,25 @@ SENTIMENT_PROVIDERS: List[ProviderEntry] = [
 ]
 
 
+EMBEDDING_PROVIDERS: List[ProviderEntry] = [
+    ProviderEntry(
+        name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        label="Paraphrase Multilingual MiniLM L12 (v2)",
+        description="Padrão atual. Rápido, leve e com bom suporte PT-BR.",
+    ),
+    ProviderEntry(
+        name="intfloat/multilingual-e5-small",
+        label="Multilingual E5 Small",
+        description="SOTA em benchmarks MTEB. Requer prefixos 'query:'/'passage:' para performance máxima.",
+    ),
+    ProviderEntry(
+        name="intfloat/multilingual-e5-large",
+        label="Multilingual E5 Large",
+        description="Versão maior do E5. Maior precisão, maior consumo de memória.",
+    ),
+]
+
+
 def resolve_textgen_target(name: str) -> str:
     """Mapeia nome amigável para repo real; retorna o próprio se não houver."""
     aliases: Dict[str, str] = {k: v for k, v in TEXT_GEN_ROUTING.items() if v.startswith("hf:")}
@@ -142,6 +206,7 @@ __all__ = [
     "TEXT_GEN_PROVIDERS",
     "TOPIC_PROVIDERS",
     "SENTIMENT_PROVIDERS",
+    "EMBEDDING_PROVIDERS",
     "resolve_textgen_target",
     "STOPWORDS_LANGS",
 ]
