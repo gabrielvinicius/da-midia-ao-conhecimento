@@ -32,8 +32,8 @@ TEXT_GEN_PROVIDERS: List[ProviderEntry] = [
     ),
     ProviderEntry(
         name="hf:mistralai/Mistral-Nemo-Instruct-v1",
-        label="Mistral Nemo 12B",
-        description="Otimizado para GPUs de 12GB. Supera o Llama 8B em raciocínio técnico.",
+        label="Mistral Nemo 12B (SOTA Raciocínio)",
+        description="Recomendado para 12GB+ VRAM. Raciocínio superior ao Llama 8B. Requer 4-bit quantization.",
         target="hf:mistralai/Mistral-Nemo-Instruct-v1",
     ),
     ProviderEntry(
