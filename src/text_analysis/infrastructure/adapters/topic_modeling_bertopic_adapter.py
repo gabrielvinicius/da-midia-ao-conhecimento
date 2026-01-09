@@ -31,33 +31,62 @@ class BERTopicAdapter(TopicModelingPort):
         if not self._initialized:
             try:  # pragma: no cover
                 from bertopic import BERTopic
+                from bertopic.representation import KeyBERTInspired, TextGeneration
 
-                representation_model = None
+                # 1. Base Representation: KeyBERTInspired (Robust & Fast)
+                # Melhora a qualidade das keywords focando na semântica, não apenas frequência
+                representation_models = {
+                    "KeyBERT": KeyBERTInspired()
+                }
+
+                # 2. Advanced Representation: LLM (Zero-Shot SOTA)
                 if self.use_transformer_representation:
                     try:
-                        from bertopic.representation import TextGeneration
                         from transformers import pipeline
 
                         # Map 'cpu' or device ID
                         device_idx = -1 if self.device == "cpu" else 0
-
-                        generator = pipeline(
-                            "text2text-generation",
-                            model=self.transformer_model_name or "google/flan-t5-base",
-                            device=device_idx
-                        )
-                        representation_model = TextGeneration(generator)
+                        
                         logger.info(
-                            "Using transformer TextGeneration for topic titles."
+                            "bertopic.init_llm_representation", 
+                            model=self.transformer_model_name
                         )
+
+                        # Pipeline de geração de texto
+                        generator = pipeline(
+                            "text2text-generation" if "t5" in (self.transformer_model_name or "").lower() else "text-generation",
+                            model=self.transformer_model_name or "google/flan-t5-base",
+                            device=device_idx,
+                            max_new_tokens=32  # Títulos curtos
+                        )
+
+                        # Prompt Otimizado (MCP Insight: Zero-Shot Direct Instruction)
+                        # Força o modelo a ignorar chat-talk e focar na síntese do título
+                        prompt = (
+                            "Analise os seguintes documentos que compartilham o mesmo tópico:\n"
+                            "[DOCUMENTS]\n\n"
+                            "Identifique o tema central unificador e gere um título curto, "
+                            "descritivo e profissional em Português para este tópico. "
+                            "Apenas o título, sem aspas ou explicações:"
+                        )
+
+                        representation_models["LLM"] = TextGeneration(
+                            generator, 
+                            prompt=prompt
+                        )
+                        
                     except Exception as rep_exc:  # pragma: no cover
                         logger.warning(
-                            "Transformer TextGeneration unavailable (%s). "
-                            "Falling back to default BERTopic.",
-                            rep_exc,
+                            "bertopic.llm_representation_failed",
+                            error=str(rep_exc)
                         )
 
-                self._model = BERTopic(representation_model=representation_model)
+                # Initialize BERTopic with Multi-Aspect Representation
+                self._model = BERTopic(
+                    representation_model=representation_models,
+                    verbose=True
+                )
+                
             except Exception as exc:
                 logger.warning(
                     "BERTopic unavailable (%s). Using simple keywords fallback.", exc
@@ -81,18 +110,39 @@ class BERTopicAdapter(TopicModelingPort):
                 )
                 topics, probs = model.fit_transform(docs, np_embeddings)
                 info = model.get_topic_info()
+                
                 topics_out: list[Topic] = []
                 for topic_id in set(topics):
-                    words = [term for term, _ in model.get_topic(topic_id) or []]
+                    if topic_id == -1: continue # Skip outlier topic if desired, or keep as "Ruído"
+
+                    # Tenta obter o título do LLM, fallback para KeyBERT, fallback para palavras
+                    topic_meta = model.get_topic(topic_id, full=True)
+                    
+                    # Prioridade: LLM -> KeyBERT -> Default
+                    title = None
+                    if "LLM" in topic_meta and topic_meta["LLM"]:
+                         title = topic_meta["LLM"][0][0] # (word, score)
+                    
+                    if not title and "KeyBERT" in topic_meta:
+                         # KeyBERT retorna keywords, pegamos a top 1 como "tema" se não houver título
+                         title = topic_meta["KeyBERT"][0][0].capitalize()
+
+                    # Keywords vêm do KeyBERT se disponível (melhor qualidade)
+                    keywords_source = topic_meta.get("KeyBERT", model.get_topic(topic_id))
+                    words = [term for term, _ in keywords_source][:10]
+                    
+                    if not title:
+                        title = words[0].capitalize() if words else "Tópico Desconhecido"
+
                     snippets = [
                         chunk.text for chunk, t in zip(chunks, topics) if t == topic_id
                     ]
                     topics_out.append(
                         Topic(
                             id=int(topic_id),
-                            keywords=words[:10],
+                            keywords=words,
                             snippets=snippets[:5],
-                            title=words[0] if words else None,
+                            title=title.strip(),
                             size=len(snippets),
                             diagnostics={"probabilities": probs},
                         )
