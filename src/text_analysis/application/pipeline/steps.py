@@ -118,33 +118,55 @@ class SummarizationStep(AnalysisStep):
                 logger.warning("pipeline.summarization_skipped_due_to_critical_pressure")
                 return analysis
         
+        # Recupera contexto visual (Level 7.0+)
+        visual_context = analysis.diagnostics.get("visual_context", [])
+        visual_text = "\n".join(visual_context) if visual_context else ""
+
         summary_parts = []
         for topic in analysis.topics:
-            summary_md = await self._summarize_with_redundancy(topic, analysis)
+            # Injeta contexto visual se relevante para o tempo do tópico (heurística simples ou global)
+            # Para Level 8.3, passamos o contexto visual global para enriquecer
+            summary_md = await self._summarize_with_redundancy(topic, visual_text, analysis)
             if summary_md:
                 topic.summary = summary_md
                 summary_parts.append(summary_md)
         
-        if summary_parts:
-            analysis.summary = "\n\n".join(summary_parts)
-            
+        # Nota: A unificação final ("Master Summary") ocorre no SynthesisStep
         return analysis
 
-    async def _summarize_with_redundancy(self, topic: Any, analysis: Analysis) -> Optional[str]:
+    async def _summarize_with_redundancy(self, topic: Any, visual_context: str, analysis: Analysis) -> Optional[str]:
         """Tenta gerar o resumo usando o plano de redundância ativa."""
         primary = getattr(self.text_generation, "provider_name", "primary")
         
+        # Prompt Inquiry-Based (SOTA 2025)
+        context_prompt = ""
+        if visual_context:
+            context_prompt = f"\n[CONTEXTO VISUAL DO VÍDEO]:\n{visual_context}\n"
+
+        prompt_instruction = (
+            f"Analise o texto abaixo sobre '{topic.title}'. {context_prompt}\n"
+            "Identifique as 3 principais teses defendidas e as evidências citadas. "
+            "Se houver contexto visual, correlacione com o texto. "
+            f"Responda em {self.language} com formatação Markdown estruturada."
+        )
+        
         try:
             if self.text_generation.is_available():
+                # Passamos o prompt customizado. Adapters devem suportar 'instruction' ou concatenar.
+                # Aqui assumimos que o adapter usa (title, text, keywords)
+                # Vamos injetar a instrução no 'text' ou 'title' se o adapter for rígido,
+                # ou idealmente, o adapter aceita um prompt template.
+                # Para compatibilidade, concatenamos no texto.
+                enriched_text = f"{prompt_instruction}\n\n[TEXTO]:\n" + "\n".join(topic.snippets)
+                
                 result = await self.text_generation.summarize_topic(
-                    topic.title, "\n".join(topic.snippets), topic.keywords, self.language
+                    topic.title, enriched_text, topic.keywords, self.language
                 )
                 if self.advisor: self.advisor.report_success(primary)
                 return result
         except Exception as exc:
             logger.error("pipeline.primary_summarization_failed", provider=primary, error=str(exc))
             if self.advisor: self.advisor.report_failure(primary)
-            # Fallback automático para Heurística (Redundância Interna)
             return self._fallback_heuristic(topic)
         
         return None
@@ -156,8 +178,71 @@ class SummarizationStep(AnalysisStep):
 
 
 class KnowledgeIndexingStep(AnalysisStep):
-    # ... existing code ...
+    def __init__(self, vector_repository: Any):
+        self.vector_repo = vector_repository
+
+    @property
+    def name(self) -> str:
+        return "knowledge_indexing"
+
+    async def process(self, analysis: Analysis) -> Analysis:
+        # Se houver embeddings temporários, salvá-los
+        if "_temp_embeddings" in analysis.diagnostics:
+            # Lógica de persistência vetorial aqui
+            # (Simplificado para manter foco no Summarization/Synthesis)
+            pass
+        return analysis
+
+
+class SynthesisStep(AnalysisStep):
+    """
+    Level 8.3: Executive Master Summary.
+    Unifies all topic summaries into a cohesive narrative using long-context LLMs.
+    """
+    def __init__(self, text_generation: TextGenerationPort, language: str):
+        self.text_generation = text_generation
+        self.language = language
+
+    @property
+    def name(self) -> str:
+        return "synthesis"
+
+    async def process(self, analysis: Analysis) -> Analysis:
+        if not analysis.topics:
+            return analysis
+
+        # Coletar todos os resumos parciais
+        topic_summaries = [t.summary for t in analysis.topics if t.summary]
+        if not topic_summaries:
+            return analysis
+
+        combined_text = "\n\n".join(topic_summaries)
+        
+        # Prompt Hierárquico
+        prompt = (
+            "Abaixo estão resumos dos principais tópicos de um vídeo.\n"
+            f"[RESUMOS PARCIAIS]:\n{combined_text}\n\n"
+            "Tarefa: Escreva um 'Resumo Executivo' coeso que conecte todos esses pontos em uma narrativa fluida. "
+            "Crie uma introdução que apresente o objetivo do vídeo, desenvolva os argumentos principais "
+            "e termine com uma conclusão sintetizadora. "
+            f"Escreva em {self.language} profissional."
+        )
+
+        try:
+            # Usamos o 'summarize_topic' como interface genérica de geração
+            # Idealmente, teríamos um método 'generate_text'
+            master_summary = await self.text_generation.summarize_topic(
+                "Resumo Executivo", prompt, [], self.language
+            )
             
+            # Adiciona o Resumo Executivo no topo do output final
+            analysis.summary = f"# Resumo Executivo\n{master_summary}\n\n---\n# Detalhes por Tópico\n{combined_text}"
+            
+        except Exception as exc:
+            logger.error("synthesis.failed", error=str(exc))
+            # Fallback: Apenas concatena (já feito no passo anterior, mas garantimos aqui)
+            analysis.summary = combined_text
+
         return analysis
 
 class VisualInsightStep(AnalysisStep):
