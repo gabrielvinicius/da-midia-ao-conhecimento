@@ -54,6 +54,24 @@ def _load_openai_whisper():
             "Provider 'openai-whisper' requer o pacote openai-whisper instalado."
         ) from exc
 
+def _load_moondream():
+    try:
+        from src.media_processing.infrastructure.adapters.visual.moondream_adapter import (
+            MoondreamVisualAdapter,
+        )
+        return MoondreamVisualAdapter
+    except ImportError:
+        return None
+
+def _load_qwen2_vl():
+    try:
+        from src.media_processing.infrastructure.adapters.visual.qwen2_vl_adapter import (
+            Qwen2VLAdapter,
+        )
+        return Qwen2VLAdapter
+    except ImportError:
+        return None
+
 try:
     from src.media_processing.infrastructure.adapters.video import (
         ffmpeg_audio_extractor,
@@ -77,6 +95,51 @@ from src.media_processing.infrastructure.adapters.text import (
 
 OCRProvider = ocr_provider_adapter.OCRProvider
 TextExtractor = text_extractor_adapter.TextExtractor
+
+
+from src.media_processing.application.ports import VisualAnalysisPort
+
+_VISUAL_ANALYZERS: Dict[str, Callable[[], VisualAnalysisPort]] = {}
+_VISUAL_META: Dict[str, Dict[str, Any]] = {}
+
+def _register_visual_providers():
+    # Moondream
+    cls_moon = _load_moondream()
+    if cls_moon:
+        _VISUAL_ANALYZERS["moondream"] = lambda: cls_moon()
+        _VISUAL_META["moondream"] = {
+            "label": "Moondream 2",
+            "public": True,
+            "description": "Modelo leve para descrição de imagens.",
+        }
+    
+    # Qwen2-VL
+    cls_qwen = _load_qwen2_vl()
+    if cls_qwen:
+        _VISUAL_ANALYZERS["qwen2-vl"] = lambda: cls_qwen()
+        _VISUAL_META["qwen2-vl"] = {
+            "label": "Qwen2.5-VL (SOTA)",
+            "public": True,
+            "description": "Modelo Multimodal 7B SOTA (4-bit).",
+        }
+    
+    # Default
+    if "qwen2-vl" in _VISUAL_ANALYZERS:
+        _VISUAL_ANALYZERS["default"] = _VISUAL_ANALYZERS["qwen2-vl"]
+    elif "moondream" in _VISUAL_ANALYZERS:
+        _VISUAL_ANALYZERS["default"] = _VISUAL_ANALYZERS["moondream"]
+
+_register_visual_providers()
+
+def get_visual_analyzer(provider: str | None = None) -> VisualAnalysisPort:
+    key = (provider or "default").lower()
+    factory = _VISUAL_ANALYZERS.get(key)
+    if not factory:
+        # Fallback ou erro
+        if "default" in _VISUAL_ANALYZERS:
+             return _VISUAL_ANALYZERS["default"]()
+        raise RuntimeError("Nenhum provider de análise visual disponível.")
+    return factory()
 
 
 # ----------------- Speech recognizers -----------------
@@ -412,5 +475,6 @@ __all__ = [
     "register_thumbnail_generator",
     "list_thumbnail_generators",
     "thumbnail_generator_meta",
+    "get_visual_analyzer",
     "get_event_bus",
 ]
