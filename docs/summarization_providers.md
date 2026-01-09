@@ -31,3 +31,20 @@ export SUMMARIZATION_PROVIDER_OVERRIDES='{"huggingface": {"model_name": "google-
 1. Reprocessar um conjunto fixo de mídias (>=5 por idioma) com cada provider.
 2. Gravar métricas de coerência/diversidade e tempo total.
 3. Monitorar logs `summarization.domain.completed` com `provider`/`strategy` para telemetria.
+
+## Provedores de Transcrição
+
+O sistema suporta múltiplos provedores de transcrição via `TranscriptionService`.
+
+### Opções Recomendadas
+* **whisper-medium** (Default): Bom equilíbrio entre precisão e velocidade.
+* **turbo** (`faster-whisper-large-v3-turbo`): **Recomendado para produção**. Qualidade de Large-v3 com velocidade de Medium.
+
+### Configuração
+Para alterar o modelo de transcrição, passe o parâmetro `transcription_provider` nas configurações ou requests.
+
+Exemplo de override no `.env`:
+```env
+TRANSCRIPTION_DEFAULT_PROVIDER=turbo
+```
+

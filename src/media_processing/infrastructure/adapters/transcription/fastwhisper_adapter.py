@@ -21,6 +21,10 @@ class FastWhisperTranscriber(SpeechRecognizer):
             # For faster-whisper, default depends on device
             self.compute_type = "float16" if self.device == "cuda" else "int8"
         
+        # Mapeamento para modelos customizados ou turbo
+        if self.model_size == "turbo":
+            self.model_size = "deepdml/faster-whisper-large-v3-turbo-ct2"
+
         self.kwargs = kwargs
         self._model = None
         self._initialized = False
