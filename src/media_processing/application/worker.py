@@ -119,7 +119,9 @@ class MediaWorkerApp:
         try:
             from src.text_analysis.tasks import analyze_task  # noqa: WPS433
 
-            if hasattr(analyze_task, "delay"):
+            if hasattr(analyze_task, "apply_async"):
+                analyze_task.apply_async(kwargs=payload, queue="text_analysis_queue")
+            elif hasattr(analyze_task, "delay"):
                 analyze_task.delay(**payload)
             else:  # pragma: no cover
                 analyze_task(**payload)

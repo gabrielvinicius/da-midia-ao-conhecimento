@@ -216,10 +216,6 @@ def build_media_components(
     media_event_handlers = MediaEventHandlers(media_service)
 
     if event_bus:
-        event_bus.subscribe(
-            MediaUploaded,
-            media_processing_event_handlers.handle_media_uploaded,
-        )
         # TextContentReady handled in text_analysis module
         event_bus.subscribe(
             TranscriptionCompleted,

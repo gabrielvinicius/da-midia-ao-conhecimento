@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.user_management.api.dependencies import (
     get_auth_queries,
     get_auth_service,
+    get_auth_settings,
     get_user_service,
 )
 from src.user_management.application.auth_queries import UserReadService
@@ -67,6 +68,7 @@ def bind_user_management_module(app: FastAPI, module: UserManagementModule) -> N
     app.dependency_overrides[get_user_service] = lambda: module.user_service
     app.dependency_overrides[get_auth_service] = lambda: module.auth_service
     app.dependency_overrides[get_auth_queries] = lambda: module.auth_queries
+    app.dependency_overrides[get_auth_settings] = lambda: user_settings
 
 
 __all__ = [

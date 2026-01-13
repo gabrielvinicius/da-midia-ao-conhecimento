@@ -18,11 +18,13 @@ class BERTopicAdapter(TopicModelingPort):
         model_name: str,
         use_transformer_representation: bool = False,
         transformer_model_name: str | None = None,
+        embedding_model_name: str | None = None,  # NEW
         device: str | None = None,
     ) -> None:
         self.model_name = model_name
         self.use_transformer_representation = use_transformer_representation
         self.transformer_model_name = transformer_model_name
+        self.embedding_model_name = embedding_model_name # NEW
         self.device = device or settings.resolved_device
         self._model = None
         self._initialized = False
@@ -39,7 +41,7 @@ class BERTopicAdapter(TopicModelingPort):
                     "KeyBERT": KeyBERTInspired()
                 }
 
-                # 2. Advanced Representation: LLM (Zero-Shot SOTA)
+                # ... (Transformer Representation logic hidden for brevity) ...
                 if self.use_transformer_representation:
                     try:
                         from transformers import pipeline
@@ -47,21 +49,25 @@ class BERTopicAdapter(TopicModelingPort):
                         # Map 'cpu' or device ID
                         device_idx = -1 if self.device == "cpu" else 0
                         
+                        # Strip routing prefix 'hf:' if present
+                        model_name = self.transformer_model_name or "google/flan-t5-base"
+                        if model_name.startswith("hf:"):
+                            model_name = model_name[3:]
+                        
                         logger.info(
                             "bertopic.init_llm_representation", 
-                            model=self.transformer_model_name
+                            model=model_name
                         )
 
                         # Pipeline de geração de texto
                         generator = pipeline(
-                            "text2text-generation" if "t5" in (self.transformer_model_name or "").lower() else "text-generation",
-                            model=self.transformer_model_name or "google/flan-t5-base",
+                            "text2text-generation" if "t5" in model_name.lower() else "text-generation",
+                            model=model_name,
                             device=device_idx,
                             max_new_tokens=32  # Títulos curtos
                         )
 
-                        # Prompt Otimizado (MCP Insight: Zero-Shot Direct Instruction)
-                        # Força o modelo a ignorar chat-talk e focar na síntese do título
+                        # Prompt Otimizado
                         prompt = (
                             "Analise os seguintes documentos que compartilham o mesmo tópico:\n"
                             "[DOCUMENTS]\n\n"
@@ -81,8 +87,11 @@ class BERTopicAdapter(TopicModelingPort):
                             error=str(rep_exc)
                         )
 
-                # Initialize BERTopic with Multi-Aspect Representation
+                # Initialize BERTopic with Multi-Aspect Representation AND Embedding Model
+                # Explicitly setting embedding_model avoids 'NoneType' error in KeyBERT
+                # even when using pre-computed embeddings.
                 self._model = BERTopic(
+                    embedding_model=self.embedding_model_name or "sentence-transformers/all-MiniLM-L6-v2",
                     representation_model=representation_models,
                     verbose=True
                 )
@@ -94,7 +103,7 @@ class BERTopicAdapter(TopicModelingPort):
             self._initialized = True
         return self._model
 
-    def model_topics(
+    async def model_topics(
         self, chunks: list[TextChunk], embeddings: list[list[float]], language: str
     ) -> tuple[list[Topic], dict]:
         model = self._get_model()
@@ -108,7 +117,18 @@ class BERTopicAdapter(TopicModelingPort):
                     if hasattr(embeddings, "shape")
                     else np.array(embeddings, dtype="float32")
                 )
-                topics, probs = model.fit_transform(docs, np_embeddings)
+                
+                # Executa fit_transform em thread separada para não bloquear o loop de eventos
+                # pois BERTopic/UMAP/HDBSCAN são CPU-bound e pesados
+                import asyncio
+                from functools import partial
+                
+                # Wrapper para chamar fit_transform
+                def _run_fit():
+                    return model.fit_transform(docs, np_embeddings)
+
+                topics, probs = await asyncio.to_thread(_run_fit)
+                
                 info = model.get_topic_info()
                 
                 topics_out: list[Topic] = []

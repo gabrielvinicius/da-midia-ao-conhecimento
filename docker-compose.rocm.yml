@@ -5,9 +5,9 @@ services:
       args:
         - PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/rocm6.2.4
     environment:
-      - AI_DEVICE=cuda # ROCm mapeia como cuda no Torch
+      - AI_DEVICE=cuda # PyTorch ROCm usa backend 'cuda'
 
-  worker:
+  worker-heavy:
     image: video-summarizer-app:rocm
     devices:
       - "/dev/kfd:/dev/kfd"

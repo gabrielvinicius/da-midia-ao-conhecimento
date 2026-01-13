@@ -55,6 +55,7 @@ def get_topic_modeling_adapter(config: AnalysisConfig):
         config.topic_model,
         use_transformer_representation=config.use_transformer_topic_representation,
         transformer_model_name=config.transformer_representation_model,
+        embedding_model_name=config.embedding_model,
     )
 
 

@@ -23,19 +23,31 @@ from src.shared.infrastructure.messaging.event_bus_factory import (
 )
 logger = structlog.get_logger(__name__)
 
+# Global event bus instance for the worker process
+_WORKER_EVENT_BUS = None
+
 
 def _ensure_event_bus(bus=None):
+    global _WORKER_EVENT_BUS
     # If a global/singleton bus is needed, get_event_bus handles it
-    return get_event_bus(bus)
+    if bus:
+        return get_event_bus(bus)
+    
+    if _WORKER_EVENT_BUS:
+        return _WORKER_EVENT_BUS
+
+    return build_event_bus()
 
 
 @worker_process_init.connect
 def setup_worker_subscribers(**kwargs):
     """Initialize event subscribers when a worker process starts."""
+    global _WORKER_EVENT_BUS
     logger.info("media_processing.worker.init")
     try:
         # Use the singleton event bus for this process
-        app = MediaWorkerApp(event_bus=_ensure_event_bus())
+        _WORKER_EVENT_BUS = build_event_bus()
+        app = MediaWorkerApp(event_bus=_WORKER_EVENT_BUS)
         app.ensure_subscribers()
         logger.info("media_processing.worker.subscribers_configured")
     except Exception as exc:
@@ -69,20 +81,25 @@ class CeleryTextTaskScheduler:
             media_id=str(media_id),
             file_path=file_path,
         )
-        task = process_text_extraction_task.delay(
-            media_id=str(media_id),
-            file_path=file_path,
-            storage_provider=storage_provider,
-            user_id=user_id,
-            filename=filename,
-            triggered_by=triggered_by,
-            actor_id=actor_id,
-            correlation_id=correlation_id or str(media_id),
+        queue = "text_analysis_queue"
+        task = process_text_extraction_task.apply_async(
+            kwargs={
+                "media_id": str(media_id),
+                "file_path": file_path,
+                "storage_provider": storage_provider,
+                "user_id": user_id,
+                "filename": filename,
+                "triggered_by": triggered_by,
+                "actor_id": actor_id,
+                "correlation_id": correlation_id or str(media_id),
+            },
+            queue=queue
         )
         logger.info(
             "celery_task_scheduler.text_extraction_scheduled",
             media_id=str(media_id),
             task_id=task.id,
+            queue=queue,
         )
         return {"task_id": task.id}
 
@@ -114,27 +131,37 @@ class CeleryTranscriptionTaskScheduler:
             transcription_id=str(transcription_id),
             provider=transcription_provider,
         )
-        task = process_transcription_task.delay(
-            media_id=str(media_id),
-            file_path=file_path,
-            storage_provider=storage_provider,
-            transcription_provider=transcription_provider,
-            transcription_id=str(transcription_id),
-            language=language,
-            file_size_bytes=file_size_bytes,
-            summarization_provider=summarization_provider,
-            sentiment_provider=sentiment_provider,
-            topic_modeling_provider=topic_modeling_provider,
-            correlation_id=correlation_id or str(media_id),
-            user_id=user_id,
-            filename=filename,
-            triggered_by=triggered_by,
-            actor_id=actor_id,
+        
+        # Simple heuristic: < 50MB goes to fast lane
+        queue = "transcription_queue"
+        if file_size_bytes and file_size_bytes < 50 * 1024 * 1024:
+            queue = "transcription_fast_lane"
+
+        task = process_transcription_task.apply_async(
+            kwargs={
+                "media_id": str(media_id),
+                "file_path": file_path,
+                "storage_provider": storage_provider,
+                "transcription_provider": transcription_provider,
+                "transcription_id": str(transcription_id),
+                "language": language,
+                "file_size_bytes": file_size_bytes,
+                "summarization_provider": summarization_provider,
+                "sentiment_provider": sentiment_provider,
+                "topic_modeling_provider": topic_modeling_provider,
+                "correlation_id": correlation_id or str(media_id),
+                "user_id": user_id,
+                "filename": filename,
+                "triggered_by": triggered_by,
+                "actor_id": actor_id,
+            },
+            queue=queue
         )
         logger.info(
             "celery_task_scheduler.transcription_task_scheduled",
             media_id=str(media_id),
             task_id=task.id,
+            queue=queue,
         )
         return {"task_id": task.id}
 
@@ -161,21 +188,31 @@ class CeleryVideoProcessingTaskScheduler:
             storage_provider=storage_provider,
             file_size_bytes=file_size_bytes,
         )
-        task = process_video_task.delay(
-            media_id=media_id,
-            file_path=file_path,
-            storage_provider=storage_provider,
-            file_size_bytes=file_size_bytes,
-            user_id=user_id,
-            filename=filename,
-            triggered_by=triggered_by,
-            actor_id=actor_id,
-            correlation_id=correlation_id or media_id,
+
+        # Simple heuristic: < 50MB goes to fast lane
+        queue = "video_queue"
+        if file_size_bytes and file_size_bytes < 50 * 1024 * 1024:
+            queue = "video_fast_lane"
+
+        task = process_video_task.apply_async(
+            kwargs={
+                "media_id": media_id,
+                "file_path": file_path,
+                "storage_provider": storage_provider,
+                "file_size_bytes": file_size_bytes,
+                "user_id": user_id,
+                "filename": filename,
+                "triggered_by": triggered_by,
+                "actor_id": actor_id,
+                "correlation_id": correlation_id or media_id,
+            },
+            queue=queue
         )
         logger.info(
             "celery_task_scheduler.process_video_task_scheduled",
             media_id=media_id,
             task_id=task.id,
+            queue=queue,
         )
         return {"task_id": task.id}
 

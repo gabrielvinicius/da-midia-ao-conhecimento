@@ -7,9 +7,8 @@ services:
     environment:
       - AI_DEVICE=cuda
 
-  worker:
+  worker-heavy:
     image: video-summarizer-app:cuda
-    runtime: nvidia
     build:
       args:
         - PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu130

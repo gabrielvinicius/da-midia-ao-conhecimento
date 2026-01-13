@@ -314,6 +314,9 @@ class MediaService:
         self.access_policy.ensure_can_access(media, user_id, user_role)
 
         try:
+            # Clean up previous processing results to avoid unique constraint violations
+            await self._delete_associated_records(media.id)
+
             media.process()
             await self.media_repository.update(media)
 
@@ -343,6 +346,7 @@ class MediaService:
                         topic_modeling_provider=media.topic_modeling_provider,
                         language=media.language,
                         correlation_id=f"reprocess-{uuid.uuid4()}",
+                        file_path=media.original_file_path,
                     )
                 )
 

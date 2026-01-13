@@ -115,8 +115,9 @@ class SummarizationStep(AnalysisStep):
             from src.shared.infrastructure.monitoring.hardware_advisor import SystemPressure
             pressure = self.advisor.recommend_strategy()
             if pressure == SystemPressure.CRITICAL:
-                logger.warning("pipeline.summarization_skipped_due_to_critical_pressure")
-                return analysis
+                logger.warning("pipeline.summarization_delayed_due_to_critical_pressure")
+                # Raise exception to trigger Celery Retry mechanism (backoff)
+                raise RuntimeError("System pressure is CRITICAL. Delaying summarization task.")
         
         # Recupera contexto visual (Level 7.0+)
         visual_context = analysis.diagnostics.get("visual_context", [])
