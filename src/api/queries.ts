@@ -77,6 +77,7 @@ export const getMediaByUser = async (
 export type MediaStatsResponse = {
   total: number;
   by_status: Record<string, number>;
+  by_type: Record<string, number>;
 };
 
 export const getMediaStats = async (): Promise<MediaStatsResponse> => {

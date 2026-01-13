@@ -43,6 +43,7 @@ export enum MediaStatus {
 // Aligned with Backend DTO (MediaResponse)
 export interface Media {
   id: string;
+  user_id: string;
   filename: string | null;
   content_type: string | null;
   size: number | null;

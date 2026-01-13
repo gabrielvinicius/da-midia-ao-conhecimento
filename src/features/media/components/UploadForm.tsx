@@ -39,7 +39,6 @@ const uploadSchema = z.object({
   storageProvider: z.string().min(1, "Provider de armazenamento é obrigatório.").default("local"),
   transcriptionProvider: optionalProviderName,
   summarizationProvider: optionalProviderName,
-  sentimentProvider: optionalProviderName,
   topicModelingProvider: optionalProviderName,
   file: z
     .any()
@@ -93,7 +92,6 @@ export const UploadForm = () => {
   const storageProviders = stageProviders["storage"] ?? [];
   const transcriptionProviders = stageProviders["transcription"] ?? [];
   const summarizationProviders = stageProviders["summarization"] ?? [];
-  const sentimentProviders = stageProviders["sentiment"] ?? [];
   const topicProviders = stageProviders["topic_modeling"] ?? [];
 
   const detectFileType = (file: File): 'video' | 'audio' | 'text' | null => {
@@ -121,7 +119,6 @@ export const UploadForm = () => {
   const watchedStorageProvider = form.watch("storageProvider");
   const watchedTranscriptionProvider = form.watch("transcriptionProvider");
   const watchedSummarizationProvider = form.watch("summarizationProvider");
-  const watchedSentimentProvider = form.watch("sentimentProvider");
   const watchedTopicProvider = form.watch("topicModelingProvider");
   
   React.useEffect(() => {
@@ -133,7 +130,6 @@ export const UploadForm = () => {
       // Reset providers quando tipo de arquivo muda
       form.setValue('transcriptionProvider', undefined);
       form.setValue('summarizationProvider', undefined);
-      form.setValue('sentimentProvider', undefined);
       form.setValue('topicModelingProvider', undefined);
     } else {
       setSelectedFile(null);
@@ -171,10 +167,6 @@ export const UploadForm = () => {
     // Incluir summarizationProvider para todos os tipos
     if (data.summarizationProvider) {
       uploadData.summarizationProvider = data.summarizationProvider;
-    }
-
-    if (data.sentimentProvider) {
-      uploadData.sentimentProvider = data.sentimentProvider;
     }
 
     if (data.topicModelingProvider) {
@@ -385,41 +377,6 @@ export const UploadForm = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="sentiment-provider">Provider de Análise de Sentimento</Label>
-                  {sentimentProviders.length > 0 && !providersError ? (
-                    <Select
-                      value={watchedSentimentProvider ?? AUTO_PROVIDER_VALUE}
-                      onValueChange={(value) =>
-                        form.setValue(
-                          "sentimentProvider",
-                          value === AUTO_PROVIDER_VALUE ? undefined : value,
-                        )
-                      }
-                      disabled={isPending || providersLoading}
-                    >
-                      <SelectTrigger id="sentiment-provider">
-                        <SelectValue placeholder="Selecione (opcional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={AUTO_PROVIDER_VALUE}>Automático</SelectItem>
-                        {sentimentProviders.map((p) => (
-                          <SelectItem key={p.name} value={p.name}>
-                            {p.label || p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id="sentiment-provider"
-                      placeholder="Automático (ou digite o nome)"
-                      disabled={isPending}
-                      {...form.register("sentimentProvider")}
-                    />
-                  )}
-                </div>
-
-                <div className="space-y-2">
                   <Label htmlFor="topic-provider">Provider de Modelagem de Tópicos</Label>
                   {topicProviders.length > 0 && !providersError ? (
                     <Select
@@ -470,10 +427,10 @@ export const UploadForm = () => {
             {/* Information about processing */}
             <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                <strong>Pipeline de Processamento:</strong>
-                {fileType === 'video' && " Vídeo → Transcrição → Sumarização → Sentimento → Tópicos"}
-                {fileType === 'audio' && " Áudio → Transcrição → Sumarização → Sentimento → Tópicos"}
-                {fileType === 'text' && " Texto → Sumarização → Sentimento → Tópicos"}
+                <strong>Pipeline de Inteligência:</strong>
+                {fileType === 'video' && " Vídeo → Visão (Frames) → Transcrição → Tópicos → Síntese Multimodal"}
+                {fileType === 'audio' && " Áudio → Transcrição → Diarização → Tópicos → Artigo Analítico"}
+                {fileType === 'text' && " Texto → Extração → Indexação Semântica → Resumo Executivo"}
               </p>
             </div>
           </div>

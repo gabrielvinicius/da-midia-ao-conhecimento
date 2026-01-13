@@ -73,7 +73,7 @@ const MediaActionsCell = ({ media }: { media: Media }) => {
       </DropdownMenu>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Excluir “{media.original_file_path?.split('/').pop() || 'arquivo'}”?</AlertDialogTitle>
+          <AlertDialogTitle>Excluir “{media.filename || 'arquivo'}”?</AlertDialogTitle>
           <AlertDialogDescription>
             Essa ação remove o arquivo, transcrições e análises relacionadas. Não será possível desfazer.
           </AlertDialogDescription>

@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { Download, Info, Sparkles, ThumbsUp, ThumbsDown, Edit3, Save, X } from "lucide-react";
 import { MediaStatus, TextAnalysisResponse } from "@/types";
 import { cn } from "@/lib/utils";
@@ -69,51 +70,57 @@ const buildSummaryText = (analysis: TextAnalysisResponse): string => {
 const renderSummaryText = (text: string) => {
   if (!text) return null;
 
-  // Split into lines to apply basic styling for markdown-like syntax
+  // Split into lines to apply styling
   const lines = text.split("\n");
   
   return (
-    <div className="space-y-2 text-sm leading-relaxed text-slate-800">
+    <div className="space-y-3 text-sm leading-relaxed text-slate-800 font-sans">
       {lines.map((line, i) => {
         const trimmed = line.trim();
         
-        // H1
+        if (!trimmed) return <div key={i} className="h-2" />;
+
+        // Header 1
         if (trimmed.startsWith("# ")) {
-          return <h3 key={i} className="text-xl font-bold text-slate-900 mt-4 mb-2">{trimmed.replace("# ", "")}</h3>;
+          return <h3 key={i} className="text-xl font-bold text-slate-900 mt-6 mb-3 tracking-tight">{trimmed.replace(/^#\s+/, "")}</h3>;
         }
-        // H2
-        if (trimmed.startsWith("## ")) {
-          return <h4 key={i} className="text-lg font-semibold text-slate-900 mt-3 mb-1">{trimmed.replace("## ", "")}</h4>;
+        // Header 2 or 3
+        if (trimmed.startsWith("## ") || trimmed.startsWith("### ")) {
+          return <h4 key={i} className="text-lg font-semibold text-slate-800 mt-4 mb-2">{trimmed.replace(/^#+\s+/, "")}</h4>;
         }
-        // List item
-        if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+        
+        // List items
+        if (trimmed.match(/^[-*]\s/)) {
           return (
-            <div key={i} className="flex gap-2 ml-2">
-              <span className="text-amber-500 mt-1.5 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-              <span>{trimmed.substring(2)}</span>
+            <div key={i} className="flex gap-3 ml-1">
+              <span className="text-amber-500 mt-2 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+              <p className="flex-1">
+                {renderInlineMarkdown(trimmed.replace(/^[-*]\s/, ""))}
+              </p>
             </div>
           );
         }
-        // Bold segments (simple regex for **text**)
-        if (trimmed.includes("**")) {
-          const parts = trimmed.split(/(\*\*.*?\*\*)/g);
-          return (
-            <p key={i}>
-              {parts.map((part, j) => 
-                part.startsWith("**") && part.endsWith("**") 
-                  ? <strong key={j} className="font-bold text-slate-950">{part.slice(2, -2)}</strong> 
-                  : part
-              )}
-            </p>
-          );
-        }
-        
-        if (trimmed === "") return <div key={i} className="h-2" />;
-        
-        return <p key={i}>{line}</p>;
+
+        // Standard Paragraph
+        return (
+          <p key={i} className="text-justify">
+            {renderInlineMarkdown(trimmed)}
+          </p>
+        );
       })}
     </div>
   );
+};
+
+// Helper for inline bold/italic
+const renderInlineMarkdown = (text: string) => {
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, j) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={j} className="font-bold text-slate-950">{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
 };
 
 export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
@@ -311,6 +318,22 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
         </div>
       </CardHeader>
       <CardContent className="space-y-4 text-slate-900">
+        {/* DEBUG BLOCK - REMOVE IN PROD */}
+        <div className="bg-red-50 border border-red-200 text-red-800 p-2 text-[10px] font-mono rounded mb-4 overflow-x-auto">
+          <p><strong>DEBUG STATE:</strong></p>
+          <p>isLoading: {String(isLoading)}</p>
+          <p>isError: {String(isError)}</p>
+          <p>hasAnalysis: {String(!!analysis)}</p>
+          {analysis && (
+            <>
+              <p>ID: {analysis.analysis_id}</p>
+              <p>Summary Len: {analysis.summary?.length}</p>
+              <p>Topics: {analysis.topics?.length}</p>
+            </>
+          )}
+        </div>
+        {/* END DEBUG BLOCK */}
+        
         {renderContent()}
       </CardContent>
     </Card>

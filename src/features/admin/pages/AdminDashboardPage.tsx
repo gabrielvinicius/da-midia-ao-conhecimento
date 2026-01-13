@@ -1,25 +1,11 @@
 import { Users, FolderKanban, Loader2, Activity, ShieldAlert, CheckCircle2 } from "lucide-react";
 import { GenericStatCard } from "@/components/GenericStatCard";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 import { useSystemStats, useSystemHealth, useMediaProcessingStats } from "../hooks/useAdminQueries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import ErrorState from "@/components/ui/ErrorState";
 import { percentFormatter } from "../components/AnalyticsWidgets";
-
-const ProgressBar = ({ value = 0, label, color = "bg-primary" }: { value?: number; label: string; color?: string }) => {
-  const safeValue = Number.isFinite(value) ? Math.max(0, value) : 0;
-  return (
-  <div>
-    <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-      <span>{label}</span>
-      <span>{percentFormatter(safeValue)}</span>
-    </div>
-    <div className="h-2 rounded-full bg-muted">
-      <div className={`h-2 rounded-full ${color}`} style={{ width: `${Math.min(safeValue, 100)}%` }} />
-    </div>
-  </div>
-  );
-};
 
 export const AdminDashboardPage = () => {
   const { data: stats, isLoading, isError: isStatsError, refetch: refetchStats } = useSystemStats();

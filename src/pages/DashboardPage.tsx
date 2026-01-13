@@ -2,6 +2,7 @@ import * as React from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 import ErrorState from "@/components/ui/ErrorState";
 import NumberTicker from "@/components/ui/NumberTicker";
 import { MagicSurface } from "@/components/ui/MagicSurface";
@@ -12,7 +13,7 @@ import { PaginationState } from "@tanstack/react-table";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { useAuth } from "../contexts/AuthContext";
-import { UserRole, MediaType } from "@/types";
+import { UserRole, MediaType, MediaStatus } from "@/types";
 import {
   Upload,
   BarChart3,
@@ -283,9 +284,9 @@ const DashboardPage = () => {
 
             <MagicSurface title="Saúde do pipeline" description="Taxas de processamento em tempo quase real.">
               <div className="space-y-3">
-                <ProgressItem label="Concluídos" value={completionRate} color="bg-emerald-500" />
-                <ProgressItem label="Processando" value={processingRate} color="bg-sky-500" />
-                <ProgressItem label="Falhas" value={failureRate} color="bg-rose-500" />
+                <ProgressBar label="Concluídos" value={completionRate} color="bg-emerald-500" />
+                <ProgressBar label="Processando" value={processingRate} color="bg-sky-500" />
+                <ProgressBar label="Falhas" value={failureRate} color="bg-rose-500" />
               </div>
             </MagicSurface>
 

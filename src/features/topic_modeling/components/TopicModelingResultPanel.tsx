@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { MediaStatus, TextAnalysisTopic } from "@/types";
 import { Brain, Clock3, Loader2, Sparkles, Languages, ListOrdered } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface TopicModelingResultPanelProps {
   mediaId: string;

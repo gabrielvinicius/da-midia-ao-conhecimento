@@ -94,21 +94,17 @@ api.interceptors.request.use(
 // Response interceptor for global error handling and token refresh
 api.interceptors.response.use(
   (response) => {
-    const correlationId = response.headers['x-correlation-id'];
     return response;
   },
   async (error) => {
     const originalRequest = error.config;
-    const correlationId = error.response?.headers['x-correlation-id'];
     const message = error.response?.data?.message || error.response?.data?.detail || error.message || 'Erro desconhecido';
     
     console.error('❌ Erro na API:', {
       url: error.config?.url,
       method: error.config?.method,
       status: error.response?.status,
-      data: error.response?.data,
       message: message,
-      correlationId: correlationId
     });
     
     const isAuthEndpoint =
@@ -116,26 +112,28 @@ api.interceptors.response.use(
       originalRequest?.url?.includes('/auth/refresh');
 
     if (error.response?.status === 401 && !isAuthEndpoint) {
-      // Evita loops: uma tentativa de refresh por request
       if (!originalRequest?._retry) {
         originalRequest._retry = true;
         try {
-          await authService.refreshToken();
+          // Dynamic import to break circular dependency
+          const { default: auth } = await import('@/services/auth.service');
+          await auth.refreshToken();
+          
           const newToken = sessionStorage.getItem('access_token');
           if (newToken) {
             originalRequest.headers = originalRequest.headers ?? {};
             originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+            return api.request(originalRequest);
           }
-          return api.request(originalRequest);
         } catch (refreshError) {
           console.warn('🔐 Refresh falhou, limpando sessão');
         }
       }
-      authService.clearLocalAuth();
+      
+      const { default: auth } = await import('@/services/auth.service');
+      auth.clearLocalAuth();
       toast.error('Sessão expirada. Faça login novamente.');
-      // Sinaliza para a SPA redirecionar sem recarregar
-      const logoutEvent = new CustomEvent('app:logout');
-      window.dispatchEvent(logoutEvent);
+      window.dispatchEvent(new CustomEvent('app:logout'));
     } else if (error.response?.status === 413) {
       toast.error('Arquivo muito grande. Tamanho máximo permitido: 200MB');
     } else if (error.response?.status === 400) {

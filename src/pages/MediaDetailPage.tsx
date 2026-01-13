@@ -4,12 +4,11 @@ import { useParams } from "react-router-dom";
 import { useMediaByIdQuery, useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
 import { useReprocessMediaCommand } from "@/hooks/useCommands";
 import { InteractiveTranscriptionPanel } from "@/features/transcription/components/InteractiveTranscriptionPanel";
-import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel";
-import { TopicModelingResultPanel } from "@/features/topic_modeling/components/TopicModelingResultPanel"; // Re-enable v2 Feature
+import { TopicModelingResultPanel } from "@/features/topic_modeling/components/TopicModelingResultPanel";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { MagicSurface } from "@/components/ui/MagicSurface";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
@@ -25,27 +24,23 @@ import authService from "@/services/auth.service";
 import { PredictiveInsight } from "@/components/PredictiveInsight";
 import { ProcessingTrace } from "@/components/ProcessingTrace";
 
+import {
+  CalendarDays,
+  HardDrive,
+  Shield,
+  Loader2,
+  Info,
+  RefreshCw,
+  Languages,
+  FileText,
+} from "lucide-react";
+
 type PipelineStep = {
   key: string;
   label: string;
   status?: string | null;
   description: string;
 };
-import {
-  CalendarDays,
-  HardDrive,
-  Shield,
-  Sparkles,
-  CheckCircle2,
-  Loader2,
-  AlertTriangle,
-  Info,
-  RefreshCw,
-  Languages,
-  FileText,
-  Waveform,
-  BarChart3,
-} from "lucide-react";
 
 const MediaDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -73,7 +68,6 @@ const MediaDetailPage = () => {
   };
 
   if (isLoading) {
-    // ... (Skeleton loading state remains the same)
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-3/4" />
@@ -109,20 +103,14 @@ const MediaDetailPage = () => {
   };
 
   const formattedDate = format(new Date(media.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR });
-  // Fallback para filename ou ID, já que original_file_path foi removido
   const displayName = media.filename || media.id;
   const rawFileSize = media.size ?? null;
-  // Cálculo de MB no frontend, já que o backend manda bytes
   const fileSizeMb = rawFileSize ? rawFileSize / (1024 * 1024) : undefined;
   const formattedFileSize = fileSizeMb ? `${fileSizeMb.toFixed(2)} MB` : "Indisponível";
   const derivedLanguage = media.language || transcriptionData?.language;
   const languageLabel = derivedLanguage ? derivedLanguage.toUpperCase() : "Indefinido";
-  const pipelineFlags = media.processing_pipeline ?? [];
-  const providerCount = pipelineFlags.length;
   
-  // Analisa dinamicamente se as etapas foram configuradas no upload ou se já foram concluídas
   const summaryConfigured = Boolean(media.summarization_provider) || media.status === MediaStatus.COMPLETED;
-  const sentimentConfigured = Boolean(media.sentiment_provider) || media.status === MediaStatus.COMPLETED;
   const topicsConfigured = Boolean(media.topic_modeling_provider) || media.status === MediaStatus.COMPLETED;
 
   const computeStageStatus = (primary?: string | null, configured = true): string => {
@@ -156,7 +144,6 @@ const MediaDetailPage = () => {
   const transcriptionStageStatus = computeStageStatus(transcriptionData?.status ?? (isTextMedia ? transcriptionData?.status : undefined), true);
   const analysisStage = textAnalysis ? MediaStatus.COMPLETED : undefined;
   const summaryStageStatus = computeStageStatus(analysisStage, summaryConfigured);
-  const sentimentStageStatus = computeStageStatus(analysisStage, sentimentConfigured);
   const topicStageStatus = computeStageStatus(analysisStage, topicsConfigured);
 
   const statusToken = (status?: string | null) => {
@@ -164,7 +151,7 @@ const MediaDetailPage = () => {
       case MediaStatus.COMPLETED:
       case TranscriptionStatus.COMPLETED:
       case "COMPLETED":
-        return { label: "Concluído", badge: "bg-emerald-500/10 text-emerald-600", icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" /> };
+        return { label: "Concluído", badge: "bg-emerald-500/10 text-emerald-600", icon: <Loader2 className="h-4 w-4 text-emerald-500" /> };
       case MediaStatus.PROCESSING:
       case TranscriptionStatus.PROCESSING:
       case "PROCESSING":
@@ -172,7 +159,7 @@ const MediaDetailPage = () => {
       case MediaStatus.FAILED:
       case TranscriptionStatus.FAILED:
       case "FAILED":
-        return { label: "Falhou", badge: "bg-red-500/10 text-red-600", icon: <AlertTriangle className="h-4 w-4 text-red-500" /> };
+        return { label: "Falhou", badge: "bg-red-500/10 text-red-600", icon: <Info className="h-4 w-4 text-red-500" /> };
       case MediaStatus.PENDING:
       case TranscriptionStatus.PENDING:
       case MediaStatus.UPLOADED:
@@ -205,58 +192,39 @@ const MediaDetailPage = () => {
 
   pipelineSteps.push({
     key: "transcription",
-    label: isTextMedia ? "Extração do documento" : "Transcrição",
+    label: isTextMedia ? "Extração do documento" : "Transcrição Neural",
     status: transcriptionStageStatus,
     description: isTextMedia
       ? "Conversão de arquivos de texto em conteúdo bruto estruturado."
-      : "Conversão do áudio/vídeo em texto sincronizado para análises.",
-  });
-
-  pipelineSteps.push({
-    key: "summary",
-    label: "Resumo inteligente",
-    status: summaryStageStatus,
-    description: summaryStageStatus === MediaStatus.COMPLETED
-      ? "Resumo concluído com insights prioritários."
-      : summaryStageStatus === MediaStatus.PROCESSING
-      ? "Gerando síntese automaticamente."
-      : "Aguardando texto para resumir.",
-  });
-
-  pipelineSteps.push({
-    key: "sentiment",
-    label: "Análise de sentimento",
-    status: sentimentStageStatus,
-    description: sentimentStageStatus === "COMPLETED"
-      ? "Sentimento detectado com sucesso."
-      : sentimentStageStatus === "PROCESSING"
-      ? "Calculando o tom predominante."
-      : "À espera da transcrição para analisar o sentimento.",
+      : "Conversão do áudio em texto com identificação de locutores.",
   });
 
   pipelineSteps.push({
     key: "topics",
-    label: "Modelagem de tópicos",
+    label: "Descoberta de Tópicos",
     status: topicStageStatus,
     description: topicStageStatus === MediaStatus.COMPLETED
-      ? "Tópicos principais descobertos."
+      ? "Temas e conceitos extraídos com sucesso."
       : topicStageStatus === MediaStatus.PROCESSING
-      ? "Clusterizando temas relacionados."
-      : "Aguardando processamento textual para classificar os tópicos.",
+      ? "Mapeando a topografia semântica..."
+      : "Aguardando processamento textual.",
   });
 
-  const providerList = [
-    { label: "Transcrição", value: media.transcription_provider ?? (isTextMedia ? "Extração direta" : "Automático") },
-    { label: "Resumo", value: media.summarization_provider ?? "Não configurado" },
-    { label: "Sentimento", value: media.sentiment_provider ?? "Não configurado" },
-    { label: "Tópicos", value: media.topic_modeling_provider ?? "Não configurado" },
-  ];
-
+  pipelineSteps.push({
+    key: "summary",
+    label: "Síntese Interpretativa",
+    status: summaryStageStatus,
+    description: summaryStageStatus === MediaStatus.COMPLETED
+      ? "Artigo analítico consolidado."
+      : summaryStageStatus === MediaStatus.PROCESSING
+      ? "Gerando narrativa multimodal..."
+      : "Aguardando descoberta de tópicos.",
+  });
 
   return (
-    <div className="space-y-6 h-full flex flex-col">
+    <div className="space-y-6 h-full flex flex-col pb-12">
       {/* Header Section */}
-      <MagicSurface title="Detalhes da mídia" description="Contexto completo do arquivo enviado e do pipeline de processamento.">
+      <MagicSurface title="Detalhes da mídia" description="Análise completa do conhecimento extraído.">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold leading-tight text-slate-900 break-words">{displayName}</h1>
@@ -264,7 +232,7 @@ const MediaDetailPage = () => {
               <span className="inline-flex items-center gap-1">
                 <CalendarDays className="h-3.5 w-3.5" /> {formattedDate}
               </span>
-              <Badge variant="secondary" className="bg-white text-slate-900">
+              <Badge variant="secondary" className="bg-white text-slate-900 capitalize">
                 {media.media_type}
               </Badge>
               <Badge className={statusToken(media.status).badge}>{statusToken(media.status).label}</Badge>
@@ -306,11 +274,11 @@ const MediaDetailPage = () => {
         )}
       </MagicSurface>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Content Consumption (Player + Transcript) */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left Column: Player & Interpretative Summary */}
+        <div className="lg:col-span-2 space-y-8">
           {/* Media Player Card */}
-          <Card className="border border-[#ede4d5] bg-black/5 overflow-hidden">
+          <Card className="border-none bg-black/5 overflow-hidden shadow-sm">
             <CardContent className="p-0">
               {isPlayable ? (
                 <MediaPlayer
@@ -337,70 +305,68 @@ const MediaDetailPage = () => {
             </CardContent>
           </Card>
 
+          {/* MAIN INSIGHT: Interpretative Article */}
+          <SummaryPanel mediaId={id} mediaStatus={media.status} />
+
           {/* Interactive Transcription */}
           <div className="min-h-[400px]">
              {isPlayable && (
               <InteractiveTranscriptionPanel mediaId={id} currentTime={currentTime} onSeek={handleSeek} />
             )}
             {!isPlayable && isTextMedia && <TranscriptionPanel mediaId={id} />}
-            {!isPlayable && !isTextMedia && (
-              <Card className="p-8 text-center text-muted-foreground border-dashed">
-                <p>Ainda não há transcrição disponível para este formato.</p>
-              </Card>
-            )}
           </div>
         </div>
 
-        {/* Right Column: Insights & Metadata */}
+        {/* Right Column: Index & Technical Meta */}
         <div className="space-y-6">
-          {/* Level 6.0 Predictive Insight */}
+          {/* Predictive Insight */}
           <PredictiveInsight 
             mediaId={id} 
             isEnabled={media.status === MediaStatus.UPLOADED || media.status === MediaStatus.PROCESSING} 
           />
 
-          {/* Intelligent Summary (Top Priority) */}
-          <SummaryPanel mediaId={id} mediaStatus={media.status} />
-
-          {/* Analysis Widgets */}
-          <SentimentResultPanel mediaId={id} mediaStatus={media.status} />
+          {/* Topics Index */}
           <TopicModelingResultPanel mediaId={id} mediaStatus={media.status} />
 
-          {/* Metadata / Pipeline Status (Secondary) */}
-          <Card className="border border-[#ede4d5] bg-white">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">Detalhes do Arquivo</CardTitle>
+          {/* Metadata / Pipeline Status */}
+          <Card className="border border-slate-200 bg-white shadow-sm">
+            <CardHeader className="pb-3 border-b border-slate-50">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-400">Dados do Sistema</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-muted-foreground flex items-center gap-2"><FileText className="h-4 w-4"/> Nome</span>
-                <span className="font-medium truncate max-w-[150px]" title={media.filename || media.id}>{media.filename || media.id}</span>
+            <CardContent className="pt-4 space-y-4 text-sm">
+              <div className="flex justify-between py-1.5">
+                <span className="text-muted-foreground flex items-center gap-2"><FileText className="h-3.5 w-3.5"/> Nome</span>
+                <span className="font-medium truncate max-w-[150px] text-slate-700" title={media.filename || media.id}>{media.filename || media.id}</span>
               </div>
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-muted-foreground flex items-center gap-2"><Shield className="h-4 w-4"/> Tamanho</span>
-                <span className="font-medium">{formattedFileSize}</span>
+              <div className="flex justify-between py-1.5">
+                <span className="text-muted-foreground flex items-center gap-2"><Shield className="h-3.5 w-3.5"/> Tamanho</span>
+                <span className="font-medium text-slate-700">{formattedFileSize}</span>
               </div>
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-muted-foreground flex items-center gap-2"><HardDrive className="h-4 w-4"/> Storage</span>
-                <span className="font-medium">{media.storage_provider ?? "Local"}</span>
+              <div className="flex justify-between py-1.5">
+                <span className="text-muted-foreground flex items-center gap-2"><HardDrive className="h-3.5 w-3.5"/> Storage</span>
+                <span className="font-medium text-slate-700">{media.storage_provider ?? "Local"}</span>
               </div>
-              <div className="flex justify-between py-2 border-b border-slate-100">
-                <span className="text-muted-foreground flex items-center gap-2"><Languages className="h-4 w-4"/> Idioma</span>
-                <span className="font-medium">{languageLabel}</span>
+              <div className="flex justify-between py-1.5">
+                <span className="text-muted-foreground flex items-center gap-2"><Languages className="h-3.5 w-3.5"/> Idioma</span>
+                <span className="font-medium text-slate-700">{languageLabel}</span>
               </div>
               
-              <div className="pt-4">
-                <p className="text-xs font-medium text-muted-foreground mb-3">Status do Pipeline</p>
-                <div className="space-y-2">
+              <div className="pt-4 border-t border-slate-50">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Etapas de Processamento</p>
+                <div className="space-y-3">
                   {pipelineSteps.map((step) => {
                     const token = statusToken(step.status);
                     return (
-                      <div key={step.key} className="flex items-center justify-between text-xs">
+                      <div key={step.key} className="group flex items-start justify-between gap-4">
                         <div className="flex items-center gap-2">
-                          {token.icon}
-                          <span>{step.label}</span>
+                          <div className="mt-0.5">{token.icon}</div>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-medium text-slate-700 leading-none">{step.label}</span>
+                          </div>
                         </div>
-                        <Badge className={cn("text-[10px] px-1.5 h-5", token.badge)}>{token.label}</Badge>
+                        <Badge className={cn("text-[9px] font-bold px-1.5 h-4 min-w-[70px] justify-center uppercase tracking-tighter", token.badge)}>
+                          {token.label}
+                        </Badge>
                       </div>
                     );
                   })}
@@ -413,8 +379,6 @@ const MediaDetailPage = () => {
     </div>
   );
 };
-
-export default MediaDetailPage;
 
 type TextPreviewProps = {
   transcription: string;
@@ -474,3 +438,5 @@ const TextPreview = ({ transcription, isLoading, isError, status }: TextPreviewP
     </div>
   );
 };
+
+export default MediaDetailPage;

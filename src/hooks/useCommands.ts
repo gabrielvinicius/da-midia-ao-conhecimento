@@ -26,6 +26,11 @@ import {
   DeleteMediaCommand,
   DeleteUserMediaCommand,
 } from '@/api/commands';
+import {
+  getCurrentUser,
+  getProviders,
+  ProvidersResponse,
+} from '@/api/queries';
 import { useAuth } from '@/contexts/AuthContext';
 
 // =============================================================================

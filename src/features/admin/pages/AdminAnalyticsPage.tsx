@@ -92,7 +92,7 @@ export const AdminAnalyticsPage = () => {
   const distributionList = useMemo(() => {
     const distribution = metricsSummary?.media_distribution?.distribution;
     if (!distribution) return [];
-    return Object.entries(distribution).map(([type, value]) => ({
+    return Object.entries(distribution).map(([type, value]: [string, any]) => ({
       type,
       count: value.count ?? 0,
       percentage: value.percentage ?? 0,

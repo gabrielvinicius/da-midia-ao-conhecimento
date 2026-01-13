@@ -3,18 +3,18 @@ import { Button } from "@/components/ui/Button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuHeader,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "../../../components/ui/DropdownMenu";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/DropdownMenu";
-import { useWebSocket } from "../../../contexts/WebSocketContext"; // Updated import
+} from "@/components/ui/DropdownMenu";
+// DropdownMenuHeader seems to be missing from the standard shadcn dropdown or custom, 
+// using DropdownMenuLabel as fallback or checking file
+import { useWebSocket } from "@/contexts/WebSocketContext";
 import { formatDistanceToNow } from 'date-fns';
 
 export const NotificationBell = () => {
-  const { notifications, unreadCount, markAllAsRead } = useWebSocket(); // Use the new hook
+  const { notifications, unreadCount, markAllAsRead } = useWebSocket();
 
   return (
     <DropdownMenu>
@@ -30,36 +30,38 @@ export const NotificationBell = () => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuHeader className="flex justify-between items-center">
-          <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+        <div className="flex justify-between items-center p-4">
+          <DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
           {unreadCount > 0 && (
-            <Button variant="link" size="sm" onClick={markAllAsRead} className="p-0 h-auto">
+            <Button variant="link" size="sm" onClick={markAllAsRead} className="p-0 h-auto text-[10px]">
               Mark all as read
             </Button>
           )}
-        </DropdownMenuHeader>
+        </div>
         <DropdownMenuSeparator />
-        {
-          notifications.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">No notifications yet.</p>
-          ) : (
-            notifications.map((notification) => (
-              <DropdownMenuItem key={notification.id} className="flex items-start gap-2">
-                {!notification.read && (
-                  <span className="flex h-2 w-2 translate-y-1 rounded-full bg-sky-500" />
-                )}
-                <div className={`flex-1 space-y-1 ${notification.read ? 'text-muted-foreground' : ''}`}>
-                  <p className="text-sm font-medium leading-none">
-                    {notification.content}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                  </p>
-                </div>
-              </DropdownMenuItem>
-            ))
-          )
-        }
+        <div className="max-h-96 overflow-y-auto">
+          {
+            notifications.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">No notifications yet.</p>
+            ) : (
+              notifications.map((notification) => (
+                <DropdownMenuItem key={notification.id} className="flex items-start gap-2">
+                  {!notification.read && (
+                    <span className="flex h-2 w-2 translate-y-1 rounded-full bg-sky-500" />
+                  )}
+                  <div className={`flex-1 space-y-1 ${notification.read ? 'text-muted-foreground' : ''}`}>
+                    <p className="text-sm font-medium leading-tight">
+                      {notification.content}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                    </p>
+                  </div>
+                </DropdownMenuItem>
+              ))
+            )
+          }
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
