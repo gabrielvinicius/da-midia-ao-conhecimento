@@ -28,10 +28,21 @@ class TextAnalysisReadService:
         self, query: GetAnalysisByMediaIdQuery
     ) -> Optional[dict[str, Any]]:
         """Retrieve analysis by Media ID."""
-        analysis = await self.repository.get_by_media_id(str(query.media_id))
-        if not analysis:
-            return None
-        return analysis_to_dto(analysis).to_dict()
+        import structlog
+        logger = structlog.get_logger(__name__)
+        logger.info("debug.read_service.start", media_id=str(query.media_id))
+        
+        try:
+            analysis = await self.repository.get_by_media_id(str(query.media_id))
+            if not analysis:
+                logger.info("debug.read_service.repo_returned_none", media_id=str(query.media_id))
+                return None
+            
+            logger.info("debug.read_service.found", id=str(analysis.id))
+            return analysis_to_dto(analysis).to_dict()
+        except Exception as e:
+            logger.error("debug.read_service.error", error=str(e))
+            raise
 
     async def list_topics(self, query: ListTopicsQuery) -> list[Topic]:
         """List topics for a given analysis."""

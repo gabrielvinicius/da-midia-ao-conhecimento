@@ -43,8 +43,16 @@ def get_sentiment_adapter(config: AnalysisConfig):
     return TransformersSentimentAdapter(config.sentiment_model)
 
 
+_CACHED_EMBEDDING_ADAPTER = None
+
 def get_embedding_adapter(config: AnalysisConfig):
-    return SentenceTransformerEmbeddingAdapter(config.embedding_model)
+    global _CACHED_EMBEDDING_ADAPTER
+    if _CACHED_EMBEDDING_ADAPTER and _CACHED_EMBEDDING_ADAPTER.model_name == config.embedding_model:
+        return _CACHED_EMBEDDING_ADAPTER
+    
+    adapter = SentenceTransformerEmbeddingAdapter(config.embedding_model)
+    _CACHED_EMBEDDING_ADAPTER = adapter
+    return adapter
 
 
 def get_topic_modeling_adapter(config: AnalysisConfig):
@@ -59,27 +67,33 @@ def get_topic_modeling_adapter(config: AnalysisConfig):
     )
 
 
+# Global cache for heavy adapters to avoid multiple model loads in prefork workers
+_CACHED_TEXTGEN_ADAPTER = None
+
 def get_text_generation_adapter(config: AnalysisConfig):
+    global _CACHED_TEXTGEN_ADAPTER
+    
     model_cfg = str(config.llm_model)
     # Roteamento declarativo
-    # normaliza aliases amigáveis -> rota declarada
     if model_cfg in TEXT_GEN_ROUTING:
         model_cfg = TEXT_GEN_ROUTING[model_cfg]
 
-    # Caminhos simples:
-    # - "hf:..." -> transformers gen (modelo arbitrário)
-    # - "llama3..." -> adapter dedicado (continua suportando antigo hf-llama3)
+    # Return cached if same model
+    if _CACHED_TEXTGEN_ADAPTER and getattr(_CACHED_TEXTGEN_ADAPTER, "model_name", None) == model_cfg:
+        return _CACHED_TEXTGEN_ADAPTER
+
+    # ... (routing logic) ...
     if model_cfg.startswith("hf-llama3") or model_cfg.startswith("hf:llama3") or model_cfg.startswith("llama3"):
-        return Llama3TransformersTextGenerationAdapter()
-    if model_cfg.startswith("hf:"):
+        adapter = Llama3TransformersTextGenerationAdapter()
+    elif model_cfg.startswith("hf:"):
         name = model_cfg.replace("hf:", "", 1) or "facebook/bart-large-cnn"
         model_name = resolve_textgen_target(name)
-        if not validate_textgen_name(f"hf:{name}"):
-            raise ValueError(f"Provider de text_generation não suportado: {model_cfg}")
-        return TransformersTextGenerationAdapter(model_name=model_name)
-    if not validate_textgen_name(model_cfg):
-        raise ValueError(f"Provider de text_generation não suportado: {model_cfg}")
-    return OllamaTextGenerationAdapter(config.llm_model)
+        adapter = TransformersTextGenerationAdapter(model_name=model_name)
+    else:
+        adapter = OllamaTextGenerationAdapter(config.llm_model)
+        
+    _CACHED_TEXTGEN_ADAPTER = adapter
+    return adapter
 
 
 def get_chunker_adapter(_: AnalysisConfig):

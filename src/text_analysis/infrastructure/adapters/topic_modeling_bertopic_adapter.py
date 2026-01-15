@@ -50,7 +50,7 @@ class BERTopicAdapter(TopicModelingPort):
                         device_idx = -1 if self.device == "cpu" else 0
                         
                         # Strip routing prefix 'hf:' if present
-                        model_name = self.transformer_model_name or "google/flan-t5-base"
+                        model_name = self.transformer_model_name or "Qwen/Qwen2.5-3B-Instruct"
                         if model_name.startswith("hf:"):
                             model_name = model_name[3:]
                         
@@ -60,21 +60,29 @@ class BERTopicAdapter(TopicModelingPort):
                         )
 
                         # Pipeline de geração de texto
+                        import torch
+                        torch_dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16
+                        
                         generator = pipeline(
-                            "text2text-generation" if "t5" in model_name.lower() else "text-generation",
+                            "text-generation",
                             model=model_name,
                             device=device_idx,
-                            max_new_tokens=32  # Títulos curtos
+                            torch_dtype=torch_dtype, # Use half precision
+                            max_new_tokens=64  # Títulos curtos
                         )
 
-                        # Prompt Otimizado
-                        prompt = (
-                            "Analise os seguintes documentos que compartilham o mesmo tópico:\n"
-                            "[DOCUMENTS]\n\n"
-                            "Identifique o tema central unificador e gere um título curto, "
-                            "descritivo e profissional em Português para este tópico. "
-                            "Apenas o título, sem aspas ou explicações:"
+                        # Prompt Otimizado (Compatible with Qwen/Llama/Mistral)
+                        # Qwen 2.5 handles plain instructions well, but specific templates help.
+                        base_instruction = (
+                            "Tarefa: Identifique o tema unificador dos documentos abaixo.\n"
+                            "Instrução: Gere APENAS um título curto (máx 6 palavras), direto e profissional em Português.\n"
+                            "REGRAS: NÃO use aspas, NÃO explique, NÃO diga 'Aqui está o título', responda APENAS o texto do título.\n\n"
+                            "Documentos:\n[DOCUMENTS]\n\n"
+                            "Título:"
                         )
+                        
+                        # Simple Instruct format that works broadly
+                        prompt = f"{base_instruction}"
 
                         representation_models["LLM"] = TextGeneration(
                             generator, 
@@ -90,8 +98,24 @@ class BERTopicAdapter(TopicModelingPort):
                 # Initialize BERTopic with Multi-Aspect Representation AND Embedding Model
                 # Explicitly setting embedding_model avoids 'NoneType' error in KeyBERT
                 # even when using pre-computed embeddings.
+                
+                # Configure SentenceTransformer with E5 specific prompts
+                emb_model_name = self.embedding_model_name or "intfloat/multilingual-e5-large"
+                from sentence_transformers import SentenceTransformer
+                import torch
+                
+                embedding_model = SentenceTransformer(
+                    emb_model_name,
+                    device=self.device,
+                    model_kwargs={"torch_dtype": torch.float16}, # Save VRAM
+                    prompts={"clustering": "Identify the topic or theme based on the text: "}
+                )
+                
+                # IMPORTANT: KeyBERTInspired needs the embedding model to embed keywords
+                representation_models["KeyBERT"] = KeyBERTInspired()
+
                 self._model = BERTopic(
-                    embedding_model=self.embedding_model_name or "sentence-transformers/all-MiniLM-L6-v2",
+                    embedding_model=embedding_model,
                     representation_model=representation_models,
                     verbose=True
                 )
@@ -110,6 +134,10 @@ class BERTopicAdapter(TopicModelingPort):
         if model and embeddings:
             try:
                 import numpy as np  # lazy import to avoid hard dep at import time
+                import torch
+                
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache() # Free up space before heavy operation
 
                 docs = [chunk.text for chunk in chunks]
                 np_embeddings = (
@@ -130,10 +158,23 @@ class BERTopicAdapter(TopicModelingPort):
                 topics, probs = await asyncio.to_thread(_run_fit)
                 
                 info = model.get_topic_info()
+                logger.info("bertopic.run_completed", 
+                            topic_count=len(set(topics)), 
+                            unique_topics=list(set(topics)),
+                            info=info.to_dict() if hasattr(info, "to_dict") else str(info))
                 
                 topics_out: list[Topic] = []
-                for topic_id in set(topics):
-                    if topic_id == -1: continue # Skip outlier topic if desired, or keep as "Ruído"
+                # Se apenas ruído foi encontrado, vamos tratar o ruído como um tópico geral
+                # para não quebrar o pipeline de sumarização
+                effective_topic_ids = set(topics)
+                if len(effective_topic_ids) == 1 and -1 in effective_topic_ids:
+                    logger.warning("bertopic.only_noise_found_mapping_to_general")
+                    # Mapeia tudo para o tópico 0 temporariamente para o loop abaixo
+                    topics = [0 for _ in topics]
+                    effective_topic_ids = {0}
+
+                for topic_id in sorted(list(effective_topic_ids)):
+                    if topic_id == -1: continue # Skip outlier topic if desired
 
                     # Tenta obter o título do LLM, fallback para KeyBERT, fallback para palavras
                     topic_meta = model.get_topic(topic_id, full=True)
@@ -141,7 +182,9 @@ class BERTopicAdapter(TopicModelingPort):
                     # Prioridade: LLM -> KeyBERT -> Default
                     title = None
                     if "LLM" in topic_meta and topic_meta["LLM"]:
-                         title = topic_meta["LLM"][0][0] # (word, score)
+                         raw_llm_title = topic_meta["LLM"][0][0] # (word, score)
+                         # Cleanup chatty LLM
+                         title = self._clean_llm_title(raw_llm_title)
                     
                     if not title and "KeyBERT" in topic_meta:
                          # KeyBERT retorna keywords, pegamos a top 1 como "tema" se não houver título
@@ -164,7 +207,7 @@ class BERTopicAdapter(TopicModelingPort):
                             snippets=snippets[:5],
                             title=title.strip(),
                             size=len(snippets),
-                            diagnostics={"probabilities": probs},
+                            diagnostics={"probabilities": probs.tolist() if hasattr(probs, "tolist") else probs},
                         )
                     )
                 diagnostics = {
@@ -174,6 +217,37 @@ class BERTopicAdapter(TopicModelingPort):
             except Exception as exc:  # pragma: no cover
                 logger.error("BERTopic run failed: %s", exc)
         return self._fallback(chunks)
+
+    def _clean_llm_title(self, text: str) -> str:
+        """Limpa títulos gerados por LLMs que tendem a ser 'conversas'."""
+        if not text: return ""
+        # Remove prefixos comuns
+        prefixes = [
+            "Título:", "Title:", "Tema central:", "Tema:", "O tema central é:",
+            "Aqui está o título:", "O título curto e profissional é:",
+            "O título sugerido é:", "Resumo:", "[RESPOSTA CORRETA]", "[RESPOSTA]"
+        ]
+        cleaned = text.strip()
+        
+        # Pega apenas a primeira linha não vazia (evita explicações)
+        lines = [l.strip() for l in cleaned.split("\n") if l.strip()]
+        if lines:
+            cleaned = lines[0]
+            
+        for p in prefixes:
+            if cleaned.lower().startswith(p.lower()):
+                cleaned = cleaned[len(p):].strip()
+        
+        # Remove aspas
+        cleaned = cleaned.replace('"', '').replace('"', '').replace("'", "")
+        
+        # Se for longo demais, trunca na primeira frase ou vírgula
+        if len(cleaned) > 100:
+            import re
+            parts = re.split(r'[:\.\n]', cleaned)
+            cleaned = parts[0].strip()
+            
+        return cleaned.strip().capitalize()
 
     def _fallback(self, chunks: list[TextChunk]) -> tuple[list[Topic], dict]:
         text_all = " ".join(chunk.text for chunk in chunks)

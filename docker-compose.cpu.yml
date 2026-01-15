@@ -1,0 +1,45 @@
+services:
+  backend:
+    image: video-summarizer-app:cpu
+    environment:
+      - AI_DEVICE=cpu
+
+  worker-heavy:
+    build:
+      context: .
+      target: runtime
+    image: video-summarizer-app:cpu
+    container_name: video_summarizer_worker_heavy
+    entrypoint: /app/docker/worker-entrypoint.sh
+    # Heavy tasks: Video, Audio, AI Text Analysis
+    command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=2 -Q video_fast_lane,video_queue,transcription_fast_lane,transcription_queue,text_analysis_fast_lane,text_analysis_queue
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      backend: { condition: service_healthy }
+    volumes:
+      - ./src:/app/src:ro
+      - media_data:/app/storage
+      - ai_models_cache:/app/.cache
+    networks:
+      - backend-net
+      - public-net
+    deploy:
+      resources:
+        limits:
+          memory: 12G
+    environment:
+      - DB_HOST=postgres
+      - REDIS_HOST=redis
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - HF_TOKEN=${HF_TOKEN}
+      - AI_DEVICE=cpu
+      - AI_COMPUTE_TYPE=int8
+
+  worker-light:
+    image: video-summarizer-app:cpu
+    environment:
+      - AI_DEVICE=cpu

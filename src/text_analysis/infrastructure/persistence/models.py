@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import uuid
-from sqlalchemy import Column, ForeignKey, String, Uuid
+from datetime import datetime
+from sqlalchemy import Column, DateTime, ForeignKey, String, Uuid, func
 from sqlalchemy.dialects.postgresql import JSONB
 
 from src.shared.infrastructure.database.db import Base
@@ -21,6 +22,9 @@ class AnalysisModel(Base):
     transcription_id = Column(Uuid(as_uuid=True), nullable=True, index=True)
 
     payload = Column(JSONB, nullable=False)
+    
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 __all__ = ["AnalysisModel"]

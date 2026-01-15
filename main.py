@@ -121,6 +121,8 @@ def register_domain_event_handlers(
     """
 
     async def _handle_media_uploaded(event: MediaUploaded) -> None:
+        print(f"DEBUG: main._handle_media_uploaded triggered for {event.media_id}")
+        logger.info("main._handle_media_uploaded.started", media_id=event.media_id)
         async with AsyncSessionLocal() as session:
             from src.media_processing.infrastructure.dependencies.builders import (
                 build_media_processing_event_handlers,

@@ -116,12 +116,26 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         except ValueError:
             return None
 
-        stmt = select(AnalysisModel).where(AnalysisModel.media_id == media_uuid)
+        # Level 7.1 Fix: Handle multiple analysis results (legacy dupes)
+        # Order by created_at DESC to get the latest one
+        stmt = (
+            select(AnalysisModel)
+            .where(AnalysisModel.media_id == media_uuid)
+            .order_by(AnalysisModel.created_at.desc())
+            .limit(1)
+        )
         result = await self.session.execute(stmt)
         record = result.scalar_one_or_none()
+        
         if not record:
             return None
         payload = record.payload or {}
+        
+        # Level 6.0: Automated Schema Evolution on Read
+        version = payload.get("schema_version", 1)
+        if version < self.CURRENT_SCHEMA_VERSION:
+            payload = self._upcast_payload(payload, from_version=version)
+            
         return self._payload_to_analysis(payload)
 
     async def list_topics(self, analysis_id: str) -> list[Topic]:

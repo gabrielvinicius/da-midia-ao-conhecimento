@@ -4,10 +4,37 @@ from __future__ import annotations
 
 from ..domain import Analysis, SentimentLabel, TextChunk
 from .dtos import AnalysisResultDTO, SentimentItemDTO, TopicDTO
+from src.shared.utils.text import strip_markdown
 
 
 def _chunk_lookup(chunks: List[TextChunk]) -> dict[str, TextChunk]:
     return {chunk.id: chunk for chunk in chunks}
+
+
+def _map_topic(t) -> TopicDTO:
+    md = getattr(t, "summary_md", None)
+    legacy = getattr(t, "summary", "")
+    
+    # If summary_md is present, we assume 'summary' contains the plain text version (New Schema)
+    # If summary_md is missing, we assume 'summary' contains the Markdown version (Legacy Schema)
+    
+    if md:
+        final_md = md
+        final_plain = legacy
+    else:
+        final_md = legacy
+        final_plain = strip_markdown(legacy)
+
+    return TopicDTO(
+        topic_id=getattr(t, "topic_id", getattr(t, "id", 0)),
+        title=t.title,
+        keywords=t.keywords,
+        summary_md=final_md,
+        summary=final_plain,
+        representative_snippets=getattr(t, "snippets", []),
+        size=getattr(t, "size", 0),
+        diagnostics=getattr(t, "diagnostics", {}) or {},
+    )
 
 
 def analysis_to_dto(analysis: Analysis) -> AnalysisResultDTO:
@@ -26,18 +53,7 @@ def analysis_to_dto(analysis: Analysis) -> AnalysisResultDTO:
         for s in analysis.sentiments
     ]
 
-    topics = [
-            TopicDTO(
-                topic_id=getattr(t, "topic_id", getattr(t, "id", 0)),
-                title=t.title,
-                keywords=t.keywords,
-                summary_md=getattr(t, "summary_md", getattr(t, "summary", "")),
-                representative_snippets=getattr(t, "snippets", []),
-                size=getattr(t, "size", 0),
-                diagnostics=getattr(t, "diagnostics", {}) or {},
-            )
-            for t in analysis.topics
-        ]
+    topics = [_map_topic(t) for t in analysis.topics]
 
     overall = analysis.overall_sentiment or SentimentLabel.NEUTRAL
     return AnalysisResultDTO(

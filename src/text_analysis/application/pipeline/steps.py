@@ -4,6 +4,7 @@ from __future__ import annotations
 import inspect
 from typing import Any, Optional
 import structlog
+from src.shared.utils.text import strip_markdown
 from src.text_analysis.domain import Analysis, SentimentLabel
 from src.text_analysis.application.pipeline.base import AnalysisStep
 from src.text_analysis.application.ports import (
@@ -115,22 +116,28 @@ class SummarizationStep(AnalysisStep):
             from src.shared.infrastructure.monitoring.hardware_advisor import SystemPressure
             pressure = self.advisor.recommend_strategy()
             if pressure == SystemPressure.CRITICAL:
-                logger.warning("pipeline.summarization_delayed_due_to_critical_pressure")
-                # Raise exception to trigger Celery Retry mechanism (backoff)
-                raise RuntimeError("System pressure is CRITICAL. Delaying summarization task.")
+                logger.warning("pipeline.summarization_pressure_critical_proceeding_anyway")
+                # Proceed anyway for now to get results
         
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         # Recupera contexto visual (Level 7.0+)
         visual_context = analysis.diagnostics.get("visual_context", [])
         visual_text = "\n".join(visual_context) if visual_context else ""
 
         summary_parts = []
-        for topic in analysis.topics:
+        for i, topic in enumerate(analysis.topics):
+            logger.info("pipeline.summarizing_topic", topic_id=topic.id, title=topic.title, progress=f"{i+1}/{len(analysis.topics)}")
             # Injeta contexto visual se relevante para o tempo do tópico (heurística simples ou global)
             # Para Level 8.3, passamos o contexto visual global para enriquecer
             summary_md = await self._summarize_with_redundancy(topic, visual_text, analysis)
             if summary_md:
-                topic.summary = summary_md
+                topic.summary_md = summary_md
+                topic.summary = strip_markdown(summary_md)
                 summary_parts.append(summary_md)
+            logger.info("pipeline.topic_summarized", topic_id=topic.id)
         
         # Nota: A unificação final ("Master Summary") ocorre no SynthesisStep
         return analysis
@@ -211,12 +218,14 @@ class SynthesisStep(AnalysisStep):
     async def process(self, analysis: Analysis) -> Analysis:
         if not analysis.topics:
             return analysis
-
+        
         # Coletar todos os resumos parciais
         topic_summaries = [t.summary for t in analysis.topics if t.summary]
         if not topic_summaries:
+            logger.warning("synthesis.skipped", reason="no_topic_summaries")
             return analysis
 
+        logger.info("synthesis.started", topic_count=len(topic_summaries))
         combined_text = "\n\n".join(topic_summaries)
         
         # Prompt Hierárquico

@@ -52,6 +52,7 @@ def build_text_analysis_service(
         SummarizationStep,
         KnowledgeIndexingStep,
         VisualInsightStep,
+        SynthesisStep,
     )
     from src.text_analysis.infrastructure.repositories.vector_repository import VectorRepository
     from src.text_analysis.infrastructure.repositories.feedback_repository import FeedbackRepository
@@ -89,6 +90,7 @@ def build_text_analysis_service(
         KnowledgeIndexingStep(vector_repo),
         VisualInsightStep(visual_adapter, frame_extractor, storage_factory),
         SummarizationStep(gen_adapter, language=config.language, advisor=advisor),
+        SynthesisStep(gen_adapter, language=config.language),
     ])
 
     metrics = build_metrics()

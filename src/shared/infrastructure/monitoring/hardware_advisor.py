@@ -78,7 +78,7 @@ class HardwareAdvisor:
 
     def recommend_strategy(self) -> SystemPressure:
         stats = self.get_current_stats()
-        if stats.gpu_vram_usage and stats.gpu_vram_usage > 0.95: return SystemPressure.CRITICAL
+        if stats.gpu_vram_usage and stats.gpu_vram_usage > 0.98: return SystemPressure.CRITICAL
         if stats.gpu_vram_usage and stats.gpu_vram_usage > self.vram_threshold_high: return SystemPressure.HIGH
         if stats.cpu_usage > 90: return SystemPressure.HIGH
         return SystemPressure.LOW

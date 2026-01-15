@@ -26,6 +26,7 @@ from .application.pipeline.steps import (
     SummarizationStep,
     KnowledgeIndexingStep,
     VisualInsightStep,
+    SynthesisStep,
 )
 from .infrastructure.repositories.vector_repository import VectorRepository
 from .infrastructure.repositories.feedback_repository import FeedbackRepository
@@ -135,6 +136,7 @@ async def build_text_analysis_module(
         KnowledgeIndexingStep(vector_repo),
         VisualInsightStep(visual_adapter, frame_extractor, storage_factory), # Level 7.0 Ready
         SummarizationStep(gen_adapter, language=config.language, advisor=advisor),
+        SynthesisStep(gen_adapter, language=config.language), # NEW: Level 8.3 Synthesis
     ])
 
     metrics = (
@@ -173,18 +175,25 @@ async def build_text_analysis_module(
 
 
 def bind_text_analysis_module(app: FastAPI, module: TextAnalysisModule) -> None:
-
-
+    """Register dependency overrides for text analysis.
+    Uses dynamic resolution to ensure fresh sessions per request.
+    """
+    from fastapi import Depends
+    from src.shared.infrastructure.database.db import get_db
     from .api.dependencies import get_text_analysis_service, get_knowledge_service
 
+    async def resolve_service(session: AsyncSession = Depends(get_db)):
+        # Re-build the module logic using the current request's session
+        # This is the safest way to avoid 'session provisioning a new connection' errors
+        m = await build_text_analysis_module(session=session)
+        return m.service
 
+    async def resolve_knowledge(session: AsyncSession = Depends(get_db)):
+        m = await build_text_analysis_module(session=session)
+        return m.knowledge_service
 
-
-
-    app.dependency_overrides[get_text_analysis_service] = lambda: module.service
-
-
-    app.dependency_overrides[get_knowledge_service] = lambda: module.knowledge_service
+    app.dependency_overrides[get_text_analysis_service] = resolve_service
+    app.dependency_overrides[get_knowledge_service] = resolve_knowledge
 
 
 def _check_module_available(module_name: str) -> bool:

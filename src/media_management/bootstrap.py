@@ -131,6 +131,7 @@ def build_media_components(
     metrics_service: Any,
     event_bus: Optional[SupportsEventBus] = None,
     storage_provider: str = "local",
+    subscribe: bool = True,
 ) -> Tuple[MediaModule, MediaAdminContext]:
     """Compose the media module without relying on dependency-injector."""
     media_repository = MediaRepository(db=session)
@@ -215,7 +216,7 @@ def build_media_components(
 
     media_event_handlers = MediaEventHandlers(media_service)
 
-    if event_bus:
+    if event_bus and subscribe:
         # TextContentReady handled in text_analysis module
         event_bus.subscribe(
             TranscriptionCompleted,
@@ -242,13 +243,41 @@ def build_media_components(
 
 def bind_media_module(app: FastAPI, module: MediaModule) -> None:
     """Register dependency overrides for media use cases."""
-    app.dependency_overrides[get_media_service] = lambda: module.media_service
+    from fastapi import Depends, Request
+    from src.shared.infrastructure.database.db import get_db
+    from src.storage.infrastructure.dependencies import StorageServiceFactory
 
-    app.dependency_overrides[get_transcription_dependencies] = (
-        lambda: TranscriptionDependencies(
-            service=module.transcription_service,
+    # Factory can be instantiated once or per request (it's lightweight)
+    storage_factory = StorageServiceFactory()
+
+    async def resolve_media_service(request: Request, session: AsyncSession = Depends(get_db)):
+        # Retrieve event bus from app state (Instance A)
+        event_bus = getattr(request.app.state, "event_bus", None)
+        
+        # Re-build the module logic using the current request's session
+        m, _ = build_media_components(
+            session=session,
+            storage_service_factory=storage_factory,
+            metrics_service=None, # Optional for per-request instances
+            event_bus=event_bus,
+            subscribe=False # Do not subscribe handlers per-request!
         )
-    )
+        return m.media_service
+
+    app.dependency_overrides[get_media_service] = resolve_media_service
+
+    async def resolve_transcription_deps(request: Request, session: AsyncSession = Depends(get_db)):
+        event_bus = getattr(request.app.state, "event_bus", None)
+        m, _ = build_media_components(
+            session=session,
+            storage_service_factory=storage_factory,
+            metrics_service=None,
+            event_bus=event_bus,
+            subscribe=False
+        )
+        return TranscriptionDependencies(service=m.transcription_service)
+
+    app.dependency_overrides[get_transcription_dependencies] = resolve_transcription_deps
 
 
 __all__ = [

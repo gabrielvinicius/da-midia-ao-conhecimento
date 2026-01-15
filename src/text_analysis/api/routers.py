@@ -5,12 +5,12 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.media_management.api.dependencies import get_media_read_service
 from src.media_management.application.dtos import GetMediaQuery
 from src.media_management.application.services.media_read_service import MediaReadService
-from src.shared.api.dependencies import get_current_user
+from src.user_management.api.dependencies import get_current_user
 from src.user_management.domain import User, UserRole
 
 from ..application.dtos import (
@@ -19,7 +19,11 @@ from ..application.dtos import (
     GetAnalysisQuery,
 )
 from ..application.services.text_analysis_service import TextAnalysisService
+from ..application.services.knowledge_base_service import KnowledgeBaseService
+from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from .dependencies import AnalyzeRequest, AnalyzeResponse, get_text_analysis_service, get_knowledge_service
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/text-analysis", tags=["text-analysis"])
 
@@ -85,36 +89,6 @@ async def analyze_text(
     return result
 
 
-@router.get("/{analysis_id}", response_model=AnalyzeResponse)
-async def get_analysis_result(
-    analysis_id: str,
-    service: TextAnalysisService = Depends(get_text_analysis_service),
-    current_user: Annotated[User, Depends(get_current_user)] = None,
-):
-    try:
-        result = await service.get_analysis(
-            GetAnalysisQuery(analysis_id=UUID(analysis_id))
-        )
-        owner = result.get("user_id")
-        if (
-            owner
-            and str(owner) != str(current_user.id)
-            and current_user.role != UserRole.ADMIN
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Acesso negado",
-            )
-        return result
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
-
-
 @router.get("/media/{media_id}", response_model=AnalyzeResponse)
 async def get_analysis_by_media(
     media_id: str,
@@ -127,11 +101,46 @@ async def get_analysis_by_media(
             GetAnalysisByMediaIdQuery(media_id=UUID(media_id))
         )
         if not result:
+            logger.warning("debug.router.not_found", media_id=media_id)
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Análise não encontrada para esta mídia",
             )
 
+        logger.info("debug.router.success", media_id=media_id)
+        
+        owner = result.get("user_id")
+        if (
+            owner
+            and str(owner) != str(current_user.id)
+            and current_user.role != UserRole.ADMIN
+        ):
+            logger.warning("debug.router.forbidden", media_id=media_id, owner=owner, user=str(current_user.id))
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acesso negado",
+            )
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("debug.router.exception", error=str(exc), media_id=media_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get("/{analysis_id}", response_model=AnalyzeResponse)
+async def get_analysis_result(
+    analysis_id: str,
+    service: TextAnalysisService = Depends(get_text_analysis_service),
+    current_user: Annotated[User, Depends(get_current_user)] = None,
+):
+    try:
+        result = await service.get_analysis(
+            GetAnalysisQuery(analysis_id=UUID(analysis_id))
+        )
         owner = result.get("user_id")
         if (
             owner

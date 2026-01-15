@@ -48,7 +48,7 @@ DEFAULT_MODULE_SPECS: tuple[ModuleSpec, ...] = (
         name="text_analysis",
         binder_path="src.text_analysis.bootstrap:bind_text_analysis_module",
         routers=("src.text_analysis.api.routers:router",),
-        optional=True,
+        optional=False,
     ),
     ModuleSpec(
         name="admin",

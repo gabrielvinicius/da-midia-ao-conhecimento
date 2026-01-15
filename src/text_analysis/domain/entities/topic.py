@@ -9,6 +9,7 @@ class Topic:
     id: int
     keywords: list[str]
     summary: Optional[str] = None
+    summary_md: Optional[str] = None
     diagnostics: Optional[dict] = None
     snippets: list[str] | None = None
     size: int = 0

@@ -1,0 +1,59 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-heavy-scaler
+  namespace: video-summarizer-prod
+spec:
+  scaleTargetRef:
+    name: worker-heavy-deployment
+  minReplicaCount: 1  # Always keep one ready for immediate response
+  maxReplicaCount: 10 # Cap cost
+  pollingInterval: 15 # Check Redis every 15s
+  cooldownPeriod: 300 # Wait 5m before scaling down
+  triggers:
+  - type: redis
+    metadata:
+      addressFromEnv: REDIS_URL # Must be defined in Deployment env
+      listName: video_queue
+      listLength: "5" # Scale up if > 5 items pending
+  - type: redis
+    metadata:
+      addressFromEnv: REDIS_URL
+      listName: transcription_queue
+      listLength: "5"
+  - type: redis
+    metadata:
+      addressFromEnv: REDIS_URL
+      listName: text_analysis_queue
+      listLength: "10"
+  # Fast lanes trigger scaling aggressively (length 1)
+  - type: redis
+    metadata:
+      addressFromEnv: REDIS_URL
+      listName: video_fast_lane
+      listLength: "1"
+  - type: redis
+    metadata:
+      addressFromEnv: REDIS_URL
+      listName: transcription_fast_lane
+      listLength: "1"
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-light-scaler
+  namespace: video-summarizer-prod
+spec:
+  scaleTargetRef:
+    name: worker-light-deployment
+  minReplicaCount: 0  # Can scale to zero if idle (cost saving)
+  maxReplicaCount: 5
+  pollingInterval: 30
+  cooldownPeriod: 300
+  triggers:
+  - type: redis
+    metadata:
+      addressFromEnv: REDIS_URL
+      listName: default
+      listLength: "50" # Light tasks tolerate higher backlog

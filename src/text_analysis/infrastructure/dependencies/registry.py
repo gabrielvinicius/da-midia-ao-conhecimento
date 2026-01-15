@@ -85,33 +85,29 @@ TEXT_GEN_PROVIDERS: List[ProviderEntry] = [
         target="hf:google/gemma-2-9b-it",
     ),
     ProviderEntry(
+        name="hf:Qwen/Qwen2.5-3B-Instruct",
+        label="Qwen 2.5 3B (Instruct)",
+        description="Melhor modelo pequeno atual (SOTA < 7B). Excelente suporte a Português.",
+        target="hf:Qwen/Qwen2.5-3B-Instruct",
+    ),
+    ProviderEntry(
+        name="hf:Qwen/Qwen2.5-7B-Instruct",
+        label="Qwen 2.5 7B (Instruct)",
+        description="Modelo 7B extremamente capaz, supera muitos 13B.",
+        target="hf:Qwen/Qwen2.5-7B-Instruct",
+    ),
+    ProviderEntry(
         name="hf:Qwen/Qwen2-7B-Instruct",
         label="Qwen2 7B (Transformers/HF)",
         description="Multilíngue forte; bom custo/benefício.",
         target="hf:Qwen/Qwen2-7B-Instruct",
     ),
-    ProviderEntry(
-        name="ollama:llama3:8b",
-        label="Llama3 8B (Ollama)",
-        description="Servido via Ollama (gguf).",
-        target="ollama:llama3:8b",
-    ),
-    ProviderEntry(
-        name="ollama:mistral",
-        label="Mistral 7B (Ollama)",
-        description="Opção leve servida pelo Ollama.",
-        target="ollama:mistral",
-    ),
-    ProviderEntry(
-        name="ollama:phi3:mini",
-        label="Phi-3 Mini (Ollama)",
-        description="Extremamente leve; ideal em CPU.",
-        target="ollama:phi3:mini",
-    ),
 ]
 
 TEXT_GEN_ROUTING: Mapping[str, str] = {
     # nomes amigáveis -> destino transformers
+    "qwen": "hf:Qwen/Qwen2.5-3B-Instruct",
+    "qwen-7b": "hf:Qwen/Qwen2.5-7B-Instruct",
     "nemo": "hf:mistralai/Mistral-Nemo-Instruct-v1",
     "nemotron": "hf:nvidia/Nemotron-Orchestrator-8B",
     "llama3.3-heretic": "hf:DavidAU/Llama3.3-8B-Instruct-Thinking-Heretic-Uncensored-Claude-4.5-Opus-High-Reasoning",
