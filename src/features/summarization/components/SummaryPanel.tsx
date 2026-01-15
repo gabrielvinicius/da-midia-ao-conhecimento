@@ -53,7 +53,7 @@ const buildSummaryText = (analysis: TextAnalysisResponse): string => {
   }
   const topics = analysis.topics || [];
   const summaries = topics
-    .map((t) => (t.summary_md || "").trim())
+    .map((t) => (t.summary_md || t.summary || "").trim())
     .filter(Boolean);
   if (summaries.length > 0) {
     return summaries.join("\n\n");
@@ -318,22 +318,6 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
         </div>
       </CardHeader>
       <CardContent className="space-y-4 text-slate-900">
-        {/* DEBUG BLOCK - REMOVE IN PROD */}
-        <div className="bg-red-50 border border-red-200 text-red-800 p-2 text-[10px] font-mono rounded mb-4 overflow-x-auto">
-          <p><strong>DEBUG STATE:</strong></p>
-          <p>isLoading: {String(isLoading)}</p>
-          <p>isError: {String(isError)}</p>
-          <p>hasAnalysis: {String(!!analysis)}</p>
-          {analysis && (
-            <>
-              <p>ID: {analysis.analysis_id}</p>
-              <p>Summary Len: {analysis.summary?.length}</p>
-              <p>Topics: {analysis.topics?.length}</p>
-            </>
-          )}
-        </div>
-        {/* END DEBUG BLOCK */}
-        
         {renderContent()}
       </CardContent>
     </Card>

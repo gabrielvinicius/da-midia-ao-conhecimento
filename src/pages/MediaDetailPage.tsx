@@ -23,6 +23,7 @@ import { SummaryPanel } from "@/features/summarization/components/SummaryPanel";
 import authService from "@/services/auth.service";
 import { PredictiveInsight } from "@/components/PredictiveInsight";
 import { ProcessingTrace } from "@/components/ProcessingTrace";
+import { computeStageStatus, getStatusToken } from "@/features/media/lib/status-helpers";
 
 import {
   CalendarDays,
@@ -113,64 +114,31 @@ const MediaDetailPage = () => {
   const summaryConfigured = Boolean(media.summarization_provider) || media.status === MediaStatus.COMPLETED;
   const topicsConfigured = Boolean(media.topic_modeling_provider) || media.status === MediaStatus.COMPLETED;
 
-  const computeStageStatus = (primary?: string | null, configured = true): string => {
-    if (!configured) return "SKIPPED";
-    if (primary && primary !== TranscriptionStatus.PENDING) {
-      return primary;
-    }
-    if (primary === TranscriptionStatus.FAILED) {
-      return "FAILED";
-    }
-    if (primary === TranscriptionStatus.PROCESSING) {
-      return "PROCESSING";
-    }
-    if (media.status === MediaStatus.FAILED) {
-      return MediaStatus.FAILED;
-    }
-    if (media.status === MediaStatus.PROCESSING) {
-      return MediaStatus.PROCESSING;
-    }
-    if (media.status === MediaStatus.COMPLETED) {
-      return MediaStatus.COMPLETED;
-    }
-    if (media.status === MediaStatus.UPLOADED) {
-      return MediaStatus.UPLOADED;
-    }
-    return "PENDING";
-  };
-
   const uploadStageStatus = media.status === MediaStatus.FAILED ? MediaStatus.FAILED : MediaStatus.COMPLETED;
-  const videoStageStatus = media.media_type === MediaType.VIDEO ? computeStageStatus(media.status, true) : "SKIPPED";
-  const transcriptionStageStatus = computeStageStatus(transcriptionData?.status ?? (isTextMedia ? transcriptionData?.status : undefined), true);
+  const videoStageStatus = media.media_type === MediaType.VIDEO 
+    ? computeStageStatus(media.status, media.media_type, media.status, true) 
+    : "SKIPPED";
+  
+  const transcriptionStageStatus = computeStageStatus(
+    media.status,
+    media.media_type,
+    transcriptionData?.status ?? (isTextMedia ? transcriptionData?.status : undefined),
+    true
+  );
+  
   const analysisStage = textAnalysis ? MediaStatus.COMPLETED : undefined;
-  const summaryStageStatus = computeStageStatus(analysisStage, summaryConfigured);
-  const topicStageStatus = computeStageStatus(analysisStage, topicsConfigured);
-
-  const statusToken = (status?: string | null) => {
-    switch (status) {
-      case MediaStatus.COMPLETED:
-      case TranscriptionStatus.COMPLETED:
-      case "COMPLETED":
-        return { label: "Concluído", badge: "bg-emerald-500/10 text-emerald-600", icon: <Loader2 className="h-4 w-4 text-emerald-500" /> };
-      case MediaStatus.PROCESSING:
-      case TranscriptionStatus.PROCESSING:
-      case "PROCESSING":
-        return { label: "Processando", badge: "bg-amber-500/10 text-amber-600", icon: <Loader2 className="h-4 w-4 animate-spin text-amber-500" /> };
-      case MediaStatus.FAILED:
-      case TranscriptionStatus.FAILED:
-      case "FAILED":
-        return { label: "Falhou", badge: "bg-red-500/10 text-red-600", icon: <Info className="h-4 w-4 text-red-500" /> };
-      case MediaStatus.PENDING:
-      case TranscriptionStatus.PENDING:
-      case MediaStatus.UPLOADED:
-      case "UPLOADED":
-        return { label: "Aguardando", badge: "bg-muted text-muted-foreground", icon: <Loader2 className="h-4 w-4 text-muted-foreground" /> };
-      case "SKIPPED":
-        return { label: "Não configurado", badge: "bg-muted text-muted-foreground", icon: <Info className="h-4 w-4 text-muted-foreground" /> };
-      default:
-        return { label: "Aguardando", badge: "bg-muted text-muted-foreground", icon: <Loader2 className="h-4 w-4 text-muted-foreground" /> };
-    }
-  };
+  const summaryStageStatus = computeStageStatus(
+    media.status, 
+    media.media_type, 
+    analysisStage, 
+    summaryConfigured
+  );
+  const topicStageStatus = computeStageStatus(
+    media.status, 
+    media.media_type, 
+    analysisStage, 
+    topicsConfigured
+  );
 
   const pipelineSteps: PipelineStep[] = [];
 
@@ -235,7 +203,7 @@ const MediaDetailPage = () => {
               <Badge variant="secondary" className="bg-white text-slate-900 capitalize">
                 {media.media_type}
               </Badge>
-              <Badge className={statusToken(media.status).badge}>{statusToken(media.status).label}</Badge>
+              <Badge className={getStatusToken(media.status).badge}>{getStatusToken(media.status).label}</Badge>
               
               {/* Level 6.0 Visual Observability */}
               <ProcessingTrace media={media} analysis={textAnalysis} />
@@ -355,7 +323,7 @@ const MediaDetailPage = () => {
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Etapas de Processamento</p>
                 <div className="space-y-3">
                   {pipelineSteps.map((step) => {
-                    const token = statusToken(step.status);
+                    const token = getStatusToken(step.status);
                     return (
                       <div key={step.key} className="group flex items-start justify-between gap-4">
                         <div className="flex items-center gap-2">
