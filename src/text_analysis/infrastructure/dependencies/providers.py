@@ -59,11 +59,24 @@ def get_topic_modeling_adapter(config: AnalysisConfig):
     # Se topic_model for "tfidf" usar fallback leve; caso contrário, BERTopic
     if str(config.topic_model).lower() == "tfidf":
         return TFIDFTopicModelingAdapter()
+    
+    # Try to reuse the embedding model instance from the cached embedding adapter
+    # to save VRAM (avoid loading SentenceTransformer twice).
+    embedding_model_inst = None
+    if _CACHED_EMBEDDING_ADAPTER:
+        try:
+            # Assume it has get_model_instance method (added in recent refactor)
+            if hasattr(_CACHED_EMBEDDING_ADAPTER, "get_model_instance"):
+                embedding_model_inst = _CACHED_EMBEDDING_ADAPTER.get_model_instance()
+        except Exception: 
+            pass
+
     return BERTopicAdapter(
         config.topic_model,
         use_transformer_representation=config.use_transformer_topic_representation,
         transformer_model_name=config.transformer_representation_model,
         embedding_model_name=config.embedding_model,
+        embedding_model_inst=embedding_model_inst, # Inject shared instance
     )
 
 

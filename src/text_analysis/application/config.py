@@ -15,6 +15,7 @@ class AnalysisConfig:
     # Opções: "intfloat/multilingual-e5-large" (SOTA Multilingual)
     embedding_model: str = "intfloat/multilingual-e5-large"
     topic_model: str = "bertopic"  # use "tfidf" para fallback leve sem deps pesadas
-    llm_model: str = "hf:microsoft/Phi-3-mini-4k-instruct"
+    llm_model: str = "hf:Qwen/Qwen2.5-7B-Instruct"
     use_transformer_topic_representation: bool = True
-    transformer_representation_model: str = "hf:microsoft/Phi-3-mini-4k-instruct"
+    transformer_representation_model: str = "hf:Qwen/Qwen2.5-7B-Instruct"
+    turbo_mode: bool = True  # Pula sumarização granular para one-shot synthesis

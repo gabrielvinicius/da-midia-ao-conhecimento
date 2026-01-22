@@ -21,10 +21,10 @@ from src.shared.infrastructure.config.settings import settings
 # Optional adapters; guard imports to avoid missing deps
 def _load_fastwhisper():
     try:
-        from src.media_processing.infrastructure.adapters.transcription.fastwhisper_adapter import (
-            FastWhisperTranscriber,
+        from src.media_processing.infrastructure.adapters.transcription.faster_whisper_adapter import (
+            FasterWhisperAdapter,
         )
-        return FastWhisperTranscriber
+        return FasterWhisperAdapter
     except Exception as exc:  # pragma: no cover - optional dependency
         raise ImportError(
             "Provider 'fastwhisper' requer o pacote faster-whisper instalado."

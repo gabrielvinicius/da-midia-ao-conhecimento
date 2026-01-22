@@ -41,6 +41,10 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
         keywords: list[str],
         language: str,
     ) -> str:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
         self._m_attempts.labels(model=self.model_name).inc()
         if not self._available:
             return self._fallback(title_hint, keywords)
@@ -54,15 +58,39 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
                 task = "text-generation" if self._is_instruct else "summarization"
 
                 import torch
-                torch_dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16
+                from transformers import BitsAndBytesConfig
+                
+                # Check for quantization need (Large models on consumer GPU)
+                is_large_model = any(s in self.model_name for s in ["7B", "8B", "9B", "14B", "30B", "32B"])
+                model_kwargs = {}
+                
+                if is_large_model:
+                    logger.info("transformers_generation.enabling_4bit_quantization", model=self.model_name)
+                    quantization_config = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_compute_dtype=torch.float16,
+                        bnb_4bit_quant_type="nf4",
+                    )
+                    model_kwargs["quantization_config"] = quantization_config
+                
+                # Pipeline configuration optimized for RTX 3060
+                pipeline_kwargs = {
+                    "task": task,
+                    "model": self.model_name,
+                    "device_map": "auto",
+                    "token": settings.hf_token,
+                    "model_kwargs": {
+                        "max_memory": {0: "10GB"}, # 2GB reserved for system
+                        "attn_implementation": "flash_attention_2" if torch.cuda.is_available() else "eager",
+                        **model_kwargs
+                    }
+                }
+                
+                if not is_large_model:
+                     # For smaller models like 3B, we ensure float16 for best 3060 performance
+                     pipeline_kwargs["torch_dtype"] = torch.float16
 
-                self._pipe = pipeline(
-                    task=task,
-                    model=self.model_name,
-                    device=device_idx,
-                    torch_dtype=torch_dtype, # Correct way to pass it to pipeline
-                    token=settings.hf_token,
-                )
+                self._pipe = pipeline(**pipeline_kwargs)
             except Exception as exc:  # pragma: no cover - runtime path
                 logger.warning("transformers_generation.load_failed", error=str(exc))
                 self._available = False
@@ -72,24 +100,33 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
         try:
             if self._is_instruct:
                 # Handle Instruct Models (Qwen, Mistral, Llama)
-                has_instruction = "Analise o texto" in content or "[TEXTO]" in content
                 
-                # Construct messages for Chat Templates if supported by pipeline
-                # otherwise fallback to string prompting
+                # Check for dynamic system prompt injection
+                system_prompt = "Você é um assistente especialista em sumarização de textos técnicos."
+                user_content = content
                 
-                if has_instruction:
-                    # Content already contains instruction
-                    user_content = content
-                else:
+                if "<<<SYSTEM>>>" in content and "<<<END_SYSTEM>>>" in content:
+                    parts = content.split("<<<END_SYSTEM>>>", 1)
+                    if len(parts) == 2:
+                        sys_part = parts[0].replace("<<<SYSTEM>>>", "").strip()
+                        if sys_part:
+                            system_prompt = sys_part
+                        user_content = parts[1].strip()
+
+                has_instruction = "Analise o texto" in user_content or "[TEXTO]" in user_content
+                
+                # Construct messages for Chat Templates
+                if not has_instruction:
+                    # Enrich user content if it's just raw text
                     user_content = (
                         f"Gere um resumo detalhado e estruturado em Markdown sobre o tópico '{title_hint}'. "
                         f"Considere as palavras-chave: {', '.join(keywords)}. \n\n"
-                        f"Texto base:\n{content}"
+                        f"Texto base:\n{user_content}"
                     )
                 
                 # Try to use chat template via messages list
                 messages = [
-                    {"role": "system", "content": "Você é um assistente especialista em sumarização de textos técnicos."},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content}
                 ]
                 
@@ -97,14 +134,17 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
 
-                # Pipeline 'text-generation' handles list of dicts by applying chat_template automatically
+                # Optimized Pipeline Execution for RTX 3060
                 outputs = self._pipe(
                     messages,
-                    max_new_tokens=256, # Reduced from 1024
+                    max_new_tokens=3000, # Increased for exhaustive manifestos
                     do_sample=True,
-                    temperature=0.7,
-                    top_p=0.9,
-                    return_full_text=False # Return only generated part
+                    temperature=0.35, # Optimized within 0.2-0.4 range for precision
+                    top_p=0.82,
+                    top_k=50,
+                    repetition_penalty=1.12,
+                    pad_token_id=151643,
+                    return_full_text=False
                 )
                 summary = outputs[0]["generated_text"].strip()
                 

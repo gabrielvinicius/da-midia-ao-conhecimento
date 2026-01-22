@@ -89,7 +89,7 @@ def build_text_analysis_service(
         TopicModelingStep(topic_adapter, embedding_adapter, language=config.language),
         KnowledgeIndexingStep(vector_repo),
         VisualInsightStep(visual_adapter, frame_extractor, storage_factory),
-        SummarizationStep(gen_adapter, language=config.language, advisor=advisor),
+        SummarizationStep(gen_adapter, language=config.language, advisor=advisor, turbo_mode=config.turbo_mode),
         SynthesisStep(gen_adapter, language=config.language),
     ])
 

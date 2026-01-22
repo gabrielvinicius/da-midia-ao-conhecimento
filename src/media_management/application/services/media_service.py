@@ -321,9 +321,7 @@ class MediaService:
             await self.media_repository.update(media)
 
             # Publish Reprocess Requested Event
-            print(f"DEBUG: reprocess_media reached for {media.id}. Event bus present: {self.event_bus is not None}")
             if self.event_bus:
-                print(f"DEBUG: publishing MediaUploaded for {media.id}")
                 await self.event_bus.publish(
                     MediaReprocessRequested(
                         media_id=str(media.id),

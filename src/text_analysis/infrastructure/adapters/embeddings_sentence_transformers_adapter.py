@@ -30,6 +30,10 @@ class SentenceTransformerEmbeddingAdapter(EmbeddingServicePort):
             self._initialized = True
         return self._model
 
+    def get_model_instance(self):
+        """Expose the internal model instance, initializing if necessary."""
+        return self._get_model()
+
     def embed(self, texts: list[str]) -> list[list[float]]:
         model = self._get_model()
         if model:

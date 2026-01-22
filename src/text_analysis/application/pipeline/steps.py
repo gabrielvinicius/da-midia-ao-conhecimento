@@ -31,6 +31,9 @@ class ChunkingStep(AnalysisStep):
         return "chunking"
 
     async def process(self, analysis: Analysis) -> Analysis:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         chunks = self.chunker.chunk(analysis.document, size=self.size, overlap=self.overlap)
         analysis.chunks = chunks
         return analysis
@@ -46,6 +49,9 @@ class SentimentStep(AnalysisStep):
         return "sentiment"
 
     async def process(self, analysis: Analysis) -> Analysis:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         if not analysis.chunks:
             return analysis
         
@@ -82,6 +88,9 @@ class TopicModelingStep(AnalysisStep):
         return "topic_modeling"
 
     async def process(self, analysis: Analysis) -> Analysis:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         if not analysis.chunks:
             return analysis
         
@@ -98,10 +107,11 @@ class TopicModelingStep(AnalysisStep):
 
 
 class SummarizationStep(AnalysisStep):
-    def __init__(self, text_generation: TextGenerationPort, language: str, advisor: Optional[Any] = None):
+    def __init__(self, text_generation: TextGenerationPort, language: str, advisor: Optional[Any] = None, turbo_mode: bool = False):
         self.text_generation = text_generation
         self.language = language
         self.advisor = advisor
+        self.turbo_mode = turbo_mode
 
     @property
     def name(self) -> str:
@@ -109,6 +119,10 @@ class SummarizationStep(AnalysisStep):
 
     async def process(self, analysis: Analysis) -> Analysis:
         if not analysis.topics:
+            return analysis
+            
+        if self.turbo_mode:
+            logger.info("pipeline.summarization_skipped_turbo_mode")
             return analysis
         
         # Intelligent Check
@@ -153,11 +167,11 @@ class SummarizationStep(AnalysisStep):
 
         prompt_instruction = (
             f"Analise o texto abaixo sobre '{topic.title}'. {context_prompt}\n"
-            "Identifique as 3 principais teses defendidas e as evidências citadas. "
+            "Identifique as principais teses defendidas e as evidências citadas. "
             "Se houver contexto visual, correlacione com o texto. "
             f"Responda em {self.language} com formatação Markdown estruturada."
         )
-        
+
         try:
             if self.text_generation.is_available():
                 # Passamos o prompt customizado. Adapters devem suportar 'instruction' ou concatenar.
@@ -166,7 +180,7 @@ class SummarizationStep(AnalysisStep):
                 # ou idealmente, o adapter aceita um prompt template.
                 # Para compatibilidade, concatenamos no texto.
                 enriched_text = f"{prompt_instruction}\n\n[TEXTO]:\n" + "\n".join(topic.snippets)
-                
+
                 result = await self.text_generation.summarize_topic(
                     topic.title, enriched_text, topic.keywords, self.language
                 )
@@ -176,7 +190,7 @@ class SummarizationStep(AnalysisStep):
             logger.error("pipeline.primary_summarization_failed", provider=primary, error=str(exc))
             if self.advisor: self.advisor.report_failure(primary)
             return self._fallback_heuristic(topic)
-        
+
         return None
 
     def _fallback_heuristic(self, topic: Any) -> str:
@@ -216,51 +230,151 @@ class SynthesisStep(AnalysisStep):
         return "synthesis"
 
     async def process(self, analysis: Analysis) -> Analysis:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         if not analysis.topics:
             return analysis
-        
-        # Coletar todos os resumos parciais
-        topic_summaries = [t.summary for t in analysis.topics if t.summary]
-        if not topic_summaries:
-            logger.warning("synthesis.skipped", reason="no_topic_summaries")
-            return analysis
 
-        logger.info("synthesis.started", topic_count=len(topic_summaries))
-        combined_text = "\n\n".join(topic_summaries)
-        
-        # Prompt Hierárquico
-        prompt = (
-            "Abaixo estão resumos dos principais tópicos de um vídeo.\n"
-            f"[RESUMOS PARCIAIS]:\n{combined_text}\n\n"
-            "Tarefa: Escreva um 'Resumo Executivo' coeso que conecte todos esses pontos em uma narrativa fluida. "
-            "Crie uma introdução que apresente o objetivo do vídeo, desenvolva os argumentos principais "
-            "e termine com uma conclusão sintetizadora. "
-            f"Escreva em {self.language} profissional."
+        # Constrói o contexto estruturado para o LLM
+        input_context = []
+
+        # 1. Processa Tópicos Principais com riqueza de detalhes
+        input_context.append("<main_topics>")
+        for t in analysis.topics:
+            if t.id != -1:
+                # Se houver resumo (modo normal), usa. Se não (modo turbo), usa snippets como corpo.
+                # Aumentamos o número de snippets no modo turbo para garantir profundidade.
+                draft_content = t.summary or " ".join(t.snippets[:15]) # 15 snippets (~1k tokens) por tópico no modo turbo
+
+                # Seleciona as 3 melhores evidências (snippets) para destaque explícito
+                evidence = "\n".join([f"- {s}" for s in t.snippets[:5]])
+                keywords = ", ".join(t.keywords[:6])
+
+                block = (
+                    f"<topic id='{t.id}'>\n"
+                    f"  <title>{t.title}</title>\n"
+                    f"  <keywords>{keywords}</keywords>\n"
+                    f"  <draft_summary>{draft_content}</draft_summary>\n"
+                    f"  <key_evidence_snippets>\n{evidence}\n  </key_evidence_snippets>\n"
+                    f"</topic>"
+                )
+                input_context.append(block)
+        input_context.append("</main_topics>")
+
+        # 2. Processa Ruído (Transições) - Apenas ID -1
+        noise_snippets = []
+        for t in analysis.topics:
+            if t.id == -1:
+                noise_snippets.extend(t.snippets[:5])
+
+        if noise_snippets:
+            input_context.append("<transition_context>")
+            input_context.append("\n".join([f"- {s}" for s in noise_snippets]))
+            input_context.append("</transition_context>")
+
+        context_str = "\n".join(input_context)
+
+        # Prompt Engenharia de Prompt SOTA (Summarizador Reconstrutor Sequencial)
+
+        system_persona = (
+            """" 
+            <<<SYSTEM>>>
+            Você é um ESPECIALISTA EM SÍNTESE FACTUAL. Sua GPU (RTX 3060 12GB) exige eficiência máxima.
+            REGRAS ABSOLUTAS (em ordem de prioridade):
+            1. FIDELIDADE: Preserve EXATAMENTE dados, nomes, datas do material original
+            2. EFICIÊNCIA: Use no máximo {max_tokens} tokens - cada token deve valer informação
+            3. ZERO INFERÊNCIA: NUNCA invente fatos ou relacionamentos não explícitos
+            4. ESTRUTURA SIMPLES: Títulos específicos > 2 parágrafos por tópico > listas apenas para dados
+            5. BLOCO DE CITAÇÃO: Use > SOMENTE para citações textuais diretas
+            <<<END_SYSTEM>>>
+            """
         )
+
+        user_instruction = (
+            "Sua missão é RECONSTRUIR o conhecimento abaixo em um documento\n"
+            "coeso, fiel e auditável.\n\n"
+            "--- MATERIAL FONTE (FRAGMENTOS ESTRUTURADOS) ---\n"
+            f"{context_str}\n"
+            "--- FIM DO MATERIAL ---\n\n"
+            "DIRETRIZES OPERACIONAIS:\n"
+            "\n"
+            "1. ARQUÉTIPO NARRATIVO\n"
+            "Escolha o arquétipo mais adequado ao conteúdo\n"
+            "(🏛️ Historiador, 🛠️ Engenheiro, 🎓 Professor, ⚖️ Analista,\n"
+            "💼 Estrategista, 🔬 Cientista, 📜 Jurista ou 🖋️ Crítico).\n"
+            "Use o arquétipo apenas para o TOM — nunca para inferir.\n"
+            "\n"
+            "2. ORDENAÇÃO\n"
+            "Ignore IDs numéricos.\n"
+            "Reorganize os fragmentos apenas se houver suporte explícito\n"
+            "para uma sequência lógica ou cronológica.\n"
+            "\n"
+            "3. EXTENSÃO (CRÍTICO)\n"
+            "Não economize palavras.\n"
+            "Cada capítulo deve ser um deep dive completo baseado exclusivamente\n"
+            "no material fornecido.\n"
+            "\n"
+            "4. INTEGRAÇÃO TOTAL\n"
+            "Não produza listas soltas de fatos.\n"
+            "Integre nomes, datas, conceitos e evidências dentro de parágrafos densos.\n"
+            "Use listas apenas para detalhamento factual preciso.\n"
+            "\n"
+            "5. EVIDÊNCIA\n"
+            "Utilize blockquotes (>) somente quando o trecho for\n"
+            "extraído diretamente do material.\n"
+            "\n"
+            "ESTRUTURA DE SAÍDA OBRIGATÓRIA:\n"
+            "\n"
+            "# [Título Específico e Informativo]\n\n"
+            "## 🗺️ Mapa da Reconstrução\n"
+            "- **Arquétipo Adotado**: [Nome]\n"
+            "- **Lógica Estrutural**: [Critério usado para ordenar o conteúdo]\n\n"
+            "## [Título Temático do Capítulo 1]\n"
+            "[Texto narrativo denso, factual e integrado]\n\n"
+            "## [Título Temático do Capítulo 2]\n"
+            "[Texto narrativo denso, factual e integrado]\n\n"
+            "(Continue até cobrir todos os temas relevantes, unificando os similares)\n\n"
+            "## [Título Específico do Encerramento]\n"
+            "[Conclusões ou implicações estritamente derivadas do material]"
+        )
+
+        prompt = system_persona + "\n" + user_instruction
 
         try:
             # Usamos o 'summarize_topic' como interface genérica de geração
-            # Idealmente, teríamos um método 'generate_text'
             master_summary = await self.text_generation.summarize_topic(
-                "Resumo Executivo", prompt, [], self.language
+                "Manifesto de Conhecimento", prompt, [], self.language
             )
-            
-            # Adiciona o Resumo Executivo no topo do output final
-            analysis.summary = f"# Resumo Executivo\n{master_summary}\n\n---\n# Detalhes por Tópico\n{combined_text}"
-            
+
+            # Lógica Inteligente para o Apêndice (Auditabilidade)
+            appendix_parts = []
+            has_summaries = any(t.summary for t in analysis.topics if t.id != -1)
+
+            appendix_title = "📚 Apêndice: Detalhamento por Tópico" if has_summaries else "📚 Apêndice: Fontes Primárias (Evidências Brutas)"
+
+            for t in analysis.topics:
+                if t.id != -1:
+                    content = t.summary if t.summary else f"*Evidências extraídas do áudio:*\n" + "\n".join([f"> {s}" for s in t.snippets[:5]])
+                    appendix_parts.append(f"### {t.title}\n{content}")
+
+            original_details = "\n\n".join(appendix_parts)
+            analysis.summary = f"{master_summary}\n\n---\n# {appendix_title}\n{original_details}"
+
         except Exception as exc:
             logger.error("synthesis.failed", error=str(exc))
-            # Fallback: Apenas concatena (já feito no passo anterior, mas garantimos aqui)
-            analysis.summary = combined_text
+            # Fallback
+            analysis.summary = "Erro na geração da síntese. Verifique os tópicos individuais abaixo.\n\n" + \
+                               "\n\n".join([t.summary for t in analysis.topics if t.summary])
 
         return analysis
 
 class VisualInsightStep(AnalysisStep):
     """Level 7.0: Multimodal insight. 'Sees' the video to complement the transcript."""
-    
+
     def __init__(
-        self, 
-        visual_analyzer: VisualAnalysisPort, 
+        self,
+        visual_analyzer: VisualAnalysisPort,
         frame_extractor: VideoFrameExtractorPort,
         storage_resolver: StorageServiceResolverPort, # Use resolver to get download service
     ):
@@ -273,9 +387,12 @@ class VisualInsightStep(AnalysisStep):
         return "visual_insight"
 
     async def process(self, analysis: Analysis) -> Analysis:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         if not analysis.media_id or not analysis.document.segments:
             return analysis
-            
+
         try:
             # 1. Estimate duration from segments
             duration = analysis.document.segments[-1].get("end", 0) if analysis.document.segments else 0
@@ -287,7 +404,7 @@ class VisualInsightStep(AnalysisStep):
             # In Level 6.0, we should have this info.
             provider = analysis.diagnostics.get("storage_provider", "local")
             file_path = analysis.diagnostics.get("file_path")
-            
+
             if not file_path:
                 return analysis
 
@@ -297,12 +414,12 @@ class VisualInsightStep(AnalysisStep):
             # 3. Sample frames (10%, 50%, 90%)
             timestamps = [duration * 0.1, duration * 0.5, duration * 0.9]
             visual_descriptions = []
-            
+
             for ts in timestamps:
                 try:
                     frame_bytes = await self.extractor.extract_frame(video_data, ts)
                     description = await self.analyzer.describe_frame(
-                        frame_bytes, 
+                        frame_bytes,
                         prompt="Describe what is happening in this video frame concisely."
                     )
                     timestamp_str = f"{int(ts // 60):02d}:{int(ts % 60):02d}"
@@ -313,8 +430,8 @@ class VisualInsightStep(AnalysisStep):
             if visual_descriptions:
                 analysis.diagnostics["visual_context"] = visual_descriptions
                 logger.info("knowledge_base.visual_insight_generated", media_id=str(analysis.media_id), count=len(visual_descriptions))
-            
+
         except Exception as exc:
             logger.error("knowledge_base.visual_insight_failed", error=str(exc))
-            
+
         return analysis
