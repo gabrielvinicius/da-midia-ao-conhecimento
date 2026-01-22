@@ -101,6 +101,15 @@ const renderSummaryText = (text: string) => {
           );
         }
 
+        // Blockquotes (New Support)
+        if (trimmed.startsWith("> ")) {
+          return (
+            <div key={i} className="my-4 border-l-4 border-amber-500 bg-amber-50 pl-4 py-3 pr-4 rounded-r-lg italic text-slate-700 shadow-sm">
+              {renderInlineMarkdown(trimmed.replace(/^>\s*/, ""))}
+            </div>
+          );
+        }
+
         // Standard Paragraph
         return (
           <p key={i} className="text-justify">
