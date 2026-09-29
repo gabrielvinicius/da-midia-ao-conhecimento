@@ -1,11 +1,16 @@
 """Repository for vector similarity search."""
 from __future__ import annotations
 
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from uuid import UUID
-from sqlalchemy import select, text
+
+from sqlalchemy import column, select, table, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.text_analysis.infrastructure.persistence.knowledge_models import KnowledgeChunkModel
+
+from src.text_analysis.infrastructure.persistence.knowledge_models import (
+    KnowledgeChunkModel,
+)
+
 
 class VectorRepository:
     def __init__(self, session: AsyncSession):
@@ -36,15 +41,27 @@ class VectorRepository:
             await self.session.rollback()
             raise
 
-    async def semantic_search(self, query_embedding: List[float], limit: int = 5) -> List[Tuple[KnowledgeChunkModel, float]]:
-        """Performs cosine similarity search against the knowledge base."""
-        # query_embedding is a list of floats
-        # <-> is Euclidean distance, <=> is cosine distance
-        stmt = (
-            select(KnowledgeChunkModel, KnowledgeChunkModel.embedding.cosine_distance(query_embedding).label("distance"))
-            .order_by(text("distance"))
-            .limit(limit)
-        )
+    async def semantic_search(
+        self,
+        query_embedding: List[float],
+        limit: int = 5,
+        user_id: Optional[UUID] = None,
+    ) -> List[Tuple[KnowledgeChunkModel, float]]:
+        """Busca por similaridade de cosseno na base de conhecimento.
+
+        Com ``user_id``, restringe a busca às mídias desse usuário.
+        """
+        distance = KnowledgeChunkModel.embedding.cosine_distance(query_embedding).label("distance")
+        stmt = select(KnowledgeChunkModel, distance)
+        if user_id is not None:
+            # Referência leve à tabela "media", sem importar o modelo de outro contexto.
+            media = table("media", column("id"), column("user_id"))
+            stmt = stmt.where(
+                KnowledgeChunkModel.media_id.in_(
+                    select(media.c.id).where(media.c.user_id == user_id)
+                )
+            )
+        stmt = stmt.order_by(text("distance")).limit(limit)
         result = await self.session.execute(stmt)
         return result.all()
 

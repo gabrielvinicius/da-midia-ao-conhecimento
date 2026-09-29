@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 from src.media_management.api.dependencies import get_media_read_service
 from src.media_management.application.dtos import GetMediaQuery
@@ -33,10 +34,12 @@ async def semantic_search(
     query: str = Query(..., min_length=3),
     limit: int = Query(5, ge=1, le=20),
     service: KnowledgeBaseService = Depends(get_knowledge_service),
+    current_user: User = Depends(get_current_user),
 ):
-    """Semantic search across all processed media."""
+    """Busca semântica nas mídias do usuário (administradores veem todas)."""
+    owner_filter = None if current_user.role == UserRole.ADMIN else current_user.id
     try:
-        return await service.search(query, limit=limit)
+        return await service.search(query, limit=limit, user_id=owner_filter)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -177,6 +180,25 @@ async def estimate_analysis_cost(
         )
 
 
+class SummaryCorrection(BaseModel):
+    summary: str = Field(..., min_length=1, description="Resumo corrigido (Markdown).")
+
+
+async def _ensure_analysis_owner(
+    analysis_id: str, service: TextAnalysisService, current_user: User
+) -> None:
+    """Garante que a análise existe e pertence ao usuário (ou que ele é admin)."""
+    try:
+        result = await service.get_analysis(GetAnalysisQuery(analysis_id=UUID(analysis_id)))
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail="Análise não encontrada") from exc
+    if not result:
+        raise HTTPException(status_code=404, detail="Análise não encontrada")
+    owner = result.get("user_id")
+    if owner and str(owner) != str(current_user.id) and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado")
+
+
 @router.post("/{analysis_id}/feedback")
 async def submit_analysis_feedback(
     analysis_id: str,
@@ -185,7 +207,8 @@ async def submit_analysis_feedback(
     service: TextAnalysisService = Depends(get_text_analysis_service),
     current_user: User = Depends(get_current_user),
 ):
-    """Level 7.0: Submit human feedback for AI analysis."""
+    """Registra a avaliação humana de uma análise."""
+    await _ensure_analysis_owner(analysis_id, service, current_user)
     await service.submit_feedback(analysis_id, current_user.id, score, comment)
     return {"message": "Feedback registrado com sucesso"}
 
@@ -193,12 +216,23 @@ async def submit_analysis_feedback(
 @router.put("/{analysis_id}/summary")
 async def correct_analysis_summary(
     analysis_id: str,
-    new_summary: str = Query(...),
+    body: Optional[SummaryCorrection] = Body(None),
+    new_summary: Optional[str] = Query(
+        None, description="Obsoleto: use o corpo JSON {\"summary\": ...}."
+    ),
     service: TextAnalysisService = Depends(get_text_analysis_service),
     current_user: User = Depends(get_current_user),
 ):
-    """Level 7.0: Correct an AI-generated summary."""
-    success = await service.correct_summary(analysis_id, new_summary)
+    """Corrige o resumo gerado pela IA, preservando o original.
+
+    O texto vai no corpo da requisição: resumos longos em Markdown podem
+    ultrapassar o limite de tamanho de uma URL.
+    """
+    summary = body.summary if body else new_summary
+    if not summary:
+        raise HTTPException(status_code=422, detail="Informe o resumo corrigido.")
+    await _ensure_analysis_owner(analysis_id, service, current_user)
+    success = await service.correct_summary(analysis_id, summary)
     if not success:
         raise HTTPException(status_code=404, detail="Análise não encontrada")
     return {"message": "Resumo atualizado com sucesso"}

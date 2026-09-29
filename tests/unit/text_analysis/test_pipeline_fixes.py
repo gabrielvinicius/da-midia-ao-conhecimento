@@ -318,7 +318,7 @@ class _Row:
 
 
 class _SearchRepo:
-    async def semantic_search(self, vector, limit=5):
+    async def semantic_search(self, vector, limit=5, user_id=None):
         assert vector == [0.5, 0.5]
         return [(_Row(), 0.25)]
 

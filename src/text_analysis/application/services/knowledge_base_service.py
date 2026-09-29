@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 import structlog
 
@@ -16,7 +16,9 @@ class KnowledgeBaseService:
         self._repo = vector_repo
         self._embedding_service = embedding_service
 
-    async def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    async def search(
+        self, query: str, limit: int = 5, user_id: Optional[UUID] = None
+    ) -> List[Dict[str, Any]]:
         """Performs semantic search for a given natural language query."""
         logger.info("knowledge_base.search_started", query=query)
         
@@ -27,7 +29,7 @@ class KnowledgeBaseService:
         query_vector = embeddings[0]
         
         # 2. Search in Vector DB
-        results = await self._repo.semantic_search(query_vector, limit=limit)
+        results = await self._repo.semantic_search(query_vector, limit=limit, user_id=user_id)
         
         # 3. Format results
         formatted = []
