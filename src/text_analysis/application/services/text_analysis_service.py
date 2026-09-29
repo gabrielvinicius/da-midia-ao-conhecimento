@@ -56,7 +56,7 @@ class TextAnalysisService:
         *,
         repository: AnalysisRepositoryPort,
         pipeline: AnalysisPipeline,
-        feedback_repo: Any, # NEW
+        feedback_repo: Any = None,
         config: Optional[AnalysisConfig] = None,
         metrics: TextAnalysisMetrics | None = None,
         event_bus: Any | None = None,
@@ -95,19 +95,20 @@ class TextAnalysisService:
         """Main orchestrator for analyzing text content."""
         text_content = command.text_content
         transcription_id = command.transcription_id
-        language = command.language or self.config.language
         user_id = command.user_id
         media_id = command.media_id
 
-        # 1. Fetch text source via Port if not provided
-        if not text_content and media_id and self.transcription_queries:
+        # 1. Busca a transcrição pela porta. Mesmo quando o texto já vem no
+        # comando, os segmentos (com horários) só existem na transcrição; sem
+        # eles, a análise visual e os horários da busca semântica não funcionam.
+        segments: list = []
+        if media_id and self.transcription_queries:
             try:
-                # Explicit call to the port returning strict DTO
                 text_source = await self.transcription_queries.get_text_source(media_id)
                 if text_source:
-                    text_content = text_source.text
+                    text_content = text_content or text_source.text
                     transcription_id = transcription_id or text_source.id
-                    language = language or text_source.language
+                    segments = list(text_source.segments or [])
             except Exception as exc:
                 logger.warning("text_analysis.fetch_text_failed", media_id=str(media_id), error=str(exc))
 
@@ -124,7 +125,7 @@ class TextAnalysisService:
             # 2. Level 6.0: Predictive Observability
             # ...
             # 3. Create Analysis Aggregate
-            document = Document.from_payload(text_content or "", None)
+            document = Document.from_payload(text_content or "", segments)
             analysis = Analysis.new(
                 document,
                 media_id=media_id,
@@ -136,31 +137,19 @@ class TextAnalysisService:
             if media_info:
                 analysis.diagnostics.update(media_info)
 
-            # 4. Run Granular Pipeline
-            try:
-                # Inject initial hardware context into diagnostics
-                analysis.diagnostics["engine"] = "Adaptive Pipeline v6.0"
-                from src.shared.infrastructure.config.settings import settings
-                analysis.diagnostics["hardware_target"] = settings.resolved_device
-                analysis.diagnostics["compute_type"] = settings.ai_compute_type
-                
-                analysis = await self.pipeline.run(analysis)
-            except Exception as exc:
-                logger.warning("text_analysis.pipeline_failed_attempting_self_healing", error=str(exc))
-                # Level 6.0 Self-Healing: Adaptive Recovery
-                # Reset analysis state partially to avoid mixed results from failed run
-                analysis.chunks = []
-                analysis.sentiments = []
-                analysis.topics = []
-                
-                # Reduce intensity: Half chunk size, double caution
-                new_chunk_size = (self.config.chunk_size or 500) // 2
-                self.pipeline.steps[0].size = new_chunk_size
-                logger.info("text_analysis.self_healing_retry", new_chunk_size=new_chunk_size)
-                
-                analysis = await self.pipeline.run(analysis)
+            # 4. Pipeline granular. Cada etapa grava seu resultado ao terminar
+            # (checkpoint); se o worker cair no meio, o que já foi calculado
+            # continua disponível.
+            from src.shared.infrastructure.config.settings import settings
+            analysis.diagnostics["hardware_target"] = settings.resolved_device
+            analysis.diagnostics["compute_type"] = settings.ai_compute_type
 
-            # 5. Final Persistence
+            async def checkpoint(current: Analysis, step_name: str) -> None:
+                await self.repository.save(current)
+
+            analysis = await self.pipeline.run(analysis, on_step_completed=checkpoint)
+
+            # 5. Persistência final
             analysis_id = await self.repository.save(analysis)
             logger.info("text_analysis.stored", analysis_id=analysis_id)
 

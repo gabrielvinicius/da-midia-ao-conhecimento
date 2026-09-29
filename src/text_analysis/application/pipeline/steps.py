@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import inspect
+import re
 from typing import Any, Optional
 import structlog
 from src.shared.utils.text import strip_markdown
@@ -16,7 +17,6 @@ from src.text_analysis.application.ports import (
 )
 from src.media_processing.application.ports import VideoFrameExtractorPort, VisualAnalysisPort
 from src.storage.application.ports import StorageServiceResolverPort
-from statistics import mean
 
 logger = structlog.get_logger(__name__)
 
@@ -59,21 +59,19 @@ class SentimentStep(AnalysisStep):
         sentiments = await sentiments_result if inspect.isawaitable(sentiments_result) else sentiments_result
         analysis.sentiments = sentiments
         
-        # Aggregate Overall
+        # Agregação: soma das confianças por rótulo, o que pondera pela
+        # frequência. Com a média, um único trecho positivo com confiança alta
+        # vencia dezenas de trechos neutros.
         if sentiments:
-            positives = [s.score for s in sentiments if s.label == SentimentLabel.POSITIVE]
-            negatives = [s.score for s in sentiments if s.label == SentimentLabel.NEGATIVE]
-            neutrals = [s.score for s in sentiments if s.label == SentimentLabel.NEUTRAL]
-            pos = mean(positives) if positives else 0.0
-            neg = mean(negatives) if negatives else 0.0
-            neu = mean(neutrals) if neutrals else 0.0
-            scores = {
-                SentimentLabel.POSITIVE: pos,
-                SentimentLabel.NEUTRAL: neu,
-                SentimentLabel.NEGATIVE: neg,
+            totals = {label: 0.0 for label in SentimentLabel}
+            for sentiment in sentiments:
+                totals[sentiment.label] += float(sentiment.score)
+            analysis.overall_sentiment = max(totals, key=totals.get)
+            analysis.diagnostics["sentiment_distribution"] = {
+                label.value: sum(1 for s in sentiments if s.label == label)
+                for label in SentimentLabel
             }
-            analysis.overall_sentiment = max(scores, key=scores.get)
-            
+
         return analysis
 
 
@@ -104,6 +102,63 @@ class TopicModelingStep(AnalysisStep):
         analysis.topics = topics
         analysis.diagnostics.update(diagnostics)
         return analysis
+
+
+class TopicTitleStep(AnalysisStep):
+    """Gera títulos legíveis para os temas com o LLM principal.
+
+    Faz uma única chamada para todos os temas. Se a resposta não puder ser
+    interpretada, os títulos produzidos pelo BERTopic são mantidos.
+    """
+
+    _LINE = re.compile(r"^\s*[-*]?\s*(-?\d+)\s*[:.)\-–]\s*(.+?)\s*$")
+
+    def __init__(self, text_generation: TextGenerationPort, language: str, max_words: int = 8):
+        self.text_generation = text_generation
+        self.language = language
+        self.max_words = max_words
+
+    @property
+    def name(self) -> str:
+        return "topic_titles"
+
+    async def process(self, analysis: Analysis) -> Analysis:
+        topics = [t for t in analysis.topics if t.id != -1]
+        if not topics or not self.text_generation.is_available():
+            return analysis
+
+        blocks = []
+        for t in topics:
+            snippets = "\n".join(f"  - {sn}" for sn in (t.snippets or [])[:3])
+            blocks.append(f"{t.id}: palavras-chave: {', '.join((t.keywords or [])[:8])}\n{snippets}")
+        prompt = (
+            "<<<SYSTEM>>>\nVocê dá títulos curtos e descritivos a temas extraídos de uma transcrição.\n<<<END_SYSTEM>>>\n"
+            f"Para cada tema abaixo, escreva um título de no máximo {self.max_words} palavras, "
+            f"em {_language_name(self.language)}, baseado apenas nas palavras-chave e nos trechos.\n"
+            "Responda somente com uma linha por tema, no formato `id: título`, sem aspas nem explicações.\n\n"
+            + "\n\n".join(blocks)
+        )
+        response = await self.text_generation.summarize_topic("Títulos dos temas", prompt, [], self.language)
+        if getattr(self.text_generation, "last_call_used_fallback", False):
+            return analysis
+
+        titles = self.parse_titles(response or "")
+        for t in topics:
+            if t.id in titles:
+                t.title = titles[t.id]
+        analysis.diagnostics["topic_titles_source"] = "llm" if titles else "bertopic"
+        return analysis
+
+    def parse_titles(self, text: str) -> dict[int, str]:
+        titles: dict[int, str] = {}
+        for line in text.splitlines():
+            match = self._LINE.match(line)
+            if not match:
+                continue
+            title = match.group(2).strip().strip('"\'`*').strip()
+            if title:
+                titles[int(match.group(1))] = " ".join(title.split()[: self.max_words])
+        return titles
 
 
 class SummarizationStep(AnalysisStep):
@@ -200,6 +255,8 @@ class SummarizationStep(AnalysisStep):
 
 
 class KnowledgeIndexingStep(AnalysisStep):
+    """Grava trechos e embeddings no pgvector para a busca semântica."""
+
     def __init__(self, vector_repository: Any):
         self.vector_repo = vector_repository
 
@@ -208,22 +265,67 @@ class KnowledgeIndexingStep(AnalysisStep):
         return "knowledge_indexing"
 
     async def process(self, analysis: Analysis) -> Analysis:
-        # Se houver embeddings temporários, salvá-los
-        if "_temp_embeddings" in analysis.diagnostics:
-            # Lógica de persistência vetorial aqui
-            # (Simplificado para manter foco no Summarization/Synthesis)
-            pass
+        # Os embeddings são temporários: saem do diagnóstico para não irem
+        # parar no JSON da análise.
+        embeddings = analysis.diagnostics.pop("_temp_embeddings", None)
+        if not analysis.media_id or not analysis.chunks or not embeddings:
+            analysis.diagnostics["indexed_chunks"] = 0
+            return analysis
+        if len(embeddings) != len(analysis.chunks):
+            logger.warning(
+                "knowledge_indexing.size_mismatch",
+                chunks=len(analysis.chunks),
+                embeddings=len(embeddings),
+            )
+
+        records = [
+            {
+                "text": chunk.text,
+                "embedding": list(vector),
+                "metadata": {
+                    "chunk_id": chunk.id,
+                    "start": chunk.start,
+                    "end": chunk.end,
+                    "analysis_id": str(analysis.id),
+                },
+            }
+            for chunk, vector in zip(analysis.chunks, embeddings)
+        ]
+        await self.vector_repo.save_chunks(analysis.media_id, records)
+        analysis.diagnostics["indexed_chunks"] = len(records)
+        logger.info("knowledge_indexing.saved", media_id=str(analysis.media_id), count=len(records))
         return analysis
 
 
+_LANGUAGE_NAMES = {
+    "pt": "português do Brasil",
+    "pt-br": "português do Brasil",
+    "en": "inglês",
+    "es": "espanhol",
+}
+
+
+def _language_name(language: str) -> str:
+    return _LANGUAGE_NAMES.get((language or "pt").lower(), language or "português do Brasil")
+
+
 class SynthesisStep(AnalysisStep):
+    """Gera o resumo final da mídia com o LLM.
+
+    Quando a transcrição cabe no contexto do modelo, ela é enviada inteira;
+    caso contrário, o LLM recebe o material organizado por tema. Em ambos os
+    casos, as descrições visuais dos quadros do vídeo entram como contexto.
     """
-    Level 8.3: Executive Master Summary.
-    Unifies all topic summaries into a cohesive narrative using long-context LLMs.
-    """
-    def __init__(self, text_generation: TextGenerationPort, language: str):
+
+    def __init__(
+        self,
+        text_generation: TextGenerationPort,
+        language: str,
+        max_full_transcript_chars: int = 60000,
+    ):
         self.text_generation = text_generation
         self.language = language
+        self.max_full_transcript_chars = max_full_transcript_chars
 
     @property
     def name(self) -> str:
@@ -233,141 +335,105 @@ class SynthesisStep(AnalysisStep):
         import torch
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        if not analysis.topics:
+        transcript = (analysis.document.text or "").strip() if analysis.document else ""
+        if not analysis.topics and not transcript:
             return analysis
 
-        # Constrói o contexto estruturado para o LLM
-        input_context = []
-
-        # 1. Processa Tópicos Principais com riqueza de detalhes
-        input_context.append("<main_topics>")
-        for t in analysis.topics:
-            if t.id != -1:
-                # Se houver resumo (modo normal), usa. Se não (modo turbo), usa snippets como corpo.
-                # Aumentamos o número de snippets no modo turbo para garantir profundidade.
-                draft_content = t.summary or " ".join(t.snippets[:15]) # 15 snippets (~1k tokens) por tópico no modo turbo
-
-                # Seleciona as 3 melhores evidências (snippets) para destaque explícito
-                evidence = "\n".join([f"- {s}" for s in t.snippets[:5]])
-                keywords = ", ".join(t.keywords[:6])
-
-                block = (
-                    f"<topic id='{t.id}'>\n"
-                    f"  <title>{t.title}</title>\n"
-                    f"  <keywords>{keywords}</keywords>\n"
-                    f"  <draft_summary>{draft_content}</draft_summary>\n"
-                    f"  <key_evidence_snippets>\n{evidence}\n  </key_evidence_snippets>\n"
-                    f"</topic>"
-                )
-                input_context.append(block)
-        input_context.append("</main_topics>")
-
-        # 2. Processa Ruído (Transições) - Apenas ID -1
-        noise_snippets = []
-        for t in analysis.topics:
-            if t.id == -1:
-                noise_snippets.extend(t.snippets[:5])
-
-        if noise_snippets:
-            input_context.append("<transition_context>")
-            input_context.append("\n".join([f"- {s}" for s in noise_snippets]))
-            input_context.append("</transition_context>")
-
-        context_str = "\n".join(input_context)
-
-        # Prompt Engenharia de Prompt SOTA (Summarizador Reconstrutor Sequencial)
-
-        system_persona = (
-            """" 
-            <<<SYSTEM>>>
-            Você é um ESPECIALISTA EM SÍNTESE FACTUAL. Sua GPU (RTX 3060 12GB) exige eficiência máxima.
-            REGRAS ABSOLUTAS (em ordem de prioridade):
-            1. FIDELIDADE: Preserve EXATAMENTE dados, nomes, datas do material original
-            2. EFICIÊNCIA: Use no máximo {max_tokens} tokens - cada token deve valer informação
-            3. ZERO INFERÊNCIA: NUNCA invente fatos ou relacionamentos não explícitos
-            4. ESTRUTURA SIMPLES: Títulos específicos > 2 parágrafos por tópico > listas apenas para dados
-            5. BLOCO DE CITAÇÃO: Use > SOMENTE para citações textuais diretas
-            <<<END_SYSTEM>>>
-            """
-        )
-
-        user_instruction = (
-            "Sua missão é RECONSTRUIR o conhecimento abaixo em um documento\n"
-            "coeso, fiel e auditável.\n\n"
-            "--- MATERIAL FONTE (FRAGMENTOS ESTRUTURADOS) ---\n"
-            f"{context_str}\n"
-            "--- FIM DO MATERIAL ---\n\n"
-            "DIRETRIZES OPERACIONAIS:\n"
-            "\n"
-            "1. ARQUÉTIPO NARRATIVO\n"
-            "Escolha o arquétipo mais adequado ao conteúdo\n"
-            "(🏛️ Historiador, 🛠️ Engenheiro, 🎓 Professor, ⚖️ Analista,\n"
-            "💼 Estrategista, 🔬 Cientista, 📜 Jurista ou 🖋️ Crítico).\n"
-            "Use o arquétipo apenas para o TOM — nunca para inferir.\n"
-            "\n"
-            "2. ORDENAÇÃO\n"
-            "Ignore IDs numéricos.\n"
-            "Reorganize os fragmentos apenas se houver suporte explícito\n"
-            "para uma sequência lógica ou cronológica.\n"
-            "\n"
-            "3. EXTENSÃO (CRÍTICO)\n"
-            "Não economize palavras.\n"
-            "Cada capítulo deve ser um deep dive completo baseado exclusivamente\n"
-            "no material fornecido.\n"
-            "\n"
-            "4. INTEGRAÇÃO TOTAL\n"
-            "Não produza listas soltas de fatos.\n"
-            "Integre nomes, datas, conceitos e evidências dentro de parágrafos densos.\n"
-            "Use listas apenas para detalhamento factual preciso.\n"
-            "\n"
-            "5. EVIDÊNCIA\n"
-            "Utilize blockquotes (>) somente quando o trecho for\n"
-            "extraído diretamente do material.\n"
-            "\n"
-            "ESTRUTURA DE SAÍDA OBRIGATÓRIA:\n"
-            "\n"
-            "# [Título Específico e Informativo]\n\n"
-            "## 🗺️ Mapa da Reconstrução\n"
-            "- **Arquétipo Adotado**: [Nome]\n"
-            "- **Lógica Estrutural**: [Critério usado para ordenar o conteúdo]\n\n"
-            "## [Título Temático do Capítulo 1]\n"
-            "[Texto narrativo denso, factual e integrado]\n\n"
-            "## [Título Temático do Capítulo 2]\n"
-            "[Texto narrativo denso, factual e integrado]\n\n"
-            "(Continue até cobrir todos os temas relevantes, unificando os similares)\n\n"
-            "## [Título Específico do Encerramento]\n"
-            "[Conclusões ou implicações estritamente derivadas do material]"
-        )
-
-        prompt = system_persona + "\n" + user_instruction
+        prompt, input_mode = self.build_prompt(analysis)
+        analysis.diagnostics["synthesis_input"] = input_mode
 
         try:
-            # Usamos o 'summarize_topic' como interface genérica de geração
             master_summary = await self.text_generation.summarize_topic(
-                "Manifesto de Conhecimento", prompt, [], self.language
+                "Resumo da mídia", prompt, [], self.language
             )
-
-            # Lógica Inteligente para o Apêndice (Auditabilidade)
-            appendix_parts = []
-            has_summaries = any(t.summary for t in analysis.topics if t.id != -1)
-
-            appendix_title = "📚 Apêndice: Detalhamento por Tópico" if has_summaries else "📚 Apêndice: Fontes Primárias (Evidências Brutas)"
-
-            for t in analysis.topics:
-                if t.id != -1:
-                    content = t.summary if t.summary else f"*Evidências extraídas do áudio:*\n" + "\n".join([f"> {s}" for s in t.snippets[:5]])
-                    appendix_parts.append(f"### {t.title}\n{content}")
-
-            original_details = "\n\n".join(appendix_parts)
-            analysis.summary = f"{master_summary}\n\n---\n# {appendix_title}\n{original_details}"
-
+            used_fallback = bool(getattr(self.text_generation, "last_call_used_fallback", False))
+            analysis.diagnostics["summary_source"] = "fallback" if used_fallback else "llm"
+            analysis.summary = self._with_appendix(master_summary, analysis)
         except Exception as exc:
             logger.error("synthesis.failed", error=str(exc))
-            # Fallback
-            analysis.summary = "Erro na geração da síntese. Verifique os tópicos individuais abaixo.\n\n" + \
-                               "\n\n".join([t.summary for t in analysis.topics if t.summary])
-
+            analysis.diagnostics["summary_source"] = "error"
+            analysis.summary = "Erro na geração do resumo. Veja os temas abaixo.\n\n" + "\n\n".join(
+                t.summary for t in analysis.topics if t.summary
+            )
         return analysis
+
+    def build_prompt(self, analysis: Analysis) -> tuple[str, str]:
+        """Monta o prompt e informa se usou a transcrição completa ou os temas."""
+        transcript = (analysis.document.text or "").strip() if analysis.document else ""
+        main_topics = [t for t in analysis.topics if t.id != -1]
+        use_full = bool(transcript) and len(transcript) <= self.max_full_transcript_chars
+
+        parts: list[str] = []
+        if use_full:
+            parts.append("<transcricao>\n" + transcript + "\n</transcricao>")
+            if main_topics:
+                overview = "\n".join(
+                    f"- {t.title or 'Tema'}: {', '.join((t.keywords or [])[:6])}" for t in main_topics
+                )
+                parts.append("<temas_identificados>\n" + overview + "\n</temas_identificados>")
+        else:
+            blocks = []
+            for t in main_topics:
+                snippets = t.snippets or []
+                body = t.summary or "\n".join(f"- {sn}" for sn in snippets[:15])
+                blocks.append(
+                    f"<tema id='{t.id}'>\n"
+                    f"<titulo>{t.title or 'Tema'}</titulo>\n"
+                    f"<palavras_chave>{', '.join((t.keywords or [])[:6])}</palavras_chave>\n"
+                    f"<conteudo>\n{body}\n</conteudo>\n"
+                    "</tema>"
+                )
+            parts.append("<temas>\n" + "\n".join(blocks) + "\n</temas>")
+            noise = [sn for t in analysis.topics if t.id == -1 for sn in (t.snippets or [])[:5]]
+            if noise:
+                parts.append("<trechos_de_transicao>\n" + "\n".join(f"- {sn}" for sn in noise) + "\n</trechos_de_transicao>")
+
+        visual = analysis.diagnostics.get("visual_context") or []
+        if visual:
+            parts.append("<descricoes_visuais>\n" + "\n".join(visual) + "\n</descricoes_visuais>")
+
+        language = _language_name(self.language)
+        system = (
+            "<<<SYSTEM>>>\n"
+            "Você resume aulas, palestras, reuniões e documentos com fidelidade.\n"
+            "Regras:\n"
+            "1. Use somente informações presentes no material; não invente fatos, números ou relações.\n"
+            "2. Preserve nomes, datas, valores e termos técnicos como aparecem no material.\n"
+            "3. As descrições visuais (quando houver) mostram o que aparecia na tela em alguns momentos; "
+            "use-as apenas para complementar o que foi dito, sem supor o que não está descrito.\n"
+            "4. Transcrições automáticas podem ter erros; se um trecho estiver confuso, não preencha a lacuna.\n"
+            f"5. Escreva em {language}.\n"
+            "<<<END_SYSTEM>>>"
+        )
+        instructions = (
+            "Resuma o material abaixo.\n\n"
+            "--- MATERIAL ---\n" + "\n\n".join(parts) + "\n--- FIM DO MATERIAL ---\n\n"
+            "Formato da resposta (Markdown):\n"
+            "# [Título específico que descreva o conteúdo]\n"
+            "[Um parágrafo de visão geral, com 3 a 5 frases.]\n\n"
+            "## [Título de cada assunto principal, na ordem em que aparecem]\n"
+            "[Um a três parágrafos por assunto, integrando conceitos, exemplos e dados citados.]\n\n"
+            "## Pontos-chave\n"
+            "[Lista com 3 a 7 itens.]\n\n"
+            "Não comente estas instruções na resposta."
+        )
+        return system + "\n" + instructions, ("full_transcript" if use_full else "topics")
+
+    @staticmethod
+    def _with_appendix(master_summary: str, analysis: Analysis) -> str:
+        """Acrescenta o detalhamento por tema, para auditoria do resumo."""
+        parts = []
+        has_summaries = any(t.summary for t in analysis.topics if t.id != -1)
+        title = "Apêndice: detalhamento por tema" if has_summaries else "Apêndice: trechos por tema"
+        for t in analysis.topics:
+            if t.id == -1:
+                continue
+            content = t.summary or "\n".join(f"> {sn}" for sn in (t.snippets or [])[:5])
+            parts.append(f"### {t.title or 'Tema'}\n{content}")
+        if not parts:
+            return master_summary
+        return f"{master_summary}\n\n---\n# {title}\n" + "\n\n".join(parts)
+
 
 class VisualInsightStep(AnalysisStep):
     """Level 7.0: Multimodal insight. 'Sees' the video to complement the transcript."""
@@ -386,12 +452,25 @@ class VisualInsightStep(AnalysisStep):
     def name(self) -> str:
         return "visual_insight"
 
+    @staticmethod
+    def frame_timestamps(duration: float, seconds_per_frame: float = 180.0,
+                         min_frames: int = 3, max_frames: int = 8) -> list[float]:
+        """Instantes (em segundos) dos quadros a descrever."""
+        if duration <= 0:
+            return []
+        count = max(min_frames, min(max_frames, round(duration / seconds_per_frame)))
+        return [duration * (i + 0.5) / count for i in range(count)]
+
     async def process(self, analysis: Analysis) -> Analysis:
         import torch
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         if not analysis.media_id or not analysis.document.segments:
             return analysis
+        media_type = analysis.diagnostics.get("media_type")
+        media_type = str(getattr(media_type, "value", media_type) or "").lower()
+        if media_type and "video" not in media_type:
+            return analysis  # áudio e documentos não têm quadros para descrever
 
         try:
             # 1. Estimate duration from segments
@@ -411,8 +490,9 @@ class VisualInsightStep(AnalysisStep):
             downloader = self.storage_resolver.get_download_service(provider)
             video_data = await downloader.download_file(file_path)
 
-            # 3. Sample frames (10%, 50%, 90%)
-            timestamps = [duration * 0.1, duration * 0.5, duration * 0.9]
+            # 3. Amostragem de quadros: um a cada ~3 minutos, entre 3 e 8 quadros,
+            # distribuídos uniformemente ao longo do vídeo.
+            timestamps = self.frame_timestamps(duration)
             visual_descriptions = []
 
             for ts in timestamps:
@@ -422,11 +502,14 @@ class VisualInsightStep(AnalysisStep):
                         frame_bytes,
                         prompt="Describe what is happening in this video frame concisely."
                     )
+                    if not description or "unavailable" in description.lower():
+                        continue
                     timestamp_str = f"{int(ts // 60):02d}:{int(ts % 60):02d}"
                     visual_descriptions.append(f"[Visual @ {timestamp_str}]: {description}")
                 except Exception as e:
                     logger.warning("visual_insight.frame_failed", timestamp=ts, error=str(e))
 
+            analysis.diagnostics["visual_frames"] = len(visual_descriptions)
             if visual_descriptions:
                 analysis.diagnostics["visual_context"] = visual_descriptions
                 logger.info("knowledge_base.visual_insight_generated", media_id=str(analysis.media_id), count=len(visual_descriptions))

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Callable, Dict, Any
 
+import structlog
+
 from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
 
 from src.media_processing.application.ports import (
@@ -17,6 +19,8 @@ from src.media_processing.application.ports import (
     VideoThumbnailGeneratorPort,
 )
 from src.shared.infrastructure.config.settings import settings
+
+logger = structlog.get_logger(__name__)
 
 # Optional adapters; guard imports to avoid missing deps
 def _load_fastwhisper():
@@ -103,6 +107,20 @@ _VISUAL_ANALYZERS: Dict[str, Callable[[], VisualAnalysisPort]] = {}
 _VISUAL_META: Dict[str, Dict[str, Any]] = {}
 
 def _register_visual_providers():
+    # Ollama (modelo multimodal configurado em settings.visual_ollama_model)
+    from src.media_processing.infrastructure.adapters.visual.ollama_visual_adapter import (
+        OllamaVisualAdapter,
+    )
+
+    _VISUAL_ANALYZERS["ollama"] = lambda: OllamaVisualAdapter(
+        model=settings.visual_ollama_model, host=settings.ollama_host
+    )
+    _VISUAL_META["ollama"] = {
+        "label": f"Ollama ({settings.visual_ollama_model})",
+        "public": True,
+        "description": "Usa o modelo multimodal do Ollama para descrever os quadros.",
+    }
+
     # Moondream
     cls_moon = _load_moondream()
     if cls_moon:
@@ -311,8 +329,20 @@ def register_speech_recognizer(
 
 
 def get_speech_recognizer(provider: str | None) -> SpeechRecognizer:
-    key = (provider or "whisper").lower()
-    factory = _SPEECH_RECOGNIZERS.get(key) or _SPEECH_RECOGNIZERS["whisper"]
+    """Resolve o reconhecedor de fala.
+
+    Sem provedor informado (ou com um nome desconhecido), usa o padrão real
+    ("default": Faster-Whisper, openai-whisper ou HuggingFace, nessa ordem).
+    Antes, caía no stub "whisper", que devolvia uma transcrição vazia.
+    """
+    key = (provider or "default").lower()
+    factory = (
+        _SPEECH_RECOGNIZERS.get(key)
+        or _SPEECH_RECOGNIZERS.get("default")
+        or _SPEECH_RECOGNIZERS["whisper"]
+    )
+    if provider and key not in _SPEECH_RECOGNIZERS:
+        logger.warning("speech_recognizer.unknown_provider_using_default", provider=provider)
     return factory()
 
 def list_speech_recognizers(public_only: bool = True) -> list[str]:

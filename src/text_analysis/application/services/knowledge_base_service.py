@@ -1,6 +1,7 @@
 """Service for Semantic Knowledge Base search."""
 from __future__ import annotations
 
+import inspect
 from typing import Any, Dict, List
 from uuid import UUID
 import structlog
@@ -20,7 +21,9 @@ class KnowledgeBaseService:
         logger.info("knowledge_base.search_started", query=query)
         
         # 1. Embed the query
-        embeddings = await self._embedding_service.embed([query])
+        embeddings = self._embedding_service.embed([query], kind="query")
+        if inspect.isawaitable(embeddings):
+            embeddings = await embeddings
         query_vector = embeddings[0]
         
         # 2. Search in Vector DB
@@ -34,6 +37,8 @@ class KnowledgeBaseService:
                 "content": row.content,
                 "distance": float(distance),
                 "relevance": round((1 - float(distance)) * 100, 1),
+                "start": (row.metadata_json or {}).get("start"),
+                "end": (row.metadata_json or {}).get("end"),
                 "metadata": row.metadata_json
             })
             

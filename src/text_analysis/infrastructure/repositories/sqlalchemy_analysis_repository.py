@@ -30,7 +30,11 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
             ),
             "sentiment_items": [s.__dict__ for s in analysis.sentiments],
             "topics": [t.__dict__ for t in analysis.topics],
-            "diagnostics": analysis.diagnostics,
+            # Chaves iniciadas por "_" são dados temporários do pipeline
+            # (ex.: embeddings) e não devem ser gravadas no JSON.
+            "diagnostics": {
+                k: v for k, v in (analysis.diagnostics or {}).items() if not str(k).startswith("_")
+            },
             "media_id": str(analysis.media_id) if analysis.media_id else None,
             "transcription_id": (
                 str(analysis.transcription_id) if analysis.transcription_id else None

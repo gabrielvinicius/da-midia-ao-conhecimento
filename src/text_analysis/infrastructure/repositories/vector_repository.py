@@ -11,8 +11,17 @@ class VectorRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def save_chunks(self, media_id: UUID, chunks: List[dict]):
-        """Persists multiple text chunks with their embeddings."""
+    async def save_chunks(self, media_id: UUID, chunks: List[dict], replace: bool = True):
+        """Persists multiple text chunks with their embeddings.
+
+        Com ``replace=True`` (padrão), os trechos anteriores da mesma mídia são
+        removidos na mesma transação, evitando resultados duplicados na busca
+        quando uma mídia é reprocessada.
+        """
+        if replace:
+            await self.session.execute(
+                text("DELETE FROM knowledge_chunks WHERE media_id = :mid"), {"mid": media_id}
+            )
         for chunk in chunks:
             record = KnowledgeChunkModel(
                 media_id=media_id,
@@ -21,7 +30,11 @@ class VectorRepository:
                 metadata_json=chunk.get("metadata", {})
             )
             self.session.add(record)
-        await self.session.commit()
+        try:
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            raise
 
     async def semantic_search(self, query_embedding: List[float], limit: int = 5) -> List[Tuple[KnowledgeChunkModel, float]]:
         """Performs cosine similarity search against the knowledge base."""

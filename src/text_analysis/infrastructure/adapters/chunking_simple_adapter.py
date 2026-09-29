@@ -12,16 +12,7 @@ from src.text_analysis.domain import Document, TextChunk
 class SimpleChunker(ChunkingServicePort):
     def chunk(self, document: Document, size: int, overlap: int) -> list[TextChunk]:
         if document.segments:
-            return [
-                TextChunk(
-                    id=str(uuid4()),
-                    text=segment["text"],
-                    start=segment.get("start"),
-                    end=segment.get("end"),
-                )
-                for segment in document.segments
-                if isinstance(segment, dict) and segment.get("text")
-            ]
+            return self._chunk_segments(document.segments, size)
 
         text = document.text.strip()
         sentences = re.split(r"(?<=[.!?])\s+", text)
@@ -51,4 +42,38 @@ class SimpleChunker(ChunkingServicePort):
             chunk_text = " ".join(buffer).strip()
             chunks.append(TextChunk(id=str(uuid4()), text=chunk_text, start=start))
 
+        return chunks
+
+    @staticmethod
+    def _chunk_segments(segments: list, size: int) -> list[TextChunk]:
+        """Agrupa segmentos consecutivos da transcrição até ~size caracteres.
+
+        Cada segmento do Whisper costuma ter só uma frase curta; agrupá-los dá
+        trechos com contexto suficiente para busca e sentimento, preservando o
+        início do primeiro segmento e o fim do último.
+        """
+        chunks: list[TextChunk] = []
+        buffer: list[str] = []
+        start = end = None
+
+        def flush() -> None:
+            if buffer:
+                chunks.append(
+                    TextChunk(id=str(uuid4()), text=" ".join(buffer), start=start, end=end)
+                )
+
+        for segment in segments:
+            if not isinstance(segment, dict):
+                continue
+            text = (segment.get("text") or "").strip()
+            if not text:
+                continue
+            if buffer and sum(len(t) + 1 for t in buffer) + len(text) > size:
+                flush()
+                buffer, start = [], None
+            if start is None:
+                start = segment.get("start")
+            end = segment.get("end")
+            buffer.append(text)
+        flush()
         return chunks
