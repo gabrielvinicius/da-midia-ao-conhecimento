@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Link, NavLink, useLocation } from 'react-router-dom';
-import { Home, Upload, LogOut, UserCircle, Settings, ShieldCheck, Menu } from 'lucide-react';
+import { Home, Upload, LogOut, UserCircle, Settings, ShieldCheck, Menu, Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from './ui/Button';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
@@ -58,6 +58,10 @@ const AppLayout = () => {
               <NavLink to="/upload" className={({ isActive }) => navLinkClasses(isActive)}>
                 <Upload className="mr-3 h-4 w-4" />
                 {!isSidebarCollapsed && 'Envios'}
+              </NavLink>
+              <NavLink to="/search" className={({ isActive }) => navLinkClasses(isActive)}>
+                <Search className="mr-3 h-4 w-4" />
+                {!isSidebarCollapsed && 'Busca'}
               </NavLink>
               {isAdmin && (
                 <NavLink to="/admin/dashboard" className={({ isActive }) => navLinkClasses(isActive)}>

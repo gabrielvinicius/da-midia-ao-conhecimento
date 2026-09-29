@@ -23,6 +23,7 @@ const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const MediaDetailPage = lazy(() => import("./pages/MediaDetailPage"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const SearchPage = lazy(() => import("./pages/SearchPage"));
 
 // Admin Pages
 // Note: These need to be exported as default or named exports correctly in their files.
@@ -58,6 +59,7 @@ const App = () => {
                   <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="upload" element={<UploadPage />} />
+                  <Route path="search" element={<SearchPage />} />
                   <Route path="media/:id" element={<MediaDetailPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>

@@ -156,7 +156,8 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
   const handleSaveCorrection = async () => {
     if (!analysis) return;
     try {
-      await api.put(`/text-analysis/${analysis.analysis_id}/summary?new_summary=${encodeURIComponent(editedText)}`);
+      // O texto vai no corpo: resumos longos podem exceder o limite de tamanho da URL.
+      await api.put(`/text-analysis/${analysis.analysis_id}/summary`, { summary: editedText });
       toast.success("Resumo atualizado!");
       setIsEditing(false);
       refetch();
