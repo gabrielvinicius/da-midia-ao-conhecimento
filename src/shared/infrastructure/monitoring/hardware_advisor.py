@@ -87,8 +87,8 @@ class HardwareAdvisor:
         """Retorna uma lista de provedores alternativos em ordem de preferência."""
         # Exemplo de planos de contingência
         plans = {
-            "llama3": ["phi3", "openai", "heuristic"],
-            "whisper": ["fastwhisper", "google_cloud", "vosk"],
+            "llama3": ["phi3", "heuristic"],
+            "whisper": ["fastwhisper", "vosk"],
             "bertopic": ["sklearn_lda", "keyword_frequency"]
         }
         

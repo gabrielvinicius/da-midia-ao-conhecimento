@@ -13,7 +13,7 @@ class MediaSettings(BaseSettings):
         "mock",
         "mock_whisper",
     ]
-    summarization_providers_allowed: List[str] = ["openai", "ollama", "mock"]
+    summarization_providers_allowed: List[str] = ["ollama", "mock"]
     sentiment_providers_allowed: List[str] = ["vader", "transformers", "mock"]
     topic_providers_allowed: List[str] = ["bertopic", "mock"]
     media_min_file_size_bytes: int = 1

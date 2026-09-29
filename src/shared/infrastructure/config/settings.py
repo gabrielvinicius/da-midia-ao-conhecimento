@@ -30,9 +30,6 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
-    # OpenAI
-    openai_api_key: Optional[str] = None
-
     # Hugging Face
     hf_token: Optional[str] = None
 
@@ -45,7 +42,7 @@ class Settings(BaseSettings):
 
     # Providers (global defaults only; per-context allowlists live in each context)
     transcription_default_provider: str = "whisper"
-    summarization_default_provider: str = "openai"
+    summarization_default_provider: str = "ollama"
     sentiment_default_provider: str = "vader"
     topic_modeling_default_provider: str = "bertopic"
 

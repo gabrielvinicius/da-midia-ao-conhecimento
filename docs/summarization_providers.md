@@ -8,7 +8,6 @@
 | `huggingface_t5_base`    | T5-base focado em PT/EN curtos.                                            | `transformers`, PyTorch                        | Opcional        |
 | `huggingface_bart_large` | BART-Large CNN (resumos longos em EN).                                     | `transformers`, PyTorch                        | Opcional        |
 | `huggingface_pegasus`    | Pegasus Multi-News, bom para conteúdos extensos.                           | `transformers`, PyTorch                        | Opcional        |
-| `openai`                 | Invoca modelos ChatCompletion (GPT) para resumo abstrativo.                | `openai`, chave de API válida                  | Opcional        |
 
 ## Como habilitar
 
@@ -20,7 +19,6 @@ export SUMMARIZATION_DEFAULT_PROVIDER="heuristic_interpretive"
 export SUMMARIZATION_PROVIDER_OVERRIDES='{"huggingface": {"model_name": "google-t5/t5-large"}}'
 ```
 
-* **OpenAI**: definir `SUMMARIZATION_PROVIDER_OVERRIDES` com `{"openai": {"api_key": "sk-...", "model": "gpt-4"}}`.
 * **HuggingFace**: aceitar `model_name`, `device` e limites de tokens.
 
 ## Registry Global
