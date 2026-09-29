@@ -48,6 +48,33 @@ services:
       - backend-net
       - public-net
 
+  ollama:
+    # LLM local (Qwen3.5-9B por padrão). Baixe os modelos uma vez com:
+    #   docker compose exec ollama ollama pull qwen3.5:9b
+    #   docker compose exec ollama ollama pull gemma4:e4b
+    image: ollama/ollama:latest
+    container_name: video_summarizer_ollama
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      # Descarrega o modelo da GPU após 5 min ocioso, liberando VRAM.
+      - OLLAMA_KEEP_ALIVE=5m
+      - OLLAMA_MAX_LOADED_MODELS=1
+    networks:
+      - backend-net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   backend:
     build:
       context: .
@@ -85,6 +112,10 @@ services:
       - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       - HF_TOKEN=${HF_TOKEN}
       - AI_DEVICE=cuda
+      - OLLAMA_HOST=http://ollama:11434
+      - LLM_MODEL=${LLM_MODEL:-qwen3.5:9b}
+      - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-gemma4:e4b}
+      - VISUAL_PROVIDER=${VISUAL_PROVIDER:-moondream}
 
   worker-heavy:
     build:
@@ -99,6 +130,7 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       backend: { condition: service_healthy }
+      ollama: { condition: service_started }
     volumes:
       - ./src:/app/src:ro
       - media_data:/app/storage
@@ -124,6 +156,10 @@ services:
       - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       - HF_TOKEN=${HF_TOKEN}
       - AI_DEVICE=cuda
+      - OLLAMA_HOST=http://ollama:11434
+      - LLM_MODEL=${LLM_MODEL:-qwen3.5:9b}
+      - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-gemma4:e4b}
+      - VISUAL_PROVIDER=${VISUAL_PROVIDER:-moondream}
 
   worker-light:
     build:
@@ -174,6 +210,7 @@ volumes:
   minio_data:
   media_data:
   ai_models_cache:
+  ollama_models:
 
 networks:
   public-net:

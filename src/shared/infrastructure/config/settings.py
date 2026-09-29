@@ -41,10 +41,21 @@ class Settings(BaseSettings):
     minio_secure: bool = False
 
     # Providers (global defaults only; per-context allowlists live in each context)
-    transcription_default_provider: str = "whisper"
+    transcription_default_provider: str = "fastwhisper"
     summarization_default_provider: str = "ollama"
     sentiment_default_provider: str = "vader"
     topic_modeling_default_provider: str = "bertopic"
+
+    # Ollama (LLM local): endereço do servidor e modelos padrão
+    ollama_host: str = "http://localhost:11434"
+    llm_model: str = "qwen3.5:9b"
+    llm_fallback_model: str = "gemma4:e4b"
+    llm_context_tokens: int = 32768
+    llm_timeout_seconds: int = 900
+    # Descrição de quadros de vídeo: "moondream" (padrão) ou "ollama"
+    # (usa o modelo multimodal definido em visual_ollama_model).
+    visual_provider: str = "moondream"
+    visual_ollama_model: str = "qwen3.5:9b"
 
     # AI / Machine Learning Hardware
     # Options: "auto", "cuda", "cpu", "rocm"

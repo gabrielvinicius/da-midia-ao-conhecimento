@@ -7,8 +7,6 @@ import logging
 import os
 from typing import Optional
 
-from transformers import pipeline
-
 from src.text_analysis.application.ports.text_generation import TextGenerationPort
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.shared.infrastructure.observability.metrics.prometheus_metrics import (
@@ -67,6 +65,8 @@ class Llama3TransformersTextGenerationAdapter(TextGenerationPort):
                 device_idx = -1 if self.device == "cpu" else 0
 
                 def _load():
+                    from transformers import pipeline
+
                     return pipeline(
                         task="text-generation",
                         model=self.model_name,

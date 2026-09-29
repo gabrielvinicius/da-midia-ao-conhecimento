@@ -1,69 +1,83 @@
-"""Adapter de geração de texto via Ollama com retries, health e métricas."""
+"""Adapter de geração de texto via Ollama com retries, modelo reserva e métricas."""
 
 from __future__ import annotations
 
-import logging
 import time
 from dataclasses import dataclass
 from typing import Optional
 
 import httpx
 
-from src.text_analysis.application.ports.text_generation import TextGenerationPort
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.shared.infrastructure.observability.metrics.prometheus_metrics import (
     SharedPrometheusMetrics,
 )
+from src.text_analysis.application.ports.text_generation import TextGenerationPort
 
 logger = get_logger(__name__)
+
+SYSTEM_START = "<<<SYSTEM>>>"
+SYSTEM_END = "<<<END_SYSTEM>>>"
+DEFAULT_SYSTEM_PROMPT = "Você é um assistente que resume conteúdos com fidelidade, sem inventar fatos."
 
 
 @dataclass(slots=True)
 class OllamaConfig:
     host: str = "http://localhost:11434"
-    model: str = "llama3.1:8b"
-    timeout: int = 20
+    model: str = "qwen3.5:9b"
+    fallback_model: Optional[str] = None
+    timeout: int = 900
+    context_tokens: int = 32768
+    temperature: float = 0.2
+    keep_alive: str = "5m"
 
 
-PROMPT_TEMPLATE = """\
-# {title}
-## Resumo
-- {summary_bullet_1}
-- {summary_bullet_2}
-## Subtópicos
-1. **{sub1}**
-   - {sub1_detail}
-2. **{sub2}**
-   - {sub2_detail}
-## Termos-chave
-{keywords_block}
-
-Instruções:
-- Responda em {language}.
-- Não invente fatos; se faltar informação, escreva "Não informado".
-- Seja conciso (máx. ~200 palavras).
-
-Conteúdo de origem:
-{content}
-"""
+def split_system_prompt(content: str) -> tuple[str, str]:
+    """Separa o bloco <<<SYSTEM>>>...<<<END_SYSTEM>>> do restante do prompt."""
+    if SYSTEM_START in content and SYSTEM_END in content:
+        head, _, rest = content.partition(SYSTEM_END)
+        system = head.split(SYSTEM_START, 1)[1].strip()
+        return (system or DEFAULT_SYSTEM_PROMPT), rest.strip()
+    return DEFAULT_SYSTEM_PROMPT, content
 
 
 class OllamaTextGenerationAdapter(TextGenerationPort):
-    """Geração via Ollama; mantém fallback determinístico para disponibilidade."""
+    """Geração via API de chat do Ollama.
+
+    - O modo de raciocínio ("thinking") dos modelos Qwen3/Qwen3.5 é desligado,
+      pois só aumentaria o tempo de resposta de um resumo.
+    - Se o modelo principal falhar, tenta uma vez o modelo reserva.
+    - Se ambos falharem, devolve um texto determinístico e marca
+      ``last_call_used_fallback``, para que o pipeline registre que o resumo
+      não veio do LLM.
+    """
+
+    provider_name = "ollama"
 
     def __init__(
         self,
-        model: str = "llama3.1:8b",
+        model: str = "qwen3.5:9b",
         host: str = "http://localhost:11434",
-        timeout: int = 20,
-        retries: int = 2,
+        timeout: int = 900,
+        retries: int = 1,
         retry_cooldown: int = 60,
+        fallback_model: Optional[str] = None,
+        context_tokens: int = 32768,
     ) -> None:
-        self.config = OllamaConfig(host=host, model=model, timeout=timeout)
+        self.config = OllamaConfig(
+            host=host.rstrip("/"),
+            model=model,
+            fallback_model=fallback_model if fallback_model and fallback_model != model else None,
+            timeout=timeout,
+            context_tokens=context_tokens,
+        )
+        self.model_name = model
         self._available = True
         self._retries = retries
         self._retry_cooldown = retry_cooldown
         self._last_failure_ts: float | None = None
+        self.last_call_used_fallback = False
+        self.last_model_used: Optional[str] = None
         metrics = SharedPrometheusMetrics()
         self._m_attempts = metrics.get_textgen_ollama_attempts()
         self._m_failures = metrics.get_textgen_ollama_failures()
@@ -79,68 +93,98 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
         keywords: list[str],
         language: str,
     ) -> str:
+        self.last_call_used_fallback = False
         self._m_attempts.labels(model=self.config.model).inc()
-        # tenta reativar se estava indisponível e cooldown já passou
+        # tenta reativar se estava indisponível e o cooldown já passou
         if not self._available and self._last_failure_ts:
             if time.time() - self._last_failure_ts > self._retry_cooldown:
                 if await self.health_check():
                     self._available = True
                     self._last_failure_ts = None
 
-        prompt = PROMPT_TEMPLATE.format(
-            title=title_hint or "Tópico",
-            content=content or "Não informado",
-            keywords_block="\n".join(f"- {kw}" for kw in (keywords or ["Não informado"])),
-            language=language,
-            summary_bullet_1="Não informado",
-            summary_bullet_2="",
-            sub1="Aspecto principal",
-            sub1_detail="Não informado",
-            sub2="Risco/Oportunidade",
-            sub2_detail="Não informado",
-        )
-        try:
-            last_exc = None
-            async with httpx.AsyncClient(timeout=self.config.timeout) as client:
+        system, user = split_system_prompt(content or "")
+        if SYSTEM_START not in (content or ""):
+            user = self._wrap_raw_content(title_hint, user, keywords, language)
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+
+        models = [self.config.model] + ([self.config.fallback_model] if self.config.fallback_model else [])
+        last_exc: Exception | None = None
+        async with httpx.AsyncClient(timeout=self.config.timeout) as client:
+            for model in models:
                 for attempt in range(self._retries + 1):
                     try:
-                        resp = await client.post(
-                            f"{self.config.host}/api/generate",
-                            json={"model": self.config.model, "prompt": prompt, "stream": False},
-                        )
-                        resp.raise_for_status()
-                        data = resp.json()
-                        return data.get("response", "Não informado")
-                    except Exception as exc:  # pragma: no cover
+                        text = await self._chat(client, model, messages)
+                        self._available = True
+                        self.last_model_used = model
+                        return text
+                    except Exception as exc:  # chamada externa
                         last_exc = exc
-                        self._m_retries.labels(model=self.config.model).inc()
+                        self._m_retries.labels(model=model).inc()
                         logger.warning(
                             "ollama.generation_retry",
+                            model=model,
                             error=str(exc),
                             attempt=attempt + 1,
                         )
-                if last_exc:
-                    raise last_exc
-        except Exception as exc:  # pragma: no cover - chamada externa
-            logger.warning("ollama.generation_failed", error=str(exc))
-            self._available = False
-            self._last_failure_ts = time.time()
-            self._m_failures.labels(model=self.config.model).inc()
-            return self._fallback(title_hint, keywords)
+
+        logger.warning("ollama.generation_failed", error=str(last_exc))
+        self._available = False
+        self._last_failure_ts = time.time()
+        self._m_failures.labels(model=self.config.model).inc()
+        self.last_call_used_fallback = True
+        return self._fallback(title_hint, keywords)
+
+    async def _chat(self, client: httpx.AsyncClient, model: str, messages: list[dict]) -> str:
+        resp = await client.post(
+            f"{self.config.host}/api/chat",
+            json={
+                "model": model,
+                "messages": messages,
+                "stream": False,
+                "think": False,
+                "keep_alive": self.config.keep_alive,
+                "options": {
+                    "num_ctx": self.config.context_tokens,
+                    "temperature": self.config.temperature,
+                },
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        text = (data.get("message") or {}).get("content") or data.get("response") or ""
+        text = text.strip()
+        if not text:
+            raise ValueError("resposta vazia do Ollama")
+        return text
+
+    @staticmethod
+    def _wrap_raw_content(
+        title_hint: Optional[str], content: str, keywords: list[str], language: str
+    ) -> str:
+        """Instrução padrão quando o chamador envia apenas o texto de origem."""
+        kw = ", ".join(keywords) if keywords else "não informadas"
+        return (
+            f"Resuma o conteúdo abaixo sobre '{title_hint or 'o tema'}' em {language}, "
+            "em Markdown, sem inventar informações.\n"
+            f"Palavras-chave: {kw}\n\n"
+            f"{content or 'Não informado'}"
+        )
 
     def _fallback(self, title_hint: Optional[str], keywords: list[str]) -> str:
         lines = "\n".join(f"- {kw}" for kw in (keywords or ["Não informado"]))
         return (
             f"# {title_hint or 'Tópico'}\n"
-            "## Resumo\n- Não informado\n"
-            "## Subtópicos\n1. **Não informado**\n   - Não informado\n"
+            "## Resumo (automático, sem LLM)\n"
             "## Termos-chave\n" + lines
         )
 
     async def health_check(self) -> bool:
         """Ping leve para validar disponibilidade sem gerar conteúdo."""
         try:
-            async with httpx.AsyncClient(timeout=self.config.timeout) as client:
+            async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(f"{self.config.host}/api/tags")
                 resp.raise_for_status()
                 return True

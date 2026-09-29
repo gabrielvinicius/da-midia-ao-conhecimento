@@ -6,7 +6,6 @@ import logging
 import os
 from typing import Optional
 
-from transformers import pipeline
 
 from src.text_analysis.application.ports.text_generation import TextGenerationPort
 from src.shared.infrastructure.config.settings import settings
@@ -58,7 +57,7 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
                 task = "text-generation" if self._is_instruct else "summarization"
 
                 import torch
-                from transformers import BitsAndBytesConfig
+                from transformers import BitsAndBytesConfig, pipeline
                 
                 # Check for quantization need (Large models on consumer GPU)
                 is_large_model = any(s in self.model_name for s in ["7B", "8B", "9B", "14B", "30B", "32B"])

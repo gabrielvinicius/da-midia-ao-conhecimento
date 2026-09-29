@@ -96,14 +96,26 @@ def get_text_generation_adapter(config: AnalysisConfig):
         return _CACHED_TEXTGEN_ADAPTER
 
     # ... (routing logic) ...
-    if model_cfg.startswith("hf-llama3") or model_cfg.startswith("hf:llama3") or model_cfg.startswith("llama3"):
+    if model_cfg.startswith(("hf-llama3", "hf:llama3")) or model_cfg == "llama3":
         adapter = Llama3TransformersTextGenerationAdapter()
     elif model_cfg.startswith("hf:"):
+        if not validate_textgen_name(model_cfg):
+            raise ValueError(f"Modelo de geração de texto desconhecido: {model_cfg}")
         name = model_cfg.replace("hf:", "", 1) or "facebook/bart-large-cnn"
         model_name = resolve_textgen_target(name)
         adapter = TransformersTextGenerationAdapter(model_name=model_name)
     else:
-        adapter = OllamaTextGenerationAdapter(config.llm_model)
+        from src.shared.infrastructure.config.settings import settings
+
+        # Nome sem prefixo = modelo servido pelo Ollama (ex.: "qwen3.5:9b").
+        model_cfg = model_cfg.removeprefix("ollama:")
+        adapter = OllamaTextGenerationAdapter(
+            model=model_cfg,
+            host=settings.ollama_host,
+            timeout=settings.llm_timeout_seconds,
+            fallback_model=settings.llm_fallback_model,
+            context_tokens=settings.llm_context_tokens,
+        )
         
     _CACHED_TEXTGEN_ADAPTER = adapter
     return adapter
