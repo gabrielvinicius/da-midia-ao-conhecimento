@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   getSystemStats,
   getSystemHealth,
@@ -55,6 +55,6 @@ export const useAllMedia = (params: GetPaginatedDataParams) => {
   return useQuery({
     queryKey: ['admin-all-media', params.page, params.limit, params.search],
     queryFn: () => getAllMedia(params),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData, // mantém a página anterior enquanto a próxima carrega
   });
 };
