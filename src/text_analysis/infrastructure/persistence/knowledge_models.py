@@ -15,7 +15,7 @@ class KnowledgeChunkModel(Base):
     
     content = Column(Text, nullable=False)
     
-    # 384 is the dimension for paraphrase-multilingual-MiniLM-L12-v2
+    # 384 dimensões: tamanho do vetor do intfloat/multilingual-e5-small
     embedding = Column(Vector(384), nullable=False)
     
     # Metadata for time context (start/end in seconds) or speaker

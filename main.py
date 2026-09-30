@@ -264,11 +264,20 @@ async def lifespan(app: FastAPI):
 
     resources = ApplicationResources(cache=cache, event_bus=event_bus)
 
-    default_admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "user@example.com").strip()
-    default_admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "Admin123!")
+    # O primeiro administrador só é criado quando as duas variáveis são
+    # definidas. Não há valor padrão: uma senha fixa no código-fonte público
+    # daria acesso administrativo a qualquer instalação nova.
+    default_admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "").strip()
+    default_admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "")
     force_admin_password = (
         os.getenv("DEFAULT_ADMIN_FORCE_PASSWORD", "0").lower() in {"1", "true", "yes"}
     )
+
+    if not lightweight_mode and not (default_admin_email and default_admin_password):
+        logger.info(
+            "auth.ensure_admin.skipped",
+            reason="DEFAULT_ADMIN_EMAIL e DEFAULT_ADMIN_PASSWORD não definidos",
+        )
 
     if not lightweight_mode and default_admin_email and default_admin_password:
         try:
