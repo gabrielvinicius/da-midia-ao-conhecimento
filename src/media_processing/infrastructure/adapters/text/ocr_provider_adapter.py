@@ -32,7 +32,7 @@ class OCRProvider:
             
             return await asyncio.to_thread(_run)
         except Exception as e:
-            logger.error("ocr_provider.image_failed", error=str(exc))
+            logger.error("ocr_provider.image_failed", error=str(e))
             return f"OCR Error: {str(e)}"
 
     async def _ocr_pdf(self, path: Path) -> str:

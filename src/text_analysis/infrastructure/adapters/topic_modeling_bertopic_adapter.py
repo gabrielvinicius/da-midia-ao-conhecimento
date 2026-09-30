@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from collections import Counter
 
 from src.shared.infrastructure.observability.logging.logging_config import get_logger

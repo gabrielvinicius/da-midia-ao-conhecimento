@@ -117,4 +117,5 @@ async def test_delete_and_reprocess_flow():
 
     assert media.id not in repo.saved
     assert maintenance.deleted  # file deletion attempted
-    assert cleanup.cleaned == [media.id]
+    # O reprocessamento limpa os resultados anteriores e a exclusão limpa de novo.
+    assert cleanup.cleaned == [media.id, media.id]

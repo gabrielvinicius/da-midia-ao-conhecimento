@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from src.shared.infrastructure.observability.logging.logging_config import get_logger

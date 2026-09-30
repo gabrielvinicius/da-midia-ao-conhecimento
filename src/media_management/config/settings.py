@@ -14,7 +14,7 @@ class MediaSettings(BaseSettings):
         "mock_whisper",
     ]
     summarization_providers_allowed: List[str] = ["ollama", "mock"]
-    sentiment_providers_allowed: List[str] = ["vader", "transformers", "mock"]
+    sentiment_providers_allowed: List[str] = ["transformers", "mock"]
     topic_providers_allowed: List[str] = ["bertopic", "mock"]
     media_min_file_size_bytes: int = 1
     media_max_file_size_bytes: int = 500 * 1024 * 1024

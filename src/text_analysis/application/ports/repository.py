@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import List, Optional
+
 from abc import ABC, abstractmethod
 from uuid import UUID
 

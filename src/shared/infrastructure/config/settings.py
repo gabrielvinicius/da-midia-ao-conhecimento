@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     # Providers (global defaults only; per-context allowlists live in each context)
     transcription_default_provider: str = "fastwhisper"
     summarization_default_provider: str = "ollama"
-    sentiment_default_provider: str = "vader"
+    sentiment_default_provider: str = "transformers"
     topic_modeling_default_provider: str = "bertopic"
 
     # Ollama (LLM local): endereço do servidor e modelos padrão

@@ -19398,3 +19398,6 @@ cython_debug/
 
 .gemini/
 gha-creds-*.json
+
+# Banco SQLite local (gerado em desenvolvimento e nos testes)
+app.db

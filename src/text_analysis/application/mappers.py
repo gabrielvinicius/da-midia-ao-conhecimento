@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import List
+
 from ..domain import Analysis, SentimentLabel, TextChunk
 from .dtos import AnalysisResultDTO, SentimentItemDTO, TopicDTO
 from src.shared.utils.text import strip_markdown

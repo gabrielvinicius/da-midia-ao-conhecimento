@@ -29,7 +29,6 @@ redis = "^5.0.7"
 
 # --- Caching & Performance ---
 redis-py = "^5.0.7"
-aiocache = "^0.12.2"
 aiofiles = "^24.1.0"
 
 # --- AI / Machine Learning ---
@@ -56,7 +55,6 @@ pymupdf = "^1.24.9"          # For PDF text extraction
 # --- Observability & Resilience ---
 structlog = "^24.2.0"
 prometheus-client = "^0.20.0"
-pybreaker = "^1.1.0"
 
 # --- OpenTelemetry for Distributed Tracing ---
 opentelemetry-api = "^1.25.0"
