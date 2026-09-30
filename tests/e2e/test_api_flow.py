@@ -92,3 +92,26 @@ def test_admin_dashboard_endpoints_answer(client):
     assert activity.status_code == 200, activity.text
     assert activity.json()["user_id"] == user_id
     assert client.get("/admin/media", headers=admin).status_code == 200
+
+
+def test_concurrent_requests_each_get_their_own_session(client):
+    """Antes, todos os módulos usavam uma única sessão criada na inicialização:
+    requisições simultâneas falhavam com 500 ("concurrent operations are not
+    permitted") e podiam misturar o estado de transação entre usuários."""
+    import asyncio
+
+    import httpx
+
+    import main
+
+    headers = _account(client, "dora")
+    paths = ["/media/", "/media/stats", "/auth/me"] * 10
+
+    async def burst():
+        transport = httpx.ASGITransport(app=main.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+            responses = await asyncio.gather(*(ac.get(p, headers=headers) for p in paths))
+        return [r.status_code for r in responses]
+
+    codes = asyncio.run(burst())
+    assert codes == [200] * len(paths)

@@ -2,10 +2,17 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager, contextmanager
+from contextvars import ContextVar
+from uuid import uuid4
 from typing import AsyncGenerator, Generator
 
 from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_scoped_session,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import NullPool
 
@@ -38,6 +45,41 @@ if "+async" in _async_url or "aiosqlite" in _async_url:
 
 SessionLocal = sessionmaker(bind=engine_sync)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+
+# --- Uma sessão por requisição --------------------------------------------
+# Os módulos da API são montados uma vez, na inicialização. Antes, recebiam a
+# sessão aberta nesse momento, e ela era compartilhada por todas as
+# requisições: duas requisições simultâneas falhavam ("concurrent operations
+# are not permitted") e o estado de transação de uma podia vazar para outra.
+# Agora recebem RequestScopedSession, que entrega a cada requisição a sua
+# própria sessão (escopo definido por DbSessionScopeMiddleware).
+_request_scope: ContextVar[str] = ContextVar("db_request_scope", default="global")
+RequestScopedSession = async_scoped_session(AsyncSessionLocal, scopefunc=_request_scope.get)
+
+
+def is_async_session(db) -> bool:
+    """AsyncSession ou o procurador por requisição (RequestScopedSession)."""
+    return isinstance(db, (AsyncSession, async_scoped_session))
+
+
+class DbSessionScopeMiddleware:
+    """Abre um escopo de sessão por requisição HTTP/WebSocket e o fecha no fim."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            return await self.app(scope, receive, send)
+        token = _request_scope.set(uuid4().hex)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            try:
+                await RequestScopedSession.remove()
+            finally:
+                _request_scope.reset(token)
+
 
 Base = declarative_base()
 

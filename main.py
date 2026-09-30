@@ -55,6 +55,8 @@ from src.shared.domain.events import (
 from src.shared.infrastructure.caching.cache import cache
 from src.shared.infrastructure.database.db import (
     AsyncSessionLocal,
+    DbSessionScopeMiddleware,
+    RequestScopedSession,
     Base,
     engine,
     engine_sync,
@@ -213,46 +215,49 @@ async def lifespan(app: FastAPI):
     # --- Manually build and bind the Media Module ---
     # This is critical to ensure dependencies like storage_downloader are injected
     # instead of using the default (empty) dependencies in routes.
-    async with AsyncSessionLocal() as session:
-        media_module, _ = build_media_components(
-            session=session,
-            storage_service_factory=storage_factory,
-            metrics_service=None,
-            event_bus=event_bus,
-        )
-        user_management_module = build_user_management_components(session=session)
-        
-        # Build notifications module using auth queries from the same session context
-        notifications_module = build_notifications_module(
-            session=session,
-            auth_queries=NotificationsAuthQueriesAdapter(db_session=session),
-            event_bus=event_bus
-        )
+    # Os módulos são montados uma vez, mas cada requisição recebe a sua sessão
+    # (RequestScopedSession + DbSessionScopeMiddleware); antes, a sessão aberta
+    # aqui era compartilhada por todas as requisições.
+    session = RequestScopedSession
+    media_module, _ = build_media_components(
+        session=session,
+        storage_service_factory=storage_factory,
+        metrics_service=None,
+        event_bus=event_bus,
+    )
+    user_management_module = build_user_management_components(session=session)
+    
+    # Build notifications module using auth queries from the same session context
+    notifications_module = build_notifications_module(
+        session=session,
+        auth_queries=NotificationsAuthQueriesAdapter(db_session=session),
+        event_bus=event_bus
+    )
 
-        admin_module = build_admin_module(
-            session=session,
-            auth_queries=user_management_module.auth_queries,
-            user_service_core=user_management_module.user_service,
-            media_service_core=media_module.media_service,
-        )
+    admin_module = build_admin_module(
+        session=session,
+        auth_queries=user_management_module.auth_queries,
+        user_service_core=user_management_module.user_service,
+        media_service_core=media_module.media_service,
+    )
 
-        text_analysis_module = await build_text_analysis_module(
-            session=session,
-            event_bus=event_bus,
-        )
+    text_analysis_module = await build_text_analysis_module(
+        session=session,
+        event_bus=event_bus,
+    )
 
-        # Register all built modules so FastAPI uses the correct instances
-        register_module_dependencies(
-            app,
-            module_instances={
-                "media": media_module,
-                "auth": user_management_module,
-                "notifications": notifications_module,
-                "admin": admin_module,
-                "text_analysis": text_analysis_module,
-            },
-            specs=DEFAULT_MODULE_SPECS,
-        )
+    # Register all built modules so FastAPI uses the correct instances
+    register_module_dependencies(
+        app,
+        module_instances={
+            "media": media_module,
+            "auth": user_management_module,
+            "notifications": notifications_module,
+            "admin": admin_module,
+            "text_analysis": text_analysis_module,
+        },
+        specs=DEFAULT_MODULE_SPECS,
+    )
 
     notifications_bridge = None
     if not lightweight_mode:
@@ -477,7 +482,11 @@ def create_app() -> FastAPI:
             print(f"WebSocket error: {e}")
             await websocket.close(code=1000)
 
-    return app  # This was missing!
+    # Mais externo: cada requisição ganha sua própria sessão de banco, fechada
+    # ao fim (ver RequestScopedSession).
+    app.add_middleware(DbSessionScopeMiddleware)
+
+    return app
 
 
 app = create_app()

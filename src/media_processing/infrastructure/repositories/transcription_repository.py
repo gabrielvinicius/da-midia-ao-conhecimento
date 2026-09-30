@@ -3,10 +3,10 @@ from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_processing.domain import Transcription
 from src.media_processing.infrastructure.persistence.models import TranscriptionModel
+from src.shared.infrastructure.database.db import is_async_session
 
 
 class TranscriptionRepository:
@@ -25,7 +25,7 @@ class TranscriptionRepository:
         return transcription
 
     async def get_by_id(self, transcription_id: UUID) -> Optional[Transcription]:
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             await self.db.rollback()  # garante conexão livre
             result = await self.db.execute(
                 select(TranscriptionModel).where(
@@ -47,7 +47,7 @@ class TranscriptionRepository:
 
     async def add(self, transcription: Transcription) -> None:
         model = TranscriptionModel.from_domain(transcription)
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             self.db.add(model)
             await self.db.commit() # Flush + Commit
             await self.db.refresh(model)
@@ -65,7 +65,7 @@ class TranscriptionRepository:
 
     async def update(self, transcription: Transcription) -> None:
         model = TranscriptionModel.from_domain(transcription)
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             await self.db.merge(model)
             await self.db.commit() # Flush + Commit
         else:  # It's a sync session
@@ -78,7 +78,7 @@ class TranscriptionRepository:
         return transcription
 
     async def get_by_media_id(self, media_id: UUID) -> Optional[Transcription]:
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             result = await self.db.execute(
                 select(TranscriptionModel).where(
                     TranscriptionModel.media_id == media_id
@@ -98,7 +98,7 @@ class TranscriptionRepository:
         return model.to_domain() if model else None
 
     async def delete_by_media_id(self, media_id: UUID) -> None:
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             await self.db.rollback()  # garante conexão livre
             stmt = select(TranscriptionModel).where(
                 TranscriptionModel.media_id == media_id

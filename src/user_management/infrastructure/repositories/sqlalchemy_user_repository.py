@@ -3,10 +3,10 @@ from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.user_management.domain.entities.user import User
 from src.user_management.infrastructure.persistence.models import UserModel
+from src.shared.infrastructure.database.db import is_async_session
 
 
 class UserRepository:
@@ -16,7 +16,7 @@ class UserRepository:
     async def save(self, user: User) -> User:
         model = UserModel.from_domain(user)
 
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             self.db.add(model)
             await self.db.commit()
             await self.db.refresh(model)
@@ -36,7 +36,7 @@ class UserRepository:
         return merged_model.to_domain()
 
     async def find_by_id(self, user_id: UUID) -> Optional[User]:
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             model = await self.db.get(UserModel, user_id)
             return model.to_domain() if model else None
         else:  # It's a sync session
@@ -50,7 +50,7 @@ class UserRepository:
         return model.to_domain() if model else None
 
     async def find_by_email(self, email: str) -> Optional[User]:
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             result = await self.db.execute(
                 select(UserModel).where(UserModel.email == email)
             )
@@ -74,7 +74,7 @@ class UserRepository:
         search: Optional[str] = None,
     ) -> list[User]:
         """Lists all users with pagination and search."""
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             query = select(UserModel)
             if search:
                 query = query.where(UserModel.email.ilike(f"%{search}%"))
@@ -107,7 +107,7 @@ class UserRepository:
 
     async def count_all(self) -> int:
         """Return the total number of users."""
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             result = await self.db.execute(
                 select(func.count()).select_from(UserModel)
             )
@@ -122,7 +122,7 @@ class UserRepository:
         return result.scalar_one()
 
     async def count_filtered(self, search: Optional[str] = None) -> int:
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             stmt = select(func.count()).select_from(UserModel)
             if search:
                 stmt = stmt.where(UserModel.email.ilike(f"%{search}%"))
@@ -140,7 +140,7 @@ class UserRepository:
 
     async def count_active(self) -> int:
         """Return the total number of active users."""
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             stmt = (
                 select(func.count())
                 .select_from(UserModel)
@@ -163,7 +163,7 @@ class UserRepository:
         return result.scalar_one()
 
     async def delete(self, user_id: UUID) -> bool:
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             model = await self.db.get(UserModel, user_id)
             if model:
                 await self.db.delete(model)

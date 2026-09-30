@@ -4,11 +4,11 @@ from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import delete, func, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.notifications.domain import Notification
 from src.notifications.domain.entities.notification import NotificationStatus
 from src.notifications.infrastructure.persistence.models import NotificationModel
+from src.shared.infrastructure.database.db import is_async_session
 
 
 class NotificationRepository:
@@ -17,7 +17,7 @@ class NotificationRepository:
 
     async def find_by_id(self, notification_id: str) -> Optional[Notification]:
         """Finds a notification by its ID."""
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             result = await self.db.execute(
                 select(NotificationModel).where(
                     NotificationModel.id == UUID(notification_id)
@@ -38,7 +38,7 @@ class NotificationRepository:
 
     async def save(self, notification: Notification) -> Notification:
         """Saves a notification to the database."""
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             await self.db.rollback()  # libera conexão
             model = NotificationModel.from_domain(notification)
             merged = await self.db.merge(model)  # merge faz upsert seguro
@@ -56,7 +56,7 @@ class NotificationRepository:
 
     async def list_by_user(self, user_id: str) -> List[Notification]:
         """Lists all notifications for a specific user."""
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             result = await self.db.execute(
                 select(NotificationModel).where(
                     NotificationModel.user_id == UUID(user_id)
@@ -79,7 +79,7 @@ class NotificationRepository:
         from src.shared.domain.time.clock import utcnow
         now = utcnow()
 
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             stmt = (
                 update(NotificationModel)
                 .where(NotificationModel.id == UUID(notification_id))
@@ -109,7 +109,7 @@ class NotificationRepository:
 
         now = utcnow()
 
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             stmt = (
                 update(NotificationModel)
                 .where(NotificationModel.id == UUID(notification_id))
@@ -156,7 +156,7 @@ class NotificationRepository:
             .order_by(NotificationModel.created_at.asc())
             .limit(limit)
         )
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             result = await self.db.execute(stmt)
             return [model.to_domain() for model in result.scalars().all()]
         result = self.db.execute(stmt)
@@ -164,7 +164,7 @@ class NotificationRepository:
 
     async def delete(self, notification_id: str) -> bool:
         """Deletes a notification by its ID."""
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             # We need to find the MODEL to delete it
             result = await self.db.execute(
                 select(NotificationModel).where(
@@ -196,7 +196,7 @@ class NotificationRepository:
         return False
 
     async def count_all(self) -> int:
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             result = await self.db.execute(
                 select(func.count()).select_from(NotificationModel)
             )
@@ -208,7 +208,7 @@ class NotificationRepository:
         return result.scalar_one()
 
     async def count_unread_all(self) -> int:
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             result = await self.db.execute(
                 select(func.count())
                 .select_from(NotificationModel)
@@ -226,7 +226,7 @@ class NotificationRepository:
         return result.scalar_one()
 
     async def count_by_user_id(self, user_id: UUID) -> int:
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             result = await self.db.execute(
                 select(func.count())
                 .select_from(NotificationModel)
@@ -244,7 +244,7 @@ class NotificationRepository:
         return result.scalar_one()
 
     async def count_unread_by_user_id(self, user_id: UUID) -> int:
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             result = await self.db.execute(
                 select(func.count())
                 .select_from(NotificationModel)
@@ -266,7 +266,7 @@ class NotificationRepository:
     async def delete_older_than(self, days_to_keep: int) -> int:
         """Delete notifications older than given number of days."""
         cutoff = datetime.now(timezone.utc) - timedelta(days=days_to_keep)
-        if isinstance(self.db, AsyncSession):
+        if is_async_session(self.db):
             stmt = delete(NotificationModel).where(
                 NotificationModel.created_at < cutoff
             )
