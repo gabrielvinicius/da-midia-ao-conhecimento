@@ -312,6 +312,8 @@ class MediaService:
             raise ValueError(f"Mídia {command.media_id} não encontrada")
 
         self.access_policy.ensure_can_access(media, user_id, user_role)
+        # Verificado antes da limpeza: uma recusa não pode apagar resultados.
+        media.ensure_can_be_reprocessed()
 
         try:
             # Clean up previous processing results to avoid unique constraint violations

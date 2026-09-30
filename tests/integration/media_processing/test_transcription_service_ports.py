@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 
 from src.media_processing.application.dtos import (
-    ReprocessTranscriptionCommand,
+    RequestTranscriptionCommand,
 )
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
@@ -90,7 +90,7 @@ class FakeLogger:
 
 @pytest.mark.integration
 @pytest.mark.anyio
-async def test_reprocess_transcription_emits_completed_event():
+async def test_request_transcription_saves_and_schedules():
     repo = FakeTranscriptionRepo()
     scheduler = FakeScheduler()
     storage = FakeStorage()
@@ -108,15 +108,16 @@ async def test_reprocess_transcription_emits_completed_event():
         event_bus=event_bus,
     )
 
-    command = ReprocessTranscriptionCommand(
+    command = RequestTranscriptionCommand(
         media_id=uuid4(),
-        provider=None,
+        file_path="/fake/path.wav",
+        storage_provider="local",
+        transcription_provider="fake_whisper",
         language="en",
-        force=False,
-        user_id=uuid4(),
+        file_size_bytes=123,
     )
 
-    await service.reprocess_transcription(command)
+    await service.request_transcription_generation(command)
 
     # A transcription should be saved and task scheduled
     assert len(repo.saved) == 1

@@ -112,11 +112,8 @@ class AdminMediaService:
 
         self.permission_service.validate_admin_operation(admin_user, media.user_id)
 
-        if media.status != MediaStatus.FAILED:
-            raise ValueError(
-                f"Mídia {media_id} não está em estado 'failed' "
-                f"(atual: {media.status.value})"
-            )
+        # A regra de quando reprocessar é do domínio da mídia.
+        media.ensure_can_be_reprocessed()
 
         await self._dispatch_admin_reprocess(
             media_id, actor_id=str(admin_user.id), triggered_by="admin"

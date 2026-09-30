@@ -8,6 +8,10 @@ from src.shared.domain.base_entity import BaseEntity
 from src.media_management.domain.enums import MediaStatus, MediaType
 
 
+class MediaNotReprocessableError(ValueError):
+    """A mídia não está em um estado que permita reprocessamento."""
+
+
 class Media(BaseEntity):
     """Media aggregate root."""
 
@@ -142,8 +146,24 @@ class Media(BaseEntity):
     def file_size(self) -> int:
         return self.file_size_bytes
 
+    def can_be_reprocessed(self) -> bool:
+        """Só uma mídia que falhou pode ser processada de novo.
+
+        Reprocessar apaga a transcrição e a análise anteriores: numa mídia
+        concluída, perderia o resumo corrigido e as avaliações; numa mídia em
+        processamento, apagaria os resultados enquanto o worker ainda grava.
+        """
+        return self.status == MediaStatus.FAILED
+
+    def ensure_can_be_reprocessed(self) -> None:
+        if not self.can_be_reprocessed():
+            raise MediaNotReprocessableError(
+                "Só é possível reprocessar uma mídia cujo processamento falhou "
+                f"(estado atual: {self.status.value})."
+            )
+
     def process(self) -> None:
-        """Trigger processing state transition."""
-        if self.status == MediaStatus.FAILED:
-            self.error_message = None
+        """Reinicia o processamento de uma mídia que falhou."""
+        self.ensure_can_be_reprocessed()
+        self.error_message = None
         self.mark_as_processing()

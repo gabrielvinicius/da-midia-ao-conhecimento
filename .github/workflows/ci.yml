@@ -66,7 +66,7 @@ jobs:
           E2E: "1"
           LIGHTWEIGHT_BOOTSTRAP: "0"
           SECRET_KEY: chave-somente-para-a-integracao-continua-0123456789
-          DEFAULT_ADMIN_EMAIL: admin@ci.test
+          DEFAULT_ADMIN_EMAIL: admin-ci@ifba.edu.br
           DEFAULT_ADMIN_PASSWORD: AdminCi2026
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/video_summarizer
           REDIS_URL: redis://localhost:6379/0

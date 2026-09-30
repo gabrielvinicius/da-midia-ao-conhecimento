@@ -33,7 +33,6 @@ from src.storage.domain.value_objects.file_path import FilePath
 from ..dtos import (
     GetTranscriptionByIdQuery,
     GetTranscriptionByMediaIdQuery,
-    ReprocessTranscriptionCommand,
     RequestTranscriptionCommand,
     SetSpeakerAliasesCommand,
 )
@@ -393,34 +392,3 @@ class TranscriptionService:
                         correlation_id=correlation_id,
                     )
                 )
-
-    async def reprocess_transcription(
-        self, command: ReprocessTranscriptionCommand
-    ) -> Dict[str, Any]:
-        """Reprocesses a transcription."""
-        # Find the media associated with the transcription
-        # Needs to fetch media to get file_path and storage_provider
-        media = await self._media_queries.get_media(
-            GetTranscriptionByMediaIdQuery(media_id=command.media_id)
-        )
-        if not media:
-            raise ResourceNotFoundError("Media", str(command.media_id))
-
-        # Need to check user permissions if required, but AdminService usually
-        # handles it.
-        # For a user to reprocess, their user_id must match media.user_id.
-
-        # Use the existing request_transcription_generation with new command
-        return await self.request_transcription_generation(
-            RequestTranscriptionCommand(
-                media_id=command.media_id,
-                file_path=media.original_file_path,
-                storage_provider=media.storage_provider,
-                transcription_provider=command.provider or media.transcription_provider,
-                language=command.language or media.language,
-                file_size_bytes=media.file_size,
-                summarization_provider=media.summarization_provider,
-                sentiment_provider=media.sentiment_provider,
-                topic_modeling_provider=media.topic_modeling_provider,
-            )
-        )

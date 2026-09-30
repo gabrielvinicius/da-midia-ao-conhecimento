@@ -25,9 +25,9 @@ from src.media_management.application.dtos import (
     ReprocessMediaCommand,
 )
 from src.media_management.application.services.media_service import MediaService
+from src.media_management.domain import MediaNotReprocessableError
 from src.shared.application.schemas import (
     BaseResponseSchema,
-    create_error_response,
     create_success_response,
 )
 from src.shared.domain.errors import DomainError
@@ -260,13 +260,8 @@ async def reprocess_media(
 
     except PermissionError:
         raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")
-    except ValueError as e:
-        return create_error_response(
-            error=str(e),
-            message="Media reprocessing failed",
-        )
-    except Exception as e:
-        return create_error_response(
-            error=f"Media reprocessing failed: {str(e)}",
-            message="Internal reprocessing error"
-        )
+    except MediaNotReprocessableError as e:
+        # 409: a mídia existe, mas o estado dela não permite a operação.
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")

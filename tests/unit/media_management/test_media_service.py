@@ -20,7 +20,7 @@ from src.media_management.application.services.media_read_service import (
 )
 from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.services.validators import MediaUploadValidator
-from src.media_management.domain import Media
+from src.media_management.domain import Media, MediaNotReprocessableError
 from src.media_management.infrastructure.metrics.prometheus_metrics import (
     PrometheusMediaMetrics,
 )
@@ -159,6 +159,7 @@ async def test_reprocess_media_allows_admin_without_user_id(service_components):
         media_type=MediaType.AUDIO,
         storage_provider="local",
     )
+    media.mark_as_failed("Ollama indisponível")
     media_repository.get_by_id.return_value = media
 
     returned = await service.reprocess_media(
@@ -168,6 +169,43 @@ async def test_reprocess_media_allows_admin_without_user_id(service_components):
     )
 
     assert returned == media
+    assert media.status == MediaStatus.PROCESSING
+    assert media.error_message is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status", [MediaStatus.UPLOADED, MediaStatus.PROCESSING, MediaStatus.COMPLETED]
+)
+async def test_reprocess_media_refuses_media_that_did_not_fail(service_components, status):
+    """Recusa sem apagar nada: numa mídia concluída, a limpeza levaria o resumo
+    corrigido e as avaliações; numa em processamento, os resultados em gravação."""
+    service: MediaService = service_components["service"]
+    media_repository = service_components["media_repository"]
+
+    media = Media.create(
+        media_id=uuid4(),
+        user_id=uuid4(),
+        filename="aula.mp4",
+        file_size_bytes=123,
+        original_file_path="media/aula.mp4",
+        media_type=MediaType.VIDEO,
+        storage_provider="local",
+    )
+    media.status = status
+    media_repository.get_by_id.return_value = media
+    service._delete_associated_records = AsyncMock()
+
+    with pytest.raises(MediaNotReprocessableError):
+        await service.reprocess_media(
+            ReprocessMediaCommand(media_id=media.id),
+            user_id=media.user_id,
+            user_role=UserRole.USER,
+        )
+
+    service._delete_associated_records.assert_not_awaited()
+    media_repository.update.assert_not_awaited()
+    assert media.status == status
 
 
 @pytest.mark.asyncio

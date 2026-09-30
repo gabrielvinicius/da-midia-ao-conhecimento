@@ -94,25 +94,6 @@ class SetSpeakerAliasesCommand(BaseModel):
     )
 
 
-class ReprocessTranscriptionCommand(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    media_id: UUID = Field(
-        ...,
-        description="ID of the media associated with the transcription to reprocess.",
-    )
-    provider: Optional[str] = Field(
-        None, description="Provider to use for reprocessing."
-    )
-    language: str = Field("auto", description="Language code for reprocessing.")
-    force: bool = Field(
-        False,
-        description="Force reprocessing even if already completed.",
-    )
-    user_id: UUID = Field(
-        ...,
-        description="ID of the user initiating the reprocess.",
-    )  # Needed for auth check
-
 # --- Queries ---
 
 class GetTranscriptionByMediaIdQuery(BaseModel):

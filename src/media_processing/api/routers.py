@@ -8,7 +8,6 @@ from src.media_management.application.services.media_service import MediaService
 from src.media_processing.application.dtos import (
     GetTranscriptionByIdQuery,
     GetTranscriptionByMediaIdQuery,
-    ReprocessTranscriptionCommand,
     SetSpeakerAliasesCommand,
 )
 from src.media_processing.application.services.transcription_service import (
@@ -16,7 +15,6 @@ from src.media_processing.application.services.transcription_service import (
 )
 from src.shared.application.schemas import (
     BaseResponseSchema,
-    create_error_response,
     create_success_response,
 )
 from src.user_management.api.dependencies import get_current_user
@@ -152,77 +150,3 @@ async def get_transcription_by_id(
         segments=transcription.segments,
         error_message=transcription.error_message
     )
-
-
-@router.post(
-    "/reprocess",
-    response_model=BaseResponseSchema,
-    summary="Reprocess transcription",
-)
-async def reprocess_transcription(
-    command: ReprocessTranscriptionCommand,  # Use the DTO
-    transcription_service: TranscriptionService = Depends(
-        get_transcription_service
-    ),
-    media_service: MediaService = Depends(get_media_service),
-    current_user: User = Depends(get_current_user),
-):
-    """Reprocess transcription for existing media
-    Useful for: changing providers, languages, or fixing failed transcriptions
-    """
-    try:
-        # Check ownership logic should be in a policy or adapter in media_management
-        # For now, keep it here.
-        media = await media_service.get_media(GetMediaQuery(media_id=command.media_id))
-
-        if not media:
-            return create_error_response("Media not found", "Invalid media ID")
-
-        if (
-            str(media.user_id) != str(current_user.id)
-            and current_user.role != UserRole.ADMIN
-        ):
-            return create_error_response("Not authorized", "Access denied")
-
-        if getattr(media, "status", None) == "PROCESSING" and not command.force:
-            return create_error_response(
-                "Media is currently being processed",
-                "Cannot reprocess",
-            )
-
-        # The command for transcription_service.reprocess_transcription already
-        # has all necessary data. It relies on media.original_file_path and
-        # media.storage_provider. Ensure ReprocessTranscriptionCommand DTO is
-        # sufficient.
-        # Or MediaProcessingService should fetch media if needed.
-        # For now, pass all necessary data to the command.
-        command.user_id = (
-            current_user.id
-        )  # Add user_id to command for auth/ownership check in service if needed
-
-        result = await transcription_service.reprocess_transcription(command)
-
-        response_data = {
-            "reprocessing": {
-                "media_id": str(command.media_id),
-                "task_id": result.get("task_id"),
-                "provider": command.provider,
-                "language": command.language,
-                "status": "SCHEDULED",
-            },
-            "message": (
-                "Transcription reprocessing started. "
-                "Check WebSocket for real-time updates."
-            ),
-        }
-
-        return create_success_response(
-            data=response_data,
-            message="Transcription reprocessing initiated",
-        )
-
-    except Exception as e:
-        return create_error_response(
-            error=f"Reprocessing failed: {str(e)}",
-            message="Failed to initiate reprocessing",
-        )

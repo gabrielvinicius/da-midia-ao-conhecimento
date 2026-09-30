@@ -52,6 +52,49 @@ def test_upload_list_isolation_and_delete(client):
     assert client.get(f"/media/{media_id}", headers=alice).status_code == 404
 
 
+def _set_status(media_id, status):
+    """Simula o resultado do worker, que não roda nos testes de ponta a ponta."""
+    from sqlalchemy import text
+
+    from src.shared.infrastructure.database.db import engine_sync
+
+    with engine_sync.begin() as conn:
+        conn.execute(
+            text("UPDATE media SET status = :status, error_message = :error WHERE id = :id"),
+            {"status": status, "error": "falha simulada" if status == "FAILED" else None, "id": media_id},
+        )
+
+
+def test_owner_retries_only_failed_media(client):
+    alice = _account(client, "alice")
+    bob = _account(client, "bob")
+    r = client.post(
+        "/media/",
+        headers=alice,
+        files={"file": ("aula.txt", "A integral acumula a variação.".encode(), "text/plain")},
+    )
+    assert r.status_code == 201, r.text
+    media_id = r.json()["id"]
+
+    # Concluída: reprocessar apagaria o resumo corrigido e as avaliações.
+    _set_status(media_id, "COMPLETED")
+    r = client.post(f"/media/{media_id}/reprocess", headers=alice)
+    assert r.status_code == 409, r.text
+
+    _set_status(media_id, "FAILED")
+    # Outro usuário não reprocessa (nem descobre que a mídia existe).
+    assert client.post(f"/media/{media_id}/reprocess", headers=bob).status_code == 404
+
+    r = client.post(f"/media/{media_id}/reprocess", headers=alice)
+    assert r.status_code == 200, r.text
+    media = client.get(f"/media/{media_id}", headers=alice).json()
+    assert media["status"].lower() == "processing"
+    assert not media.get("error_message")
+
+    # Em processamento: um segundo clique não reinicia a mídia.
+    assert client.post(f"/media/{media_id}/reprocess", headers=alice).status_code == 409
+
+
 def test_login_is_blocked_after_repeated_failures(client):
     email = f"carol-{uuid.uuid4().hex[:8]}@teste.com"
     client.post("/auth/register", json={"email": email, "password": "Senha123"})
