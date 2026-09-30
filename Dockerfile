@@ -31,15 +31,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ build-essential pkg-config libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# ARG para definir qual versão do Torch instalar (cpu, cu124, rocm6.1, etc)
-ARG PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
+# Índice do PyTorch: cu124 (GPU NVIDIA, padrão), cpu ou rocm6.2 (GPU AMD).
+# O torch é instalado primeiro, a partir desse índice; o restante das
+# dependências o reaproveita em vez de baixar outra variante.
+ARG PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu124
 
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip setuptools wheel && \
+    TORCH_PIN="$(grep -E '^torch==' requirements.txt)" && \
     pip install --user --no-warn-script-location \
-    --extra-index-url ${PYTORCH_EXTRA_INDEX_URL} \
-    -r requirements.txt
+    --index-url ${PYTORCH_INDEX_URL} "${TORCH_PIN}" && \
+    grep -vE '^torch==' requirements.txt > /tmp/requirements-sem-torch.txt && \
+    pip install --user --no-warn-script-location -r /tmp/requirements-sem-torch.txt
 
 # --- Stage Final ---
 FROM base AS runtime

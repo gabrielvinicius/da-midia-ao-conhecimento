@@ -16,7 +16,7 @@ services:
     image: video-summarizer-app:rocm
     build:
       args:
-        - PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/rocm6.2.4
+        - PYTORCH_INDEX_URL=https://download.pytorch.org/whl/rocm6.2
     environment:
       - AI_DEVICE=cuda # PyTorch ROCm usa backend 'cuda'
 
@@ -31,7 +31,7 @@ services:
       - render
     build:
       args:
-        - PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/rocm6.2.4
+        - PYTORCH_INDEX_URL=https://download.pytorch.org/whl/rocm6.2
     environment:
       - AI_DEVICE=cuda
       - AI_COMPUTE_TYPE=float16

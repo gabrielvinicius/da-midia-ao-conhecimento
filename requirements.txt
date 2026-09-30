@@ -23,9 +23,10 @@ redis>=5.2.0
 # Caching & Performance
 aiofiles>=24.2.0
 
-# AI / Machine Learning (CUDA enabled)
---extra-index-url https://download.pytorch.org/whl/cu124
-torch==2.5.1+cu124
+# AI / Machine Learning
+# A variante do torch (CUDA, CPU ou ROCm) é escolhida no build da imagem pelo
+# argumento PYTORCH_INDEX_URL; aqui fica só a versão.
+torch==2.5.1
 transformers>=4.46.0
 faster-whisper>=1.1.0
 ctranslate2>=3.24.0

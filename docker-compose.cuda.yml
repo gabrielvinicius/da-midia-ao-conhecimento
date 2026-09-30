@@ -3,7 +3,7 @@ services:
     image: video-summarizer-app:cuda
     build:
       args:
-        - PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu130
+        - PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu124
     environment:
       - AI_DEVICE=cuda
 
@@ -11,7 +11,7 @@ services:
     image: video-summarizer-app:cuda
     build:
       args:
-        - PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu130
+        - PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu124
     deploy:
       resources:
         reservations:

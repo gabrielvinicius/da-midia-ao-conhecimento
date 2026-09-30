@@ -42,13 +42,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg tesseract-ocr
 
-      # O requirements.txt fixa o torch com CUDA (~2,5 GB). No CI não há GPU,
-      # então instalamos o torch de CPU e o restante das dependências sem ele.
+      # Sem GPU no CI: o torch (versão do requirements.txt) vem do índice de
+      # CPU, e o restante das dependências é instalado sem ele.
       - name: Python dependencies (CPU)
         run: |
           python -m pip install --upgrade pip
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          grep -vE '^(torch==|--extra-index-url)' requirements.txt > requirements-ci.txt
+          pip install "$(grep -E '^torch==' requirements.txt)" --index-url https://download.pytorch.org/whl/cpu
+          grep -vE '^torch==' requirements.txt > requirements-ci.txt
           pip install -r requirements-ci.txt ruff
 
       # Erros que quebram em execução: sintaxe e nomes indefinidos.
