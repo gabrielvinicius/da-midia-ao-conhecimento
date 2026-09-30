@@ -47,14 +47,14 @@ export const EditUserForm = ({ user, onFinished }: EditUserFormProps) => {
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="role">User Role</Label>
+        <Label htmlFor="role">Perfil</Label>
         <Select
           defaultValue={user.role}
           onValueChange={(value: UserRole) => form.setValue('role', value)}
           disabled={isPending}
         >
           <SelectTrigger id="role">
-            <SelectValue placeholder="Select a role" />
+            <SelectValue placeholder="Escolha o perfil" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={UserRole.USER}>User</SelectItem>
