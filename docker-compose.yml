@@ -47,15 +47,15 @@ services:
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     ports:
-      - "16686:16686"  # interface web do Jaeger
+      # Só na própria máquina: os rastros incluem dados das requisições.
+      - "127.0.0.1:16686:16686"  # interface web do Jaeger
     networks:
       - backend-net
       - public-net
 
   ollama:
-    # LLM local (Qwen3.5-9B por padrão). Baixe os modelos uma vez com:
-    #   docker compose exec ollama ollama pull qwen3.5:9b
-    #   docker compose exec ollama ollama pull gemma4:e4b
+    # LLM local (Qwen3.5-9B por padrão). Os modelos são baixados pelo
+    # serviço ollama-models na primeira inicialização.
     image: ollama/ollama:latest
     container_name: video_summarizer_ollama
     volumes:
@@ -66,6 +66,9 @@ services:
       - OLLAMA_MAX_LOADED_MODELS=1
     networks:
       - backend-net
+      # backend-net é interna (sem internet); public-net dá a saída necessária
+      # para o "ollama pull". Nenhuma porta é publicada no host.
+      - public-net
     deploy:
       resources:
         reservations:
@@ -79,6 +82,23 @@ services:
       timeout: 10s
       retries: 5
 
+  ollama-models:
+    # Roda uma vez a cada "up": baixa o modelo principal e o reserva, se ainda
+    # não estiverem no volume ollama_models (downloads seguintes são rápidos).
+    image: ollama/ollama:latest
+    container_name: video_summarizer_ollama_models
+    depends_on:
+      ollama: { condition: service_healthy }
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - LLM_MODEL=${LLM_MODEL:-qwen3.5:9b}
+      - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-gemma4:e4b}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull \"$$LLM_MODEL\" && ollama pull \"$$LLM_FALLBACK_MODEL\""]
+    networks:
+      - backend-net
+    restart: "no"
+
   backend:
     build:
       context: .
@@ -86,7 +106,11 @@ services:
     image: video-summarizer-app:latest
     container_name: video_summarizer_backend
     ports:
-      - "8000:8000"
+      # Só na própria máquina (documentação da API e depuração). O acesso
+      # externo passa pelo Nginx do frontend, que define o X-Real-IP usado
+      # no limite de tentativas de login; acessar a API direto permitiria
+      # forjar esse cabeçalho.
+      - "127.0.0.1:8000:8000"
     env_file: [.env]
     depends_on:
       postgres: { condition: service_healthy }
