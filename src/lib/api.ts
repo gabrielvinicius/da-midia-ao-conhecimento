@@ -135,7 +135,7 @@ api.interceptors.response.use(
       toast.error('Sessão expirada. Faça login novamente.');
       window.dispatchEvent(new CustomEvent('app:logout'));
     } else if (error.response?.status === 413) {
-      toast.error('Arquivo muito grande. Tamanho máximo permitido: 200MB');
+      toast.error('Arquivo muito grande. Tamanho máximo permitido: 500 MB');
     } else if (error.response?.status === 400) {
       toast.error(`Dados inválidos: ${message}`);
     } else if (error.response?.status === 403) {

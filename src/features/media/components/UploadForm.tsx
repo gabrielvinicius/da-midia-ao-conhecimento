@@ -19,11 +19,22 @@ import { useCreateMediaCommand } from '@/hooks/useCommands';
 import { CreateMediaCommand } from '@/api/commands';
 import { getProviders, ProvidersResponse } from '@/api/queries';
 
-const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200 MB (conforme configuração do backend)
+// Mesmo limite do backend (media_max_file_size_bytes) e do nginx (client_max_body_size).
+const MAX_FILE_SIZE_MB = 500;
+const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
+// Espelha as extensões aceitas pelo backend (media_management/config/settings.py).
+export const ACCEPTED_EXTENSIONS = [
+  ".mp4", ".webm", ".mov", ".avi", ".mkv", ".flv",
+  ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg",
+  ".txt", ".pdf", ".docx",
+  ".png", ".jpg", ".jpeg", ".tiff", ".bmp",
+];
 const ACCEPTED_FILE_TYPES = [
   "video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska",
-  "audio/mpeg", "audio/wav", "audio/mp4", "audio/flac",
-  "application/pdf", "text/plain"
+  "audio/mpeg", "audio/wav", "audio/mp4", "audio/flac", "audio/aac", "audio/ogg",
+  "application/pdf", "text/plain",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/png", "image/jpeg", "image/tiff", "image/bmp",
 ];
 
 const optionalProviderName = z.preprocess(
@@ -46,7 +57,7 @@ const uploadSchema = z.object({
     .refine((files) => {
       const file = files?.[0];
       return file && file.size <= MAX_FILE_SIZE;
-    }, `Tamanho máximo do arquivo é 200MB.`)
+    }, `Tamanho máximo do arquivo é ${MAX_FILE_SIZE_MB} MB.`)
     .refine((files) => {
       const file = files?.[0];
       if (!file) return false;
@@ -54,10 +65,10 @@ const uploadSchema = z.object({
       // Verifica por tipo MIME e extensão
       const acceptedTypes = ACCEPTED_FILE_TYPES.includes(file.type);
       const filename = file.name.toLowerCase();
-      const acceptedExtensions = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.mp3', '.wav', '.m4a', '.flac', '.pdf', '.txt'].some(ext => filename.endsWith(ext));
-      
+      const acceptedExtensions = ACCEPTED_EXTENSIONS.some(ext => filename.endsWith(ext));
+
       return acceptedTypes || acceptedExtensions;
-    }, "Tipos aceitos: .mp4, .webm, .mov, .avi, .mkv, .mp3, .wav, .m4a, .flac, .pdf, .txt")
+    }, `Tipos aceitos: ${ACCEPTED_EXTENSIONS.join(", ")}`)
 });
 
 type UploadFormValues = z.infer<typeof uploadSchema>;
@@ -191,7 +202,7 @@ export const UploadForm = () => {
         <Input 
           id="file" 
           type="file" 
-          accept=".mp4,.webm,.mov,.avi,.mkv,.mp3,.wav,.m4a,.flac,.pdf,.txt"
+          accept={ACCEPTED_EXTENSIONS.join(",")}
           {...form.register('file')} 
           disabled={isPending} 
         />
