@@ -85,4 +85,10 @@ def test_admin_dashboard_endpoints_answer(client):
         response = client.get(path, headers=admin)
         assert response.status_code == 200, (path, response.text)
     assert client.get("/admin/stats", headers=admin).json()["total_users"] >= 1
-    assert client.get("/admin/users", headers=admin).json()["total"] >= 1
+    users = client.get("/admin/users", headers=admin).json()
+    assert users["total"] >= 1
+    user_id = users["items"][0]["id"]
+    activity = client.get(f"/admin/users/{user_id}/activity", headers=admin)
+    assert activity.status_code == 200, activity.text
+    assert activity.json()["user_id"] == user_id
+    assert client.get("/admin/media", headers=admin).status_code == 200
