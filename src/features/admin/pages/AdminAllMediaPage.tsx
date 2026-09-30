@@ -1,12 +1,12 @@
 import * as React from "react";
 import { ColumnDef, PaginationState } from "@tanstack/react-table";
-import { MoreHorizontal, RefreshCw, Recycle, Brush, Trash2, CheckCircle, Loader2, ShieldCheck } from "lucide-react";
+import { MoreHorizontal, RefreshCw, Recycle, Trash2, CheckCircle, Loader2, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 import { Media, MediaStatus } from "@/types";
 import { useAllMedia } from "../hooks/useAdminQueries";
-import { useDeleteMedia, useReprocessMedia, useBulkReprocessMedia, useCleanupOrphanedFiles } from "../hooks/useAdminMutations";
+import { useDeleteMedia, useReprocessMedia, useBulkReprocessMedia } from "../hooks/useAdminMutations";
 import { DataTable } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { MediaStatusBadge } from "@/components/MediaStatusBadge";
@@ -127,7 +127,6 @@ export const AdminAllMediaPage = () => {
   const [search, setSearch] = React.useState('');
 
   const { mutate: bulkReprocess, isPending: isBulkReprocessing } = useBulkReprocessMedia();
-  const { mutate: cleanupOrphans, isPending: isCleaning } = useCleanupOrphanedFiles();
 
   const { data, isLoading, isError, refetch } = useAllMedia({
     page: pageIndex + 1, // API is 1-indexed
@@ -167,10 +166,6 @@ export const AdminAllMediaPage = () => {
           <Button variant="outline" onClick={() => bulkReprocess()} disabled={isBulkReprocessing}>
             <Recycle className="mr-2 h-4 w-4" />
             {isBulkReprocessing ? 'Iniciando...' : 'Reprocessar falhas'}
-          </Button>
-          <Button variant="outline" onClick={() => cleanupOrphans()} disabled={isCleaning}>
-            <Brush className="mr-2 h-4 w-4" />
-            {isCleaning ? 'Limpando...' : 'Limpar órfãos'}
           </Button>
         </div>
       </div>

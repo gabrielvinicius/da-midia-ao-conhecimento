@@ -7,7 +7,6 @@ import {
   UserUpdatePayload,
   reprocessMedia,
   bulkReprocessFailedMedia,
-  cleanupOrphanedFiles,
 } from '../api';
 
 export const useDeleteUser = () => {
@@ -99,19 +98,6 @@ export const useBulkReprocessMedia = () => {
     onError: (error) => {
       console.error('Failed to bulk reprocess media:', error);
       toast.error('Erro ao reprocessar mídia em massa.');
-    },
-  });
-};
-
-export const useCleanupOrphanedFiles = () => {
-  return useMutation({
-    mutationFn: () => cleanupOrphanedFiles(),
-    onSuccess: (data) => {
-      toast.success(data.message || 'Limpeza concluída com sucesso.');
-    },
-    onError: (error) => {
-      console.error('Failed to cleanup orphaned files:', error);
-      toast.error('Erro ao limpar arquivos órfãos.');
     },
   });
 };

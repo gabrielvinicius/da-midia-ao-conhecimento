@@ -21,81 +21,6 @@ export interface SystemHealth {
   timestamp: string;
 }
 
-export interface SuccessRateMetrics {
-  completed: number;
-  failed: number;
-  total: number;
-  success_rate: number;
-}
-
-export interface SystemPerformanceResponse {
-  time_range: string;
-  overall_health_score: number;
-  success_rates: Record<string, SuccessRateMetrics>;
-  user_metrics: Record<string, any>;
-  media_distribution: Record<string, any>;
-  recommendations: string[];
-}
-
-export interface ProcessingTrendsResponse {
-  analysis_period_days: number;
-  current_week: Record<string, any>;
-  monthly_average: Record<string, any>;
-  trend_direction: string;
-  trend_percentage: number;
-  insights: string[];
-}
-
-export interface MetricsSummaryResponse {
-  provider_metrics: {
-    available_metrics: string[];
-    provider_type: string;
-  };
-  success_rates: Record<string, any>;
-  user_metrics: Record<string, any>;
-  media_distribution: Record<string, any>;
-  business_kpis?: BusinessKPIsResponse;
-  performance_summary?: PerformanceSummaryResponse;
-  generated_at: string;
-}
-
-export interface BusinessKPIsResponse {
-  total_uploads: number;
-  successful_uploads: number;
-  upload_success_rate_percent: number;
-  total_revenue_usd: number;
-  average_revenue_per_upload: number;
-  processing_completions: number;
-  calculated_at: string;
-}
-
-export interface PerformanceSummaryResponse {
-  request_metrics: {
-    total_requests: number;
-    error_rate_percent: number;
-    slow_requests?: number;
-    error_requests?: number;
-    slow_request_rate_percent?: number;
-  };
-  processing_metrics: {
-    total_processing: number;
-    completed: number;
-    avg_transcription_seconds: number;
-    avg_summarization_seconds: number;
-  };
-  resource_metrics: {
-    cpu_usage_percent: number;
-    memory_usage_percent: number;
-  };
-  throughput_metrics: {
-    media_por_dia: number;
-    conclusoes_por_hora: number;
-    taxa_conclusao_percent: number;
-  };
-  overall_health: string;
-  calculated_at: string;
-}
-
 export interface MediaProcessingStats {
   total_media: number;
   uploaded: number;
@@ -105,6 +30,22 @@ export interface MediaProcessingStats {
   success_rate: number;
   failure_rate: number;
   processing_rate: number;
+}
+
+export interface ProcessingTimeItem {
+  task_type: string;
+  model_name: string | null;
+  runs: number;
+  failures: number;
+  avg_seconds: number | null;
+  median_seconds: number | null;
+  max_seconds: number | null;
+  realtime_factor: number | null;
+}
+
+export interface ProcessingTimesResponse {
+  days: number | null;
+  items: ProcessingTimeItem[];
 }
 
 export interface GetPaginatedDataParams {
@@ -122,37 +63,20 @@ export const getSystemStats = async (): Promise<SystemStats> => {
   return response.data;
 };
 
-export const getSystemPerformanceMetrics = async (timeRange: string = 'last_week'): Promise<SystemPerformanceResponse> => {
-  const response = await api.get<SystemPerformanceResponse>("/monitoring/system-performance", {
-    params: { time_range: timeRange },
-  });
-  return response.data;
-};
-
-export const getProcessingTrends = async (days: number = 30): Promise<ProcessingTrendsResponse> => {
-  const response = await api.get<ProcessingTrendsResponse>("/monitoring/processing-trends", {
-    params: { days },
-  });
-  return response.data;
-};
-
 export const getSystemHealth = async (): Promise<SystemHealth> => {
   const response = await api.get<SystemHealth>("/admin/stats/health");
   return response.data;
 };
 
+export const getProcessingTimes = async (days?: number): Promise<ProcessingTimesResponse> => {
+  const response = await api.get<ProcessingTimesResponse>("/admin/stats/processing-times", {
+    params: days ? { days } : {},
+  });
+  return response.data;
+};
+
 export const getMediaProcessingStats = async (): Promise<MediaProcessingStats> => {
   const response = await api.get<MediaProcessingStats>("/admin/stats/media-processing");
-  return response.data;
-};
-
-export const getMetricsSummary = async (): Promise<MetricsSummaryResponse> => {
-  const response = await api.get<MetricsSummaryResponse>("/monitoring/summary");
-  return response.data;
-};
-
-export const getBusinessKpis = async (): Promise<BusinessKPIsResponse> => {
-  const response = await api.get<BusinessKPIsResponse>("/monitoring/business/kpis");
   return response.data;
 };
 
@@ -193,7 +117,3 @@ export const bulkReprocessFailedMedia = async (): Promise<{ message: string; rep
   return response.data;
 };
 
-export const cleanupOrphanedFiles = async (): Promise<{ message: string; cleaned_count: number }> => {
-  const response = await api.post(`/admin/maintenance/cleanup-orphaned-files`);
-  return response.data;
-};
