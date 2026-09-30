@@ -174,7 +174,9 @@ class TranscriptionService:
             return
         segments = (result or {}).get("segments") or []
         media_seconds = segments[-1].get("end") if segments and isinstance(segments[-1], dict) else None
-        model = recognizer if isinstance(recognizer, str) else type(recognizer).__name__
+        model = recognizer if isinstance(recognizer, str) else (
+            getattr(recognizer, "model_label", None) or type(recognizer).__name__
+        )
         try:
             await self._stats.log_stat("transcription", seconds, size, media_seconds, model, status)
         except Exception as exc:  # estatística nunca pode derrubar a transcrição

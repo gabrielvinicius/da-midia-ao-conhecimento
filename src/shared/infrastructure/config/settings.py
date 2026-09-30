@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     ai_device: str = "auto"
     # Options: "float16", "float32", "int8", "int8_float16"
     ai_compute_type: str = "default"
+    # Modelo de transcrição (Faster-Whisper ou openai-whisper).
+    whisper_model: str = "large-v3-turbo"
 
     @property
     def resolved_device(self) -> str:

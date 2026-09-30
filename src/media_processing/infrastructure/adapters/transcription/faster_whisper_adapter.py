@@ -1,80 +1,107 @@
-"""Faster-Whisper adapter for high-performance transcription."""
+"""Transcrição com Faster-Whisper (CTranslate2).
+
+Até esta versão, o adaptador importava um módulo inexistente e nunca era
+carregado: o sistema caía no openai-whisper com o modelo "base".
+"""
 from __future__ import annotations
 
+import asyncio
 import logging
-from typing import BinaryIO
+from typing import Any, Dict
 
-from src.media_processing.application.ports.transcription import TranscriptionPort, TranscriptionResult, TranscriptionSegment
+from src.media_processing.application.ports import SpeechRecognizer
 from src.shared.infrastructure.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-class FasterWhisperAdapter(TranscriptionPort):
-    def __init__(self, model_size: str = "large-v3-turbo", device: str | None = None, compute_type: str = "float16"):
-        self.model_size = model_size
-        self.device = device or ("cuda" if settings.ai_device == "cuda" else "cpu")
-        self.compute_type = compute_type
+
+def resolve_device_and_compute(
+    requested_device: str, requested_compute: str, cuda_devices: int
+) -> tuple[str, str]:
+    """Dispositivo e precisão que o CTranslate2 consegue usar.
+
+    O CTranslate2 (base do Faster-Whisper) só usa GPU NVIDIA. Em máquinas
+    sem ela, incluindo GPUs AMD, a transcrição roda na CPU. Na CPU, float16
+    não é aceito; usa-se int8.
+    """
+    device = (requested_device or "auto").lower()
+    wants_gpu = device in {"auto", "cuda", "rocm", "gpu"}
+    device = "cuda" if wants_gpu and cuda_devices > 0 else "cpu"
+
+    compute = (requested_compute or "default").lower()
+    if compute == "default":
+        compute = "float16" if device == "cuda" else "int8"
+    if device == "cpu" and "float16" in compute:
+        compute = "int8"
+    return device, compute
+
+
+def _cuda_device_count() -> int:
+    try:
+        import ctranslate2
+
+        return ctranslate2.get_cuda_device_count()
+    except Exception:
+        return 0
+
+
+class FasterWhisperAdapter(SpeechRecognizer):
+    def __init__(
+        self,
+        model_size: str | None = None,
+        device: str | None = None,
+        compute_type: str | None = None,
+    ) -> None:
+        self.model_size = model_size or settings.whisper_model
+        self.device, self.compute_type = resolve_device_and_compute(
+            device or settings.ai_device,
+            compute_type or settings.ai_compute_type,
+            _cuda_device_count(),
+        )
+        self.model_label = f"faster-whisper {self.model_size}"
         self._model = None
 
     def _get_model(self):
-        if not self._model:
-            try:
-                from faster_whisper import WhisperModel
-                logger.info("faster_whisper.loading_model", size=self.model_size, device=self.device)
-                self._model = WhisperModel(
-                    self.model_size, 
-                    device=self.device, 
-                    compute_type=self.compute_type
-                )
-            except Exception as e:
-                logger.error("faster_whisper.load_failed", error=str(e))
-                raise
+        if self._model is None:
+            from faster_whisper import WhisperModel
+
+            logger.info(
+                "faster_whisper.loading_model size=%s device=%s compute_type=%s",
+                self.model_size, self.device, self.compute_type,
+            )
+            self._model = WhisperModel(
+                self.model_size, device=self.device, compute_type=self.compute_type
+            )
         return self._model
 
-    async def transcribe(self, audio_file: BinaryIO, language: str | None = None) -> TranscriptionResult:
-        import torch
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            
-        model = self._get_model()
-        
-        # Faster-whisper accepts file path or binary stream
-        segments, info = model.transcribe(
-            audio_file, 
+    def _transcribe_sync(self, path: str, language: str | None) -> Dict[str, Any]:
+        segments, info = self._get_model().transcribe(
+            path,
             language=language,
             beam_size=5,
-            word_timestamps=True
+            # Pula trechos sem fala; reduz textos inventados em silêncios.
+            vad_filter=True,
         )
-
-        # Convert generator to list
-        segment_list = list(segments)
-        
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            
-        # Calculate duration
-        duration = info.duration
-        
-        # Build Transcript
-        full_text = "".join([s.text for s in segment_list]).strip()
-        
-        domain_segments = [
-            TranscriptionSegment(
-                id=str(i),
-                text=s.text.strip(),
-                start=s.start,
-                end=s.end,
-                confidence=getattr(s, "avg_logprob", 0.0), # Approximate confidence
-                speaker=None 
-            )
-            for i, s in enumerate(segment_list)
+        items = [
+            {
+                "start": seg.start,
+                "end": seg.end,
+                "text": seg.text.strip(),
+                "confidence": seg.avg_logprob,
+            }
+            for seg in segments  # o gerador só transcreve ao ser percorrido
         ]
+        return {
+            "text": " ".join(item["text"] for item in items).strip(),
+            "language": info.language,
+            "provider": "faster-whisper",
+            "segments": items,
+            "duration": info.duration,
+        }
 
-        return TranscriptionResult(
-            text=full_text,
-            language=info.language,
-            duration=duration,
-            segments=domain_segments,
-            confidence=0.95, # High confidence for large-v3
-            provider="faster-whisper"
-        )
+    async def transcribe(self, path: str, language: str = "auto") -> Dict[str, Any]:
+        lang = None if not language or language.lower() == "auto" else language
+        return await asyncio.to_thread(self._transcribe_sync, path, lang)
+
+
+__all__ = ["FasterWhisperAdapter", "resolve_device_and_compute"]
