@@ -92,7 +92,7 @@ export const AdminDashboardPage = () => {
               <div className="space-y-4 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <span className={`h-2 w-2 rounded-full ${health.status === 'healthy' ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                  <span className="font-medium capitalize text-slate-900">{health.status}</span>
+                  <span className="font-medium text-slate-900">{health.status === "healthy" ? "Tudo funcionando" : "Com alertas"}</span>
                   <span className="text-xs text-muted-foreground">Atualizado {new Date(health.timestamp).toLocaleString("pt-BR")}</span>
                 </div>
                 <div className="text-muted-foreground">
