@@ -13,6 +13,7 @@ from jose import JWTError, ExpiredSignatureError, jwt
 from src.user_management.application.auth_queries import UserReadService
 from src.user_management.application.dtos import GetUserQuery
 from src.user_management.application.services.auth_service import AuthService
+from src.user_management.application.services.login_throttle import LoginThrottle
 from src.user_management.application.services.user_service import UserService
 from src.user_management.config.settings import UserSettings
 from src.user_management.domain import User, UserRole
@@ -44,6 +45,31 @@ def get_auth_queries() -> UserReadService:
 def get_auth_settings() -> UserSettings:
     """Returns the UserSettings instance."""
     raise NotImplementedError("AuthSettings dependency not configured.")
+
+
+_default_login_throttle: Optional[LoginThrottle] = None
+
+
+def get_login_throttle() -> LoginThrottle:
+    """Limitador de tentativas de login.
+
+    A raiz de composição substitui esta dependência por uma instância com Redis
+    (compartilhada entre processos). Sem substituição, usa contagem em memória.
+    """
+    global _default_login_throttle
+    if _default_login_throttle is None:
+        from src.user_management.config.settings import user_settings
+        from src.user_management.infrastructure.adapters.security.login_attempt_limiter import (
+            InMemoryLoginAttemptLimiter,
+        )
+
+        _default_login_throttle = LoginThrottle(
+            InMemoryLoginAttemptLimiter(),
+            user_settings.login_max_attempts_per_email,
+            user_settings.login_max_attempts_per_ip,
+            user_settings.login_block_seconds,
+        )
+    return _default_login_throttle
 
 
 # --- Derived Dependencies (Leafs) ---

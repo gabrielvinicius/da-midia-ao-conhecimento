@@ -15,9 +15,11 @@ from src.shared.infrastructure.observability.logging.logging_config import get_l
 from src.user_management.api.dependencies import (
     get_current_admin_user,
     get_current_user,
+    get_login_throttle,
 )
 from src.user_management.application.dtos import CreateUserCommand, ListUsersQuery
 from src.user_management.application.services.auth_service import AuthService
+from src.user_management.application.services.login_throttle import LoginThrottle
 from src.user_management.application.services.user_service import UserService
 from src.user_management.domain.errors import (
     InvalidCredentialsError,
@@ -60,6 +62,14 @@ async def register(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+def _client_ip(request: Request) -> Optional[str]:
+    """IP do cliente. Atrás do Nginx, usa o X-Real-IP definido pelo proxy."""
+    forwarded = request.headers.get("x-real-ip")
+    if forwarded:
+        return forwarded.strip()
+    return request.client.host if request.client else None
+
+
 @router.post("/token")
 async def login_for_access_token(
     request: Request,
@@ -67,17 +77,30 @@ async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     auth_service: AuthService = Depends(get_auth_service),
     settings=Depends(get_auth_settings),
+    throttle: LoginThrottle = Depends(get_login_throttle),
 ):
+    client_ip = _client_ip(request)
+    wait = await throttle.retry_after(form_data.username, client_ip)
+    if wait > 0:
+        logger.warning("auth.login.throttled", email=form_data.username, ip=client_ip)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Muitas tentativas de login. Tente novamente em {max(1, wait // 60)} minuto(s).",
+            headers={"Retry-After": str(wait)},
+        )
     try:
         result = await auth_service.authenticate_user(
             form_data.username,
             form_data.password,
         )
     except InvalidCredentialsError as e:
+        await throttle.register_failure(form_data.username, client_ip)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
     except ValueError as e:
         # Catch-all for other value errors, but domain exceptions should cover logic
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    await throttle.register_success(form_data.username)
 
     cookie_secure = settings.cookie_secure
     cookie_samesite = settings.cookie_samesite

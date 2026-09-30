@@ -40,7 +40,22 @@ class PermissionServicePort(Protocol):
     def validate_admin_operation(self, admin_user: User, target_user_id: UUID) -> None: ...
 
 
+class LoginAttemptLimiterPort(Protocol):
+    """Contagem de tentativas de login malsucedidas por chave (e-mail, IP)."""
+
+    async def retry_after(self, key: str) -> int:
+        """Segundos até a chave ser liberada (0 = não bloqueada)."""
+        ...
+
+    async def register_failure(self, key: str, limit: int, window_seconds: int) -> None:
+        """Registra uma falha; ao atingir ``limit`` na janela, bloqueia a chave."""
+        ...
+
+    async def reset(self, key: str) -> None: ...
+
+
 __all__ = [
+    "LoginAttemptLimiterPort",
     "UserRepositoryPort",
     "UserQueriesPort",
     "PasswordHasherPort",

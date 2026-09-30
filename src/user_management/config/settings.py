@@ -12,6 +12,10 @@ class UserSettings(BaseSettings):
     cookie_secure: bool = False
     cookie_samesite: str = "lax"
     lightweight_mode: bool = False
+    # Proteção contra força bruta no login (janela e bloqueio em segundos)
+    login_max_attempts_per_email: int = 5
+    login_max_attempts_per_ip: int = 20
+    login_block_seconds: int = 15 * 60
 
     model_config = SettingsConfigDict(
         env_prefix="USER_",
