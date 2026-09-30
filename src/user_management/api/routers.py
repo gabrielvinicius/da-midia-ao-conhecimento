@@ -1,6 +1,3 @@
-import os
-import json
-import uuid
 from typing import Annotated, Optional
 
 from fastapi import (
@@ -26,7 +23,7 @@ from src.user_management.domain.errors import (
     InvalidCredentialsError,
     UserAlreadyExistsError,
 )
-from src.user_management.domain import User
+from src.user_management.domain import User, UserRole
 from src.user_management.config.settings import user_settings
 
 from .dependencies import get_auth_service, get_auth_settings, get_user_service
@@ -47,25 +44,11 @@ async def register(
     user_service: UserService = Depends(get_user_service),
 ):
     logger.info("auth.register.received", email=user_data.email)
-    # Atalho lightweight: retorna resposta imediata (evita dependências reais)
-    if os.getenv("LIGHTWEIGHT_BOOTSTRAP") == "1" or os.getenv("USER_LIGHTWEIGHT_MODE") == "1":
-        logger.info("auth.register.lightweight", email=user_data.email)
-        payload = {
-            "id": str(uuid.uuid4()),
-            "email": user_data.email,
-            "is_active": True,
-            "role": "user",
-        }
-        return Response(
-            content=json.dumps(payload),
-            status_code=status.HTTP_201_CREATED,
-            media_type="application/json",
-        )
     try:
         command = CreateUserCommand(
             email=user_data.email,
             password=user_data.password,
-            role=user_data.role,
+            role=UserRole.USER,
         )
         result = await user_service.register_user(command)
         return UserResponse(**result["user"])
@@ -85,20 +68,6 @@ async def login_for_access_token(
     auth_service: AuthService = Depends(get_auth_service),
     settings=Depends(get_auth_settings),
 ):
-    if os.getenv("LIGHTWEIGHT_BOOTSTRAP") == "1" or os.getenv("USER_LIGHTWEIGHT_MODE") == "1":
-        token = f"fake-token-{uuid.uuid4()}"
-        response.set_cookie(
-            key="access_token_cookie",
-            value=token,
-            httponly=True,
-            samesite="lax",
-            secure=False,
-        )
-        return {
-            "message": "Authentication successful",
-            "access_token": token,
-            "token_type": "bearer",
-        }
     try:
         result = await auth_service.authenticate_user(
             form_data.username,

@@ -26,32 +26,14 @@ async def client():
     """HTTPX client bound to the FastAPI app for integration tests, com fakes in-memory."""
     async with app.router.lifespan_context(app):
         # Override dependências após o bootstrap real para manter fakes
+        # Serviços reais de autenticação sobre um repositório em memória:
+        # as rotas de login e cadastro não têm mais atalhos de teste.
         auth_service, user_service, auth_queries, user_repo = build_fake_auth()
-
-        class _FakeUserService:
-            async def register_user(self, cmd):
-                return {
-                    "success": True,
-                    "user": {
-                        "id": "00000000-0000-0000-0000-000000000001",
-                        "email": cmd.email,
-                        "role": "user",
-                    },
-                }
-
-            async def authenticate_user(self, email, password):
-                return {"token": f"fake-{email}"}
-
-            user_read_service = user_service.user_read_service
-
-        class _FakeAuthService:
-            async def authenticate_user(self, email, password):
-                return {"token": f"fake-{email}"}
 
         app.dependency_overrides[get_auth_queries] = lambda: auth_queries
         app.dependency_overrides[get_auth_settings] = lambda: user_service.settings
-        app.dependency_overrides[get_user_service] = lambda: _FakeUserService()
-        app.dependency_overrides[get_auth_service] = lambda: _FakeAuthService()
+        app.dependency_overrides[get_user_service] = lambda: user_service
+        app.dependency_overrides[get_auth_service] = lambda: auth_service
 
         storage = InMemoryStorage()
         storage_uploader = FakeStorageUploader(FakeStorageUploadAdapter(storage))
@@ -93,7 +75,6 @@ async def authenticated_user(client):
 def enable_lightweight_mode(monkeypatch) -> None:
     """Use lightweight bootstrap during integration tests to avoid real infra."""
     monkeypatch.setenv("LIGHTWEIGHT_BOOTSTRAP", "1")
-    monkeypatch.setenv("USER_LIGHTWEIGHT_MODE", "1")
     monkeypatch.setenv("CELERY_BROKER_URL", "memory://")
     monkeypatch.setenv("CELERY_RESULT_BACKEND", "cache+memory://")
     monkeypatch.setenv("CELERY_TASK_ALWAYS_EAGER", "1")
