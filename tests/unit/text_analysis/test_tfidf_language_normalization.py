@@ -15,10 +15,16 @@ async def test_tfidf_normalizes_language_codes(monkeypatch):
 
     adapter = TFIDFTopicModelingAdapter(n_topics=1, max_features=10)
 
-    topics, _ = await adapter.model_topics(
-        [TextChunk.from_text("hello world"), TextChunk.from_text("world hello")],
+    topics, diag = await adapter.model_topics(
+        [
+            TextChunk.from_text("a derivada de uma função mede a taxa de variação"),
+            TextChunk.from_text("para calcular a derivada usamos o limite"),
+        ],
         [],
         "pt-BR",
     )
-    # apenas valida que não quebra e processa com stopwords pt (normalizado)
-    assert topics == [] or isinstance(topics, list)
+    # Antes, "portuguese" era passado ao scikit-learn, que só aceita
+    # "english": a chamada falhava e nenhum tema era devolvido.
+    assert "error" not in diag
+    assert topics and "derivada" in topics[0].keywords
+    assert not {"de", "a", "para", "uma"} & set(topics[0].keywords)

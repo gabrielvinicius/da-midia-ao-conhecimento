@@ -123,14 +123,6 @@ TEXT_GEN_ROUTING: Mapping[str, str] = {
 HEALTH_TTL_SECONDS = int(os.getenv("TEXT_ANALYSIS_HEALTH_TTL", "300"))
 _last_health_check: float = 0.0
 
-# idiomas suportados para stopwords (tfidf); configurável via env
-_DEFAULT_STOPWORDS = {"english", "portuguese", "spanish"}
-_ENV_STOPWORDS = {
-    lang.strip().lower()
-    for lang in os.getenv("TEXT_ANALYSIS_STOPWORDS_LANGS", "").split(",")
-    if lang.strip()
-}
-STOPWORDS_LANGS = _DEFAULT_STOPWORDS | _ENV_STOPWORDS
 
 
 TOPIC_PROVIDERS: List[ProviderEntry] = [
@@ -204,5 +196,4 @@ __all__ = [
     "SENTIMENT_PROVIDERS",
     "EMBEDDING_PROVIDERS",
     "resolve_textgen_target",
-    "STOPWORDS_LANGS",
 ]

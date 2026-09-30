@@ -10,8 +10,16 @@ from src.shared.infrastructure.observability.logging.logging_config import get_l
 from src.shared.infrastructure.config.settings import settings
 from src.text_analysis.application.ports.topic_modeling import TopicModelingPort
 from src.text_analysis.domain import TextChunk, Topic
+from src.text_analysis.infrastructure.adapters.stopwords import (
+    PORTUGUESE_STOPWORDS,
+    stop_words_for,
+)
 
 logger = get_logger(__name__)
+
+# Abaixo disso o UMAP do BERTopic falha (poucos pontos para a redução de
+# dimensão) e agrupar não faz sentido: o texto vira um único tema.
+MIN_CHUNKS_FOR_CLUSTERING = 8
 
 
 class BERTopicAdapter(TopicModelingPort):
@@ -112,6 +120,10 @@ class BERTopicAdapter(TopicModelingPort):
     async def model_topics(
         self, chunks: list[TextChunk], embeddings: list[list[float]], language: str
     ) -> tuple[list[Topic], dict]:
+        if len(chunks) < MIN_CHUNKS_FOR_CLUSTERING:
+            logger.info("bertopic.too_few_chunks", chunk_count=len(chunks))
+            return self._fallback(chunks, language)
+
         # Garante que deps pesadas estão na memória
         self._ensure_dependencies()
         
@@ -130,9 +142,14 @@ class BERTopicAdapter(TopicModelingPort):
                 params = self._calculate_dynamic_params(len(docs))
                 
                 # Instancia BERTopic leve (modelos pesados injetados)
+                from sklearn.feature_extraction.text import CountVectorizer
+
                 topic_model = BERTopic(
                     embedding_model=self._embedding_model,
                     representation_model=self._representation_models,
+                    # Sem palavras vazias, as palavras-chave em português
+                    # seriam "de", "que", "para".
+                    vectorizer_model=CountVectorizer(stop_words=stop_words_for(language)),
                     min_topic_size=params["min_topic_size"],
                     verbose=True,
                     # calculate_probabilities=True # Opcional, consome mais RAM
@@ -214,7 +231,7 @@ class BERTopicAdapter(TopicModelingPort):
                 return topics_out, diagnostics
             except Exception as exc:  # pragma: no cover
                 logger.error("BERTopic run failed: %s", exc, exc_info=True)
-        return self._fallback(chunks)
+        return self._fallback(chunks, language)
 
     def _clean_llm_title(self, text: str) -> str:
         """Limpa títulos gerados por LLMs que tendem a ser 'conversas'."""
@@ -247,15 +264,25 @@ class BERTopicAdapter(TopicModelingPort):
             
         return cleaned.strip().capitalize()
 
-    def _fallback(self, chunks: list[TextChunk]) -> tuple[list[Topic], dict]:
+    def _fallback(
+        self, chunks: list[TextChunk], language: str | None = None
+    ) -> tuple[list[Topic], dict]:
+        """Um único tema com as palavras mais frequentes do texto.
+
+        Usado em textos curtos e quando o BERTopic falha.
+        """
+        stop = set(stop_words_for(language) or PORTUGUESE_STOPWORDS)
         text_all = " ".join(chunk.text for chunk in chunks)
-        tokens = [t.lower() for t in text_all.split() if len(t) > 3]
+        tokens = [
+            t.strip(".,;:!?()[]\"'«»“”").lower() for t in text_all.split()
+        ]
+        tokens = [t for t in tokens if len(t) > 3 and t not in stop and not t.isdigit()]
         common = [word for word, _ in Counter(tokens).most_common(10)]
         topic = Topic(
             id=0,
             keywords=common or ["geral"],
             snippets=[chunk.text for chunk in chunks[:3]],
-            title=common[0] if common else "Geral",
+            title=" e ".join(common[:2]).capitalize() if common else "Geral",
             size=len(chunks),
             diagnostics={"method": "fallback"},
         )
