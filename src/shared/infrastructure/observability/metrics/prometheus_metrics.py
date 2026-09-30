@@ -134,34 +134,6 @@ class SharedPrometheusMetrics:
             Gauge,
         )
 
-    # --- Metrics for Video Processing ---
-    def get_video_processing_operations_total(self) -> Counter:
-        return self._get_or_create_metric(
-            "counter",
-            "video_processing_operations_total",
-            "Total number of video processing operations",
-            ["operation", "status"],
-            Counter,
-        )
-
-    def get_video_processing_duration_seconds(self) -> Histogram:
-        return self._get_or_create_metric(
-            "histogram",
-            "video_processing_operation_duration_seconds",
-            "Duration of video processing operations",
-            ["operation"],
-            Histogram,
-        )
-
-    def get_video_processing_input_file_size_bytes(self) -> Histogram:
-        return self._get_or_create_metric(
-            "histogram",
-            "video_processing_input_file_size_bytes",
-            "Size of video files processed",
-            ["operation"],
-            Histogram,
-        )
-
     # --- Metrics for Text Analysis ---
     def get_text_analysis_operations_total(self) -> Counter:
         return self._get_or_create_metric(

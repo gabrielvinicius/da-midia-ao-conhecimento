@@ -12,9 +12,6 @@ from src.media_processing.application.services.text_extraction_service import (
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
-from src.media_processing.application.services.video_processing_service import (
-    VideoProcessingService,
-)
 from src.media_management.domain.enums import MediaType as _MediaType
 from src.shared.domain.events import MediaUploaded, TextContentReady
 
@@ -30,11 +27,9 @@ class MediaProcessingEventHandlers:
         self,
         transcription_service: TranscriptionService,
         text_extraction_service: TextExtractionService,
-        video_processing_service: VideoProcessingService,
     ) -> None:
         self._transcription_service = transcription_service
         self._text_extraction_service = text_extraction_service
-        self._video_processing_service = video_processing_service
         self._logger = structlog.get_logger(__name__).bind(
             component="media_processing.event_handlers"
         )
@@ -52,20 +47,12 @@ class MediaProcessingEventHandlers:
             media_type_value = event.media_type or context.get("media_type")
             media_type = self._resolve_media_type(media_type_value)
 
+            # Documentos e imagens seguem para extração de texto (com OCR);
+            # áudio e vídeo, para a transcrição, que lê o arquivo original.
             if media_type == _MediaType.TEXT:
                 await self._delegate_text_extraction(event, context, media_id)
             else:
                 await self._delegate_transcription(event, context, media_id)
-
-            if media_type == _MediaType.VIDEO:
-                await self._delegate_video_processing(event, context, media_id)
-            else:
-                self._logger.debug(
-                    "media_uploaded.video_task_skipped",
-                    media_id=str(media_id),
-                    reason="non_video_media",
-                    media_type=str(media_type),
-                )
 
         except Exception as exc:  # pragma: no cover - defensive catch
             self._logger.error(
@@ -175,51 +162,14 @@ class MediaProcessingEventHandlers:
                 error=str(exc),
             )
 
-    async def _delegate_video_processing(self, event, context, media_id):
-        storage_provider = (
-            event.storage_provider or context.get("storage_provider") or "local"
-        )
-        file_path = getattr(event, "file_path", None) or context.get("file_path")
-        user_uuid = None
-        try:
-            user_uuid = UUID(event.user_id) if event.user_id else None
-        except Exception:
-            user_uuid = None
-
-        try:
-            from src.media_processing.application.dtos import (
-                RequestVideoProcessingCommand,
-            )
-            command = RequestVideoProcessingCommand(
-                media_id=media_id,
-                file_path=file_path,
-                storage_provider=storage_provider,
-                user_id=user_uuid,
-                filename=getattr(event, "filename", None),
-                triggered_by=getattr(event, "triggered_by", None),
-                actor_id=getattr(event, "actor_id", None) or context.get("actor_id"),
-                correlation_id=getattr(event, "correlation_id", None),
-            )
-            await self._video_processing_service.request_video_processing(command)
-            self._logger.debug(
-                "media_uploaded.video_processing_delegation_failed",
-                media_id=str(media_id),
-            )
-        except Exception as exc:
-            self._logger.error(
-                "media_uploaded.video_processing_delegation_failed",
-                media_id=str(media_id),
-                error=str(exc),
-            )
-
     def _resolve_media_type(self, media_type_value):
         try:
             from src.media_management.domain.enums import MediaType as _MediaType
             if isinstance(media_type_value, _MediaType):
                 return media_type_value
             elif media_type_value is not None:
-                candidate = str(media_type_value).upper()
-                return _MediaType(candidate)
+                # Os valores do enum são minúsculos ("text", "video", "audio").
+                return _MediaType(str(media_type_value).strip().lower())
         except Exception:
             pass
         return None

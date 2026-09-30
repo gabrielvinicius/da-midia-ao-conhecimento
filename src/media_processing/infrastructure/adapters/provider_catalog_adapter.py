@@ -37,14 +37,6 @@ class MediaProcessingProvidersCatalogAdapter(PipelineProviderCatalogPort):
             "ocr": _build("ocr", ocr_providers, registry.ocr_provider_meta),
         }
 
-        audio_extractors = registry.list_audio_extractors()
-        if audio_extractors:
-            stages["audio_extraction"] = _build(
-                "audio_extraction",
-                audio_extractors,
-                registry.audio_extractor_meta,
-            )
-
         return stages
 
 

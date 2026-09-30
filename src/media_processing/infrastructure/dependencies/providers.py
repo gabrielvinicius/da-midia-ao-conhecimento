@@ -15,8 +15,6 @@ from src.media_processing.application.ports import (
     OCRProviderPort,
     SpeechRecognizer,
     TextExtractorPort,
-    VideoAudioExtractorPort,
-    VideoThumbnailGeneratorPort,
 )
 from src.shared.infrastructure.config.settings import settings
 
@@ -75,22 +73,6 @@ def _load_qwen2_vl():
         return Qwen2VLAdapter
     except ImportError:
         return None
-
-try:
-    from src.media_processing.infrastructure.adapters.video import (
-        ffmpeg_audio_extractor,
-        ffmpeg_thumbnail_generator,
-    )
-
-    FFmpegVideoAudioExtractor = (
-        ffmpeg_audio_extractor.FFmpegVideoAudioExtractor
-    )
-    FFmpegVideoThumbnailGenerator = (
-        ffmpeg_thumbnail_generator.FFmpegVideoThumbnailGenerator
-    )
-except Exception:  # pragma: no cover - optional dependency
-    FFmpegVideoAudioExtractor = None
-    FFmpegVideoThumbnailGenerator = None
 
 from src.media_processing.infrastructure.adapters.text import (
     ocr_provider_adapter,
@@ -437,92 +419,6 @@ def list_ocr_providers(public_only: bool = True) -> list[str]:
 def ocr_provider_meta(name: str) -> Dict[str, Any]:
     return _OCR_META.get(name, {"label": name, "description": "", "public": True})
 
-# ----------------- Video adapters -----------------
-_AUDIO_EXTRACTORS: Dict[str, Callable[[], VideoAudioExtractorPort]] = {}
-_AUDIO_META: Dict[str, Dict[str, Any]] = {}
-if FFmpegVideoAudioExtractor:
-    _AUDIO_EXTRACTORS["ffmpeg"] = lambda: FFmpegVideoAudioExtractor()
-    _AUDIO_META["ffmpeg"] = {
-        "label": "FFmpeg Audio Extractor",
-        "public": True,
-        "description": "",
-    }
-
-_THUMBNAIL_GENERATORS: Dict[str, Callable[[], VideoThumbnailGeneratorPort]] = {}
-_THUMBNAIL_META: Dict[str, Dict[str, Any]] = {}
-if FFmpegVideoThumbnailGenerator:
-    _THUMBNAIL_GENERATORS["ffmpeg"] = lambda: FFmpegVideoThumbnailGenerator()
-    _THUMBNAIL_META["ffmpeg"] = {
-        "label": "FFmpeg Thumbnail",
-        "public": True,
-        "description": "",
-    }
-
-
-def register_audio_extractor(
-    name: str,
-    factory: Callable[[], VideoAudioExtractorPort],
-    *,
-    label: str | None = None,
-    description: str | None = None,
-    public: bool = True,
-) -> None:
-    _AUDIO_EXTRACTORS[name.lower()] = factory
-    _AUDIO_META[name.lower()] = {
-        "label": label or name,
-        "description": description or "",
-        "public": public,
-    }
-
-
-def register_thumbnail_generator(
-    name: str,
-    factory: Callable[[], VideoThumbnailGeneratorPort],
-    *,
-    label: str | None = None,
-    description: str | None = None,
-    public: bool = True,
-) -> None:
-    _THUMBNAIL_GENERATORS[name.lower()] = factory
-    _THUMBNAIL_META[name.lower()] = {
-        "label": label or name,
-        "description": description or "",
-        "public": public,
-    }
-
-
-def get_audio_extractor(provider: str | None = None) -> VideoAudioExtractorPort:
-    key = (provider or "ffmpeg").lower()
-    factory = _AUDIO_EXTRACTORS.get(key) or _AUDIO_EXTRACTORS["ffmpeg"]
-    return factory()
-
-def list_audio_extractors(public_only: bool = True) -> list[str]:
-    names = sorted(_AUDIO_EXTRACTORS.keys())
-    if not public_only:
-        return names
-    return [n for n in names if _AUDIO_META.get(n, {}).get("public", True)]
-
-
-def audio_extractor_meta(name: str) -> Dict[str, Any]:
-    return _AUDIO_META.get(name, {"label": name, "description": "", "public": True})
-
-
-def get_thumbnail_generator(provider: str | None = None) -> VideoThumbnailGeneratorPort:
-    key = (provider or "ffmpeg").lower()
-    factory = _THUMBNAIL_GENERATORS.get(key) or _THUMBNAIL_GENERATORS["ffmpeg"]
-    return factory()
-
-def list_thumbnail_generators(public_only: bool = True) -> list[str]:
-    names = sorted(_THUMBNAIL_GENERATORS.keys())
-    if not public_only:
-        return names
-    return [n for n in names if _THUMBNAIL_META.get(n, {}).get("public", True)]
-
-
-def thumbnail_generator_meta(name: str) -> Dict[str, Any]:
-    return _THUMBNAIL_META.get(name, {"label": name, "description": "", "public": True})
-
-
 def get_event_bus(event_bus: SupportsEventBus | None = None) -> SupportsEventBus:
     """Retorna o event bus recebido do bootstrap; falha se não for fornecido."""
     if event_bus is None:
@@ -546,14 +442,6 @@ __all__ = [
     "register_ocr_provider",
     "list_ocr_providers",
     "ocr_provider_meta",
-    "get_audio_extractor",
-    "register_audio_extractor",
-    "list_audio_extractors",
-    "audio_extractor_meta",
-    "get_thumbnail_generator",
-    "register_thumbnail_generator",
-    "list_thumbnail_generators",
-    "thumbnail_generator_meta",
     "get_visual_analyzer",
     "get_event_bus",
     "get_tts_provider",

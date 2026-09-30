@@ -12,32 +12,20 @@ from src.media_processing.application.services.text_extraction_service import (
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
-from src.media_processing.application.services.video_processing_service import (
-    VideoProcessingService,
-)
 from src.media_processing.application.tasks import (
     CeleryTextTaskScheduler,
     CeleryTranscriptionTaskScheduler,
-    CeleryVideoProcessingTaskScheduler,
-)
-from src.media_processing.infrastructure.adapters.storage_download_adapter import (
-    StorageDownloadAdapter,
 )
 from src.media_processing.infrastructure.dependencies.providers import (
-    get_audio_extractor,
     get_ocr_provider,
     get_speech_recognizer,
     get_text_extractor,
-    get_thumbnail_generator,
 )
 from src.media_processing.infrastructure.logging.structured_transcription_logger import (
     StructuredTranscriptionLogger,
 )
 from src.media_processing.infrastructure.metrics.prometheus_transcription_metrics import (
     PrometheusTranscriptionMetrics,
-)
-from src.media_processing.infrastructure.metrics.prometheus_video_processing_metrics import (
-    PrometheusVideoProcessingMetrics,
 )
 from src.media_processing.infrastructure.repositories.transcription_repository import (
     TranscriptionRepository,
@@ -80,18 +68,9 @@ def build_media_processing_event_handlers(
         ocr_provider=get_ocr_provider(),
     )
 
-    video_processing_service = VideoProcessingService(
-        video_audio_extractor=get_audio_extractor(),
-        video_thumbnail_generator=get_thumbnail_generator(),
-        video_processing_task_scheduler=CeleryVideoProcessingTaskScheduler(),
-        storage_factory=StorageDownloadAdapter(storage_factory),
-        event_bus=event_bus,
-    )
-
     return MediaProcessingEventHandlers(
         transcription_service=transcription_service,
         text_extraction_service=text_extraction_service,
-        video_processing_service=video_processing_service,
     )
 
 

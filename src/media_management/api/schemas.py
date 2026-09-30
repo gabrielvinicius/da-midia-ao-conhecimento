@@ -76,9 +76,7 @@ class MediaResponse(BaseModel):
     def processing_pipeline(self) -> List[str]:
         pipeline: List[str] = ["upload"]
 
-        if self.media_type == MediaType.VIDEO:
-            pipeline.append("video_processing")
-        elif self.media_type == MediaType.AUDIO:
+        if self.media_type in (MediaType.VIDEO, MediaType.AUDIO):
             pipeline.append("transcription")
         elif self.media_type == MediaType.TEXT:
             pipeline.append("extract_text")

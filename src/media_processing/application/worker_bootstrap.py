@@ -5,34 +5,22 @@ nas tasks e permitindo troca de adapters/metrics via providers.
 """
 from __future__ import annotations
 
-from typing import Optional
-from uuid import UUID
-
 from src.media_processing.application.services.text_extraction_service import (
     TextExtractionService,
 )
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
-from src.media_processing.application.services.video_processing_service import (
-    VideoProcessingService,
-)
-from src.media_processing.infrastructure.adapters.storage_download_adapter import (
-    StorageDownloadAdapter,
-)
 from src.media_processing.infrastructure.dependencies.providers import (
-    get_audio_extractor,
     get_ocr_provider,
     get_speech_recognizer,
     get_text_extractor,
-    get_thumbnail_generator,
 )
 from src.media_processing.infrastructure.logging import (
     structured_transcription_logger,
 )
 from src.media_processing.infrastructure.metrics import (
     prometheus_transcription_metrics,
-    prometheus_video_processing_metrics,
 )
 from src.media_processing.infrastructure.repositories import (
     transcription_repository,
@@ -45,9 +33,6 @@ StructuredTranscriptionLogger = (
 )
 PrometheusTranscriptionMetrics = (
     prometheus_transcription_metrics.PrometheusTranscriptionMetrics
-)
-PrometheusVideoProcessingMetrics = (
-    prometheus_video_processing_metrics.PrometheusVideoProcessingMetrics
 )
 TranscriptionRepository = transcription_repository.TranscriptionRepository
 
@@ -107,25 +92,6 @@ def build_text_extraction_service(
     )
 
 
-def build_video_processing_service(
-    session,
-    event_bus: SupportsEventBus,
-    storage_provider: str = "local",
-) -> VideoProcessingService:
-    metrics = PrometheusVideoProcessingMetrics()
-    storage_factory = StorageServiceFactory()
-    storage_adapter = StorageDownloadAdapter(storage_factory)
-
-    return VideoProcessingService(
-        video_audio_extractor=get_audio_extractor(),
-        video_thumbnail_generator=get_thumbnail_generator(),
-        video_processing_task_scheduler=None,  # executado inline no worker
-        storage_factory=storage_adapter,
-        event_bus=event_bus,
-        video_processing_metrics=metrics,
-    )
-
-
 class MediaProcessingServices:
     """Convenience container para tasks."""
 
@@ -133,11 +99,9 @@ class MediaProcessingServices:
         self,
         transcription: TranscriptionService,
         text_extraction: TextExtractionService,
-        video_processing: VideoProcessingService,
     ) -> None:
         self.transcription = transcription
         self.text_extraction = text_extraction
-        self.video_processing = video_processing
 
 
 def build_services(
@@ -152,9 +116,6 @@ def build_services(
         text_extraction=build_text_extraction_service(
             session, event_bus, storage_provider
         ),
-        video_processing=build_video_processing_service(
-            session, event_bus, storage_provider
-        ),
     )
 
 
@@ -162,6 +123,5 @@ __all__ = [
     "build_services",
     "build_transcription_service",
     "build_text_extraction_service",
-    "build_video_processing_service",
     "MediaProcessingServices",
 ]

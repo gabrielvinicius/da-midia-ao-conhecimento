@@ -31,20 +31,10 @@ from src.media_processing.api.dependencies import (
     TranscriptionDependencies,
     get_transcription_dependencies,
 )
-from src.media_processing.application.event_handlers import MediaProcessingEventHandlers
-from src.media_processing.application.services.text_extraction_service import (
-    TextExtractionService,
-)
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
 from src.media_processing.application.ports import TranscriptionQueryPort
-from src.media_processing.application.services.video_processing_service import (
-    VideoProcessingService,
-)
-from src.media_processing.infrastructure.adapters.storage_download_adapter import (
-    StorageDownloadAdapter,
-)
 from src.media_management.infrastructure.adapters.storage_downloader_adapter import (
     StorageDownloaderAdapter,
 )
@@ -58,22 +48,15 @@ from src.media_processing.infrastructure.dependencies.transcription_query_adapte
     TranscriptionQueryAdapter,
 )
 from src.media_processing.infrastructure.dependencies.providers import (
-    get_audio_extractor,
-    get_ocr_provider,
     get_speech_recognizer,
-    get_text_extractor,
-    get_thumbnail_generator,
 )
 from src.media_processing.infrastructure.logging import structured_transcription_logger
 from src.media_processing.infrastructure.metrics import (
     prometheus_transcription_metrics,
-    prometheus_video_processing_metrics,
 )
 from src.media_processing.infrastructure.repositories import transcription_repository
 from src.media_processing.application.tasks import (
-    CeleryTextTaskScheduler,
     CeleryTranscriptionTaskScheduler,
-    CeleryVideoProcessingTaskScheduler,
 )
 
 StructuredTranscriptionLogger = (
@@ -82,12 +65,8 @@ StructuredTranscriptionLogger = (
 PrometheusTranscriptionMetrics = (
     prometheus_transcription_metrics.PrometheusTranscriptionMetrics
 )
-PrometheusVideoProcessingMetrics = (
-    prometheus_video_processing_metrics.PrometheusVideoProcessingMetrics
-)
 TranscriptionRepository = transcription_repository.TranscriptionRepository
 from src.shared.domain.events import (
-    MediaUploaded,
     TranscriptionCompleted,
     TranscriptionFailed,
 )
@@ -107,7 +86,6 @@ class MediaModule:
     media_service: MediaService
 
     transcription_service: TranscriptionService
-    video_processing_service: VideoProcessingService
     # Read-side: consulta de transcrições (para outros contextos, ex.: text_analysis).
     transcription_queries: TranscriptionQueryPort
 
@@ -188,32 +166,6 @@ def build_media_components(
         event_bus=event_bus,
     )
 
-    text_extraction_service = TextExtractionService(
-        repository=transcription_repository,
-        task_scheduler=CeleryTextTaskScheduler(),
-        storage_service=transcription_storage_service,
-        event_bus=event_bus,
-        text_extractor=get_text_extractor(),
-        ocr_provider=get_ocr_provider(),
-    )
-
-    video_processing_service = VideoProcessingService(
-        video_audio_extractor=get_audio_extractor(),
-        video_thumbnail_generator=get_thumbnail_generator(),
-        video_processing_task_scheduler=CeleryVideoProcessingTaskScheduler(),
-        storage_factory=StorageDownloadAdapter(storage_service_factory),
-        event_bus=event_bus,
-    )
-
-    video_metrics = PrometheusVideoProcessingMetrics()
-
-    # Instantiate and subscribe event handlers for media processing
-    media_processing_event_handlers = MediaProcessingEventHandlers(
-        transcription_service=transcription_service,
-        text_extraction_service=text_extraction_service,
-        video_processing_service=video_processing_service,
-    )
-
     media_event_handlers = MediaEventHandlers(media_service)
 
     if event_bus and subscribe:
@@ -230,7 +182,6 @@ def build_media_components(
     module = MediaModule(
         media_service=media_service,
         transcription_service=transcription_service,
-        video_processing_service=video_processing_service,
         transcription_queries=transcription_queries,
     )
 

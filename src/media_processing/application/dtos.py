@@ -58,30 +58,6 @@ class RequestTranscriptionCommand(BaseModel):
 
 
 
-class RequestVideoProcessingCommand(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    media_id: UUID = Field(..., description="ID of the media to process.")
-    file_path: str = Field(..., description="Path to the video file in storage.")
-    storage_provider: str = Field(
-        ..., description="Provider where the video file is stored."
-    )
-    user_id: Optional[UUID] = Field(
-        None, description="Owner of the media (for audit)."
-    )
-    filename: Optional[str] = Field(
-        None, description="Original filename for context/audit."
-    )
-    triggered_by: Optional[str] = Field(
-        None, description="Who triggered the processing (user/admin/system)."
-    )
-    actor_id: Optional[str] = Field(
-        None, description="Actor identifier that triggered the event."
-    )
-    correlation_id: Optional[str] = Field(
-        None, description="Correlation id propagated from MediaUploaded."
-    )
-
-
 class RequestTextExtractionCommand(BaseModel):
     model_config = ConfigDict(frozen=True)
     media_id: UUID = Field(..., description="ID of the media to extract text from.")

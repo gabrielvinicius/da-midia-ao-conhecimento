@@ -99,29 +99,6 @@ class OCRProviderPort(Protocol):
         ...
 
 
-class VideoAudioExtractorPort(Protocol):
-    async def extract_audio(
-        self,
-        *,
-        video_data: bytes,
-        filename: str,
-        output_format: str = "wav",
-    ):
-        ...
-
-
-class VideoThumbnailGeneratorPort(Protocol):
-    async def generate_thumbnail(
-        self,
-        *,
-        video_data: bytes,
-        filename: str,
-        size: str = "medium",
-        timestamp: float = 0.0,
-    ):
-        ...
-
-
 class VisualAnalysisPort(Protocol):
     """Port for multimodal AI to 'see' and describe video frames."""
     async def describe_frame(self, frame_bytes: bytes, prompt: str = "Describe this scene in detail.") -> str:
@@ -131,17 +108,4 @@ class VisualAnalysisPort(Protocol):
 class VideoFrameExtractorPort(Protocol):
     """Port for extracting raw frames from video data."""
     async def extract_frame(self, video_data: bytes, timestamp: float) -> bytes:
-        ...
-
-
-class StorageDownloadServicePort(Protocol):
-    async def download_file(self, path: str) -> bytes:
-        ...
-
-    def download_file_sync(self, path: str) -> bytes:
-        ...
-
-
-class StorageServiceFactoryPort(Protocol):
-    def get_download_service(self, provider: str) -> StorageDownloadServicePort:
         ...

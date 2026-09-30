@@ -8,14 +8,12 @@ from celery.signals import worker_process_init
 from src.media_processing.application.worker_bootstrap import (
     build_text_extraction_service,
     build_transcription_service,
-    build_video_processing_service,
 )
 from src.media_processing.application.worker import MediaWorkerApp
 from src.media_processing.infrastructure.dependencies.providers import get_event_bus
 from src.shared.events.integration_events import (
     TASK_MEDIA_TEXT_EXTRACTION,
     TASK_MEDIA_TRANSCRIPTION,
-    TASK_MEDIA_VIDEO_PROCESSING,
 )
 from src.shared.infrastructure.database.db import AsyncSessionLocal
 from src.shared.infrastructure.messaging.event_bus_factory import (
@@ -166,57 +164,6 @@ class CeleryTranscriptionTaskScheduler:
         return {"task_id": task.id}
 
 
-class CeleryVideoProcessingTaskScheduler:
-    """Schedule video processing tasks using Celery."""
-
-    async def schedule_process_video_task(
-        self,
-        media_id: str,
-        file_path: str,
-        storage_provider: str,
-        file_size_bytes: int | None = None,
-        user_id: str | None = None,
-        filename: str | None = None,
-        triggered_by: str | None = None,
-        actor_id: str | None = None,
-        correlation_id: str | None = None,
-    ) -> Any:
-        logger.info(
-            "celery_task_scheduler.scheduling_process_video_task",
-            media_id=media_id,
-            file_path=file_path,
-            storage_provider=storage_provider,
-            file_size_bytes=file_size_bytes,
-        )
-
-        # Simple heuristic: < 50MB goes to fast lane
-        queue = "video_queue"
-        if file_size_bytes and file_size_bytes < 50 * 1024 * 1024:
-            queue = "video_fast_lane"
-
-        task = process_video_task.apply_async(
-            kwargs={
-                "media_id": media_id,
-                "file_path": file_path,
-                "storage_provider": storage_provider,
-                "file_size_bytes": file_size_bytes,
-                "user_id": user_id,
-                "filename": filename,
-                "triggered_by": triggered_by,
-                "actor_id": actor_id,
-                "correlation_id": correlation_id or media_id,
-            },
-            queue=queue
-        )
-        logger.info(
-            "celery_task_scheduler.process_video_task_scheduled",
-            media_id=media_id,
-            task_id=task.id,
-            queue=queue,
-        )
-        return {"task_id": task.id}
-
-
 def bootstrap_transcription_service(
     session, event_bus, storage_provider: str = "local"
 ):
@@ -234,15 +181,6 @@ def bootstrap_text_extraction_service(
     session, event_bus, storage_provider: str = "local"
 ):
     return build_text_extraction_service(
-        session=session,
-        event_bus=event_bus,
-        storage_provider=storage_provider,
-    )
-
-def bootstrap_video_processing_service(
-    session, event_bus, storage_provider: str = "local"
-):
-    return build_video_processing_service(
         session=session,
         event_bus=event_bus,
         storage_provider=storage_provider,
@@ -357,67 +295,6 @@ def process_transcription_task(
     except Exception as e:
         logger.error(
             "transcription.task_failed",
-            media_id=media_id,
-            error=str(e),
-            correlation_id=correlation_id,
-            exc_info=True,
-        )
-        raise
-
-@shared_task(
-    bind=True,
-    name=TASK_MEDIA_VIDEO_PROCESSING,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    max_retries=3,
-)
-def process_video_task(
-    self,
-    media_id: str,
-    file_path: str,
-    storage_provider: str = "local",
-    file_size_bytes: Optional[int] = None,
-    correlation_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    filename: Optional[str] = None,
-    triggered_by: Optional[str] = None,
-    actor_id: Optional[str] = None,
-    **kwargs,
-):
-    logger.info(
-        "video_processing.task_started",
-        media_id=media_id,
-        storage_provider=storage_provider,
-    )
-    final_attempt = (self.request.retries or 0) >= (self.max_retries or 0)
-
-    async def _run():
-        # Subscribers are bound at worker process init
-
-        async with AsyncSessionLocal() as session:
-            service = build_video_processing_service(
-                session=session,
-                event_bus=_ensure_event_bus(),
-                storage_provider=storage_provider,
-            )
-            return await service.process_video_job(
-                media_id=UUID(media_id),
-                file_path=file_path,
-                storage_provider=storage_provider,
-                file_size_bytes=file_size_bytes,
-                correlation_id=correlation_id,
-                user_id=user_id,
-                filename=filename,
-                triggered_by=triggered_by,
-                actor_id=actor_id,
-                final_attempt=final_attempt,
-            )
-
-    try:
-        return async_to_sync(_run)()
-    except Exception as e:
-        logger.error(
-            "video_processing.task_failed",
             media_id=media_id,
             error=str(e),
             correlation_id=correlation_id,
