@@ -31,5 +31,7 @@ para o banco usado nas medições.
    Se a referência cobrir só um trecho, salve o trecho correspondente da
    transcrição gerada em um arquivo e passe o arquivo no lugar de `--media-id`.
 
-5. A avaliação dos resumos é feita pelas notas (1 a 5) dadas na própria
-   página da mídia; elas ficam na tabela `analysis_feedback`.
+5. A qualidade dos resumos é avaliada por um questionário fora do sistema
+   (escala Likert de 1 a 5 para fidelidade, cobertura e clareza), respondido
+   por quem assistiu à gravação. O botão 👍/👎 da página da mídia (valores 1 e
+   -1 na tabela `analysis_feedback`) serve como indicador complementar.
