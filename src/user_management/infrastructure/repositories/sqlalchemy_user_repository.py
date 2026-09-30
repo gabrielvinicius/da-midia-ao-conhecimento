@@ -107,7 +107,6 @@ class UserRepository:
 
     async def count_all(self) -> int:
         """Return the total number of users."""
-        await self._ensure_clean()
         if isinstance(self.db, AsyncSession):
             result = await self.db.execute(
                 select(func.count()).select_from(UserModel)
@@ -123,7 +122,6 @@ class UserRepository:
         return result.scalar_one()
 
     async def count_filtered(self, search: Optional[str] = None) -> int:
-        await self._ensure_clean()
         if isinstance(self.db, AsyncSession):
             stmt = select(func.count()).select_from(UserModel)
             if search:
@@ -142,7 +140,6 @@ class UserRepository:
 
     async def count_active(self) -> int:
         """Return the total number of active users."""
-        await self._ensure_clean()
         if isinstance(self.db, AsyncSession):
             stmt = (
                 select(func.count())

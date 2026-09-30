@@ -4,7 +4,6 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
-    Query,
     Request,
     Response,
     status,
@@ -13,11 +12,10 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.user_management.api.dependencies import (
-    get_current_admin_user,
     get_current_user,
     get_login_throttle,
 )
-from src.user_management.application.dtos import CreateUserCommand, ListUsersQuery
+from src.user_management.application.dtos import CreateUserCommand
 from src.user_management.application.services.auth_service import AuthService
 from src.user_management.application.services.login_throttle import LoginThrottle
 from src.user_management.application.services.user_service import UserService
@@ -26,7 +24,6 @@ from src.user_management.domain.errors import (
     UserAlreadyExistsError,
 )
 from src.user_management.domain import User, UserRole
-from src.user_management.config.settings import user_settings
 
 from .dependencies import get_auth_service, get_auth_settings, get_user_service
 from .schemas import ChangePasswordRequest, UserCreate, UserResponse
@@ -200,27 +197,3 @@ async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]
         is_active=current_user.is_active,
         role=current_user.role.value,
     )
-
-
-@router.get(
-    "/users",
-    response_model=list[UserResponse],
-    dependencies=[Depends(get_current_admin_user)],
-)
-async def list_all_users(
-    user_service: UserService = Depends(get_user_service),
-    page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=100),
-    search: Optional[str] = Query(None),
-):
-    query = ListUsersQuery(page=page, limit=limit, search=search)
-    users = await user_service.list_users(query)
-    return [
-        UserResponse(
-            id=u.id,
-            email=u.email,
-            is_active=u.is_active,
-            role=u.role.value,
-        )
-        for u in users
-    ]

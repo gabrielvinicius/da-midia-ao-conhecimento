@@ -35,5 +35,28 @@ class UserReadService(UserQueriesPort):
     async def count_filtered(self, search: str | None = None) -> int:
         return await self.user_repository.count_filtered(search=search)
 
+    async def list_users(self, query) -> dict:
+        """Página de usuários para a administração.
+
+        A rota /admin/users chamava este método, que não existia: a página de
+        gestão de usuários respondia com erro 500.
+        """
+        users = await self.list_all(page=query.page, limit=query.limit, search=query.search)
+        total = await self.count_filtered(search=query.search)
+        return {
+            "items": [
+                {
+                    "id": u.id,
+                    "email": u.email,
+                    "is_active": u.is_active,
+                    "role": getattr(u.role, "value", u.role),
+                }
+                for u in users
+            ],
+            "total_items": total,
+            "current_page": query.page,
+            "total_pages": max(1, -(-total // query.limit)),
+        }
+
 
 __all__ = ["UserReadService"]

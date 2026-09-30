@@ -68,4 +68,21 @@ def test_login_is_blocked_after_repeated_failures(client):
 
 def test_requests_without_token_are_rejected(client):
     assert client.get("/media/").status_code == 401
-    assert client.get("/text-analysis/search", params={"q": "derivada"}).status_code == 401
+    assert client.get("/text-analysis/search", params={"query": "derivada"}).status_code == 401
+
+
+def test_admin_dashboard_endpoints_answer(client):
+    """O painel do administrador falhava com 500 (método inexistente no
+    repositório de usuários); só aparece com o banco real."""
+    email, password = os.environ.get("DEFAULT_ADMIN_EMAIL"), os.environ.get("DEFAULT_ADMIN_PASSWORD")
+    if not (email and password):
+        pytest.skip("defina DEFAULT_ADMIN_EMAIL e DEFAULT_ADMIN_PASSWORD")
+    r = client.post("/auth/token", data={"username": email, "password": password})
+    assert r.status_code == 200, r.text
+    admin = {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+    for path in ("/admin/stats", "/admin/stats/health", "/admin/stats/media-processing", "/admin/users"):
+        response = client.get(path, headers=admin)
+        assert response.status_code == 200, (path, response.text)
+    assert client.get("/admin/stats", headers=admin).json()["total_users"] >= 1
+    assert client.get("/admin/users", headers=admin).json()["total"] >= 1
