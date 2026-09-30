@@ -71,10 +71,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // O usuário vindo da consulta vale já na mesma renderização em que ela
+  // termina; o useEffect acima só copia para o estado depois. Sem isso, ao
+  // recarregar a página, a rota protegida via isLoading=false e user=null por
+  // um instante e mandava para o login.
+  const effectiveUser = user ?? currentUser ?? null;
+
   const value = {
-    user,
+    user: effectiveUser,
     setUser,
-    isAuthenticated: !!user,
+    isAuthenticated: !!effectiveUser,
     isLoading,
     logout,
     refreshToken,

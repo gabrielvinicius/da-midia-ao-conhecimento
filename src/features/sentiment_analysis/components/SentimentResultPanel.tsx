@@ -82,7 +82,9 @@ export const SentimentResultPanel = ({ mediaId, mediaStatus }: SentimentResultPa
             </p>
             {(analysis.sentiment_items || []).slice(0, 4).map((item) => (
               <div key={item.chunk_id} className="rounded-xl border border-[#f2eadf] bg-[#fdfbf6] p-3 text-xs">
-                <p className="font-semibold text-slate-900">{String(item.label).toUpperCase()}</p>
+                <p className="font-semibold text-slate-900">
+                  {(sentimentConfig[String(item.label).toUpperCase()] ?? sentimentConfig.NEUTRAL).label}
+                </p>
                 <p className="mt-1 text-muted-foreground line-clamp-3">{item.text}</p>
               </div>
             ))}
@@ -95,11 +97,10 @@ export const SentimentResultPanel = ({ mediaId, mediaStatus }: SentimentResultPa
   return (
     <Card className="border border-[#ede4d5] bg-gradient-to-br from-purple-900/10 text-slate-900">
       <CardHeader className="text-center space-y-1">
-        <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">Tempo real</p>
-        <CardTitle className="text-2xl">Análise de Sentimento</CardTitle>
+                <CardTitle className="text-2xl">Análise de Sentimento</CardTitle>
         {analysis && (
           <CardDescription className="text-xs text-muted-foreground">
-            {analysis.provider ? `Provider ${analysis.provider}` : "Provider automático"}
+            Tom predominante dos trechos da gravação
           </CardDescription>
         )}
         {!analysis && (

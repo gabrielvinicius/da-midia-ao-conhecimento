@@ -102,9 +102,6 @@ export const InteractiveTranscriptionPanel = ({ mediaId, currentTime, onSeek }: 
             <span className="font-medium">{formattedDuration}</span>
           </div>
         )}
-        {!isDiarized && transcription.status === TranscriptionStatus.COMPLETED && (
-          <div className="text-center text-sm text-muted-foreground p-2">Identificando locutores...</div>
-        )}
         <div 
           className="h-96 overflow-y-auto space-y-2 rounded-md border p-4 bg-muted/20 focus-within:ring-2 focus-within:ring-primary/20 transition-all"
           role="region"
@@ -156,12 +153,12 @@ export const InteractiveTranscriptionPanel = ({ mediaId, currentTime, onSeek }: 
     <Card>
       <CardHeader>
         <CardTitle className="flex justify-between items-center">
-          <span>Interactive Transcription</span>
+          <span>Transcrição</span>
           <div className="flex items-center gap-2">
             {isDiarized && <EditSpeakersDialog transcription={transcription!} />}
             <Button variant="outline" size="icon" onClick={handleDownload} disabled={!canDownload}>
               <Download className="h-4 w-4" />
-              <span className="sr-only">Download Transcription</span>
+              <span className="sr-only">Baixar transcrição</span>
             </Button>
           </div>
         </CardTitle>

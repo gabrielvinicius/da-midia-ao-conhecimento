@@ -88,14 +88,18 @@ const DashboardPage = () => {
   const stats = React.useMemo(() => {
     const fallback = { total: media.length, videos: 0, audios: 0, texts: 0, processing: 0, completed: 0, failed: 0 };
     if (statsApi?.by_status) {
+      // A API devolve os estados em minúsculas ("completed"); aceita as duas formas.
+      const byStatus = Object.fromEntries(
+        Object.entries(statsApi.by_status).map(([k, v]) => [k.toUpperCase(), v]),
+      ) as Record<string, number>;
       return {
         total: statsApi.total ?? fallback.total,
         videos: media.filter(m => m.media_type === MediaType.VIDEO).length, // ausência de breakdown por tipo; mantém parcial
         audios: media.filter(m => m.media_type === MediaType.AUDIO).length,
         texts: media.filter(m => m.media_type === MediaType.TEXT).length,
-        processing: statsApi.by_status.PROCESSING ?? 0,
-        completed: statsApi.by_status.COMPLETED ?? 0,
-        failed: statsApi.by_status.FAILED ?? 0,
+        processing: byStatus.PROCESSING ?? 0,
+        completed: byStatus.COMPLETED ?? 0,
+        failed: byStatus.FAILED ?? 0,
       };
     }
     return {

@@ -79,7 +79,7 @@ export const ProcessingTrace = ({ media, analysis }: ProcessingTraceProps) => {
       <DialogTrigger asChild>
         <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-muted-foreground hover:text-primary transition-all">
           <Zap className={cn("h-3.5 w-3.5", media.status === MediaStatus.PROCESSING ? "text-amber-500 animate-pulse" : "text-muted-foreground")} />
-          <span className="text-[10px] uppercase tracking-wider font-bold">Diagnóstico 8.0</span>
+          <span className="text-[10px] uppercase tracking-wider font-bold">Detalhes do processamento</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] border-[#ede4d5] bg-[#fdfbf6] shadow-2xl">

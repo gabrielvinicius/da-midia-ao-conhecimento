@@ -132,6 +132,21 @@ const renderInlineMarkdown = (text: string) => {
   });
 };
 
+// De onde veio o resumo (registrado pelo backend em diagnostics.summary_source).
+export const summarySourceLabel = (source?: unknown): string | null => {
+  switch (source) {
+    case "llm":
+      return "Gerado pelo modelo principal";
+    case "fallback":
+      return "Gerado pelo modelo reserva";
+    case "simplified":
+    case "error":
+      return "Resumo simplificado: o modelo de linguagem não respondeu";
+    default:
+      return null;
+  }
+};
+
 export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
   const { data: analysis, isLoading, isError, refetch } = useTextAnalysisByMediaIdQuery(mediaId);
   const [isEditing, setIsEditing] = useState(false);
@@ -291,9 +306,9 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">Insights</p>
-            <CardTitle className="text-2xl">Resumo inteligente</CardTitle>
+            <CardTitle className="text-2xl">Resumo</CardTitle>
             <CardDescription className="space-y-1">
-              <span>Resumo interpretativo exclusivo.</span>
+              <span>Gerado a partir da transcrição e, em vídeos, do que aparece na tela.</span>
               {providerInfo?.description && (
                 <span className="flex items-center gap-1 text-xs">
                   <Info className="h-3 w-3" /> {providerInfo.description}
@@ -320,9 +335,9 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
               {providerInfo?.label ?? provider}
             </Badge>
           )}
-          {analysis && (
+          {analysis && summarySourceLabel(analysis.diagnostics?.summary_source) && (
             <Badge variant="secondary" className="rounded-full border border-[#f2eadf] bg-[#fdfbf6] text-slate-800">
-              {MediaStatus.COMPLETED}
+              {summarySourceLabel(analysis.diagnostics?.summary_source)}
             </Badge>
           )}
         </div>

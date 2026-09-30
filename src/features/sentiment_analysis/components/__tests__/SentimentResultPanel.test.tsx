@@ -19,7 +19,9 @@ vi.mock("@/hooks/useQueries", () => ({
 describe("SentimentResultPanel", () => {
   it("shows the overall tone returned by the backend", () => {
     render(<SentimentResultPanel mediaId="m1" />);
-    expect(screen.getByText("Positivo")).toBeInTheDocument();
+    // tom geral e rótulo da amostra de trechos, ambos em português
+    expect(screen.getAllByText("Positivo").length).toBeGreaterThan(1);
+    expect(screen.queryByText("POSITIVE")).not.toBeInTheDocument();
     expect(screen.getByText(/Baseado em 2 blocos/i)).toBeInTheDocument();
   });
 });

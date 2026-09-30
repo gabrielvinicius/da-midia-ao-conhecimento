@@ -148,7 +148,7 @@ const MediaDetailPage = () => {
 
   pipelineSteps.push({
     key: "transcription",
-    label: isTextMedia ? "Extração do documento" : "Transcrição Neural",
+    label: isTextMedia ? "Extração do texto" : "Transcrição",
     status: transcriptionStageStatus,
     description: isTextMedia
       ? "Conversão de arquivos de texto em conteúdo bruto estruturado."
@@ -157,7 +157,7 @@ const MediaDetailPage = () => {
 
   pipelineSteps.push({
     key: "topics",
-    label: "Descoberta de Tópicos",
+    label: "Temas",
     status: topicStageStatus,
     description: topicStageStatus === MediaStatus.COMPLETED
       ? "Temas e conceitos extraídos com sucesso."
@@ -168,7 +168,7 @@ const MediaDetailPage = () => {
 
   pipelineSteps.push({
     key: "summary",
-    label: "Síntese Interpretativa",
+    label: "Resumo",
     status: summaryStageStatus,
     description: summaryStageStatus === MediaStatus.COMPLETED
       ? "Artigo analítico consolidado."
