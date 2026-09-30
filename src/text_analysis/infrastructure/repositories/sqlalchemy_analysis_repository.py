@@ -30,6 +30,12 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
                 analysis.overall_sentiment.value if analysis.overall_sentiment else None
             ),
             "sentiment_items": [s.__dict__ for s in analysis.sentiments],
+            # Trechos (texto e horário): a leitura já os esperava, mas não eram
+            # gravados, e o sentimento chegava à tela sem texto nem horário.
+            "chunks": [
+                {"id": c.id, "text": c.text, "start": c.start, "end": c.end}
+                for c in (analysis.chunks or [])
+            ],
             "topics": [t.__dict__ for t in analysis.topics],
             # Chaves iniciadas por "_" são dados temporários do pipeline
             # (ex.: embeddings) e não devem ser gravadas no JSON.
@@ -249,8 +255,9 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
                 TextChunk(
                     id=str(raw.get("id", "")),
                     text=str(raw.get("text", "")),
-                    start=int(raw.get("start", 0)),
-                    end=int(raw.get("end", 0)),
+                    # Sem horário (documentos) fica None, não 0.
+                    start=float(raw["start"]) if raw.get("start") is not None else None,
+                    end=float(raw["end"]) if raw.get("end") is not None else None,
                 )
             )
         analysis.chunks = chunks

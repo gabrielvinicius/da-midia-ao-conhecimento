@@ -46,7 +46,8 @@ def analysis_to_dto(analysis: Analysis) -> AnalysisResultDTO:
             chunk_id=s.chunk_id,
             label=s.label.value,
             score=round(float(s.score), 4),
-            text=chunk_map.get(s.chunk_id, TextChunk(s.chunk_id, "")).text,
+            # Análises antigas não têm os trechos gravados; usa o texto do item.
+            text=chunk_map.get(s.chunk_id, TextChunk(s.chunk_id, getattr(s, "text", "") or "")).text,
             start=chunk_map.get(s.chunk_id).start
             if chunk_map.get(s.chunk_id)
             else None,
