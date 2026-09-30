@@ -37,7 +37,6 @@ class MediaSettings(BaseSettings):
     media_allowed_text_extensions: List[str] = [
         "txt",
         "pdf",
-        "doc",
         "docx",
         "png",
         "jpg",
