@@ -4,12 +4,12 @@ import { ChangePasswordForm } from "@/features/authentication/components/ChangeP
 const SettingsPage = () => {
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+      <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
       <Card className="w-full max-w-2xl">
         <CardHeader>
-          <CardTitle>Change Password</CardTitle>
+          <CardTitle>Trocar senha</CardTitle>
           <CardDescription>
-            Update your password here. After changing, you will be logged out for security.
+            Depois da troca, por segurança, será preciso entrar de novo com a nova senha.
           </CardDescription>
         </CardHeader>
         <CardContent>

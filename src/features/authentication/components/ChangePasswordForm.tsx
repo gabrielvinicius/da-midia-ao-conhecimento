@@ -9,11 +9,11 @@ import { Label } from "@/components/ui/Label";
 import { useChangePassword } from '../hooks/useAuthMutations';
 
 const changePasswordSchema = z.object({
-  old_password: z.string().min(1, { message: 'Old password is required' }),
-  new_password: z.string().min(8, { message: 'New password must be at least 8 characters' }),
+  old_password: z.string().min(1, { message: 'Informe a senha atual' }),
+  new_password: z.string().min(8, { message: 'A nova senha precisa ter pelo menos 8 caracteres' }),
   confirm_password: z.string(),
 }).refine((data) => data.new_password === data.confirm_password, {
-  message: "Passwords don't match",
+  message: 'As senhas não coincidem',
   path: ["confirm_password"], // Set the error on the confirmation field
 });
 
@@ -38,22 +38,22 @@ export const ChangePasswordForm = () => {
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="old_password">Current Password</Label>
+        <Label htmlFor="old_password">Senha atual</Label>
         <Input id="old_password" type="password" {...form.register('old_password')} disabled={isPending} />
         {form.formState.errors.old_password && <p className="text-sm text-destructive">{form.formState.errors.old_password.message}</p>}
       </div>
       <div className="space-y-2">
-        <Label htmlFor="new_password">New Password</Label>
+        <Label htmlFor="new_password">Nova senha</Label>
         <Input id="new_password" type="password" {...form.register('new_password')} disabled={isPending} />
         {form.formState.errors.new_password && <p className="text-sm text-destructive">{form.formState.errors.new_password.message}</p>}
       </div>
       <div className="space-y-2">
-        <Label htmlFor="confirm_password">Confirm New Password</Label>
+        <Label htmlFor="confirm_password">Confirme a nova senha</Label>
         <Input id="confirm_password" type="password" {...form.register('confirm_password')} disabled={isPending} />
         {form.formState.errors.confirm_password && <p className="text-sm text-destructive">{form.formState.errors.confirm_password.message}</p>}
       </div>
       <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? 'Saving...' : 'Change Password'}
+        {isPending ? 'Salvando...' : 'Trocar senha'}
       </Button>
     </form>
   );

@@ -56,7 +56,7 @@ export const useChangePassword = () => {
   return useMutation({
     mutationFn: (payload: ChangePasswordPayload) => changePassword(payload),
     onSuccess: () => {
-      toast.success('Password changed successfully. Please log in again.');
+      toast.success('Senha alterada. Entre novamente com a nova senha.');
       // For security, log the user out after a password change.
       logout();
     },
