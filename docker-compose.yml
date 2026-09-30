@@ -202,9 +202,11 @@ services:
 
 
   frontend:
+    # Mesmo Dockerfile usado no deploy (submódulo frontend). Rode antes:
+    #   git submodule update --init frontend
     build:
-      context: .
-      dockerfile: docker/frontend.Dockerfile
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: video_summarizer_frontend
     ports: ["3000:80"]
     depends_on: [backend]
