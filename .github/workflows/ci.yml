@@ -14,6 +14,19 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: video_summarizer
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,6 +57,21 @@ jobs:
 
       - name: Tests (unit, smoke, integration)
         run: pytest tests/unit tests/smoke tests/integration -q
+
+      # API real contra PostgreSQL e Redis: cadastro, login, envio, isolamento
+      # entre usuários, exclusão e bloqueio de login. Os modelos de IA não
+      # rodam; as tarefas ficam na fila.
+      - name: End-to-end API tests
+        env:
+          E2E: "1"
+          LIGHTWEIGHT_BOOTSTRAP: "0"
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/video_summarizer
+          REDIS_URL: redis://localhost:6379/0
+          CELERY_BROKER_URL: redis://localhost:6379/0
+          CELERY_RESULT_BACKEND: redis://localhost:6379/1
+        run: |
+          alembic upgrade head
+          pytest tests/e2e -q
 
   # Garante que um banco novo é criado só pelas migrações (é o que o
   # entrypoint do contêiner executa) e que o esquema bate com os modelos.

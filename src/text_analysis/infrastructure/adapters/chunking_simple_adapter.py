@@ -14,33 +14,34 @@ class SimpleChunker(ChunkingServicePort):
         if document.segments:
             return self._chunk_segments(document.segments, size)
 
+        # Texto sem horários (documento, OCR): os trechos não têm posição na
+        # gravação, então start/end ficam vazios. Antes, start recebia a posição
+        # em caracteres, e a busca mostrava um "momento" falso para PDFs.
         text = document.text.strip()
         sentences = re.split(r"(?<=[.!?])\s+", text)
         sentences = [s for s in sentences if s.strip()]
 
         if not sentences:
-            return [TextChunk(id=str(uuid4()), text=text, start=0.0)]
+            return [TextChunk(id=str(uuid4()), text=text)]
 
         chunks: list[TextChunk] = []
         buffer: list[str] = []
         current_len = 0
-        start = 0.0
 
         for sentence in sentences:
             if current_len + len(sentence) > size and buffer:
                 chunk_text = " ".join(buffer).strip()
-                chunks.append(TextChunk(id=str(uuid4()), text=chunk_text, start=start))
+                chunks.append(TextChunk(id=str(uuid4()), text=chunk_text))
                 # overlap: keep tail of buffer
                 tail = " ".join(chunk_text.split()[-overlap // 5 :]) if overlap else ""
                 buffer = [tail] if tail else []
                 current_len = len(tail)
-                start += len(chunk_text) - overlap if overlap < len(chunk_text) else 0
             buffer.append(sentence)
             current_len += len(sentence)
 
         if buffer:
             chunk_text = " ".join(buffer).strip()
-            chunks.append(TextChunk(id=str(uuid4()), text=chunk_text, start=start))
+            chunks.append(TextChunk(id=str(uuid4()), text=chunk_text))
 
         return chunks
 
