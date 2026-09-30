@@ -19401,3 +19401,6 @@ gha-creds-*.json
 
 # Banco SQLite local (gerado em desenvolvimento e nos testes)
 app.db
+
+# Arquivos enviados no armazenamento local (testes e execução fora do Docker)
+/storage/
