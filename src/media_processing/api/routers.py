@@ -20,7 +20,7 @@ from src.shared.application.schemas import (
     create_success_response,
 )
 from src.user_management.api.dependencies import get_current_user
-from src.user_management.domain import User
+from src.user_management.domain import User, UserRole
 
 from .dependencies import (
     get_transcription_service,
@@ -28,6 +28,17 @@ from .dependencies import (
 from .schemas import SpeakerAliasesUpdateRequest, TranscriptionResponse
 
 router = APIRouter(prefix="/transcriptions", tags=["Transcriptions"])
+
+
+async def _ensure_media_access(
+    media_id: UUID, media_service: MediaService, current_user: User
+) -> None:
+    """Garante que a mídia existe e pertence ao usuário (ou que ele é admin)."""
+    media = await media_service.get_media(GetMediaQuery(media_id=media_id))
+    if not media:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mídia não encontrada")
+    if str(media.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado")
 
 
 @router.put(
@@ -39,9 +50,16 @@ async def set_speaker_aliases(
     transcription_id: UUID,  # Path parameter
     request_data: SpeakerAliasesUpdateRequest,  # Request body
     transcription_service: TranscriptionService = Depends(get_transcription_service),
+    media_service: MediaService = Depends(get_media_service),
     current_user: User = Depends(get_current_user),
 ):
     """Endpoint to set or update the speaker aliases for a given transcription."""
+    transcription = await transcription_service.get_transcription_by_id(
+        GetTranscriptionByIdQuery(transcription_id=transcription_id)
+    )
+    if not transcription:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcription not found")
+    await _ensure_media_access(transcription.media_id, media_service, current_user)
     try:
         command = SetSpeakerAliasesCommand(
             transcription_id=transcription_id,
@@ -72,8 +90,10 @@ async def get_transcription_by_media_id(
         description="Media ID to get transcription for.",
     ),
     transcription_service: TranscriptionService = Depends(get_transcription_service),
+    media_service: MediaService = Depends(get_media_service),
     current_user: User = Depends(get_current_user),
 ):
+    await _ensure_media_access(media_id, media_service, current_user)
     query = GetTranscriptionByMediaIdQuery(media_id=media_id)
     transcription = await transcription_service.get_transcription_by_media_id(query)
     if not transcription:
@@ -106,6 +126,7 @@ async def get_transcription_by_media_id(
 async def get_transcription_by_id(
     transcription_id: UUID,
     transcription_service: TranscriptionService = Depends(get_transcription_service),
+    media_service: MediaService = Depends(get_media_service),
     current_user: User = Depends(get_current_user),
 ):
     query = GetTranscriptionByIdQuery(transcription_id=transcription_id)
@@ -115,6 +136,7 @@ async def get_transcription_by_id(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Transcription not found",
         )
+    await _ensure_media_access(transcription.media_id, media_service, current_user)
 
     # Explicit mapping
     return TranscriptionResponse(
@@ -158,7 +180,7 @@ async def reprocess_transcription(
 
         if (
             str(media.user_id) != str(current_user.id)
-            and current_user.role.value != "admin"
+            and current_user.role != UserRole.ADMIN
         ):
             return create_error_response("Not authorized", "Access denied")
 
