@@ -116,10 +116,6 @@ const MediaDetailPage = () => {
   const topicsConfigured = Boolean(media.topic_modeling_provider) || media.status === MediaStatus.COMPLETED;
 
   const uploadStageStatus = media.status === MediaStatus.FAILED ? MediaStatus.FAILED : MediaStatus.COMPLETED;
-  const videoStageStatus = media.media_type === MediaType.VIDEO 
-    ? computeStageStatus(media.status, media.media_type, media.status, true) 
-    : "SKIPPED";
-  
   const transcriptionStageStatus = computeStageStatus(
     media.status,
     media.media_type,
@@ -150,22 +146,13 @@ const MediaDetailPage = () => {
     description: "Arquivo recebido, validado e armazenado com segurança.",
   });
 
-  if (media.media_type === MediaType.VIDEO) {
-    pipelineSteps.push({
-      key: "video",
-      label: "Processamento de vídeo",
-      status: videoStageStatus,
-      description: "Extração de áudio, frames e metadados necessários para análise.",
-    });
-  }
-
   pipelineSteps.push({
     key: "transcription",
     label: isTextMedia ? "Extração do documento" : "Transcrição Neural",
     status: transcriptionStageStatus,
     description: isTextMedia
       ? "Conversão de arquivos de texto em conteúdo bruto estruturado."
-      : "Conversão do áudio em texto com identificação de locutores.",
+      : "Conversão da fala em texto, com o horário de cada trecho.",
   });
 
   pipelineSteps.push({
