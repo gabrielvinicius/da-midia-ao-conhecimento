@@ -158,3 +158,63 @@ def test_concurrent_requests_each_get_their_own_session(client):
 
     codes = asyncio.run(burst())
     assert codes == [200] * len(paths)
+
+
+def test_stalled_media_is_marked_failed_and_can_be_retried(client):
+    """Worker morto no meio da tarefa: sem a verificação periódica, a mídia
+    ficava "em processamento" para sempre e não podia ser reprocessada."""
+    import asyncio
+
+    from sqlalchemy import text
+
+    from src.media_processing.application.worker import MediaWorkerApp
+    from src.media_processing.application.worker_bootstrap import (
+        build_stalled_processing_monitor,
+    )
+    from src.shared.infrastructure.database.db import AsyncSessionLocal, engine_sync
+    from src.shared.infrastructure.messaging.event_bus_factory import get_event_bus
+
+    alice = _account(client, "erica")
+    r = client.post(
+        "/media/",
+        headers=alice,
+        files={"file": ("apostila.txt", "O limite descreve o comportamento da função.".encode(), "text/plain")},
+    )
+    assert r.status_code == 201, r.text
+    media_id = r.json()["id"]
+
+    # O registro da extração é criado logo após a resposta do envio.
+    import time
+
+    for _ in range(50):
+        with engine_sync.connect() as conn:
+            if conn.execute(text("SELECT 1 FROM transcriptions WHERE media_id = :id"), {"id": media_id}).first():
+                break
+        time.sleep(0.1)
+
+    # Simula a extração iniciada há 2 h por um worker que morreu (documento:
+    # sem duração, prazo padrão de 1 h).
+    with engine_sync.begin() as conn:
+        conn.execute(text("UPDATE media SET status = 'PROCESSING' WHERE id = :id"), {"id": media_id})
+        updated = conn.execute(
+            text(
+                "UPDATE transcriptions SET status = 'PROCESSING', "
+                "updated_at = now() - interval '2 hours' WHERE media_id = :id"
+            ),
+            {"id": media_id},
+        )
+        assert updated.rowcount == 1
+
+    async def sweep():
+        bus = get_event_bus()
+        MediaWorkerApp(event_bus=bus).ensure_subscribers()  # como no worker
+        async with AsyncSessionLocal() as session:
+            return await build_stalled_processing_monitor(session, bus).sweep()
+
+    assert media_id in asyncio.run(sweep())
+
+    media = client.get(f"/media/{media_id}", headers=alice).json()
+    assert media["status"].lower() == "failed"
+    assert "tempo esperado" in media["error_message"]
+    # E agora o usuário pode tentar de novo.
+    assert client.post(f"/media/{media_id}/reprocess", headers=alice).status_code == 200

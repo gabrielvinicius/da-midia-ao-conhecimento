@@ -1,10 +1,11 @@
 # src/transcription/infrastructure/transcription_repository.py
-from typing import Optional
+import datetime
+from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
-from src.media_processing.domain import Transcription
+from src.media_processing.domain import Transcription, TranscriptionStatus
 from src.media_processing.infrastructure.persistence.models import TranscriptionModel
 from src.shared.infrastructure.database.db import is_async_session
 
@@ -96,6 +97,19 @@ class TranscriptionRepository:
         result = self.db.execute(stmt)
         model = result.scalar_one_or_none()
         return model.to_domain() if model else None
+
+    async def list_unfinished(self, started_before: datetime.datetime) -> List[Transcription]:
+        """Transcrições na fila ou em processamento desde antes de started_before
+        (candidatas a paradas; a política decide quais passaram do prazo)."""
+        started = func.coalesce(TranscriptionModel.updated_at, TranscriptionModel.created_at)
+        stmt = select(TranscriptionModel).where(
+            TranscriptionModel.status.in_(
+                [TranscriptionStatus.PENDING, TranscriptionStatus.PROCESSING]
+            ),
+            started < started_before,
+        )
+        result = await self.db.execute(stmt)
+        return [model.to_domain() for model in result.scalars().all()]
 
     async def delete_by_media_id(self, media_id: UUID) -> None:
         if is_async_session(self.db):

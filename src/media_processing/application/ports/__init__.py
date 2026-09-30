@@ -109,3 +109,21 @@ class VideoFrameExtractorPort(Protocol):
     """Port for extracting raw frames from video data."""
     async def extract_frame(self, video_data: bytes, timestamp: float) -> bytes:
         ...
+
+
+class MediaDurationProbe(Protocol):
+    """Lê a duração (em segundos) de um arquivo de áudio ou vídeo."""
+    async def duration_seconds(self, file_path: str) -> float | None:
+        ...
+
+
+class RealtimeFactorPort(Protocol):
+    """Tempo de processamento por segundo de gravação, medido no histórico."""
+    async def realtime_factor(self, task_type: str) -> float | None:
+        ...
+
+
+class ProcessingTaskTerminator(Protocol):
+    """Encerra a tarefa do worker que ainda processa uma transcrição."""
+    async def terminate(self, transcription_id: str, media_id: str) -> bool:
+        ...

@@ -52,63 +52,27 @@ class ProcessingStatsRepository:
         rows = (await self.session.execute(stmt)).scalars().all()
         return summarize_rows(rows)
 
-    async def get_avg_processing_speed(self, task_type: str, limit: int = 100) -> float | None:
-        """
-        Calcula a velocidade média (Bytes / Segundo) baseada nas últimas N execuções.
-        Retorna None se não houver dados suficientes.
-        """
-        # Query: Pegar os últimos 100 registros onde size e duration > 0
-        stmt = (
-            select(ProcessingStatModel)
-            .where(ProcessingStatModel.task_type == task_type)
-            .where(ProcessingStatModel.input_size_bytes > 0)
-            .where(ProcessingStatModel.processing_duration_seconds > 0)
-            .order_by(ProcessingStatModel.created_at.desc())
-            .limit(limit)
-        )
-        
-        result = await self.session.execute(stmt)
-        stats = result.scalars().all()
+    async def realtime_factor(self, task_type: str, limit: int = 50) -> float | None:
+        """Segundos de processamento por segundo de gravação nas últimas
+        execuções bem-sucedidas (0,1 = um décimo da duração da gravação).
 
-        if not stats:
-            return None
-
-        total_bytes = sum(s.input_size_bytes for s in stats)
-        total_seconds = sum(s.processing_duration_seconds for s in stats)
-
-        if total_seconds == 0:
-            return None
-
-        # Retorna Bytes por Segundo
-        return total_bytes / total_seconds
-
-    async def get_avg_speed_ratio(self, task_type: str, limit: int = 100) -> float | None:
-        """
-        Calcula o fator de velocidade (Input Duration / Processing Time).
-        Ex: 10.0 significa que processa 1h de áudio em 6 min.
+        Usado para estimar o prazo de uma transcrição em andamento; reflete a
+        máquina real (GPU, CPU, modelo escolhido), e não um valor de tabela.
         """
         stmt = (
             select(ProcessingStatModel)
             .where(ProcessingStatModel.task_type == task_type)
+            .where(ProcessingStatModel.status == "success")
             .where(ProcessingStatModel.input_duration_seconds > 0)
             .where(ProcessingStatModel.processing_duration_seconds > 0)
             .order_by(ProcessingStatModel.created_at.desc())
             .limit(limit)
         )
-        
-        result = await self.session.execute(stmt)
-        stats = result.scalars().all()
-
-        if not stats:
+        stats = (await self.session.execute(stmt)).scalars().all()
+        media_total = sum(s.input_duration_seconds for s in stats)
+        if not media_total:
             return None
-
-        total_input_duration = sum(s.input_duration_seconds for s in stats)
-        total_proc_time = sum(s.processing_duration_seconds for s in stats)
-
-        if total_proc_time == 0:
-            return None
-
-        return total_input_duration / total_proc_time
+        return sum(s.processing_duration_seconds for s in stats) / media_total
 
 
 def summarize_rows(rows) -> list[dict]:

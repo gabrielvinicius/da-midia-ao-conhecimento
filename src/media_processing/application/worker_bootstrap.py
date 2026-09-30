@@ -16,6 +16,9 @@ from src.media_processing.infrastructure.dependencies.providers import (
     get_speech_recognizer,
     get_text_extractor,
 )
+from src.media_processing.infrastructure.adapters.video.ffprobe_duration_probe import (
+    FfprobeDurationProbe,
+)
 from src.media_processing.infrastructure.logging import (
     structured_transcription_logger,
 )
@@ -56,6 +59,7 @@ def build_transcription_service(
         media_queries=None,
         event_bus=event_bus,
         stats_recorder=_stats_recorder(session),
+        duration_probe=FfprobeDurationProbe(),
     )
 
 
@@ -89,6 +93,24 @@ def build_text_extraction_service(
         event_bus=event_bus,
         metrics=metrics,
         logger=logger,
+    )
+
+
+def build_stalled_processing_monitor(session, event_bus: SupportsEventBus):
+    from src.media_processing.application.services.stalled_processing_monitor import (
+        StalledProcessingMonitor,
+    )
+    from src.media_processing.config.settings import processing_settings
+    from src.media_processing.infrastructure.adapters.celery_task_terminator import (
+        CeleryTaskTerminator,
+    )
+
+    return StalledProcessingMonitor(
+        repository=TranscriptionRepository(session),
+        transcription_service=build_transcription_service(session, event_bus),
+        policy=processing_settings.deadline_policy(),
+        realtime_factors=_stats_recorder(session),
+        terminator=CeleryTaskTerminator(),
     )
 
 

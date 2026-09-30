@@ -184,3 +184,34 @@ async def test_execute_transcription_failure_final_publishes_failed(service_depe
     assert transcription.status == TranscriptionStatus.FAILED
     published = [c.args[0] for c in event_bus.publish.call_args_list]
     assert any(isinstance(e, TranscriptionFailed) for e in published)
+
+
+@pytest.mark.asyncio
+async def test_execute_transcription_records_media_duration_before_transcribing(service_dependencies):
+    """A duração define o prazo da tentativa; precisa estar gravada enquanto
+    a transcrição roda (se o worker morrer, é o que resta)."""
+    service, repo, _, _, storage, recognizer, _, _ = service_dependencies
+    transcription = Transcription(media_id=uuid4(), provider="fastwhisper")
+    repo.get_by_id.return_value = transcription
+    storage.retrieve.return_value = b"audio-bytes"
+    saved_during_transcription = {}
+
+    async def transcribe(path, language=None):
+        saved_during_transcription.update(repo.save.call_args.args[0].result or {})
+        return {"text": "ok"}
+
+    recognizer.transcribe.side_effect = transcribe
+    probe = AsyncMock()
+    probe.duration_seconds.return_value = 5400.0
+    service._duration_probe = probe
+
+    await service.execute_transcription(
+        transcription_id=transcription.id,
+        media_id=transcription.media_id,
+        file_path="/tmp/aula.mp4",
+        storage_provider="local",
+        transcription_provider="fastwhisper",
+        language="pt",
+    )
+
+    assert saved_during_transcription == {"media_duration_seconds": 5400.0}

@@ -12,6 +12,7 @@ from uuid import UUID
 import structlog
 
 from src.media_processing.application.ports import (
+    MediaDurationProbe,
     MetricsPort,
     OperationLoggerPort,
     SpeechRecognizerFactory,
@@ -20,6 +21,7 @@ from src.media_processing.application.ports import (
     TranscriptionTaskSchedulerPort,
 )
 from src.media_processing.domain import Transcription, TranscriptionStatus
+from src.media_processing.domain.processing_deadline import MEDIA_DURATION_KEY
 from src.shared.domain.errors import ResourceNotFoundError
 from src.shared.domain.events import (
     MediaProcessingStarted,
@@ -54,6 +56,7 @@ class TranscriptionService:
         media_queries: Any,  # Duck typing for media_service.get_media
         event_bus: SupportsEventBus | None = None,
         stats_recorder: Any | None = None,  # ProcessingStatsPort (opcional)
+        duration_probe: MediaDurationProbe | None = None,
     ) -> None:
         self._repo = transcription_repo
         self._task_scheduler = task_scheduler
@@ -64,6 +67,7 @@ class TranscriptionService:
         self._media_queries = media_queries
         self._event_bus = event_bus
         self._stats = stats_recorder
+        self._duration_probe = duration_probe
 
     async def execute_transcription(
         self,
@@ -112,6 +116,8 @@ class TranscriptionService:
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(content)
             tmp_path = tmp.name
+
+        await self._record_media_duration(transcription, tmp_path)
 
         started = time.perf_counter()
         try:
@@ -164,6 +170,19 @@ class TranscriptionService:
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+
+    async def _record_media_duration(self, transcription: Transcription, path: str) -> None:
+        """Guarda a duração da gravação: define o prazo desta tentativa (ver
+        ProcessingDeadlinePolicy) antes que a transcrição termine."""
+        if not self._duration_probe:
+            return
+        try:
+            seconds = await self._duration_probe.duration_seconds(path)
+            if seconds:
+                transcription.result = {**(transcription.result or {}), MEDIA_DURATION_KEY: seconds}
+                await self._repo.save(transcription)
+        except Exception as exc:  # a duração é auxiliar; nunca derruba a transcrição
+            logger.warning("transcription.media_duration_failed", error=str(exc))
 
     async def _record_duration(
         self, seconds: float, size: int, result: Dict[str, Any], recognizer: Any, status: str

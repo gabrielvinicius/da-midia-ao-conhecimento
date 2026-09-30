@@ -6,12 +6,14 @@ from celery import shared_task
 from celery.signals import worker_process_init
 
 from src.media_processing.application.worker_bootstrap import (
+    build_stalled_processing_monitor,
     build_text_extraction_service,
     build_transcription_service,
 )
 from src.media_processing.application.worker import MediaWorkerApp
 from src.media_processing.infrastructure.dependencies.providers import get_event_bus
 from src.shared.events.integration_events import (
+    TASK_MEDIA_SWEEP_STALLED,
     TASK_MEDIA_TEXT_EXTRACTION,
     TASK_MEDIA_TRANSCRIPTION,
 )
@@ -301,3 +303,19 @@ def process_transcription_task(
             exc_info=True,
         )
         raise
+
+
+@shared_task(name=TASK_MEDIA_SWEEP_STALLED, ignore_result=True)
+def sweep_stalled_processing_task() -> list:
+    """Periódica (Celery beat, fila leve): marca como falha mídias paradas."""
+
+    async def _run():
+        async with AsyncSessionLocal() as session:
+            monitor = build_stalled_processing_monitor(session, _ensure_event_bus())
+            return await monitor.sweep()
+
+    failed = async_to_sync(_run)()
+    if failed:
+        logger.warning("stalled_monitor.sweep_done", failed_media=failed)
+    return failed
+
