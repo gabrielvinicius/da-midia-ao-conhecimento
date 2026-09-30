@@ -12,6 +12,7 @@ from src.notifications.application.ports import (
     NotificationMetricsPort,
     NotificationRepositoryPort,
 )
+from src.notifications.application.realtime import realtime_message
 from src.notifications.domain import Notification, NotificationType
 from src.notifications.domain.entities.notification import NotificationPriority
 
@@ -65,19 +66,7 @@ class PipelineNotificationService:
 
         try:
             saved = await self._repo.save(notification)
-            payload = {
-                "notification_id": str(saved.id),
-                "type": saved.type.value,
-                "message": saved.content,
-                "priority": saved.priority.value,
-                "created_at": saved.created_at,
-                "variables": saved.variables,
-            }
-            # Flatten variables into payload for easier frontend handling
-            if saved.variables:
-                payload.update(saved.variables)
-
-            await self._delivery.send_to_user(user_id, payload)
+            await self._delivery.send_to_user(user_id, realtime_message(saved))
             saved.mark_as_sent()
             # Em adapters SQLAlchemy, o segundo save deve ser merge/upsert; garantimos no repo.
             saved = await self._repo.save(saved)
