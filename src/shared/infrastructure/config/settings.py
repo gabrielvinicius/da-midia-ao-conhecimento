@@ -76,7 +76,10 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> str:
-        if "aiosqlite" in self.database_url:
+        """URL com driver síncrono (psycopg2/sqlite), para scripts e migrações."""
+        if "+asyncpg" in self.database_url:
+            return self.database_url.replace("+asyncpg", "+psycopg2")
+        if "+aiosqlite" in self.database_url:
             return self.database_url.replace("+aiosqlite", "")
         return self.database_url
 

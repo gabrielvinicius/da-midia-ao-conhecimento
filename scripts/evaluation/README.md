@@ -1,0 +1,35 @@
+# Avaliação do TCC
+
+Passo a passo para medir a plataforma na GPU de referência (RTX 3060 12 GB).
+Execute os comandos na raiz do repositório, com `DATABASE_URL` apontando
+para o banco usado nas medições.
+
+1. Suba o sistema e comece o registro de memória da GPU:
+
+   ```bash
+   nvidia-smi --query-gpu=timestamp,memory.used --format=csv -l 1 > vram.csv
+   ```
+
+2. Envie as mídias do conjunto de avaliação uma de cada vez, esperando o
+   aviso de "Análise concluída" antes da próxima, para que os tempos não se
+   misturem. Anote o id de cada mídia (está na URL da página da mídia).
+
+3. Interrompa o `nvidia-smi` (Ctrl+C) e exporte os tempos já no formato de
+   tabela LaTeX:
+
+   ```bash
+   PYTHONPATH=. python scripts/evaluation/export_timings.py --vram vram.csv
+   ```
+
+4. Para a qualidade da transcrição, digite à mão a transcrição de um trecho
+   (ou de toda a gravação) em `referencia.txt` e calcule o WER:
+
+   ```bash
+   PYTHONPATH=. python scripts/evaluation/wer.py referencia.txt --media-id <id>
+   ```
+
+   Se a referência cobrir só um trecho, salve o trecho correspondente da
+   transcrição gerada em um arquivo e passe o arquivo no lugar de `--media-id`.
+
+5. A avaliação dos resumos é feita pelas notas (1 a 5) dadas na própria
+   página da mídia; elas ficam na tabela `analysis_feedback`.

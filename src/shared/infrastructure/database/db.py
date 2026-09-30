@@ -15,13 +15,6 @@ from src.shared.infrastructure.observability.logging.logging_config import get_l
 _async_url = settings.database_url
 _sync_url = settings.sync_database_url
 
-# If async driver is provided for Postgres, derive sync URL by swapping driver.
-if "+asyncpg" in _async_url:
-    _sync_url = _async_url.replace("+asyncpg", "+psycopg2")
-# If sqlite async driver is provided, ensure sync URL is sqlite without async.
-if "+aiosqlite" in _async_url:
-    _sync_url = _async_url.replace("+aiosqlite", "")
-
 _is_sqlite = _sync_url.startswith("sqlite")
 
 engine_sync = create_engine(

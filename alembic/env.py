@@ -33,11 +33,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Derive URL síncrona para o Alembic (evita drivers async).
-_db_url = settings.database_url
-if "+asyncpg" in _db_url:
-    _db_url = _db_url.replace("+asyncpg", "+psycopg2")
-elif "+aiosqlite" in _db_url:
-    _db_url = _db_url.replace("+aiosqlite", "")
+_db_url = settings.sync_database_url
 
 config.set_main_option("sqlalchemy.url", _db_url)
 
