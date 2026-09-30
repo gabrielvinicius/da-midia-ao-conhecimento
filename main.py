@@ -149,6 +149,11 @@ async def lifespan(app: FastAPI):
     configure_logging("video-summarizer-api", level="INFO", debug_mode=True)
     logger = get_logger("main")
 
+    if not lightweight_mode:
+        from src.user_management.config.settings import ensure_secure_secret, user_settings
+
+        ensure_secure_secret(user_settings)
+
     # Configurar tracing
     configure_tracer("video-summarizer-api")
 

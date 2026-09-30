@@ -65,6 +65,7 @@ jobs:
         env:
           E2E: "1"
           LIGHTWEIGHT_BOOTSTRAP: "0"
+          SECRET_KEY: chave-somente-para-a-integracao-continua-0123456789
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/video_summarizer
           REDIS_URL: redis://localhost:6379/0
           CELERY_BROKER_URL: redis://localhost:6379/0
