@@ -44,6 +44,10 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:latest
     container_name: video_summarizer_jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"  # interface web do Jaeger
     networks:
       - backend-net
       - public-net
@@ -113,6 +117,7 @@ services:
       - HF_TOKEN=${HF_TOKEN}
       - AI_DEVICE=cuda
       - OLLAMA_HOST=http://ollama:11434
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
       - LLM_MODEL=${LLM_MODEL:-qwen3.5:9b}
       - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-gemma4:e4b}
       - VISUAL_PROVIDER=${VISUAL_PROVIDER:-moondream}
@@ -157,6 +162,7 @@ services:
       - HF_TOKEN=${HF_TOKEN}
       - AI_DEVICE=cuda
       - OLLAMA_HOST=http://ollama:11434
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
       - LLM_MODEL=${LLM_MODEL:-qwen3.5:9b}
       - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-gemma4:e4b}
       - VISUAL_PROVIDER=${VISUAL_PROVIDER:-moondream}

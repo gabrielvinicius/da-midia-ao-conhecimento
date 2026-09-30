@@ -65,7 +65,7 @@ httpx>=0.28.1
 # OpenTelemetry for Distributed Tracing
 opentelemetry-api>=1.28.0
 opentelemetry-sdk>=1.28.0
-opentelemetry-exporter-jaeger>=1.21.0
+opentelemetry-exporter-otlp-proto-http>=1.28.0
 opentelemetry-instrumentation-fastapi>=0.50b0
 opentelemetry-instrumentation-celery>=0.50b0
 opentelemetry-instrumentation-sqlalchemy>=0.50b0

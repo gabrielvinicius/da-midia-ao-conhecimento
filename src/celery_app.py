@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 
 from celery import Celery
+from celery.signals import worker_process_init
 
 def _default_broker() -> str:
     return os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
@@ -51,6 +52,20 @@ def create_celery() -> Celery:
     )
 
     return app
+
+
+@worker_process_init.connect(weak=False)
+def _init_worker_tracing(**_kwargs) -> None:
+    """Ativa o tracing em cada processo do worker (após o fork)."""
+    from src.shared.infrastructure.observability.tracing.tracer import configure_tracer
+
+    configure_tracer("video-summarizer-worker")
+    try:
+        from opentelemetry.instrumentation.celery import CeleryInstrumentor
+
+        CeleryInstrumentor().instrument()
+    except Exception:  # instrumentação é opcional
+        pass
 
 
 # Celery CLI entry point: "celery -A src.celery_app:celery worker"

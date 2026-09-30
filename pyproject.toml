@@ -59,7 +59,7 @@ prometheus-client = "^0.20.0"
 # --- OpenTelemetry for Distributed Tracing ---
 opentelemetry-api = "^1.25.0"
 opentelemetry-sdk = "^1.25.0"
-opentelemetry-exporter-jaeger = "^1.25.0"
+opentelemetry-exporter-otlp-proto-http = "^1.25.0"
 opentelemetry-instrumentation-fastapi = "^0.46.0"
 opentelemetry-instrumentation-celery = "^0.46.0"
 opentelemetry-instrumentation-sqlalchemy = "^0.46.0"
