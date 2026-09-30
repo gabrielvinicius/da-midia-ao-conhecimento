@@ -1,4 +1,17 @@
+# Uso: docker compose -f docker-compose.yml -f docker-compose.rocm.yml up -d
+# GPU AMD (ROCm): troca as reservas NVIDIA pelos dispositivos /dev/kfd e
+# /dev/dri (!reset exige Docker Compose 2.24 ou mais recente).
 services:
+  ollama:
+    image: ollama/ollama:rocm
+    deploy: !reset {}
+    devices:
+      - "/dev/kfd:/dev/kfd"
+      - "/dev/dri:/dev/dri"
+    group_add:
+      - video
+      - render
+
   backend:
     image: video-summarizer-app:rocm
     build:
@@ -9,6 +22,7 @@ services:
 
   worker-heavy:
     image: video-summarizer-app:rocm
+    deploy: !reset {}
     devices:
       - "/dev/kfd:/dev/kfd"
       - "/dev/dri:/dev/dri"

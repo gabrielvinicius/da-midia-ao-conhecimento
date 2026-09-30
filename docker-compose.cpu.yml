@@ -1,4 +1,11 @@
+# Uso: docker compose -f docker-compose.yml -f docker-compose.cpu.yml up -d
+# Sem GPU: remove as reservas de placa NVIDIA do compose principal
+# (!reset exige Docker Compose 2.24 ou mais recente). Funciona, mas a
+# transcrição e o resumo ficam muitas vezes mais lentos.
 services:
+  ollama:
+    deploy: !reset {}
+
   backend:
     image: video-summarizer-app:cpu
     environment:
@@ -24,7 +31,8 @@ services:
     networks:
       - backend-net
       - public-net
-    deploy:
+    # !override: substitui o bloco do compose principal (sem a reserva NVIDIA)
+    deploy: !override
       resources:
         limits:
           memory: 12G
