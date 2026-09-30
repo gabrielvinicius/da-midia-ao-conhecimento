@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
-import { Notification, Media } from '@/types';
+import { Notification } from '@/types';
 import { toast } from 'react-toastify';
 import authService from '@/services/auth.service';
 import { buildWsUrl } from '@/lib/api';
+import { refreshForNotification } from '@/lib/realtime';
 
 export type ConnectionStatus = 'CONNECTING' | 'OPEN' | 'CLOSING' | 'CLOSED' | 'RECONNECTING';
 
@@ -81,125 +82,35 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
         const baseType: string | undefined = message.kind ?? message.type;
         const payload = message.payload ?? message;
         
-        switch (baseType) {
-          case 'new_notification':
-            if (!payload) break;
-            try {
-              const newNotification: Notification = {
-                id: String(payload.id),
-                user_id: String(payload.user_id ?? ''),
-                type: payload.type ?? 'INFO',
-                content: payload.content ?? '',
-                priority: payload.priority ?? 'NORMAL',
-                status: payload.status ?? 'NEW',
-                template_name: payload.template_name ?? null,
-                variables: payload.variables ?? {},
-                error_message: payload.error_message ?? null,
-                sent_at: payload.sent_at ?? null,
-                delivered_at: payload.delivered_at ?? null,
-                opened_at: payload.opened_at ?? null,
-                created_at: payload.created_at ?? new Date().toISOString(),
-                updated_at: payload.updated_at ?? payload.created_at ?? null,
-                retries: payload.retries ?? 0,
-                max_retries: payload.max_retries ?? 3,
-                read: Boolean(payload.read ?? false),
-              };
-              setNotifications(prev => [newNotification, ...prev]);
-              queryClient.setQueryData(['notifications'], (old: Notification[] | undefined) =>
-                old ? [newNotification, ...old] : [newNotification]
-              );
-              toast.info(`Nova notificação: ${newNotification.content}`);
-            } catch (err) {
-              console.warn('Falha ao normalizar notificação WS', err);
-            }
-            break;
-          case 'MEDIA_STATUS': {
-            const mediaId = payload.media_id || payload.mediaId;
-            if (mediaId) {
-              queryClient.setQueryData(['media', mediaId], (oldData: Media | undefined) =>
-                oldData
-                  ? {
-                      ...oldData,
-                      status: payload.status ?? oldData.status,
-                      error_message: payload.error ?? (oldData as any)?.error_message ?? null,
-                    }
-                  : oldData
-              );
-              queryClient.invalidateQueries({ queryKey: ['media', mediaId] });
-              queryClient.invalidateQueries({ queryKey: ['media-list'] });
-              queryClient.invalidateQueries({ queryKey: ['media-stats'] });
-            }
-            break;
-          }
-          
-          case 'entity_update': {
-            const { entity } = message;
-            const entityPayload = message.payload;
-            if (!entity || !entityPayload) {
-              break;
-            }
-
-            const normalized = String(entity).toLowerCase();
-            const mediaId = entityPayload.media_id || entityPayload.mediaId;
-
-            if (normalized === 'topic-modeling' || normalized === 'topic_modeling') {
-              if (mediaId) {
-                queryClient.invalidateQueries({ queryKey: ['text-analysis', mediaId] });
-              }
-              break;
-            }
-
-            if (normalized === 'summary' || normalized === 'summaries') {
-              if (mediaId) {
-                queryClient.invalidateQueries({ queryKey: ['text-analysis', mediaId] });
-              }
-              break;
-            }
-
-            if (normalized === 'sentiment-analysis' || normalized === 'sentiment_analysis' || normalized === 'sentiment') {
-              if (mediaId) {
-                queryClient.invalidateQueries({ queryKey: ['text-analysis', mediaId] });
-              }
-              break;
-            }
-
-            if (entityPayload?.id) {
-              queryClient.setQueryData([entity, entityPayload.id], entityPayload);
-            }
-
-            if (normalized === 'media') {
-              queryClient.invalidateQueries({ queryKey: ['media-list'] });
-              queryClient.invalidateQueries({ queryKey: ['media-stats'] });
-            }
-            break;
-          }
-            
-          case 'transcription_update':
-          case 'summary_update':
-          case 'processing_complete': {
-            const { media_id, status, result } = payload;
-            if (media_id) {
-              queryClient.setQueryData(['media', media_id], (oldData: Media | undefined) =>
-                oldData
-                  ? {
-                      ...oldData,
-                      status: status ?? oldData.status,
-                      ...(result ? { result } : {}),
-                    }
-                  : oldData
-              );
-              queryClient.invalidateQueries({ queryKey: ['media', media_id] });
-              queryClient.invalidateQueries({ queryKey: ['media-list'] });
-              queryClient.invalidateQueries({ queryKey: ['media-stats'] });
-              queryClient.invalidateQueries({ queryKey: ['transcription', media_id] });
-              queryClient.invalidateQueries({ queryKey: ['text-analysis', media_id] });
-            }
-            break;
-          }
-            
-          default:
-            console.warn('Received unknown WebSocket message type:', baseType);
+        if (baseType !== 'new_notification' || !payload) {
+          console.warn('Received unknown WebSocket message type:', baseType);
+          return;
         }
+        const newNotification: Notification = {
+          id: String(payload.id),
+          user_id: String(payload.user_id ?? ''),
+          type: payload.type ?? 'INFO',
+          content: payload.content ?? '',
+          priority: payload.priority ?? 'NORMAL',
+          status: payload.status ?? 'NEW',
+          template_name: payload.template_name ?? null,
+          variables: payload.variables ?? {},
+          error_message: payload.error_message ?? null,
+          sent_at: payload.sent_at ?? null,
+          delivered_at: payload.delivered_at ?? null,
+          opened_at: payload.opened_at ?? null,
+          created_at: payload.created_at ?? new Date().toISOString(),
+          updated_at: payload.updated_at ?? payload.created_at ?? null,
+          retries: payload.retries ?? 0,
+          max_retries: payload.max_retries ?? 3,
+          read: Boolean(payload.read ?? false),
+        };
+        setNotifications(prev => [newNotification, ...prev]);
+        queryClient.setQueryData(['notifications'], (old: Notification[] | undefined) =>
+          old ? [newNotification, ...old] : [newNotification]
+        );
+        refreshForNotification(queryClient, newNotification.variables);
+        toast.info(newNotification.content);
       } catch (parseError) {
         console.error('Failed to parse WebSocket message:', parseError);
       }
