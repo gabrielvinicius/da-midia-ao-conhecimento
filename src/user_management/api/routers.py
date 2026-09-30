@@ -30,7 +30,7 @@ from src.user_management.domain import User
 from src.user_management.config.settings import user_settings
 
 from .dependencies import get_auth_service, get_auth_settings, get_user_service
-from .schemas import UserCreate, UserResponse
+from .schemas import ChangePasswordRequest, UserCreate, UserResponse
 
 logger = get_logger(__name__)
 
@@ -178,6 +178,25 @@ async def logout(response: Response):
     response.delete_cookie("refresh_token", path="/")
     response.delete_cookie("access_token_cookie", path="/")
     return {"message": "Logout realizado"}
+
+
+@router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_my_password(
+    payload: ChangePasswordRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    user_service: UserService = Depends(get_user_service),
+) -> Response:
+    """Troca a senha do usuário logado, exigindo a senha atual."""
+    try:
+        await user_service.change_password(
+            current_user.id, payload.old_password, payload.new_password
+        )
+    except InvalidCredentialsError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Senha atual incorreta")
+    except ValueError as exc:  # regras de força da senha
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    logger.info("auth.password_changed", user_id=str(current_user.id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/me", response_model=UserResponse)
