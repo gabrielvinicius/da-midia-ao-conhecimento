@@ -139,18 +139,26 @@ export const MediaCard = ({ media }: MediaCardProps) => {
         <div className="flex items-center justify-between mb-4">
           <MediaStatusBadge status={media.status} />
           
+          {/* Só mídias que falharam podem ser reprocessadas (regra da API).
+              Botão sempre visível e com texto: em telas de toque não há "hover". */}
           {media.status === MediaStatus.FAILED && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleReprocess}
               disabled={isReprocessing}
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
             >
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw className={`mr-2 h-4 w-4 ${isReprocessing ? "animate-spin" : ""}`} />
+              {isReprocessing ? "Enviando..." : "Tentar novamente"}
             </Button>
           )}
         </div>
+
+        {media.status === MediaStatus.FAILED && media.error_message && (
+          <p className="text-xs text-red-700 line-clamp-2" title={media.error_message}>
+            {media.error_message}
+          </p>
+        )}
 
         <div className="mt-4 pt-3 border-t">
           <Link to={`/media/${media.id}`} className="block">

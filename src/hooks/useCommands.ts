@@ -96,18 +96,20 @@ export const useReprocessMediaCommand = () => {
 
   return useMutation({
     mutationFn: (command: ReprocessMediaCommand) => executeReprocessMedia(command),
-    onSuccess: (data, variables) => {
-      toast.info(data.message);
-      
+    onSuccess: (_data, variables) => {
+      toast.info('Processamento reiniciado. Você será avisado quando terminar.');
+
       // Invalidar queries relacionadas
       queryClient.invalidateQueries({ queryKey: ['media', variables.mediaId] });
       queryClient.invalidateQueries({ queryKey: ['media-list'] });
       queryClient.invalidateQueries({ queryKey: ['transcription', variables.mediaId] });
       queryClient.invalidateQueries({ queryKey: ['text-analysis', variables.mediaId] });
+      queryClient.invalidateQueries({ queryKey: ['media-stats'] });
     },
     onError: (error: any) => {
-      console.error('❌ ReprocessMediaCommand falhou:', error);
-      toast.error('Erro ao reprocessar arquivo');
+      // 409: a mídia não falhou (já foi reenviada ou está em processamento).
+      const detail = error?.response?.data?.detail;
+      toast.error(typeof detail === 'string' && detail ? detail : 'Não foi possível reprocessar a mídia');
     },
   });
 };
