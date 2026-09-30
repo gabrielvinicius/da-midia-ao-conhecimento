@@ -23,3 +23,23 @@ class PipelineProviderCatalogPort(Protocol):
 
 
 __all__ = ["ModuleRegistryPort", "PipelineProviderCatalogPort"]
+
+
+class ProcessingStatsPort(Protocol):
+    """Registro e consulta das durações de processamento.
+
+    Usado pela transcrição e pela análise para gravar quanto tempo cada
+    tarefa levou, e pela administração para exibir esses tempos.
+    """
+
+    async def log_stat(
+        self,
+        task_type: str,
+        processing_duration: float,
+        input_size_bytes: int | None = None,
+        input_duration: float | None = None,
+        model_name: str | None = None,
+        status: str = "success",
+    ) -> None: ...
+
+    async def summarize(self, days: int | None = None) -> List[Dict[str, Any]]: ...

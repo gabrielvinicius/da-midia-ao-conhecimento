@@ -63,6 +63,7 @@ class TextAnalysisService:
         transcription_queries: Optional[TranscriptionQueryPort] = None,
         text_analysis_read_service: TextAnalysisReadService,
         settings=text_analysis_settings,
+        stats_recorder: Any | None = None,
     ) -> None:
         self.repository = repository
         self.pipeline = pipeline
@@ -73,6 +74,7 @@ class TextAnalysisService:
         self.transcription_queries = transcription_queries
         self.text_analysis_read_service = text_analysis_read_service
         self.settings = settings
+        self.stats_recorder = stats_recorder  # ProcessingStatsPort (opcional)
 
     async def submit_feedback(self, analysis_id: str, user_id: UUID, score: int, comment: str | None = None) -> bool:
         """Saves user feedback for an analysis."""
@@ -147,7 +149,9 @@ class TextAnalysisService:
             async def checkpoint(current: Analysis, step_name: str) -> None:
                 await self.repository.save(current)
 
+            pipeline_started = time.perf_counter()
             analysis = await self.pipeline.run(analysis, on_step_completed=checkpoint)
+            await self._record_durations(analysis, time.perf_counter() - pipeline_started)
 
             # 5. Persistência final
             analysis_id = await self.repository.save(analysis)
@@ -177,6 +181,27 @@ class TextAnalysisService:
                     success=success,
                 )
             except Exception: pass
+
+    async def _record_durations(self, analysis: Analysis, total_seconds: float) -> None:
+        """Grava a duração total e a de cada etapa (para avaliação e estimativas)."""
+        if not self.stats_recorder:
+            return
+        segments = analysis.document.segments or []
+        media_seconds = segments[-1].get("end") if segments and isinstance(segments[-1], dict) else None
+        text_size = len((analysis.document.text or "").encode("utf-8"))
+        statuses = analysis.diagnostics.get("steps", {})
+        try:
+            await self.stats_recorder.log_stat(
+                "text_analysis", total_seconds, text_size, media_seconds, self.config.llm_model
+            )
+            for step, seconds in analysis.diagnostics.get("step_seconds", {}).items():
+                ok = statuses.get(step) == "ok"
+                await self.stats_recorder.log_stat(
+                    f"analysis.{step}", seconds, text_size, media_seconds, None,
+                    "success" if ok else "failed",
+                )
+        except Exception as exc:  # estatística nunca pode derrubar a análise
+            logger.warning("text_analysis.stats_record_failed", error=str(exc))
 
     async def _emit_completed_events(self, analysis: Analysis) -> None:
         """Publishes domain events for successful stages of the pipeline."""

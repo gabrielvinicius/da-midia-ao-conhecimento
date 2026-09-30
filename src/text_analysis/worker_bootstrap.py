@@ -60,8 +60,19 @@ def build_text_analysis_service(
         transcription_queries=transcription_queries,
         text_analysis_read_service=TextAnalysisReadService(repository=repository),
         settings=text_analysis_settings,
+        stats_recorder=_stats_recorder(session),
     )
     return SimpleNamespace(service=service, repository=repository, config=config)
+
+
+def _stats_recorder(session):
+    if session is None:
+        return None
+    from src.shared.infrastructure.repositories.processing_stats_repository import (
+        ProcessingStatsRepository,
+    )
+
+    return ProcessingStatsRepository(session)
 
 
 def build_repository(session: Any | None = None):

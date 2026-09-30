@@ -221,6 +221,18 @@ async def get_system_health(service: AdminService = Depends(get_admin_service)):
 
 
 @router.get(
+    "/stats/processing-times",
+    summary="Durações de transcrição e de cada etapa da análise",
+)
+async def get_processing_times(
+    days: Optional[int] = Query(None, ge=1, le=365, description="Últimos N dias; vazio = tudo."),
+    service: AdminService = Depends(get_admin_service),
+):
+    """Execuções, falhas, média, mediana, máximo e fator de tempo real por tarefa."""
+    return await service.get_processing_times(days)
+
+
+@router.get(
     "/stats/media-processing",
     summary="Get detailed media processing statistics",
 )

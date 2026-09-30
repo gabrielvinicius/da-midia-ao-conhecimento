@@ -4,6 +4,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Awaitable, Callable, Generic, Optional, TypeVar
 
+import time
+
 import structlog
 
 from src.text_analysis.domain import Analysis
@@ -54,11 +56,14 @@ class AnalysisPipeline:
         on_step_completed: Optional[StepCallback] = None,
     ) -> Analysis:
         statuses = analysis.diagnostics.setdefault("steps", {})
+        durations = analysis.diagnostics.setdefault("step_seconds", {})
         for step in self.steps:
             logger.info("pipeline.step_start", step=step.name, analysis_id=str(analysis.id))
+            started = time.perf_counter()
             try:
                 analysis = await step.process(analysis)
                 statuses = analysis.diagnostics.setdefault("steps", statuses)
+                durations = analysis.diagnostics.setdefault("step_seconds", durations)
                 statuses[step.name] = "ok"
             except Exception as exc:
                 logger.error(
@@ -68,6 +73,7 @@ class AnalysisPipeline:
                     error=str(exc),
                 )
                 statuses[step.name] = f"failed: {exc}"
+            durations[step.name] = round(time.perf_counter() - started, 3)
             if on_step_completed is not None:
                 try:
                     await on_step_completed(analysis, step.name)

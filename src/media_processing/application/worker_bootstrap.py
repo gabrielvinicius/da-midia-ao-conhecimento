@@ -70,7 +70,19 @@ def build_transcription_service(
         speech_recognizer_factory=lambda provider: get_speech_recognizer(provider),
         media_queries=None,
         event_bus=event_bus,
+        stats_recorder=_stats_recorder(session),
     )
+
+
+def _stats_recorder(session):
+    """Repositório de durações; ausente quando não há sessão (ex.: testes)."""
+    if session is None:
+        return None
+    from src.shared.infrastructure.repositories.processing_stats_repository import (
+        ProcessingStatsRepository,
+    )
+
+    return ProcessingStatsRepository(session)
 
 
 def build_text_extraction_service(

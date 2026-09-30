@@ -1,7 +1,9 @@
 """Service layer for admin operations acting as a facade over domain services."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
+
+from src.shared.application.ports import ProcessingStatsPort
 
 from dataclasses import dataclass
 from uuid import UUID
@@ -40,6 +42,7 @@ class AdminService:
     admin_media_service: AdminMediaService
     user_adapter: UserAdminPort
     media_adapter: MediaAdminPort
+    processing_stats: Optional[ProcessingStatsPort] = None
 
     # --- Stats & monitoring -------------------------------------------------
     async def get_system_stats(self, query: GetSystemStatsQuery) -> dict:
@@ -47,6 +50,11 @@ class AdminService:
 
     async def get_system_health(self, query: GetSystemHealthQuery) -> dict:
         return await self.admin_read_service.get_system_health_status()
+
+    async def get_processing_times(self, days: Optional[int] = None) -> dict:
+        """Durações registradas de transcrição e de cada etapa da análise."""
+        items = await self.processing_stats.summarize(days) if self.processing_stats else []
+        return {"days": days, "items": items}
 
     async def get_media_processing_stats(
         self, query: GetMediaProcessingStatsQuery

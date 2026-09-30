@@ -54,6 +54,10 @@ class AdminModule:
     service: AdminService
 
 
+from src.shared.infrastructure.repositories.processing_stats_repository import (
+    ProcessingStatsRepository,
+)
+
 def build_admin_module(
     session: AsyncSession,
     auth_queries: UserReadService,
@@ -108,6 +112,7 @@ def build_admin_module(
         admin_media_service=admin_media_service,
         user_adapter=user_api_adapter,
         media_adapter=media_api_adapter,
+        processing_stats=ProcessingStatsRepository(session) if session is not None else None,
     )
 
     return AdminModule(

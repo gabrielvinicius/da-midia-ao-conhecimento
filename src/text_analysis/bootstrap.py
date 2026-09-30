@@ -19,6 +19,9 @@ from .application.ports import TranscriptionQueryPort
 from .application.services.text_analysis_read_service import TextAnalysisReadService
 from .application.services.knowledge_base_service import KnowledgeBaseService
 from .infrastructure.repositories.feedback_repository import FeedbackRepository
+from src.shared.infrastructure.repositories.processing_stats_repository import (
+    ProcessingStatsRepository,
+)
 from src.media_processing.application.services.transcription_read_service import (
     TranscriptionReadService,
 )
@@ -116,6 +119,7 @@ async def build_text_analysis_module(
         transcription_queries=transcription_queries,
         text_analysis_read_service=TextAnalysisReadService(repository=repo),
         settings=text_analysis_settings,
+        stats_recorder=ProcessingStatsRepository(session) if session is not None else None,
     )
 
     knowledge_service = KnowledgeBaseService(

@@ -54,6 +54,7 @@ class TranscriptionService:
         speech_recognizer_factory: SpeechRecognizerFactory,
         media_queries: Any,  # Duck typing for media_service.get_media
         event_bus: SupportsEventBus | None = None,
+        stats_recorder: Any | None = None,  # ProcessingStatsPort (opcional)
     ) -> None:
         self._repo = transcription_repo
         self._task_scheduler = task_scheduler
@@ -63,6 +64,7 @@ class TranscriptionService:
         self._speech_recognizer_factory = speech_recognizer_factory
         self._media_queries = media_queries
         self._event_bus = event_bus
+        self._stats = stats_recorder
 
     async def execute_transcription(
         self,
@@ -112,6 +114,7 @@ class TranscriptionService:
             tmp.write(content)
             tmp_path = tmp.name
 
+        started = time.perf_counter()
         try:
             lang_for_model = None if not language or language.lower() == "auto" else language
             recognizer = self._speech_recognizer_factory(transcription_provider)
@@ -124,6 +127,10 @@ class TranscriptionService:
                     tmp_path,
                     language=lang_for_model,
                 )
+
+            await self._record_duration(
+                time.perf_counter() - started, len(content), result, recognizer, "success"
+            )
 
             # Inject downstream provider preferences into result metadata for the event
             result["summarization_provider"] = summarization_provider
@@ -141,6 +148,9 @@ class TranscriptionService:
             )
             return result
         except Exception as exc:
+            await self._record_duration(
+                time.perf_counter() - started, len(content), {}, transcription_provider, "failed"
+            )
             await self.process_transcription_result(
                 transcription_id,
                 media_id,
@@ -155,6 +165,20 @@ class TranscriptionService:
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+
+    async def _record_duration(
+        self, seconds: float, size: int, result: Dict[str, Any], recognizer: Any, status: str
+    ) -> None:
+        """Grava quanto tempo a transcrição levou (para avaliação e estimativas)."""
+        if not self._stats:
+            return
+        segments = (result or {}).get("segments") or []
+        media_seconds = segments[-1].get("end") if segments and isinstance(segments[-1], dict) else None
+        model = recognizer if isinstance(recognizer, str) else type(recognizer).__name__
+        try:
+            await self._stats.log_stat("transcription", seconds, size, media_seconds, model, status)
+        except Exception as exc:  # estatística nunca pode derrubar a transcrição
+            logger.warning("transcription.stats_record_failed", error=str(exc))
 
     async def request_transcription_generation(
         self, command: RequestTranscriptionCommand
