@@ -5,6 +5,7 @@ import { useMediaByIdQuery, useTextAnalysisByMediaIdQuery } from "@/hooks/useQue
 import { useReprocessMediaCommand } from "@/hooks/useCommands";
 import { InteractiveTranscriptionPanel } from "@/features/transcription/components/InteractiveTranscriptionPanel";
 import { TopicModelingResultPanel } from "@/features/topic_modeling/components/TopicModelingResultPanel";
+import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -295,6 +296,9 @@ const MediaDetailPage = () => {
 
           {/* Topics Index */}
           <TopicModelingResultPanel mediaId={id} mediaStatus={media.status} />
+
+          {/* Tom predominante (análise de sentimento) */}
+          <SentimentResultPanel mediaId={id} mediaStatus={media.status} />
 
           {/* Metadata / Pipeline Status */}
           <Card className="border border-slate-200 bg-white shadow-sm">
