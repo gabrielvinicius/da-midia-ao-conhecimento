@@ -1,30 +1,24 @@
-# Stage 1: Build the React application
-FROM node:18-alpine AS builder
+# Stage 1: build da aplicação React
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy package.json and package-lock.json first to leverage Docker cache
-COPY package*.json ./
+# Instala exatamente as versões do package-lock.json (cache de camadas)
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
-# Install dependencies
-RUN npm install
-
-# Copy the rest of the application source code
 COPY . .
 
-# Build the application for production
-RUN npm run build || (echo "Build failed, creating empty dist folder" && mkdir -p dist && echo '<h1>Frontend Build Error</h1>' > dist/index.html)
+# Se o build falhar, a imagem não é gerada (antes, publicava uma página de erro em silêncio)
+RUN npm run build
 
-# Stage 2: Serve the application using Nginx
-FROM nginx:1.25-alpine AS production
+# Stage 2: servir os arquivos estáticos com Nginx
+FROM nginx:1.27-alpine AS production
 
-# Copy the built assets from the builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Copy the Nginx configuration file
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Set up a non-root user and fix permissions
+# Usuário sem privilégios de root
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
     && chown -R appuser:appgroup /usr/share/nginx/html \
     && chown -R appuser:appgroup /var/cache/nginx \
@@ -35,8 +29,6 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
 
 USER appuser
 
-# Expose port 80 for Nginx
 EXPOSE 80
 
-# Start Nginx when the container launches
 CMD ["nginx", "-g", "daemon off;"]
