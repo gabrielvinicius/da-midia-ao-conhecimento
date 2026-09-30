@@ -351,11 +351,33 @@ class SynthesisStep(AnalysisStep):
             analysis.summary = self._with_appendix(master_summary, analysis)
         except Exception as exc:
             logger.error("synthesis.failed", error=str(exc))
-            analysis.diagnostics["summary_source"] = "error"
-            analysis.summary = "Erro na geração do resumo. Veja os temas abaixo.\n\n" + "\n\n".join(
-                t.summary for t in analysis.topics if t.summary
-            )
+            analysis.diagnostics["summary_source"] = "simplified"
+            analysis.summary = self._with_appendix(self._simplified_summary(analysis), analysis)
         return analysis
+
+    @staticmethod
+    def _simplified_summary(analysis: Analysis) -> str:
+        """Resumo sem LLM: os temas encontrados e suas palavras-chave.
+
+        Usado quando nem o modelo principal nem o reserva respondem. Não
+        depende dos resumos por tema, que não existem no modo turbo.
+        """
+        lines = [
+            "Não foi possível gerar o resumo com o modelo de linguagem. "
+            "Estes são os temas identificados no conteúdo; os trechos de cada "
+            "um estão no apêndice."
+        ]
+        for t in analysis.topics:
+            if t.id == -1:
+                continue
+            keywords = ", ".join((t.keywords or [])[:6])
+            line = f"- **{t.title or 'Tema'}**"
+            if keywords:
+                line += f" ({keywords})"
+            if t.summary:
+                line += f": {t.summary.splitlines()[0]}"
+            lines.append(line)
+        return "\n".join(lines)
 
     def build_prompt(self, analysis: Analysis) -> tuple[str, str]:
         """Monta o prompt e informa se usou a transcrição completa ou os temas."""

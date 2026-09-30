@@ -56,3 +56,20 @@ async def test_synthesis_uses_topics_when_transcript_is_too_long():
     assert "<tema id='-1'>" not in prompt and "Noise 1" in prompt
     assert analysis.diagnostics["synthesis_input"] == "topics"
     assert analysis.diagnostics["summary_source"] == "fallback"
+
+
+@pytest.mark.asyncio
+async def test_synthesis_builds_simplified_summary_when_llms_fail():
+    """Sem LLM e sem resumos por tema (modo turbo), o usuário ainda recebe
+    os temas, as palavras-chave e os trechos, e não só uma mensagem de erro."""
+    text_gen = AsyncMock()
+    text_gen.summarize_topic.side_effect = RuntimeError("Ollama indisponível")
+    analysis = _analysis("Transcrição curta.")
+
+    step = SynthesisStep(text_gen, language="pt", max_full_transcript_chars=1000)
+    await step.process(analysis)
+
+    assert analysis.diagnostics["summary_source"] == "simplified"
+    assert "**Topic A** (key1, key2)" in analysis.summary
+    assert "Noise" not in analysis.summary
+    assert "> Evidence 1" in analysis.summary  # apêndice com os trechos
