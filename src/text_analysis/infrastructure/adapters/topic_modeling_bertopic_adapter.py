@@ -22,6 +22,23 @@ logger = get_logger(__name__)
 MIN_CHUNKS_FOR_CLUSTERING = 8
 
 
+def representative_snippets(chunks, members: list[int], embeddings, limit: int = 5) -> list[str]:
+    """Os trechos mais próximos do centro do tema, na ordem da gravação.
+
+    Antes eram os cinco primeiros trechos do tema, o que mostrava só o começo
+    do assunto no apêndice de conferência e nos títulos.
+    """
+    import numpy as np
+
+    if len(members) <= limit:
+        return [chunks[i].text for i in members]
+    vectors = np.asarray([embeddings[i] for i in members], dtype="float32")
+    vectors /= np.linalg.norm(vectors, axis=1, keepdims=True).clip(min=1e-12)
+    centroid = vectors.mean(axis=0)
+    closest = np.argsort(-(vectors @ centroid))[:limit]
+    return [chunks[members[i]].text for i in sorted(closest)]
+
+
 class BERTopicAdapter(TopicModelingPort):
     def __init__(
         self,
@@ -204,9 +221,8 @@ class BERTopicAdapter(TopicModelingPort):
                     if not title:
                         title = words[0].capitalize() if words else "Tópico Desconhecido"
 
-                    snippets = [
-                        chunk.text for chunk, t in zip(chunks, topics) if t == topic_id
-                    ]
+                    members = [i for i, t in enumerate(topics) if t == topic_id]
+                    snippets = representative_snippets(chunks, members, np_embeddings)
                     
                     # Cálculo de diagnósticos seguro
                     topic_probs = []
@@ -219,9 +235,9 @@ class BERTopicAdapter(TopicModelingPort):
                         Topic(
                             id=int(topic_id),
                             keywords=words,
-                            snippets=snippets[:5],
+                            snippets=snippets,
                             title=title.strip(),
-                            size=len(snippets),
+                            size=len(members),
                             diagnostics={"score": 1.0} # Simplificado
                         )
                     )

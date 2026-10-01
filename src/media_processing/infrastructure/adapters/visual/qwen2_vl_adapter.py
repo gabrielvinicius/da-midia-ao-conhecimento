@@ -66,6 +66,22 @@ class Qwen2VLAdapter(VisualAnalysisPort):
                     "Install them with: pip install qwen-vl-utils bitsandbytes accelerate git+https://github.com/huggingface/transformers"
                 ) from e
 
+    async def release(self) -> None:
+        """Descarrega o modelo e devolve a memória da GPU ao driver."""
+        self._model = None
+        self._processor = None
+        self._initialized = False
+        try:
+            import gc
+
+            import torch
+
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception as exc:
+            logger.warning("qwen2_vl.release_failed", error=str(exc))
+
     async def describe_frame(self, frame_bytes: bytes, prompt: str = "Describe this image in detail.") -> str:
         """
         Analisa um único frame.

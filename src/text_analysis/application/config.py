@@ -16,7 +16,6 @@ class AnalysisConfig:
     language: str = "pt"
     chunk_size: int = 512
     chunk_overlap: int = 64
-    max_chunks: int = 200
     sentiment_model: str = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
     # multilingual-e5-small gera vetores de 384 dimensões, compatíveis com a
     # coluna knowledge_chunks.embedding (Vector(384)).
@@ -28,8 +27,11 @@ class AnalysisConfig:
     # os títulos dos temas são gerados pelo LLM principal no TopicTitleStep.
     use_transformer_topic_representation: bool = False
     transformer_representation_model: str = "hf:Qwen/Qwen2.5-3B-Instruct"
-    # Com turbo_mode, os resumos por tema são pulados e a síntese recebe o
-    # material bruto (transcrição completa quando couber no contexto).
-    turbo_mode: bool = True
-    # Limite aproximado de caracteres da transcrição enviada integralmente ao LLM.
-    max_full_transcript_chars: int = 60000
+    # Transcrições até este tamanho vão inteiras à síntese (~12 mil tokens,
+    # dentro da janela de 16k do Ollama); acima, a síntese resume blocos de
+    # synthesis_block_chars e une os resumos parciais.
+    max_full_transcript_chars: int = 36000
+    synthesis_block_chars: int = 20000
+    # Similaridade mínima (cosseno, multilingual-e5) entre uma frase do resumo
+    # e algum trecho da transcrição para a frase contar como apoiada.
+    grounding_threshold: float = 0.80

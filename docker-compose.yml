@@ -64,6 +64,10 @@ services:
       # Descarrega o modelo da GPU após 5 min ocioso, liberando VRAM.
       - OLLAMA_KEEP_ALIVE=5m
       - OLLAMA_MAX_LOADED_MODELS=1
+      # Atenção eficiente e cache de contexto em 8 bits: cerca de metade da
+      # memória de GPU do contexto, com perda de qualidade desprezível.
+      - OLLAMA_FLASH_ATTENTION=1
+      - OLLAMA_KV_CACHE_TYPE=q8_0
     networks:
       - backend-net
       # backend-net é interna (sem internet); public-net dá a saída necessária

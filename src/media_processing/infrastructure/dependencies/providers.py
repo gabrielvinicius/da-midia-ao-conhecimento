@@ -131,15 +131,26 @@ def _register_visual_providers():
 
 _register_visual_providers()
 
+_VISUAL_INSTANCES: Dict[str, VisualAnalysisPort] = {}
+
+
 def get_visual_analyzer(provider: str | None = None) -> VisualAnalysisPort:
+    """Uma instância por processo e provedor.
+
+    Antes, cada análise criava um adaptador novo, e o modelo da instância
+    anterior ficava na GPU até o coletor de lixo agir. O pipeline chama
+    ``release()`` ao terminar a etapa visual; a instância recarrega o modelo
+    na próxima análise.
+    """
     key = (provider or "default").lower()
+    if key not in _VISUAL_ANALYZERS and "default" in _VISUAL_ANALYZERS:
+        key = "default"
     factory = _VISUAL_ANALYZERS.get(key)
     if not factory:
-        # Fallback ou erro
-        if "default" in _VISUAL_ANALYZERS:
-             return _VISUAL_ANALYZERS["default"]()
         raise RuntimeError("Nenhum provider de análise visual disponível.")
-    return factory()
+    if key not in _VISUAL_INSTANCES:
+        _VISUAL_INSTANCES[key] = factory()
+    return _VISUAL_INSTANCES[key]
 
 
 # ----------------- TTS providers -----------------

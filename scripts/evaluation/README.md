@@ -35,3 +35,15 @@ para o banco usado nas medições.
    (escala Likert de 1 a 5 para fidelidade, cobertura e clareza), respondido
    por quem assistiu à gravação. O botão 👍/👎 da página da mídia (valores 1 e
    -1 na tabela `analysis_feedback`) serve como indicador complementar.
+
+6. Cada resumo também passa por uma verificação automática de fidelidade:
+   frases sem nenhum trecho parecido na transcrição são apontadas na página da
+   mídia. Para a tabela do TCC (uma linha por mídia):
+
+   ```bash
+   PYTHONPATH=. python scripts/evaluation/export_timings.py --grounding
+   ```
+
+   Compare com a nota de fidelidade do questionário: a verificação aponta
+   assuntos que não estão na gravação, mas não um número ou nome trocado.
+   O limiar (0,80) pode ser calibrado olhando as frases apontadas.

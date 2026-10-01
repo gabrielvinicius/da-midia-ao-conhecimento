@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Protocol
+from typing import Callable, Optional, Protocol
 
 from src.media_processing.domain import Transcription
 from src.shared.infrastructure.observability.ports import LoggerPort as SharedLoggerPort
@@ -104,10 +104,18 @@ class VisualAnalysisPort(Protocol):
     async def describe_frame(self, frame_bytes: bytes, prompt: str = "Describe this scene in detail.") -> str:
         ...
 
+    async def release(self) -> None:
+        """Libera a memória do modelo de visão (a próxima chamada o recarrega)."""
+        ...
+
 
 class VideoFrameExtractorPort(Protocol):
-    """Port for extracting raw frames from video data."""
-    async def extract_frame(self, video_data: bytes, timestamp: float) -> bytes:
+    """Extrai quadros de um vídeo."""
+    async def extract_frames(self, video_data: bytes, timestamps: list[float]) -> list[Optional[bytes]]:
+        """Um quadro (JPEG) por instante, na mesma ordem; None se falhar.
+
+        O vídeo é gravado uma única vez em disco para todos os quadros.
+        """
         ...
 
 

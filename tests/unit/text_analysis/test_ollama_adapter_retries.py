@@ -2,6 +2,8 @@ import asyncio
 
 import pytest
 
+from src.text_analysis.application.ports import TextGenerationUnavailableError
+
 from src.text_analysis.infrastructure.adapters.text_generation_ollama_adapter import (
     OllamaTextGenerationAdapter,
 )
@@ -61,8 +63,8 @@ async def test_ollama_adapter_marks_unavailable_on_failure(monkeypatch):
         lambda timeout: DummyAsyncClient(side_effects),
     )
     adapter = OllamaTextGenerationAdapter(retries=1)
-    out = await adapter.summarize_topic("t", "c", [], "pt")
-    assert out.startswith("# ")  # fallback markdown
+    with pytest.raises(TextGenerationUnavailableError):
+        await adapter.summarize_topic("t", "c", [], "pt")
     assert adapter.is_available() is False
 
 
@@ -99,7 +101,8 @@ async def test_ollama_uses_chat_api_with_system_prompt_and_thinking_off(monkeypa
     assert body["think"] is False and body["stream"] is False
     assert body["messages"][0] == {"role": "system", "content": "Seja fiel."}
     assert body["messages"][1] == {"role": "user", "content": "Resuma o material."}
-    assert adapter.last_call_used_fallback is False
+    assert body["options"]["num_ctx"] == 16384  # janela fixa: mudar recarrega o modelo
+    assert adapter.last_used_reserve is False
 
 
 @pytest.mark.asyncio
@@ -115,16 +118,31 @@ async def test_ollama_tries_fallback_model_before_giving_up(monkeypatch):
 
     assert out == "Resumo reserva"
     assert adapter.last_model_used == "gemma4:e4b"
+    assert adapter.last_used_reserve is True  # o selo do resumo diz "modelo reserva"
     assert [body["model"] for _, body in client.requests] == ["qwen3.5:9b", "gemma4:e4b"]
 
 
 @pytest.mark.asyncio
-async def test_ollama_marks_fallback_when_all_models_fail(monkeypatch):
+async def test_ollama_raises_when_all_models_fail(monkeypatch):
+    """Antes devolvia um texto substituto ("Não informado") que chegava ao
+    usuário como se fosse o resumo do modelo reserva."""
     client = RecordingAsyncClient({"qwen3.5:9b": DummyResponse(False)})
     monkeypatch.setattr("httpx.AsyncClient", lambda timeout: client)
 
     adapter = OllamaTextGenerationAdapter(model="qwen3.5:9b", retries=0)
-    out = await adapter.summarize_topic("Tema", "texto", ["a"], "pt")
+    with pytest.raises(TextGenerationUnavailableError):
+        await adapter.summarize_topic("Tema", "texto", ["a"], "pt")
 
-    assert adapter.last_call_used_fallback is True
-    assert "sem LLM" in out
+
+@pytest.mark.asyncio
+async def test_ollama_release_unloads_models(monkeypatch):
+    client = RecordingAsyncClient({"qwen3.5:9b": DummyResponse(True, {}), "gemma4:e4b": DummyResponse(True, {})})
+    monkeypatch.setattr("httpx.AsyncClient", lambda timeout: client)
+
+    adapter = OllamaTextGenerationAdapter(model="qwen3.5:9b", fallback_model="gemma4:e4b")
+    await adapter.release()
+
+    assert [(url.rsplit("/", 1)[-1], body) for url, body in client.requests] == [
+        ("generate", {"model": "qwen3.5:9b", "keep_alive": 0}),
+        ("generate", {"model": "gemma4:e4b", "keep_alive": 0}),
+    ]

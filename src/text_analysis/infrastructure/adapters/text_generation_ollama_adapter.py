@@ -12,7 +12,10 @@ from src.shared.infrastructure.observability.logging.logging_config import get_l
 from src.shared.infrastructure.observability.metrics.prometheus_metrics import (
     SharedPrometheusMetrics,
 )
-from src.text_analysis.application.ports.text_generation import TextGenerationPort
+from src.text_analysis.application.ports.text_generation import (
+    TextGenerationPort,
+    TextGenerationUnavailableError,
+)
 
 logger = get_logger(__name__)
 
@@ -27,7 +30,11 @@ class OllamaConfig:
     model: str = "qwen3.5:9b"
     fallback_model: Optional[str] = None
     timeout: int = 900
-    context_tokens: int = 32768
+    # Janela fixa (mudar num_ctx entre chamadas obriga o Ollama a recarregar o
+    # modelo). 16k tokens bastam para os prompts do pipeline: a síntese envia
+    # a transcrição inteira só até ~36 mil caracteres e, acima disso, blocos.
+    # Com 32k, o cache de contexto ocupava vários GB a mais da GPU de 12 GB.
+    context_tokens: int = 16384
     temperature: float = 0.2
     keep_alive: str = "5m"
 
@@ -46,10 +53,10 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
 
     - O modo de raciocínio ("thinking") dos modelos Qwen3/Qwen3.5 é desligado,
       pois só aumentaria o tempo de resposta de um resumo.
-    - Se o modelo principal falhar, tenta uma vez o modelo reserva.
-    - Se ambos falharem, devolve um texto determinístico e marca
-      ``last_call_used_fallback``, para que o pipeline registre que o resumo
-      não veio do LLM.
+    - Se o modelo principal falhar, tenta o modelo reserva e marca
+      ``last_used_reserve``.
+    - Se ambos falharem, lança ``TextGenerationUnavailableError``: quem chama
+      decide o substituto (ver a porta).
     """
 
     provider_name = "ollama"
@@ -62,7 +69,7 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
         retries: int = 1,
         retry_cooldown: int = 60,
         fallback_model: Optional[str] = None,
-        context_tokens: int = 32768,
+        context_tokens: int = 16384,
     ) -> None:
         self.config = OllamaConfig(
             host=host.rstrip("/"),
@@ -76,7 +83,7 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
         self._retries = retries
         self._retry_cooldown = retry_cooldown
         self._last_failure_ts: float | None = None
-        self.last_call_used_fallback = False
+        self.last_used_reserve = False
         self.last_model_used: Optional[str] = None
         metrics = SharedPrometheusMetrics()
         self._m_attempts = metrics.get_textgen_ollama_attempts()
@@ -93,7 +100,7 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
         keywords: list[str],
         language: str,
     ) -> str:
-        self.last_call_used_fallback = False
+        self.last_used_reserve = False
         self._m_attempts.labels(model=self.config.model).inc()
         # tenta reativar se estava indisponível e o cooldown já passou
         if not self._available and self._last_failure_ts:
@@ -119,6 +126,7 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
                         text = await self._chat(client, model, messages)
                         self._available = True
                         self.last_model_used = model
+                        self.last_used_reserve = model != self.config.model
                         return text
                     except Exception as exc:  # chamada externa
                         last_exc = exc
@@ -134,8 +142,9 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
         self._available = False
         self._last_failure_ts = time.time()
         self._m_failures.labels(model=self.config.model).inc()
-        self.last_call_used_fallback = True
-        return self._fallback(title_hint, keywords)
+        raise TextGenerationUnavailableError(
+            f"Nenhum modelo de linguagem respondeu ({', '.join(models)}): {last_exc}"
+        )
 
     async def _chat(self, client: httpx.AsyncClient, model: str, messages: list[dict]) -> str:
         resp = await client.post(
@@ -173,13 +182,18 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
             f"{content or 'Não informado'}"
         )
 
-    def _fallback(self, title_hint: Optional[str], keywords: list[str]) -> str:
-        lines = "\n".join(f"- {kw}" for kw in (keywords or ["Não informado"]))
-        return (
-            f"# {title_hint or 'Tópico'}\n"
-            "## Resumo (automático, sem LLM)\n"
-            "## Termos-chave\n" + lines
-        )
+    async def release(self) -> None:
+        """Descarrega os modelos da GPU (keep_alive=0); a próxima chamada os recarrega."""
+        models = [self.config.model] + ([self.config.fallback_model] if self.config.fallback_model else [])
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                for model in models:
+                    await client.post(
+                        f"{self.config.host}/api/generate",
+                        json={"model": model, "keep_alive": 0},
+                    )
+        except Exception as exc:  # liberar memória nunca derruba a análise
+            logger.warning("ollama.release_failed", error=str(exc))
 
     async def health_check(self) -> bool:
         """Ping leve para validar disponibilidade sem gerar conteúdo."""

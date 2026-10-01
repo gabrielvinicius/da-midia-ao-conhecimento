@@ -50,7 +50,9 @@ class Settings(BaseSettings):
     ollama_host: str = "http://localhost:11434"
     llm_model: str = "qwen3.5:9b"
     llm_fallback_model: str = "gemma4:e4b"
-    llm_context_tokens: int = 32768
+    # 16k tokens: cabe nos prompts do pipeline (síntese em blocos) sem que o
+    # cache de contexto do Ollama ocupe GBs a mais da GPU de 12 GB.
+    llm_context_tokens: int = 16384
     llm_timeout_seconds: int = 900
     # Descrição de quadros de vídeo: "moondream" (padrão) ou "ollama"
     # (usa o modelo multimodal definido em visual_ollama_model).

@@ -31,6 +31,10 @@ class Analysis:
     summary: Optional[str] = None
     diagnostics: dict = field(default_factory=dict)
     chunks: list = field(default_factory=list)
+    # Vetores dos trechos (mesma ordem de ``chunks``), calculados uma vez e
+    # usados pelos temas, pela indexação e pela verificação de fidelidade.
+    # Transitório: não é gravado com a análise.
+    chunk_embeddings: list = field(default_factory=list, repr=False)
 
     @classmethod
     def new(

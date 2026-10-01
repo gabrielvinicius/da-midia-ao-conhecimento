@@ -4,6 +4,8 @@ from uuid import uuid4
 
 import pytest
 
+from src.text_analysis.application.ports import TextGenerationUnavailableError
+
 from src.text_analysis.application.pipeline.base import AnalysisPipeline, AnalysisStep
 from src.text_analysis.application.pipeline.steps import (
     KnowledgeIndexingStep,
@@ -111,7 +113,7 @@ async def test_indexing_saves_chunks_with_embeddings_and_times():
         TextChunk(id="a", text="trecho a", start=0.0, end=5.0),
         TextChunk(id="b", text="trecho b", start=5.0, end=9.0),
     ]
-    analysis.diagnostics["_temp_embeddings"] = [[0.1, 0.2], [0.3, 0.4]]
+    analysis.chunk_embeddings = [[0.1, 0.2], [0.3, 0.4]]
 
     await KnowledgeIndexingStep(repo).process(analysis)
 
@@ -120,7 +122,6 @@ async def test_indexing_saves_chunks_with_embeddings_and_times():
     assert records[0]["text"] == "trecho a"
     assert records[0]["embedding"] == [0.1, 0.2]
     assert records[1]["metadata"]["start"] == 5.0
-    assert "_temp_embeddings" not in analysis.diagnostics
     assert analysis.diagnostics["indexed_chunks"] == 2
 
 
@@ -129,7 +130,7 @@ async def test_indexing_without_media_does_nothing():
     repo = _FakeVectorRepo()
     analysis = Analysis.new(Document.from_payload("t"))
     analysis.chunks = [TextChunk(id="a", text="a")]
-    analysis.diagnostics["_temp_embeddings"] = [[0.1]]
+    analysis.chunk_embeddings = [[0.1]]
 
     await KnowledgeIndexingStep(repo).process(analysis)
 
@@ -151,7 +152,7 @@ class _NeverCalled:
     async def describe_frame(self, *_a, **_k):
         raise AssertionError("não deveria descrever quadros de áudio")
 
-    async def extract_frame(self, *_a, **_k):
+    async def extract_frames(self, *_a, **_k):
         raise AssertionError("não deveria extrair quadros de áudio")
 
     def get_download_service(self, *_a):
@@ -181,17 +182,25 @@ class _FakeStorage:
 
 
 class _FakeExtractor:
-    async def extract_frame(self, data, ts):
-        return b"frame"
+    def __init__(self):
+        self.calls = []
+
+    async def extract_frames(self, data, timestamps):
+        self.calls.append(len(timestamps))  # o vídeo é gravado uma vez para todos
+        return [b"frame"] * len(timestamps)
 
 
 class _FakeVision:
     def __init__(self):
         self.calls = 0
+        self.released = False
 
     async def describe_frame(self, frame, prompt=""):
         self.calls += 1
         return "Visual description unavailable." if self.calls == 1 else "um slide com um gráfico"
+
+    async def release(self):
+        self.released = True
 
 
 @pytest.mark.asyncio
@@ -200,19 +209,23 @@ async def test_visual_step_describes_video_frames_and_skips_failures():
     analysis = Analysis.new(Document.from_payload("oi", segments), media_id=uuid4())
     analysis.diagnostics.update({"media_type": "VIDEO", "file_path": "v.mp4"})
 
-    await VisualInsightStep(_FakeVision(), _FakeExtractor(), _FakeStorage()).process(analysis)
+    vision, extractor = _FakeVision(), _FakeExtractor()
+    await VisualInsightStep(vision, extractor, _FakeStorage()).process(analysis)
 
     context = analysis.diagnostics["visual_context"]
     assert len(context) == 2  # 3 quadros, 1 falhou
     assert all("gráfico" in line for line in context)
+    assert context[0].startswith("[00:30]")
+    assert extractor.calls == [3]
+    assert vision.released  # memória devolvida antes das etapas com o LLM
 
 
 # --- títulos dos temas --------------------------------------------------------
 
 class _TitleGen:
-    def __init__(self, response, fallback=False):
+    def __init__(self, response, unavailable=False):
         self.response = response
-        self.last_call_used_fallback = fallback
+        self.unavailable = unavailable
         self.prompt = None
 
     def is_available(self):
@@ -220,6 +233,8 @@ class _TitleGen:
 
     async def summarize_topic(self, title, content, keywords, language):
         self.prompt = content
+        if self.unavailable:
+            raise TextGenerationUnavailableError("nenhum modelo respondeu")
         return self.response
 
 
@@ -246,13 +261,14 @@ async def test_topic_titles_are_replaced_by_llm_titles():
 
 
 @pytest.mark.asyncio
-async def test_topic_titles_kept_when_llm_falls_back():
-    gen = _TitleGen("# fallback", fallback=True)
+async def test_topic_titles_kept_when_no_model_answers():
+    gen = _TitleGen("", unavailable=True)
     analysis = _topics_analysis()
 
     await TopicTitleStep(gen, language="pt").process(analysis)
 
     assert analysis.topics[0].title == "0_derivada_limite"
+    assert analysis.diagnostics["topic_titles_source"] == "bertopic"
 
 
 # --- pipeline: status por etapa e checkpoints ---------------------------------
@@ -285,6 +301,22 @@ async def test_pipeline_records_status_and_checkpoints_each_step():
     assert saved == [("ok_step", "parcial"), ("failing_step", "parcial")]
     assert analysis.diagnostics["steps"]["ok_step"] == "ok"
     assert analysis.diagnostics["steps"]["failing_step"].startswith("failed: sem memória")
+
+
+class _Releasable:
+    def __init__(self):
+        self.released = 0
+
+    async def release(self):
+        self.released += 1
+
+
+@pytest.mark.asyncio
+async def test_pipeline_releases_the_language_model_even_when_a_step_fails():
+    llm = _Releasable()
+    pipeline = AnalysisPipeline(steps=[_FailingStep()], release_after_run=[llm])
+    await pipeline.run(Analysis.new(Document.from_payload("t")))
+    assert llm.released == 1
 
 
 # --- busca semântica ----------------------------------------------------------
@@ -331,3 +363,17 @@ async def test_knowledge_search_embeds_query_and_returns_timestamps():
     assert embedder.kind == "query"
     assert results[0]["relevance"] == 75.0
     assert (results[0]["start"], results[0]["end"]) == (12.0, 20.0)
+
+
+def test_topic_excerpts_are_the_most_representative_in_time_order():
+    from src.text_analysis.infrastructure.adapters.topic_modeling_bertopic_adapter import (
+        representative_snippets,
+    )
+
+    chunks = [TextChunk(id=str(i), text=f"t{i}") for i in range(8)]
+    # 0 e 7 são atípicos; os demais ficam perto do centro do tema
+    vectors = [[0, 1]] + [[1, 0.05 * i] for i in range(1, 7)] + [[0, -1]]
+    picked = representative_snippets(chunks, list(range(8)), vectors, limit=3)
+    # antes: sempre os primeiros, inclusive o atípico t0
+    assert picked == ["t2", "t3", "t4"]
+    assert representative_snippets(chunks, [0, 7], vectors) == ["t0", "t7"]

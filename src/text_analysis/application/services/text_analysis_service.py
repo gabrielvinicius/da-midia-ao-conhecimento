@@ -8,23 +8,16 @@ from __future__ import annotations
 
 import inspect
 import time
-from statistics import mean
 from typing import Any, Optional, List, Dict
 from uuid import UUID
 
-from src.shared.domain.events import (
-    SentimentAnalysisCompleted,
-    SummarizationCompleted,
-    TopicModelingCompleted,
-)
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.text_analysis.config.settings import text_analysis_settings
 
-from src.text_analysis.domain import Analysis, Document, SentimentLabel
-from src.text_analysis.domain import Sentiment, Topic
+from src.text_analysis.domain import Analysis, Document
+from src.text_analysis.domain import Topic
 from src.text_analysis.application.config import AnalysisConfig
 from src.text_analysis.application.dtos import (
-    AnalysisResultDTO,
     AnalyzeTextCommand,
     GetAnalysisByMediaIdQuery,
     GetAnalysisQuery,
@@ -37,12 +30,6 @@ from src.text_analysis.application.ports import (
 )
 from src.text_analysis.application.ports.transcription_port import TranscriptionQueryPort
 from src.text_analysis.application.pipeline.base import AnalysisPipeline
-from src.text_analysis.application.pipeline.steps import (
-    ChunkingStep,
-    SentimentStep,
-    TopicModelingStep,
-    SummarizationStep,
-)
 from src.text_analysis.application.services.text_analysis_read_service import TextAnalysisReadService
 
 logger = get_logger(__name__)
@@ -104,6 +91,7 @@ class TextAnalysisService:
         # comando, os segmentos (com horários) só existem na transcrição; sem
         # eles, a análise visual e os horários da busca semântica não funcionam.
         segments: list = []
+        language: Optional[str] = None
         if media_id and self.transcription_queries:
             try:
                 text_source = await self.transcription_queries.get_text_source(media_id)
@@ -111,6 +99,7 @@ class TextAnalysisService:
                     text_content = text_content or text_source.text
                     transcription_id = transcription_id or text_source.id
                     segments = list(text_source.segments or [])
+                    language = getattr(text_source, "language", None)
             except Exception as exc:
                 logger.warning("text_analysis.fetch_text_failed", media_id=str(media_id), error=str(exc))
 
@@ -138,6 +127,10 @@ class TextAnalysisService:
             # Inject media context for the pipeline
             if media_info:
                 analysis.diagnostics.update(media_info)
+            # Idioma detectado na transcrição: palavras vazias e sentimento
+            # seguem o idioma da gravação (o resumo continua em português).
+            if language and language.lower() not in ("auto", "unknown"):
+                analysis.diagnostics["language"] = language.lower()
 
             # 4. Pipeline granular. Cada etapa grava seu resultado ao terminar
             # (checkpoint); se o worker cair no meio, o que já foi calculado

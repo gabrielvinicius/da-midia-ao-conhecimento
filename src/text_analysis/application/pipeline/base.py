@@ -47,13 +47,31 @@ class AnalysisPipeline:
     parciais à medida que são gerados.
     """
 
-    def __init__(self, steps: list[AnalysisStep]):
+    def __init__(self, steps: list[AnalysisStep], release_after_run: Optional[list] = None):
         self.steps = steps
+        # Recursos liberados ao fim de cada execução, com sucesso ou não (ex.:
+        # o modelo de linguagem no Ollama, que não deve ficar ocupando a GPU
+        # enquanto a próxima mídia é transcrita).
+        self.release_after_run = release_after_run or []
 
     async def run(
         self,
         analysis: Analysis,
         on_step_completed: Optional[StepCallback] = None,
+    ) -> Analysis:
+        try:
+            return await self._run_steps(analysis, on_step_completed)
+        finally:
+            for resource in self.release_after_run:
+                try:
+                    await resource.release()
+                except Exception as exc:
+                    logger.warning("pipeline.release_failed", error=str(exc))
+
+    async def _run_steps(
+        self,
+        analysis: Analysis,
+        on_step_completed: Optional[StepCallback],
     ) -> Analysis:
         statuses = analysis.diagnostics.setdefault("steps", {})
         durations = analysis.diagnostics.setdefault("step_seconds", {})

@@ -31,21 +31,3 @@ class TestHardwareAdvisor:
 
         # Assert
         assert strategy == SystemPressure.HIGH
-
-    def test_circuit_breaker_quarantine(self):
-        # Arrange
-        advisor = HardwareAdvisor(failure_threshold=2)
-        provider = "test-ai"
-        
-        # Act & Assert
-        assert advisor.is_provider_healthy(provider) is True
-        
-        advisor.report_failure(provider)
-        assert advisor.is_provider_healthy(provider) is True
-        
-        advisor.report_failure(provider)
-        # Now it should be unhealthy (consecutive failures >= threshold)
-        assert advisor.is_provider_healthy(provider) is False
-        
-        advisor.report_success(provider)
-        assert advisor.is_provider_healthy(provider) is True

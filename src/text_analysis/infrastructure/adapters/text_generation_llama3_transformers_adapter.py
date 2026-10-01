@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import logging
-import os
 from typing import Optional
 
-from src.text_analysis.application.ports.text_generation import TextGenerationPort
+from src.text_analysis.application.ports.text_generation import (
+    TextGenerationPort,
+    TextGenerationUnavailableError,
+)
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.shared.infrastructure.observability.metrics.prometheus_metrics import (
     SharedPrometheusMetrics,
@@ -51,7 +52,7 @@ class Llama3TransformersTextGenerationAdapter(TextGenerationPort):
     ) -> str:
         self._m_attempts.labels(model=self.model_name).inc()
         if not self._available:
-            return self._fallback(title_hint, keywords)
+            raise TextGenerationUnavailableError(f"{self.model_name} indisponível")
 
         if self._pipe is None:
             try:  # Lazy load
@@ -79,7 +80,7 @@ class Llama3TransformersTextGenerationAdapter(TextGenerationPort):
             except Exception as exc:  # pragma: no cover
                 logger.warning("llama3.load_failed", error=str(exc))
                 self._available = False
-                return self._fallback(title_hint, keywords)
+                raise TextGenerationUnavailableError(f"{self.model_name} indisponível")
 
         prompt = (
             f"Resuma em {language} de forma estruturada e concisa.\n"
@@ -110,17 +111,6 @@ class Llama3TransformersTextGenerationAdapter(TextGenerationPort):
             logger.warning("llama3.generation_failed", error=str(exc))
             self._available = False
             self._m_failures.labels(model=self.model_name).inc()
-            return self._fallback(title_hint, keywords)
-
-    def _fallback(self, title_hint: Optional[str], keywords: list[str]) -> str:
-        lines = "\n".join(f"- {kw}" for kw in (keywords or ["Não informado"]))
-        return (
-            f"# {title_hint or 'Tópico'}\n"
-            "## Resumo\n- Não informado\n"
-            "## Pontos principais\n- Não informado\n"
-            "## Riscos/Oportunidades\n- Não informado\n"
-            "## Palavras-chave\n" + lines
-        )
-
+            raise TextGenerationUnavailableError(f"{self.model_name} indisponível")
 
 __all__ = ["Llama3TransformersTextGenerationAdapter"]

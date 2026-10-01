@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import logging
-import os
 from typing import Optional
 
 
-from src.text_analysis.application.ports.text_generation import TextGenerationPort
+from src.text_analysis.application.ports.text_generation import (
+    TextGenerationPort,
+    TextGenerationUnavailableError,
+)
 from src.shared.infrastructure.config.settings import settings
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.shared.infrastructure.observability.metrics.prometheus_metrics import (
@@ -46,7 +47,7 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
             
         self._m_attempts.labels(model=self.model_name).inc()
         if not self._available:
-            return self._fallback(title_hint, keywords)
+            raise TextGenerationUnavailableError(f"{self.model_name} indisponível")
 
         if not self._initialized:
             try:  # Lazy load
@@ -93,7 +94,7 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
             except Exception as exc:  # pragma: no cover - runtime path
                 logger.warning("transformers_generation.load_failed", error=str(exc))
                 self._available = False
-                return self._fallback(title_hint, keywords)
+                raise TextGenerationUnavailableError(f"{self.model_name} indisponível")
             self._initialized = True
 
         try:
@@ -174,15 +175,6 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
             logger.warning("transformers_generation.failed", error=str(exc))
             self._available = False
             self._m_failures.labels(model=self.model_name).inc()
-            return self._fallback(title_hint, keywords)
-
-    def _fallback(self, title_hint: Optional[str], keywords: list[str]) -> str:
-        lines = "\n".join(f"- {kw}" for kw in (keywords or ["Não informado"]))
-        return (
-            f"# {title_hint or 'Tópico'}\n"
-            "**Resumo**\n- Não informado\n"
-            "**Termos-chave**\n" + lines
-        )
-
+            raise TextGenerationUnavailableError(f"{self.model_name} indisponível")
 
 __all__ = ["TransformersTextGenerationAdapter"]

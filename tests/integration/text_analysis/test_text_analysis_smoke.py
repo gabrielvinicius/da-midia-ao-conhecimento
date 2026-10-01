@@ -89,7 +89,7 @@ from src.text_analysis.application.pipeline.steps import (
     ChunkingStep,
     SentimentStep,
     TopicModelingStep,
-    SummarizationStep,
+    SynthesisStep,
 )
 
 @pytest.mark.integration
@@ -102,7 +102,7 @@ async def test_text_analysis_smoke():
         ChunkingStep(DummyChunker()),
         SentimentStep(DummySentiment(), language="pt"),
         TopicModelingStep(DummyTopic(), DummyEmbeddings(), language="pt"),
-        SummarizationStep(DummyTextGen(), language="pt"),
+        SynthesisStep(DummyTextGen(), language="pt"),
     ])
 
     service = TextAnalysisService(

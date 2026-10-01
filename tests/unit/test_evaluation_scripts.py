@@ -60,3 +60,13 @@ def test_vram_peak_reads_nvidia_smi_csv(tmp_path):
         "2026/09/30 10:00:02.000, 7001 MiB\n"
     )
     assert export_mod.vram_peak_mib(csv) == 10412
+
+
+def test_grounding_rows_report_supported_sentences_per_media():
+    grounding_rows = export_mod.grounding_rows
+
+    rows = grounding_rows([
+        ("aula_01.mp4", {"grounding": {"checked": 20, "supported": 18, "ratio": 0.9}}),
+        ("sem_resumo.mp4", {}),
+    ])
+    assert rows == [r"aula\_01.mp4 & 20 & 18 & 90\% \\"]

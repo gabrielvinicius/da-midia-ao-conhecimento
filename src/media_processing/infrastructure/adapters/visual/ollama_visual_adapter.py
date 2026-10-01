@@ -54,5 +54,13 @@ class OllamaVisualAdapter:
             logger.error("ollama_visual.inference_failed", error=str(exc))
             return ""
 
+    async def release(self) -> None:
+        """Descarrega o modelo de visão do Ollama (keep_alive=0)."""
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                await client.post(f"{self.host}/api/generate", json={"model": self.model, "keep_alive": 0})
+        except Exception as exc:
+            logger.warning("ollama_visual.release_failed", error=str(exc))
+
 
 __all__ = ["OllamaVisualAdapter"]

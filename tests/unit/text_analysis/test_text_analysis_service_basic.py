@@ -60,7 +60,7 @@ from src.text_analysis.application.pipeline.steps import (
     ChunkingStep,
     SentimentStep,
     TopicModelingStep,
-    SummarizationStep,
+    SynthesisStep,
 )
 
 @pytest.mark.anyio
@@ -75,7 +75,7 @@ async def test_analyze_text_service_saves_and_returns_dto():
         ChunkingStep(FakeChunker(), size=config.chunk_size, overlap=config.chunk_overlap),
         SentimentStep(FakeSentiment(), language="en"),
         TopicModelingStep(FakeTopics(), FakeEmbeddings(), language="en"),
-        SummarizationStep(FakeTextGen(), language="en"),
+        SynthesisStep(FakeTextGen(), language="en"),
     ])
 
     service = TextAnalysisService(

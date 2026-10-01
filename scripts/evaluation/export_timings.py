@@ -5,8 +5,11 @@ modelo como a página de análises do administrador e imprime as linhas de uma
 tabela LaTeX. Com --vram, lê também o registro do nvidia-smi gravado durante
 o processamento e informa o pico de memória da GPU.
 
+Com --grounding, lista por mídia o resultado da verificação automática de
+fidelidade dos resumos (frases com apoio na transcrição).
+
 Uso:
-    python scripts/evaluation/export_timings.py [--days 7] [--vram vram.csv]
+    python scripts/evaluation/export_timings.py [--days 7] [--vram vram.csv] [--grounding]
 
 Para registrar a memória da GPU enquanto as mídias são processadas:
     nvidia-smi --query-gpu=timestamp,memory.used --format=csv -l 1 > vram.csv
@@ -27,8 +30,9 @@ TASK_LABELS = {
     "analysis.topic_titles": "Títulos dos temas",
     "analysis.knowledge_indexing": "Indexação semântica",
     "analysis.visual_insight": "Análise visual",
-    "analysis.summarization": "Resumo por tema",
+    "analysis.release_memory": "Liberação de memória da GPU",
     "analysis.synthesis": "Resumo final",
+    "analysis.grounding_check": "Verificação de fidelidade",
 }
 
 
@@ -62,10 +66,27 @@ def vram_peak_mib(path: Path) -> int:
     return peak
 
 
+def grounding_rows(results: list[tuple[str, dict]]) -> list[str]:
+    """Uma linha por mídia: frases verificadas, apoiadas e proporção."""
+    rows = []
+    for filename, diagnostics in results:
+        report = (diagnostics or {}).get("grounding") or {}
+        if not report.get("checked"):
+            continue
+        name = filename.replace("_", r"\_")
+        ratio = report.get("ratio")
+        rows.append(
+            f"{name} & {report['checked']} & {report['supported']} & "
+            f"{_num(ratio * 100 if ratio is not None else None, '{:.0f}')}\\% \\\\"
+        )
+    return rows
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--days", type=int, help="considera só os últimos N dias")
     parser.add_argument("--vram", type=Path, help="CSV gerado pelo nvidia-smi")
+    parser.add_argument("--grounding", action="store_true", help="fidelidade dos resumos por mídia")
     args = parser.parse_args()
 
     from sqlalchemy import create_engine, select
@@ -90,6 +111,18 @@ def main() -> None:
     if args.vram:
         peak = vram_peak_mib(args.vram)
         print(f"% Pico de memória da GPU: {peak} MiB ({peak / 1024:.1f} GiB)")
+    if args.grounding:
+        from sqlalchemy import text
+
+        query = text(
+            "SELECT m.filename, a.payload -> 'diagnostics' FROM text_analysis_results a "
+            "JOIN media m ON m.id = a.media_id ORDER BY a.created_at"
+        )
+        with Session(create_engine(settings.sync_database_url)) as session:
+            results = [(name or "", diag) for name, diag in session.execute(query)]
+        print("% Mídia & Frases verificadas & Com apoio & Proporção")
+        for line in grounding_rows(results):
+            print(line)
 
 
 if __name__ == "__main__":
