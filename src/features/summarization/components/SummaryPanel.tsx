@@ -1,3 +1,4 @@
+import { GroundingNotice, type GroundingReport } from "./GroundingNotice";
 import { useState } from 'react'; // Add useState
 import { saveAs } from 'file-saver';
 import { useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
@@ -137,8 +138,10 @@ export const summarySourceLabel = (source?: unknown): string | null => {
   switch (source) {
     case "llm":
       return "Gerado pelo modelo principal";
-    case "fallback":
+    case "reserve":
       return "Gerado pelo modelo reserva";
+    // "fallback" é de análises antigas: os dois modelos falharam.
+    case "fallback":
     case "simplified":
     case "error":
       return "Resumo simplificado: o modelo de linguagem não respondeu";
@@ -344,6 +347,9 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
       </CardHeader>
       <CardContent className="space-y-4 text-slate-900">
         {renderContent()}
+        {analysis && !analysis.diagnostics?.original_ai_summary && (
+          <GroundingNotice report={analysis.diagnostics?.grounding as GroundingReport | undefined} />
+        )}
       </CardContent>
     </Card>
   );

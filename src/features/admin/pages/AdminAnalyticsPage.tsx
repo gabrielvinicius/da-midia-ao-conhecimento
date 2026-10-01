@@ -23,8 +23,9 @@ const TASK_LABELS: Record<string, string> = {
   "analysis.topic_titles": "Títulos dos temas",
   "analysis.knowledge_indexing": "Indexação semântica",
   "analysis.visual_insight": "Análise visual",
-  "analysis.summarization": "Resumo por tema",
+  "analysis.release_memory": "Liberação de memória da GPU",
   "analysis.synthesis": "Resumo final",
+  "analysis.grounding_check": "Verificação de fidelidade",
 };
 
 export const taskLabel = (task: string) => TASK_LABELS[task] ?? task;
