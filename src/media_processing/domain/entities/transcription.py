@@ -88,7 +88,9 @@ class Transcription(BaseEntity):
         )
         self.updated_at = datetime.datetime.now(datetime.timezone.utc)
         self.processed_at = self.updated_at
-        self.result = result or self.result
+        # Mantém o que já foi gravado durante o processamento (ex.: a duração
+        # da gravação, lida ao iniciar) junto com o resultado do modelo.
+        self.result = {**(self.result or {}), **(result or {})}
 
     def mark_as_processing(self) -> None:
         self.status = TranscriptionStatus.PROCESSING

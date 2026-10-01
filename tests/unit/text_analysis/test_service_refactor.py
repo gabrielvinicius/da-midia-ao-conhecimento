@@ -66,3 +66,21 @@ async def test_analyze_passes_transcript_segments_to_document(service, mock_tran
     analysis = mock_pipeline.run.call_args[0][0]
     assert analysis.document.segments == segments
     assert "on_step_completed" in mock_pipeline.run.call_args.kwargs
+
+
+@pytest.mark.asyncio
+async def test_frame_descriptions_from_processing_reach_the_summary(service, mock_transcription_query_port, mock_pipeline):
+    """A análise não descreve quadros: recebe as descrições prontas com a transcrição."""
+    media_id = uuid4()
+    mock_transcription_query_port.get_text_source.return_value = TextSourceData(
+        id=uuid4(), text="Olá", language="pt", segments=[], media_id=media_id,
+        visual_context=["[00:30] um slide com um gráfico"],
+    )
+    command = AnalyzeTextCommand(
+        media_id=media_id, document_id=media_id, text_content="Olá", language="pt"
+    )
+
+    await service.analyze_text_content(command)
+
+    analysis = mock_pipeline.run.call_args[0][0]
+    assert analysis.diagnostics["visual_context"] == ["[00:30] um slide com um gráfico"]

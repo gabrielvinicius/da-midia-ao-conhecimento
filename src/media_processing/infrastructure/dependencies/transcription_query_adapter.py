@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 from uuid import UUID
 
+from src.media_processing.domain.visual_sampling import VISUAL_CONTEXT_KEY
 from src.media_processing.infrastructure.repositories.transcription_repository import (
     TranscriptionRepository,
 )
@@ -39,6 +40,7 @@ class TranscriptionQueryAdapter(TranscriptionQueryPort):
             language=transcription.language or "auto",
             segments=transcription.segments or [],
             media_id=transcription.media_id,
+            visual_context=list((transcription.result or {}).get(VISUAL_CONTEXT_KEY) or []),
         )
 
     async def get_media_info(self, media_id: UUID) -> Optional[Dict[str, Any]]:

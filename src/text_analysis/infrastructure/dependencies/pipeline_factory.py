@@ -15,7 +15,6 @@ from src.text_analysis.application.pipeline.steps import (
     SynthesisStep,
     TopicModelingStep,
     TopicTitleStep,
-    VisualInsightStep,
 )
 
 
@@ -31,19 +30,11 @@ def build_analysis_pipeline(config: AnalysisConfig, session: Any) -> PipelineCom
     """Compõe as etapas na ordem em que devem rodar.
 
     Primeiro as que usam modelos locais do worker (vetores, sentimento,
-    temas, visão), depois a devolução da memória da GPU e só então as que
+    temas), depois a devolução da memória da GPU e só então as que
     usam o modelo de linguagem no Ollama (títulos e síntese), que é
     descarregado ao fim da análise. Numa GPU de 12 GB os dois grupos não
     cabem juntos.
     """
-    from src.media_processing.infrastructure.adapters.video.ffmpeg_frame_extractor import (
-        FFmpegFrameExtractor,
-    )
-    from src.media_processing.infrastructure.dependencies.providers import (
-        get_visual_analyzer,
-    )
-    from src.shared.infrastructure.config.settings import settings
-    from src.storage.infrastructure.dependencies import StorageServiceFactory
     from src.text_analysis.infrastructure.adapters.gpu_memory_releaser import TorchCacheReleaser
     from src.text_analysis.infrastructure.dependencies.providers import (
         get_chunker_adapter,
@@ -66,11 +57,6 @@ def build_analysis_pipeline(config: AnalysisConfig, session: Any) -> PipelineCom
             SentimentStep(get_sentiment_adapter(config), language=config.language),
             TopicModelingStep(get_topic_modeling_adapter(config), embedding_adapter, language=config.language),
             KnowledgeIndexingStep(vector_repo),
-            VisualInsightStep(
-                get_visual_analyzer(settings.visual_provider),
-                FFmpegFrameExtractor(),
-                StorageServiceFactory(),
-            ),
             ReleaseMemoryStep([TorchCacheReleaser()]),
             TopicTitleStep(gen_adapter, language=config.language),
             SynthesisStep(

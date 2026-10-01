@@ -60,7 +60,31 @@ def build_transcription_service(
         event_bus=event_bus,
         stats_recorder=_stats_recorder(session),
         duration_probe=FfprobeDurationProbe(),
+        visual_describer=_visual_describer(),
     )
+
+
+def _visual_describer():
+    """Descrição de quadros dos vídeos; o modelo só é carregado ao ser usado."""
+    from src.media_processing.application.services.visual_description_service import (
+        VisualDescriptionService,
+    )
+    from src.media_processing.infrastructure.adapters.video.ffmpeg_frame_extractor import (
+        FFmpegFrameExtractor,
+    )
+    from src.media_processing.infrastructure.dependencies.providers import (
+        get_visual_analyzer,
+    )
+    from src.shared.infrastructure.config.settings import settings
+
+    try:
+        analyzer = get_visual_analyzer(settings.visual_provider)
+    except Exception as exc:  # sem provedor de visão, os vídeos seguem só com a fala
+        import structlog
+
+        structlog.get_logger(__name__).warning("visual_description.unavailable", error=str(exc))
+        return None
+    return VisualDescriptionService(analyzer, FFmpegFrameExtractor())
 
 
 def _stats_recorder(session):

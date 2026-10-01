@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Protocol
 from uuid import UUID
 
@@ -14,6 +14,8 @@ class TextSourceData:
     language: str
     segments: List[Dict[str, Any]]
     media_id: UUID
+    # Descrições de quadros do vídeo ("[mm:ss] texto"), feitas no processamento.
+    visual_context: List[str] = field(default_factory=list)
 
 
 class TranscriptionQueryPort(Protocol):

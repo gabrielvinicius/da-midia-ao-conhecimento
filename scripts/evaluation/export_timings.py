@@ -23,13 +23,13 @@ from pathlib import Path
 
 TASK_LABELS = {
     "transcription": "Transcrição",
+    "visual_description": "Descrição dos quadros",
     "text_analysis": "Análise completa",
     "analysis.chunking": "Divisão em trechos",
     "analysis.sentiment": "Sentimento",
     "analysis.topic_modeling": "Temas",
     "analysis.topic_titles": "Títulos dos temas",
     "analysis.knowledge_indexing": "Indexação semântica",
-    "analysis.visual_insight": "Análise visual",
     "analysis.release_memory": "Liberação de memória da GPU",
     "analysis.synthesis": "Resumo final",
     "analysis.grounding_check": "Verificação de fidelidade",

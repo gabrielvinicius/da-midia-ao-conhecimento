@@ -1,4 +1,4 @@
-"""Testes das correções do pipeline de análise (segmentos, indexação, visão,
+"""Testes das correções do pipeline de análise (segmentos, indexação,
 sentimento, títulos dos temas, checkpoints e busca semântica)."""
 from uuid import uuid4
 
@@ -11,7 +11,6 @@ from src.text_analysis.application.pipeline.steps import (
     KnowledgeIndexingStep,
     SentimentStep,
     TopicTitleStep,
-    VisualInsightStep,
 )
 from src.text_analysis.application.services.knowledge_base_service import (
     KnowledgeBaseService,
@@ -136,88 +135,6 @@ async def test_indexing_without_media_does_nothing():
 
     assert repo.calls == []
     assert analysis.diagnostics["indexed_chunks"] == 0
-
-
-# --- análise visual -----------------------------------------------------------
-
-def test_frame_timestamps_scale_with_duration():
-    assert len(VisualInsightStep.frame_timestamps(60)) == 3       # mínimo
-    assert len(VisualInsightStep.frame_timestamps(15 * 60)) == 5  # ~1 a cada 3 min
-    assert len(VisualInsightStep.frame_timestamps(3 * 3600)) == 8  # máximo
-    ts = VisualInsightStep.frame_timestamps(600)
-    assert all(0 < t < 600 for t in ts) and ts == sorted(ts)
-
-
-class _NeverCalled:
-    async def describe_frame(self, *_a, **_k):
-        raise AssertionError("não deveria descrever quadros de áudio")
-
-    async def extract_frames(self, *_a, **_k):
-        raise AssertionError("não deveria extrair quadros de áudio")
-
-    def get_download_service(self, *_a):
-        raise AssertionError("não deveria baixar arquivos de áudio")
-
-
-@pytest.mark.asyncio
-async def test_visual_step_skips_audio_media():
-    segments = [{"text": "oi", "start": 0.0, "end": 100.0}]
-    analysis = Analysis.new(Document.from_payload("oi", segments), media_id=uuid4())
-    analysis.diagnostics.update({"media_type": "AUDIO", "file_path": "a.mp3"})
-    never = _NeverCalled()
-
-    await VisualInsightStep(never, never, never).process(analysis)
-
-    assert "visual_context" not in analysis.diagnostics
-
-
-class _FakeDownloader:
-    async def download_file(self, path):
-        return b"video"
-
-
-class _FakeStorage:
-    def get_download_service(self, provider):
-        return _FakeDownloader()
-
-
-class _FakeExtractor:
-    def __init__(self):
-        self.calls = []
-
-    async def extract_frames(self, data, timestamps):
-        self.calls.append(len(timestamps))  # o vídeo é gravado uma vez para todos
-        return [b"frame"] * len(timestamps)
-
-
-class _FakeVision:
-    def __init__(self):
-        self.calls = 0
-        self.released = False
-
-    async def describe_frame(self, frame, prompt=""):
-        self.calls += 1
-        return "Visual description unavailable." if self.calls == 1 else "um slide com um gráfico"
-
-    async def release(self):
-        self.released = True
-
-
-@pytest.mark.asyncio
-async def test_visual_step_describes_video_frames_and_skips_failures():
-    segments = [{"text": "oi", "start": 0.0, "end": 60.0}]
-    analysis = Analysis.new(Document.from_payload("oi", segments), media_id=uuid4())
-    analysis.diagnostics.update({"media_type": "VIDEO", "file_path": "v.mp4"})
-
-    vision, extractor = _FakeVision(), _FakeExtractor()
-    await VisualInsightStep(vision, extractor, _FakeStorage()).process(analysis)
-
-    context = analysis.diagnostics["visual_context"]
-    assert len(context) == 2  # 3 quadros, 1 falhou
-    assert all("gráfico" in line for line in context)
-    assert context[0].startswith("[00:30]")
-    assert extractor.calls == [3]
-    assert vision.released  # memória devolvida antes das etapas com o LLM
 
 
 # --- títulos dos temas --------------------------------------------------------

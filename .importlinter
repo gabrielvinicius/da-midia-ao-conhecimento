@@ -106,13 +106,11 @@ forbidden_modules =
     src.text_analysis
 
 [importlinter:contract:fluxo-analise]
-name = O núcleo da análise usa só as portas do processamento
+name = O núcleo da análise não conhece mídias nem processamento
 type = forbidden
 source_modules =
     src.text_analysis.application
     src.text_analysis.domain
 forbidden_modules =
     src.media_management
-    src.media_processing.application.services
-    src.media_processing.domain
-allow_indirect_imports = True
+    src.media_processing

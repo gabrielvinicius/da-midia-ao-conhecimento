@@ -1,10 +1,13 @@
 """Etapas do pipeline de análise.
 
 Ordem (ver pipeline_factory): trechos → sentimento → temas → indexação →
-análise visual → liberação de memória → títulos dos temas → síntese →
-verificação de fidelidade. As etapas que usam modelos locais (no worker)
-vêm antes das que usam o modelo de linguagem (no Ollama), e a memória da GPU
-é devolvida entre os dois grupos: numa placa de 12 GB não cabem todos juntos.
+liberação de memória → títulos dos temas → síntese → verificação de
+fidelidade. As descrições dos quadros de vídeo chegam prontas, com a
+transcrição (media_processing), em diagnostics["visual_context"].
+
+As etapas que usam modelos locais (no worker) vêm antes das que usam o modelo
+de linguagem (no Ollama), e a memória da GPU é devolvida entre os dois grupos:
+numa placa de 12 GB não cabem todos juntos.
 """
 from __future__ import annotations
 
@@ -14,8 +17,6 @@ from typing import Any, Optional, Sequence
 
 import structlog
 
-from src.media_processing.application.ports import VideoFrameExtractorPort, VisualAnalysisPort
-from src.storage.application.ports import StorageServiceResolverPort
 from src.text_analysis.application.pipeline.base import AnalysisStep
 from src.text_analysis.application.ports import (
     ChunkingServicePort,
@@ -160,78 +161,6 @@ class KnowledgeIndexingStep(AnalysisStep):
         await self.vector_repo.save_chunks(analysis.media_id, records)
         analysis.diagnostics["indexed_chunks"] = len(records)
         logger.info("knowledge_indexing.saved", media_id=str(analysis.media_id), count=len(records))
-        return analysis
-
-
-class VisualInsightStep(AnalysisStep):
-    """Descreve alguns quadros do vídeo para complementar a transcrição."""
-
-    PROMPT = (
-        "Describe concisely what is shown in this video frame: any text, slide, "
-        "formula, chart or diagram on screen, and what the people are doing."
-    )
-
-    def __init__(
-        self,
-        visual_analyzer: VisualAnalysisPort,
-        frame_extractor: VideoFrameExtractorPort,
-        storage_resolver: StorageServiceResolverPort,
-    ):
-        self.analyzer = visual_analyzer
-        self.extractor = frame_extractor
-        self.storage_resolver = storage_resolver
-
-    @property
-    def name(self) -> str:
-        return "visual_insight"
-
-    @staticmethod
-    def frame_timestamps(duration: float, seconds_per_frame: float = 180.0,
-                         min_frames: int = 3, max_frames: int = 8) -> list[float]:
-        """Instantes (em segundos) dos quadros: um a cada ~3 min, entre 3 e 8."""
-        if duration <= 0:
-            return []
-        count = max(min_frames, min(max_frames, round(duration / seconds_per_frame)))
-        return [duration * (i + 0.5) / count for i in range(count)]
-
-    async def process(self, analysis: Analysis) -> Analysis:
-        segments = analysis.document.segments if analysis.document else None
-        if not analysis.media_id or not segments:
-            return analysis
-        media_type = analysis.diagnostics.get("media_type")
-        media_type = str(getattr(media_type, "value", media_type) or "").lower()
-        if media_type and "video" not in media_type:
-            return analysis  # áudio e documentos não têm quadros
-        duration = segments[-1].get("end", 0) or 0
-        file_path = analysis.diagnostics.get("file_path")
-        if duration <= 0 or not file_path:
-            return analysis
-
-        try:
-            provider = analysis.diagnostics.get("storage_provider", "local")
-            video_data = await self.storage_resolver.get_download_service(provider).download_file(file_path)
-            timestamps = self.frame_timestamps(duration)
-            frames = await self.extractor.extract_frames(video_data, timestamps)
-
-            descriptions = []
-            for ts, frame in zip(timestamps, frames):
-                if not frame:
-                    continue
-                description = await self.analyzer.describe_frame(frame, prompt=self.PROMPT)
-                if description and "unavailable" not in description.lower():
-                    descriptions.append(f"[{format_timestamp(ts)}] {description.strip()}")
-        finally:
-            # Devolve a memória da GPU antes das etapas com o modelo de linguagem.
-            release = getattr(self.analyzer, "release", None)
-            if release:
-                try:
-                    await _maybe_await(release())
-                except Exception as exc:
-                    logger.warning("visual_insight.release_failed", error=str(exc))
-
-        analysis.diagnostics["visual_frames"] = len(descriptions)
-        if descriptions:
-            analysis.diagnostics["visual_context"] = descriptions
         return analysis
 
 

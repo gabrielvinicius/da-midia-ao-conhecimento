@@ -92,6 +92,7 @@ class TextAnalysisService:
         # eles, a análise visual e os horários da busca semântica não funcionam.
         segments: list = []
         language: Optional[str] = None
+        visual_context: list = []
         if media_id and self.transcription_queries:
             try:
                 text_source = await self.transcription_queries.get_text_source(media_id)
@@ -100,6 +101,7 @@ class TextAnalysisService:
                     transcription_id = transcription_id or text_source.id
                     segments = list(text_source.segments or [])
                     language = getattr(text_source, "language", None)
+                    visual_context = list(getattr(text_source, "visual_context", None) or [])
             except Exception as exc:
                 logger.warning("text_analysis.fetch_text_failed", media_id=str(media_id), error=str(exc))
 
@@ -131,6 +133,9 @@ class TextAnalysisService:
             # seguem o idioma da gravação (o resumo continua em português).
             if language and language.lower() not in ("auto", "unknown"):
                 analysis.diagnostics["language"] = language.lower()
+            # O que aparecia na tela, descrito no processamento do vídeo.
+            if visual_context:
+                analysis.diagnostics["visual_context"] = visual_context
 
             # 4. Pipeline granular. Cada etapa grava seu resultado ao terminar
             # (checkpoint); se o worker cair no meio, o que já foi calculado

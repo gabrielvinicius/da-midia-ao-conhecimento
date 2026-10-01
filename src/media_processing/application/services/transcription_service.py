@@ -21,6 +21,7 @@ from src.media_processing.application.ports import (
     TranscriptionTaskSchedulerPort,
 )
 from src.media_processing.domain import Transcription, TranscriptionStatus
+from src.media_processing.domain.visual_sampling import VISUAL_CONTEXT_KEY, is_video_file
 from src.media_processing.domain.processing_deadline import (
     MEDIA_DURATION_KEY,
     expected_processing_seconds,
@@ -60,6 +61,7 @@ class TranscriptionService:
         event_bus: SupportsEventBus | None = None,
         stats_recorder: Any | None = None,  # ProcessingStatsPort (opcional)
         duration_probe: MediaDurationProbe | None = None,
+        visual_describer: Any | None = None,  # VisualDescriptionService (só no worker)
     ) -> None:
         self._repo = transcription_repo
         self._task_scheduler = task_scheduler
@@ -71,6 +73,7 @@ class TranscriptionService:
         self._event_bus = event_bus
         self._stats = stats_recorder
         self._duration_probe = duration_probe
+        self._visual = visual_describer
 
     async def execute_transcription(
         self,
@@ -140,6 +143,9 @@ class TranscriptionService:
                 time.perf_counter() - started, len(content), result, recognizer, "success"
             )
 
+            # Em vídeos, descreve alguns quadros com o arquivo já em mãos.
+            await self._describe_frames(result, content, file_path, transcription)
+
             # Inject downstream provider preferences into result metadata for the event
             result["summarization_provider"] = summarization_provider
             result["sentiment_provider"] = sentiment_provider
@@ -198,6 +204,35 @@ class TranscriptionService:
             "media_seconds": media_seconds,
             "includes_analysis": factors["text_analysis"] is not None,
         }
+
+    async def _describe_frames(
+        self, result: Dict[str, Any], content: bytes, file_path: str, transcription: Transcription
+    ) -> None:
+        if not self._visual or not is_video_file(file_path):
+            return
+        segments = result.get("segments") or []
+        duration = (
+            (segments[-1].get("end") if segments and isinstance(segments[-1], dict) else None)
+            or (transcription.result or {}).get(MEDIA_DURATION_KEY)
+        )
+        if not duration:
+            return
+        started = time.perf_counter()
+        descriptions = await self._visual.describe(content, float(duration))
+        if descriptions:
+            result[VISUAL_CONTEXT_KEY] = descriptions
+        if self._stats:
+            try:
+                await self._stats.log_stat(
+                    "visual_description",
+                    time.perf_counter() - started,
+                    len(content),
+                    float(duration),
+                    getattr(self._visual, "model_label", None),
+                    "success" if descriptions else "failed",
+                )
+            except Exception as exc:
+                logger.warning("visual_description.stats_record_failed", error=str(exc))
 
     async def _record_media_duration(self, transcription: Transcription, path: str) -> None:
         """Guarda a duração da gravação: define o prazo desta tentativa (ver
