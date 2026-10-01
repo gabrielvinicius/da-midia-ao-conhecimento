@@ -65,7 +65,8 @@ WRITE = ("put", f"/transcriptions/{TRANSCRIPTION_ID}/speaker-aliases", {"json": 
 @pytest.mark.parametrize("method, path, kwargs", READS + [WRITE])
 def test_other_users_are_denied(method, path, kwargs):
     client, service = _client(OTHER)
-    assert getattr(client, method)(path, **kwargs).status_code == 403
+    # 404, e não 403: quem não é dono não descobre que a mídia existe.
+    assert getattr(client, method)(path, **kwargs).status_code == 404
     assert service.aliases_set is False
 
 

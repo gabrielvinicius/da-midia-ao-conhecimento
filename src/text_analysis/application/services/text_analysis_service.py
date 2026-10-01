@@ -251,22 +251,3 @@ class TextAnalysisService:
     async def list_topics(self, query: ListTopicsQuery) -> List[Topic]:
         return await self.text_analysis_read_service.list_topics(query)
 
-    async def estimate_cost(self, media_id: UUID) -> Dict[str, Any]:
-        """Prediz o custo e tempo de processamento antes da execução."""
-        if not self.transcription_queries:
-            return {"status": "unknown", "reason": "No text source available"}
-            
-        source = await self.transcription_queries.get_text_source(media_id)
-        if not source:
-            return {"status": "unknown", "reason": "Transcription not found"}
-            
-        from src.shared.infrastructure.monitoring.resource_predictor import ResourcePredictor
-        predictor = ResourcePredictor()
-        prediction = predictor.predict_analysis_cost(len(source.text))
-        
-        return {
-            "estimated_seconds": prediction.estimated_duration_seconds,
-            "vram_gb": prediction.vram_required_gb,
-            "risk": prediction.risk_level.value,
-            "recommendation": prediction.recommendation
-        }

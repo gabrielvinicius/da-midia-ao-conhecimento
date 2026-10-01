@@ -7,7 +7,7 @@ from src.shared.infrastructure.database.db import Base
 class ProcessingStatModel(Base):
     """
     Tabela de fatos para armazenar métricas de execução de tarefas.
-    Usada para calibrar o ResourcePredictor (Feedback Loop).
+    Base das estimativas e dos prazos de processamento e das medições do trabalho.
     """
     __tablename__ = "processing_stats"
 

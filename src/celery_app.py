@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 
 from celery import Celery
-from celery.signals import worker_process_init
+from celery.signals import worker_process_init, worker_ready
 
 def _default_broker() -> str:
     return os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
@@ -79,6 +79,14 @@ def _init_worker_tracing(**_kwargs) -> None:
         CeleryInstrumentor().instrument()
     except Exception:  # instrumentação é opcional
         pass
+
+
+@worker_ready.connect(weak=False)
+def _start_gpu_stats(**_kwargs) -> None:
+    """No worker com GPU, publica o uso da placa para o painel (gpu_stats)."""
+    from src.shared.infrastructure.monitoring.gpu_stats import start_publisher
+
+    start_publisher()
 
 
 # Celery CLI entry point: "celery -A src.celery_app:celery worker"

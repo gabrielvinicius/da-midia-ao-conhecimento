@@ -21,7 +21,10 @@ from src.media_processing.application.ports import (
     TranscriptionTaskSchedulerPort,
 )
 from src.media_processing.domain import Transcription, TranscriptionStatus
-from src.media_processing.domain.processing_deadline import MEDIA_DURATION_KEY
+from src.media_processing.domain.processing_deadline import (
+    MEDIA_DURATION_KEY,
+    expected_processing_seconds,
+)
 from src.shared.domain.errors import ResourceNotFoundError
 from src.shared.domain.events import (
     MediaProcessingStarted,
@@ -170,6 +173,31 @@ class TranscriptionService:
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+
+    async def estimate_processing(self, media_id: UUID) -> Dict[str, Any]:
+        """Estimativa do processamento completo de uma mídia.
+
+        Usa a duração da gravação (lida pelo worker ao iniciar) e o tempo que
+        as transcrições e análises anteriores levaram por segundo de gravação
+        nesta instalação (processing_stats).
+        """
+        transcription = await self._repo.get_by_media_id(media_id)
+        media_seconds = (transcription.result or {}).get(MEDIA_DURATION_KEY) if transcription else None
+        factors: Dict[str, Optional[float]] = {"transcription": None, "text_analysis": None}
+        if media_seconds and self._stats:
+            for task in factors:
+                try:
+                    factors[task] = await self._stats.realtime_factor(task)
+                except Exception as exc:
+                    logger.warning("transcription.estimate_factor_failed", task=task, error=str(exc))
+        seconds = expected_processing_seconds(
+            media_seconds, factors["transcription"], factors["text_analysis"]
+        )
+        return {
+            "estimated_seconds": round(seconds) if seconds else None,
+            "media_seconds": media_seconds,
+            "includes_analysis": factors["text_analysis"] is not None,
+        }
 
     async def _record_media_duration(self, transcription: Transcription, path: str) -> None:
         """Guarda a duração da gravação: define o prazo desta tentativa (ver

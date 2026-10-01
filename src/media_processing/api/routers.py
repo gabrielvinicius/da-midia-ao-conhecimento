@@ -36,7 +36,8 @@ async def _ensure_media_access(
     if not media:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mídia não encontrada")
     if str(media.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado")
+        # 404, como nas rotas de mídia: um 403 confirmaria que o ID existe.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Mídia não encontrada")
 
 
 @router.put(
@@ -114,6 +115,23 @@ async def get_transcription_by_media_id(
         segments=transcription.segments,
         error_message=transcription.error_message
     )
+
+
+@router.get(
+    "/media/{media_id}/estimate",
+    summary="Estimate how long a media takes to process",
+)
+async def estimate_processing(
+    media_id: UUID,
+    transcription_service: TranscriptionService = Depends(get_transcription_service),
+    media_service: MediaService = Depends(get_media_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Tempo estimado (transcrição + análise), a partir da duração da
+    gravação e da velocidade medida nos processamentos anteriores.
+    estimated_seconds é nulo quando não há base para estimar."""
+    await _ensure_media_access(media_id, media_service, current_user)
+    return await transcription_service.estimate_processing(media_id)
 
 
 @router.get(

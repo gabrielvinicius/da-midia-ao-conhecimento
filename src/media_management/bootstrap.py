@@ -6,6 +6,9 @@ from typing import Any, Optional, Tuple
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.shared.infrastructure.repositories.processing_stats_repository import (
+    ProcessingStatsRepository,
+)
 from src.media_management.api.dependencies import (
     get_media_service,
 )
@@ -164,6 +167,7 @@ def build_media_components(
         speech_recognizer_factory=lambda provider: get_speech_recognizer(provider),
         media_queries=media_repository, # Duck typing
         event_bus=event_bus,
+        stats_recorder=ProcessingStatsRepository(session),  # estimativas
     )
 
     media_event_handlers = MediaEventHandlers(media_service)

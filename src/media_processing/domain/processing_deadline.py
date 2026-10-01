@@ -24,6 +24,19 @@ from src.media_processing.domain.entities.transcription import (
 MEDIA_DURATION_KEY = "media_duration_seconds"
 
 
+def expected_processing_seconds(
+    media_seconds: Optional[float],
+    transcription_factor: Optional[float],
+    analysis_factor: Optional[float] = None,
+) -> Optional[float]:
+    """Tempo esperado (transcrição + análise) pela velocidade medida na
+    própria instalação. Sem duração ou sem histórico, não há estimativa:
+    melhor não mostrar nada do que mostrar um número inventado."""
+    if not media_seconds or media_seconds <= 0 or not transcription_factor:
+        return None
+    return media_seconds * (transcription_factor + (analysis_factor or 0.0))
+
+
 @dataclass(frozen=True)
 class ProcessingDeadlinePolicy:
     # Folga sobre a estimativa: a velocidade varia com o conteúdo e a carga.

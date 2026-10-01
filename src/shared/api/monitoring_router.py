@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends
-from src.shared.infrastructure.monitoring.hardware_advisor import HardwareAdvisor, SystemPressure
+from fastapi import APIRouter
+from src.shared.infrastructure.monitoring.hardware_advisor import HardwareAdvisor
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
@@ -21,7 +21,7 @@ async def get_system_status():
         "cpu_usage": stats.cpu_usage,
         "ram_usage": stats.ram_usage,
         "gpu_vram_usage": stats.gpu_vram_usage,
-        "timestamp": stats.gpu_utilization # Just for consistent keys if needed
+        "gpu_utilization": stats.gpu_utilization,
     }
 
 

@@ -48,6 +48,12 @@ def test_upload_list_isolation_and_delete(client):
     assert client.get(f"/media/{media_id}", headers=bob).status_code == 404
     assert client.delete(f"/media/{media_id}", headers=bob).status_code == 404
 
+    # Sem duração lida nem histórico, não há estimativa (e não um número inventado).
+    r = client.get(f"/transcriptions/media/{media_id}/estimate", headers=alice)
+    assert r.status_code == 200, r.text
+    assert r.json()["estimated_seconds"] is None
+    assert client.get(f"/transcriptions/media/{media_id}/estimate", headers=bob).status_code == 404
+
     assert client.delete(f"/media/{media_id}", headers=alice).status_code == 204
     assert client.get(f"/media/{media_id}", headers=alice).status_code == 404
 

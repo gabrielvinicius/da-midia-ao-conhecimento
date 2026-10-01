@@ -164,22 +164,6 @@ async def get_analysis_result(
         ) from exc
 
 
-@router.get("/media/{media_id}/estimate")
-async def estimate_analysis_cost(
-    media_id: str,
-    service: TextAnalysisService = Depends(get_text_analysis_service),
-    current_user: Annotated[User, Depends(get_current_user)] = None,
-):
-    """Predictive Observability: Estimate processing time and hardware risk."""
-    try:
-        return await service.estimate_cost(UUID(media_id))
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Não foi possível gerar estimativa: {str(exc)}",
-        )
-
-
 class SummaryCorrection(BaseModel):
     summary: str = Field(..., min_length=1, description="Resumo corrigido (Markdown).")
 

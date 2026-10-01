@@ -4,7 +4,7 @@ from __future__ import annotations
 import structlog
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 
 logger = structlog.get_logger(__name__)
 
@@ -61,20 +61,19 @@ class HardwareAdvisor:
 
     def get_current_stats(self) -> HardwareStats:
         import psutil
-        import torch
-        
+
+        from src.shared.infrastructure.monitoring import gpu_stats
+
         cpu = psutil.cpu_percent(interval=None)
         ram = psutil.virtual_memory().percent
-        gpu_vram = None
-        if torch.cuda.is_available():
-            try:
-                device = 0
-                total_vram = torch.cuda.get_device_properties(device).total_memory
-                allocated_vram = torch.cuda.memory_allocated(device)
-                reserved_vram = torch.cuda.memory_reserved(device)
-                gpu_vram = (allocated_vram + reserved_vram) / total_vram
-            except Exception: pass
-        return HardwareStats(cpu_usage=cpu, ram_usage=ram, gpu_vram_usage=gpu_vram, gpu_utilization=None)
+        # A placa inteira (worker e Ollama), pelo nvidia-smi; ver gpu_stats.
+        gpu = gpu_stats.latest()
+        return HardwareStats(
+            cpu_usage=cpu,
+            ram_usage=ram,
+            gpu_vram_usage=gpu.memory_fraction if gpu else None,
+            gpu_utilization=gpu.utilization_percent if gpu else None,
+        )
 
     def recommend_strategy(self) -> SystemPressure:
         stats = self.get_current_stats()
