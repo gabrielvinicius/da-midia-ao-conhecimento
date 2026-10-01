@@ -9,7 +9,6 @@ from src.media_processing.application.services.stalled_processing_monitor import
 )
 from src.media_processing.domain import Transcription, TranscriptionStatus
 from src.media_processing.domain.processing_deadline import (
-    MEDIA_DURATION_KEY,
     ProcessingDeadlinePolicy,
 )
 
@@ -21,7 +20,7 @@ def _transcription(status, minutes_ago, media_seconds=None):
     started = NOW - datetime.timedelta(minutes=minutes_ago)
     t = Transcription(media_id=uuid4(), status=status, created_at=started, updated_at=started, provider="fastwhisper")
     if media_seconds:
-        t.result = {MEDIA_DURATION_KEY: media_seconds}
+        t.record_media_duration(media_seconds)
     return t
 
 

@@ -4,7 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 from src.media_management.domain import Media
-from src.user_management.domain.entities.user import UserRole
+from src.shared.domain.roles import UserRole
 
 
 class MediaAccessPolicy:

@@ -42,20 +42,30 @@ def create_celery() -> Celery:
     # Verificação periódica de mídias paradas. Roda no worker leve, iniciado
     # com --beat (docker-compose.yml): o pesado pode estar preso na tarefa.
     from src.media_processing.config.settings import processing_settings
-    from src.shared.events.integration_events import TASK_MEDIA_SWEEP_STALLED
+    from src.media_management.config.settings import media_settings
+    from src.shared.events.integration_events import (
+        TASK_MEDIA_RECOVER_UNSTARTED,
+        TASK_MEDIA_SWEEP_STALLED,
+    )
 
     app.conf.beat_schedule = {
         "sweep-stalled-processing": {
             "task": TASK_MEDIA_SWEEP_STALLED,
             "schedule": float(processing_settings.stall_check_interval_seconds),
             "options": {"queue": "celery"},
-        }
+        },
+        "recover-unstarted-media": {
+            "task": TASK_MEDIA_RECOVER_UNSTARTED,
+            "schedule": float(media_settings.unstarted_check_interval_seconds),
+            "options": {"queue": "celery"},
+        },
     }
 
     # Autodiscover tasks in namespaced packages
     app.autodiscover_tasks(
         [
             # Cada módulo declara as tarefas no próprio tasks.py (montagem).
+            "src.media_management",
             "src.media_processing",
             "src.text_analysis",
             "src.notifications",

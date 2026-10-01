@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Protocol
 
-from src.shared.infrastructure.observability.ports import LoggerPort, MetricsPort
+from src.shared.application.observability import LoggerPort, MetricsPort
 from src.storage.domain.entities.file_metadata import FileMetadata
 from src.storage.domain.value_objects.file_path import FilePath
 

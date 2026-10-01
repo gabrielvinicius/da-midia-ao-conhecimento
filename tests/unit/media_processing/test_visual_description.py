@@ -12,7 +12,6 @@ from src.media_processing.application.services.visual_description_service import
 )
 from src.media_processing.domain import Transcription
 from src.media_processing.domain.visual_sampling import (
-    VISUAL_CONTEXT_KEY,
     frame_timestamps,
     is_video_file,
 )
@@ -96,7 +95,6 @@ def _service(visual):
         transcription_metrics=AsyncMock(),
         storage_service=storage,
         speech_recognizer_factory=lambda _p: recognizer,
-        media_queries=None,
         event_bus=bus,
         stats_recorder=stats,
         visual_describer=visual,
@@ -120,23 +118,48 @@ async def _run(service, transcription, file_path):
 @pytest.mark.asyncio
 async def test_video_descriptions_are_stored_with_the_transcription():
     visual = AsyncMock()
-    visual.describe.return_value = ["[05:00] um slide com a regra da cadeia"]
+    visual.describe_recording.return_value = ["[05:00] um slide com a regra da cadeia"]
     service, transcription, stats = _service(visual)
 
     await _run(service, transcription, "u/2026/10/m/aula.mp4")
 
-    visual.describe.assert_awaited_once_with(b"bytes", 600.0)
-    # Guardadas no resultado da transcrição, de onde a análise as lê.
-    assert transcription.result[VISUAL_CONTEXT_KEY] == ["[05:00] um slide com a regra da cadeia"]
-    assert "visual_description" in [c.args[0] for c in stats.log_stat.await_args_list]
+    visual.describe_recording.assert_awaited_once_with(b"bytes", "u/2026/10/m/aula.mp4", 600.0)
+    # Guardadas na transcrição, de onde a análise as lê.
+    assert transcription.visual_context == ["[05:00] um slide com a regra da cadeia"]
 
 
 @pytest.mark.asyncio
 async def test_audio_is_not_sent_to_the_vision_model():
-    visual = AsyncMock()
-    service, transcription, _ = _service(visual)
+    vision, extractor, stats = _FakeVision(), _FakeExtractor(), AsyncMock()
+    describer = VisualDescriptionService(vision, extractor, stats=stats)
 
-    await _run(service, transcription, "u/2026/10/m/aula.mp3")
+    assert await describer.describe_recording(b"audio", "u/2026/10/m/aula.mp3", 600) == []
+    assert vision.calls == 0 and extractor.calls == []
+    stats.log_stat.assert_not_awaited()
 
-    visual.describe.assert_not_awaited()
-    assert VISUAL_CONTEXT_KEY not in (transcription.result or {})
+
+@pytest.mark.asyncio
+async def test_video_description_time_is_recorded():
+    stats = AsyncMock()
+    describer = VisualDescriptionService(_FakeVision(), _FakeExtractor(), stats=stats)
+
+    await describer.describe_recording(b"video", "u/2026/10/m/aula.mp4", 60)
+
+    assert stats.log_stat.await_args.args[0] == "visual_description"
+    assert stats.log_stat.await_args.args[3] == 60.0  # duração da gravação
+
+
+def test_typed_fields_round_trip_through_the_json_column():
+    """Duração e descrições são atributos da entidade; o JSON é detalhe de persistência."""
+    from src.media_processing.infrastructure.persistence.models import TranscriptionModel
+
+    t = Transcription(media_id=uuid4(), provider="whisper")
+    t.record_media_duration(600)
+    t.mark_as_completed({"text": "a derivada", "segments": [{"start": 0, "end": 590}]})
+    t.attach_visual_context(["[05:00] slide"])
+
+    back = TranscriptionModel.from_domain(t).to_domain()
+
+    assert back.media_duration_seconds == 600.0  # não se perde ao concluir
+    assert back.visual_context == ["[05:00] slide"]
+    assert "visual_context" not in (back.result or {})

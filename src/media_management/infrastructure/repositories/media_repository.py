@@ -6,7 +6,7 @@ from typing import List, Optional
 from uuid import UUID
 
 import structlog
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,8 @@ from src.media_management.domain.enums import MediaStatus, MediaType
 
 from ..mappers import MediaMapper
 from ..persistence.models import MediaEntity
+from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
+from src.shared.infrastructure.database.unit_of_work import rollback as uow_rollback
 
 logger = structlog.get_logger(__name__)
 
@@ -27,7 +29,7 @@ class MediaRepository:
         self._mapper = mapper or MediaMapper()
 
     async def get_by_id(self, media_id: UUID) -> Optional[Media]:
-        await self.db.rollback()  # garante conexão livre
+        await uow_rollback(self.db)  # garante conexão livre
         result = await self.db.execute(
             select(MediaEntity).where(MediaEntity.id == media_id)
         )
@@ -39,7 +41,7 @@ class MediaRepository:
     async def add(self, media: Media) -> Media:
         entity = self._mapper.to_entity(media)
         self.db.add(entity)
-        await self.db.commit()
+        await uow_commit(self.db)
         await self.db.refresh(entity)
         persisted = self._mapper.to_domain(entity)
         return self._mapper.merge_transient_data(persisted, media)
@@ -47,7 +49,7 @@ class MediaRepository:
     async def save(self, media: Media) -> Media:
         entity = self._mapper.to_entity(media)
         merged = await self.db.merge(entity)
-        await self.db.commit()
+        await uow_commit(self.db)
         await self.db.refresh(merged)
         persisted = self._mapper.to_domain(merged)
         return self._mapper.merge_transient_data(persisted, media)
@@ -62,7 +64,7 @@ class MediaRepository:
         entity = result.scalar_one_or_none()
         if entity is not None:
             await self.db.delete(entity)
-            await self.db.commit()
+            await uow_commit(self.db)
 
     async def update_status(
         self,
@@ -71,7 +73,7 @@ class MediaRepository:
         *,
         error_message: Optional[str] = None,
     ) -> Media:
-        await self.db.rollback()  # garante conexão livre
+        await uow_rollback(self.db)  # garante conexão livre
         result = await self.db.execute(
             select(MediaEntity).where(MediaEntity.id == media_id)
         )
@@ -79,7 +81,7 @@ class MediaRepository:
         entity.status = status
         entity.error_message = error_message
         entity.updated_at = datetime.utcnow()
-        await self.db.commit()
+        await uow_commit(self.db)
         await self.db.refresh(entity)
         aggregate = self._mapper.to_domain(entity)
         updated = aggregate.update(error_message=error_message)
@@ -146,6 +148,22 @@ class MediaRepository:
         await self._ensure_clean()
         result = await self.db.execute(select(func.count()).select_from(MediaEntity))
         return result.scalar_one()
+
+    async def list_waiting(self, created_before: datetime, limit: int = 50) -> List[Media]:
+        """Mídias enviadas ou em processamento, criadas antes de created_before."""
+        await self._ensure_clean()
+        cutoff = created_before.astimezone(timezone.utc).replace(tzinfo=None)
+        stmt = (
+            select(MediaEntity)
+            .where(
+                MediaEntity.status.in_([MediaStatus.UPLOADED, MediaStatus.PROCESSING]),
+                MediaEntity.created_at < cutoff,
+            )
+            .order_by(MediaEntity.created_at)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return [self._mapper.to_domain(entity) for entity in result.scalars().all()]
 
     async def count_by_status(self, status: MediaStatus) -> int:
         await self._ensure_clean()
@@ -216,7 +234,7 @@ class MediaRepository:
     async def _ensure_clean(self) -> None:
         """Rolls back any pending transaction to avoid asyncpg state errors."""
         try:
-            await self.db.rollback()
+            await uow_rollback(self.db)
         except Exception as exc:
             # Best-effort cleanup; leave session as-is if rollback fails
             logger.warning(

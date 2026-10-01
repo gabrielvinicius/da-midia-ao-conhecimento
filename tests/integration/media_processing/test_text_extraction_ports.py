@@ -9,7 +9,7 @@ from src.media_processing.domain import Transcription, TranscriptionStatus
 from src.media_processing.infrastructure.adapters.celery_task_schedulers import (
     CeleryTextTaskScheduler,
 )
-from src.shared.domain.events import MediaProcessingCompleted, TextContentReady
+from src.shared.domain.events import MediaProcessingCompleted, TranscriptionCompleted
 
 
 class FakeRepo:
@@ -80,4 +80,5 @@ async def test_text_extraction_publishes_events():
 
     assert str(media_id) in repo.saved
     assert any(isinstance(e, MediaProcessingCompleted) for e in bus.events)
-    assert any(isinstance(e, TextContentReady) for e in bus.events)
+    # O texto pronto é anunciado pelo módulo de mídias, ao tratar este evento.
+    assert any(isinstance(e, TranscriptionCompleted) for e in bus.events)

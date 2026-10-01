@@ -99,8 +99,23 @@ class _FakeVectorRepo:
     def __init__(self):
         self.calls = []
 
-    async def save_chunks(self, media_id, chunks, replace=True):
+    async def save_chunks(self, media_id, chunks, replace=True, user_id=None):
         self.calls.append((media_id, chunks))
+        self.user_id = user_id
+
+
+@pytest.mark.asyncio
+async def test_indexing_records_the_owner_of_each_chunk():
+    """A busca filtra pelo dono gravado no trecho, sem consultar a tabela de mídias."""
+    repo = _FakeVectorRepo()
+    owner = uuid4()
+    analysis = Analysis.new(Document.from_payload("t"), media_id=uuid4(), user_id=owner)
+    analysis.chunks = [TextChunk(id="a", text="trecho a", start=0.0, end=5.0)]
+    analysis.chunk_embeddings = [[0.1, 0.2]]
+
+    await KnowledgeIndexingStep(repo).process(analysis)
+
+    assert repo.user_id == owner
 
 
 @pytest.mark.asyncio

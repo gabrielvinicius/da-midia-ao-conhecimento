@@ -72,15 +72,6 @@ class BERTopicAdapter(TopicModelingPort):
 
                 # ... (Transformer logic omitted for brevity, assumes existing) ...
                 if self.use_transformer_representation:
-                    # (LLM loading logic remains same)
-                    try:
-                        from transformers import pipeline
-                        # ...
-                        # (This part is fine, LLM is loaded only here or in TextGen adapter - separate concerns)
-                        # Actually, we should check if we can share LLM too, but let's focus on Embedding first.
-                        pass
-                    except: pass
-                    
                     # Re-implementing the LLM loading part briefly to ensure context consistency in replacement
                     try:
                         from transformers import pipeline

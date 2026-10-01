@@ -158,7 +158,7 @@ class KnowledgeIndexingStep(AnalysisStep):
             }
             for chunk, vector in zip(analysis.chunks, embeddings)
         ]
-        await self.vector_repo.save_chunks(analysis.media_id, records)
+        await self.vector_repo.save_chunks(analysis.media_id, records, user_id=analysis.user_id)
         analysis.diagnostics["indexed_chunks"] = len(records)
         logger.info("knowledge_indexing.saved", media_id=str(analysis.media_id), count=len(records))
         return analysis

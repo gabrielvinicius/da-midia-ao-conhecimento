@@ -8,6 +8,8 @@ from sqlalchemy import func, select
 from src.media_processing.domain import Transcription, TranscriptionStatus
 from src.media_processing.infrastructure.persistence.models import TranscriptionModel
 from src.shared.infrastructure.database.db import is_async_session
+from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
+from src.shared.infrastructure.database.unit_of_work import rollback as uow_rollback
 
 
 class TranscriptionRepository:
@@ -27,7 +29,7 @@ class TranscriptionRepository:
 
     async def get_by_id(self, transcription_id: UUID) -> Optional[Transcription]:
         if is_async_session(self.db):
-            await self.db.rollback()  # garante conexão livre
+            await uow_rollback(self.db)  # garante conexão livre
             result = await self.db.execute(
                 select(TranscriptionModel).where(
                     TranscriptionModel.id == transcription_id
@@ -50,7 +52,7 @@ class TranscriptionRepository:
         model = TranscriptionModel.from_domain(transcription)
         if is_async_session(self.db):
             self.db.add(model)
-            await self.db.commit() # Flush + Commit
+            await uow_commit(self.db) # Flush + Commit
             await self.db.refresh(model)
             transcription.id = model.id
         else:  # It's a sync session
@@ -68,7 +70,7 @@ class TranscriptionRepository:
         model = TranscriptionModel.from_domain(transcription)
         if is_async_session(self.db):
             await self.db.merge(model)
-            await self.db.commit() # Flush + Commit
+            await uow_commit(self.db) # Flush + Commit
         else:  # It's a sync session
             self.update_sync(transcription)
 
@@ -111,16 +113,23 @@ class TranscriptionRepository:
         result = await self.db.execute(stmt)
         return [model.to_domain() for model in result.scalars().all()]
 
+    async def media_ids_with_records(self, media_ids: List[UUID]) -> set:
+        if not media_ids:
+            return set()
+        stmt = select(TranscriptionModel.media_id).where(TranscriptionModel.media_id.in_(media_ids))
+        result = await self.db.execute(stmt)
+        return set(result.scalars().all())
+
     async def delete_by_media_id(self, media_id: UUID) -> None:
         if is_async_session(self.db):
-            await self.db.rollback()  # garante conexão livre
+            await uow_rollback(self.db)  # garante conexão livre
             stmt = select(TranscriptionModel).where(
                 TranscriptionModel.media_id == media_id
             )
             result = await self.db.execute(stmt)
             for entity in result.scalars().all():
                 await self.db.delete(entity)
-            await self.db.commit()
+            await uow_commit(self.db)
         else:
             self.delete_by_media_id_sync(media_id)
 

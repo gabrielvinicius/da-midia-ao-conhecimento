@@ -11,11 +11,11 @@ from typing import (
     Iterable,
     List,
     Optional,
-    Protocol,
     Type,
     TypeVar,
 )
 
+from src.shared.application.event_bus import SupportsEventBus  # noqa: F401 (reexportado)
 from src.shared.domain.events import DomainEvent
 
 logger = logging.getLogger(__name__)
@@ -181,38 +181,6 @@ class AsyncQueueBrokerPublisher:
                     self._queue.task_done()
         except asyncio.CancelledError:  # pragma: no cover - cooperative shutdown
             pass
-
-# --- From bus.py ---
-class SupportsEventBus(Protocol):
-    """Protocol defining the contract expected from an event bus implementation."""
-
-    async def publish(self, event: DomainEvent) -> None:  # pragma: no cover
-        ...
-
-    async def publish_many(
-        self, events: Iterable[DomainEvent]
-    ) -> None:  # pragma: no cover
-        ...
-
-    def subscribe(
-        self,
-        event_type: Type[TEvent],
-        handler: EventHandler,
-    ) -> None:  # pragma: no cover
-        ...
-
-    def unsubscribe(
-        self,
-        event_type: Type[TEvent],
-        handler: EventHandler,
-    ) -> None:  # pragma: no cover
-        ...
-
-    async def start_listener(self) -> None:  # pragma: no cover
-        ...
-
-    async def stop_listener(self) -> None:  # pragma: no cover
-        ...
 
 class InMemoryEventBus:
     """Simple asynchronous event bus used during Stage A scaffolding and tests."""

@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from src.user_management.domain.entities.user import User
 from src.user_management.infrastructure.persistence.models import UserModel
 from src.shared.infrastructure.database.db import is_async_session
+from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
 
 
 class UserRepository:
@@ -18,7 +19,7 @@ class UserRepository:
 
         if is_async_session(self.db):
             self.db.add(model)
-            await self.db.commit()
+            await uow_commit(self.db)
             await self.db.refresh(model)
             return model.to_domain()
         else:  # It's a sync session
@@ -167,7 +168,7 @@ class UserRepository:
             model = await self.db.get(UserModel, user_id)
             if model:
                 await self.db.delete(model)
-                await self.db.commit()
+                await uow_commit(self.db)
                 return True
             return False
         else:  # It's a sync session

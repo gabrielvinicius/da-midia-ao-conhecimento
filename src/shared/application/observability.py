@@ -1,3 +1,8 @@
+"""Portas de observabilidade usadas pela camada de aplicação dos módulos.
+
+Ficam na aplicação do núcleo compartilhado (e não na infraestrutura) porque
+são contratos: os adaptadores de log e métricas é que são infraestrutura.
+"""
 from __future__ import annotations
 
 from typing import Any, Protocol

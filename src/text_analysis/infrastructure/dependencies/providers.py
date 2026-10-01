@@ -1,8 +1,13 @@
 """Provider factories for text_analysis bounded context."""
 from __future__ import annotations
 
+import structlog
+
+from src.shared.infrastructure.model_cache import model_cache
+
+
 from src.text_analysis.application.config import AnalysisConfig
-from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
+from src.shared.application.event_bus import SupportsEventBus
 from src.text_analysis.infrastructure.adapters import (
     chunking_simple_adapter,
     embeddings_sentence_transformers_adapter,
@@ -43,16 +48,14 @@ def get_sentiment_adapter(config: AnalysisConfig):
     return TransformersSentimentAdapter(config.sentiment_model)
 
 
-_CACHED_EMBEDDING_ADAPTER = None
+
+logger = structlog.get_logger(__name__)
 
 def get_embedding_adapter(config: AnalysisConfig):
-    global _CACHED_EMBEDDING_ADAPTER
-    if _CACHED_EMBEDDING_ADAPTER and _CACHED_EMBEDDING_ADAPTER.model_name == config.embedding_model:
-        return _CACHED_EMBEDDING_ADAPTER
-    
-    adapter = SentenceTransformerEmbeddingAdapter(config.embedding_model)
-    _CACHED_EMBEDDING_ADAPTER = adapter
-    return adapter
+    return model_cache.get_or_create(
+        ("embeddings", config.embedding_model),
+        lambda: SentenceTransformerEmbeddingAdapter(config.embedding_model),
+    )
 
 
 def get_topic_modeling_adapter(config: AnalysisConfig):
@@ -63,13 +66,13 @@ def get_topic_modeling_adapter(config: AnalysisConfig):
     # Try to reuse the embedding model instance from the cached embedding adapter
     # to save VRAM (avoid loading SentenceTransformer twice).
     embedding_model_inst = None
-    if _CACHED_EMBEDDING_ADAPTER:
+    embeddings = model_cache.peek(("embeddings", config.embedding_model))
+    if embeddings:
         try:
-            # Assume it has get_model_instance method (added in recent refactor)
-            if hasattr(_CACHED_EMBEDDING_ADAPTER, "get_model_instance"):
-                embedding_model_inst = _CACHED_EMBEDDING_ADAPTER.get_model_instance()
-        except Exception: 
-            pass
+            if hasattr(embeddings, "get_model_instance"):
+                embedding_model_inst = embeddings.get_model_instance()
+        except Exception as exc:  # sem reaproveitar, o BERTopic carrega o próprio modelo
+            logger.warning("topic_modeling.embedding_reuse_failed", error=str(exc))
 
     return BERTopicAdapter(
         config.topic_model,
@@ -80,22 +83,17 @@ def get_topic_modeling_adapter(config: AnalysisConfig):
     )
 
 
-# Global cache for heavy adapters to avoid multiple model loads in prefork workers
-_CACHED_TEXTGEN_ADAPTER = None
-
 def get_text_generation_adapter(config: AnalysisConfig):
-    global _CACHED_TEXTGEN_ADAPTER
-    
     model_cfg = str(config.llm_model)
     # Roteamento declarativo
     if model_cfg in TEXT_GEN_ROUTING:
         model_cfg = TEXT_GEN_ROUTING[model_cfg]
+    return model_cache.get_or_create(
+        ("text_generation", model_cfg), lambda: _build_text_generation_adapter(model_cfg)
+    )
 
-    # Return cached if same model
-    if _CACHED_TEXTGEN_ADAPTER and getattr(_CACHED_TEXTGEN_ADAPTER, "model_name", None) == model_cfg:
-        return _CACHED_TEXTGEN_ADAPTER
 
-    # ... (routing logic) ...
+def _build_text_generation_adapter(model_cfg: str):
     if model_cfg.startswith(("hf-llama3", "hf:llama3")) or model_cfg == "llama3":
         adapter = Llama3TransformersTextGenerationAdapter()
     elif model_cfg.startswith("hf:"):
@@ -116,8 +114,6 @@ def get_text_generation_adapter(config: AnalysisConfig):
             fallback_model=settings.llm_fallback_model,
             context_tokens=settings.llm_context_tokens,
         )
-        
-    _CACHED_TEXTGEN_ADAPTER = adapter
     return adapter
 
 
@@ -143,3 +139,18 @@ __all__ = [
     "get_chunker_adapter",
     "get_event_bus",
 ]
+
+
+def build_analysis_config(**overrides):
+    """Configuração da análise a partir das configurações do ambiente."""
+    from src.shared.infrastructure.config.settings import settings
+    from src.text_analysis.application.config import AnalysisConfig
+
+    return AnalysisConfig(**{"llm_model": settings.llm_model, **overrides})
+
+
+def runtime_diagnostics() -> dict:
+    """Dispositivo e precisão em uso, registrados em cada análise."""
+    from src.shared.infrastructure.config.settings import settings
+
+    return {"hardware_target": settings.resolved_device, "compute_type": settings.ai_compute_type}

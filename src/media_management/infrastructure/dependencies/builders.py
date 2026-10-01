@@ -20,10 +20,11 @@ from src.media_management.infrastructure.metrics.prometheus_metrics import (
 from src.media_management.infrastructure.repositories.media_repository import (
     MediaRepository,
 )
+from src.shared.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 from src.media_management.infrastructure.dependencies.data_erasers import (
     build_media_data_erasers,
 )
-from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
+from src.shared.application.event_bus import SupportsEventBus
 from src.storage.application.services.maintenance_service import (
     StorageMaintenanceService,
 )
@@ -59,6 +60,7 @@ def build_media_service(
             storage_port=StorageMaintenanceAdapter(storage_factory),
         ),
         data_erasers=build_media_data_erasers(session),
+        unit_of_work=SqlAlchemyUnitOfWork(session),
     )
 
 
@@ -75,7 +77,7 @@ def build_media_event_handlers(
         storage_factory=storage_factory,
         event_bus=event_bus,
     )
-    return MediaEventHandlers(service)
+    return MediaEventHandlers(service, event_bus=event_bus)
 
 
 __all__ = ["build_media_service", "build_media_event_handlers"]

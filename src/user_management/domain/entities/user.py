@@ -1,20 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
 from uuid import UUID, uuid4
 
-
-class UserRole(str, Enum):
-    ADMIN = "ADMIN"
-    USER = "USER"
-
-    @classmethod
-    def normalize(cls, value: str) -> "UserRole":
-        try:
-            return cls(value.upper())
-        except Exception:
-            return cls.USER
+from src.shared.domain.roles import UserRole  # perfil do núcleo compartilhado
 
 
 @dataclass

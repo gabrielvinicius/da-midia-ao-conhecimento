@@ -7,11 +7,11 @@ from typing import Any, Dict
 
 from src.media_management.application.ports import (
     StorageUploaderPort,
-    StorageUploadPort,
     UploadMetadata,
     UploadMetadataMapperPort,
     UploadResult,
 )
+from src.storage.application.ports import FileStoragePort as StorageUploadPort
 from src.storage.application.ports import StorageServiceResolverPort  # Use Port
 
 

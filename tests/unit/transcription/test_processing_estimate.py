@@ -27,13 +27,13 @@ def _service(transcription, factors):
     return TranscriptionService(
         transcription_repo=repo, task_scheduler=None, transcription_logger=AsyncMock(),
         transcription_metrics=AsyncMock(), storage_service=AsyncMock(),
-        speech_recognizer_factory=lambda p: None, media_queries=None, stats_recorder=stats,
+        speech_recognizer_factory=lambda p: None, stats_recorder=stats,
     )
 
 
 @pytest.mark.asyncio
 async def test_estimate_for_a_media_being_processed():
-    t = Transcription(media_id=uuid4(), result={"media_duration_seconds": 3600})
+    t = Transcription(media_id=uuid4(), media_duration_seconds=3600)
     service = _service(t, {"transcription": 0.1, "text_analysis": 0.05})
     estimate = await service.estimate_processing(t.media_id)
     assert estimate == {"estimated_seconds": 540, "media_seconds": 3600, "includes_analysis": True}

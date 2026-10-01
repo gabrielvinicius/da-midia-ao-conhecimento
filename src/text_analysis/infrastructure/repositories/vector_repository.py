@@ -4,19 +4,27 @@ from __future__ import annotations
 from typing import List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import column, select, table, text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.text_analysis.infrastructure.persistence.knowledge_models import (
     KnowledgeChunkModel,
 )
+from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
+from src.shared.infrastructure.database.unit_of_work import rollback as uow_rollback
 
 
 class VectorRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def save_chunks(self, media_id: UUID, chunks: List[dict], replace: bool = True):
+    async def save_chunks(
+        self,
+        media_id: UUID,
+        chunks: List[dict],
+        replace: bool = True,
+        user_id: Optional[UUID] = None,
+    ):
         """Persists multiple text chunks with their embeddings.
 
         Com ``replace=True`` (padrão), os trechos anteriores da mesma mídia são
@@ -30,15 +38,16 @@ class VectorRepository:
         for chunk in chunks:
             record = KnowledgeChunkModel(
                 media_id=media_id,
+                user_id=user_id,
                 content=chunk["text"],
                 embedding=chunk["embedding"],
                 metadata_json=chunk.get("metadata", {})
             )
             self.session.add(record)
         try:
-            await self.session.commit()
+            await uow_commit(self.session)
         except Exception:
-            await self.session.rollback()
+            await uow_rollback(self.session)
             raise
 
     async def semantic_search(
@@ -54,13 +63,7 @@ class VectorRepository:
         distance = KnowledgeChunkModel.embedding.cosine_distance(query_embedding).label("distance")
         stmt = select(KnowledgeChunkModel, distance)
         if user_id is not None:
-            # Referência leve à tabela "media", sem importar o modelo de outro contexto.
-            media = table("media", column("id"), column("user_id"))
-            stmt = stmt.where(
-                KnowledgeChunkModel.media_id.in_(
-                    select(media.c.id).where(media.c.user_id == user_id)
-                )
-            )
+            stmt = stmt.where(KnowledgeChunkModel.user_id == user_id)
         stmt = stmt.order_by(text("distance")).limit(limit)
         result = await self.session.execute(stmt)
         return result.all()
@@ -68,4 +71,4 @@ class VectorRepository:
     async def delete_by_media_id(self, media_id: UUID):
         stmt = text("DELETE FROM knowledge_chunks WHERE media_id = :mid")
         await self.session.execute(stmt, {"mid": media_id})
-        await self.session.commit()
+        await uow_commit(self.session)

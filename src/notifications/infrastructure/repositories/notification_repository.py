@@ -9,6 +9,8 @@ from src.notifications.domain import Notification
 from src.notifications.domain.entities.notification import NotificationStatus
 from src.notifications.infrastructure.persistence.models import NotificationModel
 from src.shared.infrastructure.database.db import is_async_session
+from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
+from src.shared.infrastructure.database.unit_of_work import rollback as uow_rollback
 
 
 class NotificationRepository:
@@ -39,10 +41,10 @@ class NotificationRepository:
     async def save(self, notification: Notification) -> Notification:
         """Saves a notification to the database."""
         if is_async_session(self.db):
-            await self.db.rollback()  # libera conexão
+            await uow_rollback(self.db)  # libera conexão
             model = NotificationModel.from_domain(notification)
             merged = await self.db.merge(model)  # merge faz upsert seguro
-            await self.db.commit()
+            await uow_commit(self.db)
             await self.db.refresh(merged)
             return merged.to_domain()
         return self.save_sync(notification)
@@ -86,7 +88,7 @@ class NotificationRepository:
                 .values(opened_at=now)
             )
             result = await self.db.execute(stmt)
-            await self.db.commit()
+            await uow_commit(self.db)
             return result.rowcount > 0
         return self.mark_as_read_sync(notification_id)
 
@@ -121,7 +123,7 @@ class NotificationRepository:
                 )
             )
             result = await self.db.execute(stmt)
-            await self.db.commit()
+            await uow_commit(self.db)
             return (result.rowcount or 0) > 0
         return self.mark_as_delivered_sync(notification_id)
 
@@ -175,7 +177,7 @@ class NotificationRepository:
 
             if model:
                 await self.db.delete(model)
-                await self.db.commit()
+                await uow_commit(self.db)
                 return True
             return False
         return self.delete_sync(notification_id)
@@ -271,7 +273,7 @@ class NotificationRepository:
                 NotificationModel.created_at < cutoff
             )
             result = await self.db.execute(stmt)
-            await self.db.commit()
+            await uow_commit(self.db)
             return result.rowcount or 0
         return self.delete_older_than_sync(days_to_keep)
 

@@ -104,7 +104,6 @@ async def test_request_transcription_saves_and_schedules():
         transcription_metrics=metrics,
         storage_service=storage,
         speech_recognizer_factory=lambda provider: FakeRecognizer(),
-        media_queries=FakeMediaQueries(),
         event_bus=event_bus,
     )
 

@@ -5,7 +5,7 @@ from typing import Optional
 
 import structlog
 
-from src.shared.infrastructure.observability.ports import LoggerPort
+from src.shared.application.observability import LoggerPort
 from src.shared.domain.time.clock import utcnow
 from src.storage.application.ports import StorageOperationLoggerPort
 from src.storage.domain.value_objects.file_path import FilePath

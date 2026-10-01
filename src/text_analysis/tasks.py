@@ -196,8 +196,8 @@ def _task_body_with_retry_context(
                             evento="TextAnalysisFailed",
                             extra={"op": op_name, "erro": str(exc)},
                         )
-                    except Exception:
-                        pass
+                    except Exception as notify_exc:  # o aviso não pode esconder a falha original
+                        logger.warning("text_analysis.failure_notice_failed", error=str(notify_exc))
                 raise
             # O aviso é o que faz a tela da mídia exibir o resumo sem recarregar.
             try:

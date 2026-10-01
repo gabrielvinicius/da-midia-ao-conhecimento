@@ -44,6 +44,7 @@ from src.media_management.infrastructure.adapters.storage_downloader_adapter imp
 from src.media_management.infrastructure.adapters.file_validator_adapter import (
     MediaFileReferenceValidator,
 )
+from src.shared.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 from src.media_management.infrastructure.dependencies.data_erasers import (
     build_media_data_erasers,
 )
@@ -73,7 +74,7 @@ from src.shared.domain.events import (
     TranscriptionCompleted,
     TranscriptionFailed,
 )
-from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
+from src.shared.application.event_bus import SupportsEventBus
 from src.storage.application.services.maintenance_service import (
     StorageMaintenanceService,
 )
@@ -146,6 +147,7 @@ def build_media_components(
         event_bus=event_bus,
         storage_maintenance=storage_maintenance_service,
         data_erasers=build_media_data_erasers(session),
+        unit_of_work=SqlAlchemyUnitOfWork(session),
         storage_downloader=StorageDownloaderAdapter(storage_service_factory),
     )
     transcription_service = TranscriptionService(
@@ -155,12 +157,11 @@ def build_media_components(
         transcription_metrics=transcription_metrics,
         storage_service=transcription_storage_service,
         speech_recognizer_factory=lambda provider: get_speech_recognizer(provider),
-        media_queries=media_repository, # Duck typing
         event_bus=event_bus,
         stats_recorder=ProcessingStatsRepository(session),  # estimativas
     )
 
-    media_event_handlers = MediaEventHandlers(media_service)
+    media_event_handlers = MediaEventHandlers(media_service, event_bus=event_bus)
 
     if event_bus and subscribe:
         # TextContentReady handled in text_analysis module

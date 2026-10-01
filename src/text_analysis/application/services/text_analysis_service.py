@@ -11,7 +11,11 @@ import time
 from typing import Any, Optional, List, Dict
 from uuid import UUID
 
-from src.shared.infrastructure.observability.logging.logging_config import get_logger
+import structlog
+
+from src.shared.application.event_bus import SupportsEventBus
+from src.shared.application.ports import ProcessingStatsPort
+from src.text_analysis.application.ports.repository import FeedbackRepositoryPort
 from src.text_analysis.config.settings import text_analysis_settings
 
 from src.text_analysis.domain import Analysis, Document
@@ -32,7 +36,7 @@ from src.text_analysis.application.ports.transcription_port import Transcription
 from src.text_analysis.application.pipeline.base import AnalysisPipeline
 from src.text_analysis.application.services.text_analysis_read_service import TextAnalysisReadService
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class TextAnalysisService:
@@ -43,25 +47,28 @@ class TextAnalysisService:
         *,
         repository: AnalysisRepositoryPort,
         pipeline: AnalysisPipeline,
-        feedback_repo: Any = None,
+        feedback_repo: Optional[FeedbackRepositoryPort] = None,
         config: Optional[AnalysisConfig] = None,
         metrics: TextAnalysisMetrics | None = None,
-        event_bus: Any | None = None,
+        event_bus: SupportsEventBus | None = None,
         transcription_queries: Optional[TranscriptionQueryPort] = None,
         text_analysis_read_service: TextAnalysisReadService,
         settings=text_analysis_settings,
-        stats_recorder: Any | None = None,
+        stats_recorder: ProcessingStatsPort | None = None,
+        runtime_diagnostics: Optional[dict] = None,
     ) -> None:
         self.repository = repository
         self.pipeline = pipeline
-        self.feedback_repo = feedback_repo # NEW
+        self.feedback_repo = feedback_repo
         self.config = config or AnalysisConfig()
         self.metrics = metrics or NoOpTextAnalysisMetrics()
         self.event_bus = event_bus
         self.transcription_queries = transcription_queries
         self.text_analysis_read_service = text_analysis_read_service
         self.settings = settings
-        self.stats_recorder = stats_recorder  # ProcessingStatsPort (opcional)
+        self.stats_recorder = stats_recorder
+        # Ex.: {"hardware_target": "cuda", "compute_type": "float16"}.
+        self.runtime_diagnostics = dict(runtime_diagnostics or {})
 
     async def submit_feedback(self, analysis_id: str, user_id: UUID, score: int, comment: str | None = None) -> bool:
         """Saves user feedback for an analysis."""
@@ -110,7 +117,8 @@ class TextAnalysisService:
         if media_id and self.transcription_queries:
             try:
                 media_info = await self.transcription_queries.get_media_info(media_id) or {}
-            except Exception: pass
+            except Exception as exc:  # sem os dados da mídia, a análise segue só com o texto
+                logger.warning("text_analysis.fetch_media_info_failed", media_id=str(media_id), error=str(exc))
 
         start = time.perf_counter()
         success = False
@@ -140,9 +148,8 @@ class TextAnalysisService:
             # 4. Pipeline granular. Cada etapa grava seu resultado ao terminar
             # (checkpoint); se o worker cair no meio, o que já foi calculado
             # continua disponível.
-            from src.shared.infrastructure.config.settings import settings
-            analysis.diagnostics["hardware_target"] = settings.resolved_device
-            analysis.diagnostics["compute_type"] = settings.ai_compute_type
+            # Dispositivo e precisão em uso, informados pela montagem do módulo.
+            analysis.diagnostics.update(self.runtime_diagnostics)
 
             async def checkpoint(current: Analysis, step_name: str) -> None:
                 await self.repository.save(current)
@@ -178,7 +185,8 @@ class TextAnalysisService:
                     duration=time.perf_counter() - start,
                     success=success,
                 )
-            except Exception: pass
+            except Exception as exc:  # métrica nunca derruba a análise
+                logger.warning("text_analysis.metrics_failed", error=str(exc))
 
     async def _record_durations(self, analysis: Analysis, total_seconds: float) -> None:
         """Grava a duração total e a de cada etapa (para avaliação e estimativas)."""

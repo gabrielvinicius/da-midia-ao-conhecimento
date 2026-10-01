@@ -5,11 +5,13 @@ concreto (infra) que implementa o port (application).
 """
 from __future__ import annotations
 
+from src.shared.infrastructure.model_cache import model_cache
+
 from typing import Callable, Dict, Any
 
 import structlog
 
-from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
+from src.shared.application.event_bus import SupportsEventBus
 
 from src.media_processing.application.ports import (
     OCRProviderPort,
@@ -131,7 +133,6 @@ def _register_visual_providers():
 
 _register_visual_providers()
 
-_VISUAL_INSTANCES: Dict[str, VisualAnalysisPort] = {}
 
 
 def get_visual_analyzer(provider: str | None = None) -> VisualAnalysisPort:
@@ -148,9 +149,7 @@ def get_visual_analyzer(provider: str | None = None) -> VisualAnalysisPort:
     factory = _VISUAL_ANALYZERS.get(key)
     if not factory:
         raise RuntimeError("Nenhum provider de análise visual disponível.")
-    if key not in _VISUAL_INSTANCES:
-        _VISUAL_INSTANCES[key] = factory()
-    return _VISUAL_INSTANCES[key]
+    return model_cache.get_or_create(("visual", key), factory)
 
 
 # ----------------- TTS providers -----------------

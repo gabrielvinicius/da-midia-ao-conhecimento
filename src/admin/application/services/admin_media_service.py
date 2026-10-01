@@ -184,7 +184,7 @@ class AdminMediaService:
 
         self.permission_service.validate_admin_operation(admin_user, media.user_id)
 
-        media.status = new_status
+        media.override_status(new_status)
         await self.media_repository.update(media)
 
         await self.audit_service.log_admin_action(

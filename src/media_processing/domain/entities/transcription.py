@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 from src.shared.domain.base_entity import BaseEntity
@@ -35,6 +35,10 @@ class Transcription(BaseEntity):
     speaker_aliases: Dict[str, str]
     processed_at: Optional[datetime.datetime]
     result: Optional[Dict[str, Any]]
+    # Duração da gravação, lida ao iniciar: define o prazo do processamento.
+    media_duration_seconds: Optional[float]
+    # Descrições de quadros do vídeo ("[mm:ss] texto"), feitas após a transcrição.
+    visual_context: List[str]
 
     def __init__(
         self,
@@ -57,6 +61,8 @@ class Transcription(BaseEntity):
         result: Optional[Dict[str, Any]] = None,
         processed_at: Optional[datetime.datetime] = None,
         id: Optional[UUID] = None,
+        media_duration_seconds: Optional[float] = None,
+        visual_context: Optional[List[str]] = None,
     ):
         super().__init__(id or uuid4())
         self.media_id = media_id
@@ -76,6 +82,8 @@ class Transcription(BaseEntity):
         self.speaker_aliases = speaker_aliases or {}
         self.processed_at: Optional[datetime.datetime] = processed_at
         self.result = result
+        self.media_duration_seconds = media_duration_seconds
+        self.visual_context = list(visual_context or [])
 
     def mark_as_completed(self, result: Dict[str, Any]) -> None:
         self.status = TranscriptionStatus.COMPLETED
@@ -88,9 +96,28 @@ class Transcription(BaseEntity):
         )
         self.updated_at = datetime.datetime.now(datetime.timezone.utc)
         self.processed_at = self.updated_at
-        # Mantém o que já foi gravado durante o processamento (ex.: a duração
-        # da gravação, lida ao iniciar) junto com o resultado do modelo.
-        self.result = {**(self.result or {}), **(result or {})}
+        self.result = result or self.result
+
+    def mark_as_extracted(self, text: str, provider: str) -> None:
+        """Texto extraído de um documento ou imagem (sem horários)."""
+        self.mark_as_completed({"text": text, "segments": []})
+        self.provider = provider
+
+    def record_media_duration(self, seconds: float) -> None:
+        if seconds and seconds > 0:
+            self.media_duration_seconds = float(seconds)
+
+    def attach_visual_context(self, descriptions: List[str]) -> None:
+        self.visual_context = [d for d in descriptions if d]
+
+    @property
+    def recording_seconds(self) -> Optional[float]:
+        """Duração da gravação: a lida do arquivo ou, na falta, o fim do último trecho."""
+        if self.media_duration_seconds:
+            return self.media_duration_seconds
+        if self.segments and isinstance(self.segments[-1], dict):
+            return self.segments[-1].get("end") or None
+        return None
 
     def mark_as_processing(self) -> None:
         self.status = TranscriptionStatus.PROCESSING

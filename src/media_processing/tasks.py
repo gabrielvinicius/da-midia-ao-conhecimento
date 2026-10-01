@@ -10,7 +10,6 @@ from src.media_processing.worker_bootstrap import (
     build_stalled_processing_monitor,
     build_text_extraction_service,
     build_transcription_service,
-    build_unstarted_media_recovery,
 )
 from src.media_processing.worker import MediaWorkerApp
 from src.media_processing.infrastructure.dependencies.providers import get_event_bus
@@ -20,37 +19,26 @@ from src.shared.events.integration_events import (
     TASK_MEDIA_TRANSCRIPTION,
 )
 from src.shared.infrastructure.database.db import AsyncSessionLocal
-from src.shared.infrastructure.messaging.event_bus_factory import (
-    get_event_bus as build_event_bus,
+from src.shared.infrastructure.messaging.process_bus import (
+    process_event_bus,
+    reset_process_event_bus,
 )
 logger = structlog.get_logger(__name__)
 
-# Global event bus instance for the worker process
-_WORKER_EVENT_BUS = None
-
-
 def _ensure_event_bus(bus=None):
-    global _WORKER_EVENT_BUS
-    # If a global/singleton bus is needed, get_event_bus handles it
+    """Barramento deste processo (ver process_bus), salvo quando informado."""
     if bus:
         return get_event_bus(bus)
-    
-    if _WORKER_EVENT_BUS:
-        return _WORKER_EVENT_BUS
-
-    return build_event_bus()
+    return process_event_bus()
 
 
 @worker_process_init.connect
 def setup_worker_subscribers(**kwargs):
-    """Initialize event subscribers when a worker process starts."""
-    global _WORKER_EVENT_BUS
+    """Registra, em cada processo do worker, as reações aos eventos."""
     logger.info("media_processing.worker.init")
     try:
-        # Use the singleton event bus for this process
-        _WORKER_EVENT_BUS = build_event_bus()
-        app = MediaWorkerApp(event_bus=_WORKER_EVENT_BUS)
-        app.ensure_subscribers()
+        reset_process_event_bus()  # cada processo filho começa com o seu
+        MediaWorkerApp(event_bus=process_event_bus()).ensure_subscribers()
         logger.info("media_processing.worker.subscribers_configured")
     except Exception as exc:
         logger.error("media_processing.worker.init_failed", error=str(exc))
@@ -179,22 +167,15 @@ def process_transcription_task(
 
 
 @shared_task(name=TASK_MEDIA_SWEEP_STALLED, ignore_result=True)
-def sweep_stalled_processing_task() -> dict:
-    """Periódica (Celery beat, fila leve): reenfileira as mídias que não
-    começaram e marca como falha as que passaram do prazo."""
+def sweep_stalled_processing_task() -> list:
+    """Periódica (Celery beat, fila leve): marca como falha as transcrições
+    que passaram do prazo."""
 
     async def _run():
-        bus = _ensure_event_bus()
         async with AsyncSessionLocal() as session:
-            recovery = await build_unstarted_media_recovery(session, bus).sweep()
-        async with AsyncSessionLocal() as session:
-            failed = await build_stalled_processing_monitor(session, bus).sweep()
-        return {
-            "requeued": recovery.requeued,
-            "failed": failed + recovery.failed,
-        }
+            return await build_stalled_processing_monitor(session, _ensure_event_bus()).sweep()
 
-    result = async_to_sync(_run)()
-    if result["requeued"] or result["failed"]:
-        logger.warning("stalled_monitor.sweep_done", **result)
-    return result
+    failed = async_to_sync(_run)()
+    if failed:
+        logger.warning("stalled_monitor.sweep_done", failed_media=failed)
+    return failed

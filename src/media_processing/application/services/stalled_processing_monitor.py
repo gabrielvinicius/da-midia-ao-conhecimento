@@ -7,13 +7,15 @@ falha e avisa o usuário, que pode então tentar novamente.
 from __future__ import annotations
 
 import datetime
-from typing import Any, List, Optional
+from typing import List, Optional
 
 import structlog
 
 from src.media_processing.application.ports import (
     ProcessingTaskTerminator,
     RealtimeFactorPort,
+    TranscriptionResultPort,
+    UnfinishedTranscriptionsPort,
 )
 from src.media_processing.domain import Transcription, TranscriptionStatus
 from src.media_processing.domain.processing_deadline import ProcessingDeadlinePolicy
@@ -31,8 +33,8 @@ def _minutes(seconds: float) -> str:
 class StalledProcessingMonitor:
     def __init__(
         self,
-        repository: Any,  # list_unfinished(started_before)
-        transcription_service: Any,  # process_transcription_result(...)
+        repository: UnfinishedTranscriptionsPort,
+        transcription_service: TranscriptionResultPort,
         policy: ProcessingDeadlinePolicy,
         realtime_factors: Optional[RealtimeFactorPort] = None,
         terminator: Optional[ProcessingTaskTerminator] = None,

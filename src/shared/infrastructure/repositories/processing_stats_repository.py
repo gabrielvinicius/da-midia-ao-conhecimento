@@ -7,6 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.infrastructure.persistence.processing_stats_model import ProcessingStatModel
+from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
+from src.shared.infrastructure.database.unit_of_work import rollback as uow_rollback
 
 class ProcessingStatsRepository:
     def __init__(self, session: AsyncSession):
@@ -32,9 +34,9 @@ class ProcessingStatsRepository:
         )
         self.session.add(stat)
         try:
-            await self.session.commit()
+            await uow_commit(self.session)
         except Exception:
-            await self.session.rollback()
+            await uow_rollback(self.session)
             raise
 
     async def summarize(self, days: int | None = None) -> list[dict]:

@@ -9,7 +9,12 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 - `shared`: Common domain events, infrastructure middleware, and the `pgvector` semantic indexing bridge.
 
 ### Core Architectural Mandates
-- **Pure Dependency Injection**: All dependencies MUST be composed in `main.py` via `bootstrap.py` factories. Avoid global singletons.
+- **Pure Dependency Injection**: All dependencies MUST be composed in `main.py` via `bootstrap.py` factories. Avoid global singletons. The only process-wide state allowed is explicit and centralized: loaded AI models in `shared/infrastructure/model_cache.py` and the worker's event bus in `shared/infrastructure/messaging/process_bus.py`.
+- **Shared kernel**: application and domain code may import only `shared.domain` and `shared.application` (ports such as `LoggerPort`, `SupportsEventBus`, `UnitOfWorkPort`, `UserRole`), never `shared.infrastructure`.
+- **Data ownership**: a module queries only its own tables (enforced by `tests/unit/test_architecture_table_ownership.py`); to know about another module's data, define a port and let that module implement it.
+- **Integration events**: each event in `shared/domain/events.py` declares `published_by`; only that module creates it (`tests/unit/test_architecture_event_ownership.py`).
+- **Transactions**: a repository commits its own single-aggregate change; a use case that touches several repositories runs inside `UnitOfWorkPort.transaction()` (repositories then only flush).
+- **Rich entities**: state changes go through entity methods (`mark_as_failed`, `override_status`, `mark_as_extracted`), never by assigning `status` from services.
 - **Hexagonal Integrity**: Business logic interacts with the world only through Ports (`application/ports.py`). Adapters stay in `infrastructure/`.
 - **Granular Pipeline**: Analysis is step-based. Partial results MUST be saved to allow resilience and adaptive retries.
 - **Semantic indexing**: Every processed chunk is vectorized via `pgvector` for global semantic search.

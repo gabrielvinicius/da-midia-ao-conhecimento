@@ -2,9 +2,6 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.media_management.infrastructure.repositories.media_repository import (
-    MediaRepository,
-)
 from src.media_processing.application.event_handlers import MediaProcessingEventHandlers
 from src.media_processing.application.services.text_extraction_service import (
     TextExtractionService,
@@ -30,7 +27,7 @@ from src.media_processing.infrastructure.metrics.prometheus_transcription_metric
 from src.media_processing.infrastructure.repositories.transcription_repository import (
     TranscriptionRepository,
 )
-from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
+from src.shared.application.event_bus import SupportsEventBus
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 
@@ -44,7 +41,6 @@ def build_media_processing_event_handlers(
     """Constrói o handler de MediaUploaded com dependências por evento."""
 
     transcription_repo = TranscriptionRepository(db=session)
-    media_repo = MediaRepository(db=session)
 
     storage_service = storage_factory.create_storage_service(storage_provider)
 
@@ -55,7 +51,6 @@ def build_media_processing_event_handlers(
         transcription_metrics=PrometheusTranscriptionMetrics(),
         storage_service=storage_service,
         speech_recognizer_factory=lambda provider: get_speech_recognizer(provider),
-        media_queries=media_repo,
         event_bus=event_bus,
     )
 

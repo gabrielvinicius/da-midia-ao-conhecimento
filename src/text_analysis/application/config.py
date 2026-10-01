@@ -2,13 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
-
-def _default_llm_model() -> str:
-    from src.shared.infrastructure.config.settings import settings
-
-    return settings.llm_model
+from dataclasses import dataclass
 
 
 @dataclass(slots=True)
@@ -22,7 +16,8 @@ class AnalysisConfig:
     embedding_model: str = "intfloat/multilingual-e5-small"
     topic_model: str = "bertopic"  # use "tfidf" para fallback leve sem deps pesadas
     # Nome de modelo Ollama (ex.: "qwen3.5:9b"); prefixo "hf:" usa Transformers.
-    llm_model: str = field(default_factory=_default_llm_model)
+    # A montagem do módulo (build_analysis_config) usa o valor das configurações.
+    llm_model: str = "qwen3.5:9b"
     # Carregar um segundo LLM dentro do BERTopic não cabe em GPUs de 12 GB;
     # os títulos dos temas são gerados pelo LLM principal no TopicTitleStep.
     use_transformer_topic_representation: bool = False

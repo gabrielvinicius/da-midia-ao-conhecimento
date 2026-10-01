@@ -14,6 +14,8 @@ from src.text_analysis.domain import Analysis, Topic
 from src.text_analysis.infrastructure.persistence.feedback_models import FeedbackModel
 from src.text_analysis.infrastructure.persistence.knowledge_models import KnowledgeChunkModel
 from src.text_analysis.infrastructure.persistence.models import AnalysisModel
+from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
+from src.shared.infrastructure.database.unit_of_work import rollback as uow_rollback
 
 
 class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
@@ -64,9 +66,9 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         )
         await self.session.merge(record)
         try:
-            await self.session.commit()
+            await uow_commit(self.session)
         except Exception:
-            await self.session.rollback()
+            await uow_rollback(self.session)
             raise
         return str(analysis.id)
 
@@ -119,7 +121,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         from sqlalchemy.orm.attributes import flag_modified
         flag_modified(record, "payload")
         
-        await self.session.commit()
+        await uow_commit(self.session)
         return True
 
     async def get_by_media_id(self, media_id: str) -> Optional[Analysis]:
@@ -175,7 +177,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         result = await self.session.execute(stmt)
         for record in result.scalars().all():
             await self.session.delete(record)
-        await self.session.commit()
+        await uow_commit(self.session)
 
     def _payload_to_analysis(self, payload: dict) -> Analysis:
         from src.text_analysis.domain import Analysis as AnalysisEntity

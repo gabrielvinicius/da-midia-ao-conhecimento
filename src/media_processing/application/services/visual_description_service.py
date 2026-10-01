@@ -8,7 +8,8 @@ conhece modelos de visão nem o arquivo de vídeo.
 from __future__ import annotations
 
 import inspect
-from typing import List
+import time
+from typing import List, Optional
 
 import structlog
 
@@ -16,7 +17,12 @@ from src.media_processing.application.ports import (
     VideoFrameExtractorPort,
     VisualAnalysisPort,
 )
-from src.media_processing.domain.visual_sampling import format_timestamp, frame_timestamps
+from src.media_processing.domain.visual_sampling import (
+    format_timestamp,
+    frame_timestamps,
+    is_video_file,
+)
+from src.shared.application.ports import ProcessingStatsPort
 
 logger = structlog.get_logger(__name__)
 
@@ -31,9 +37,34 @@ class VisualDescriptionService:
         self,
         analyzer: VisualAnalysisPort,
         extractor: VideoFrameExtractorPort,
+        stats: Optional[ProcessingStatsPort] = None,
     ) -> None:
         self._analyzer = analyzer
         self._extractor = extractor
+        self._stats = stats
+
+    async def describe_recording(
+        self, video_data: bytes, file_path: str, duration: Optional[float]
+    ) -> List[str]:
+        """Descreve os quadros se a gravação for um vídeo com duração conhecida,
+        e registra quanto tempo isso levou ("visual_description")."""
+        if not is_video_file(file_path) or not duration:
+            return []
+        started = time.perf_counter()
+        descriptions = await self.describe(video_data, float(duration))
+        if self._stats:
+            try:
+                await self._stats.log_stat(
+                    "visual_description",
+                    time.perf_counter() - started,
+                    len(video_data),
+                    float(duration),
+                    getattr(self._analyzer, "model_label", None),
+                    "success" if descriptions else "failed",
+                )
+            except Exception as exc:  # estatística nunca derruba o processamento
+                logger.warning("visual_description.stats_record_failed", error=str(exc))
+        return descriptions
 
     async def describe(self, video_data: bytes, duration: float) -> List[str]:
         """Descrições "[mm:ss] texto", na ordem do vídeo.

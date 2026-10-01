@@ -23,10 +23,9 @@ from src.shared.domain.events import (
     MediaProcessingCompleted,
     MediaProcessingFailed,
     MediaProcessingStarted,
-    TextContentReady,
+    TranscriptionCompleted,
 )
-from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
-from src.storage.domain.value_objects.file_path import FilePath
+from src.shared.application.event_bus import SupportsEventBus
 
 from ..dtos import RequestTextExtractionCommand
 
@@ -116,7 +115,7 @@ class TextExtractionService:
             await self._repo.save(transcription)
 
         # Retrieve content
-        content = await self._storage.retrieve(FilePath(file_path))
+        content = await self._storage.retrieve(file_path)
         if not content:
             raise ResourceNotFoundError("File", file_path)
 
@@ -151,9 +150,7 @@ class TextExtractionService:
                 extracted_text = ""
 
             if transcription:
-                transcription.text = extracted_text
-                transcription.status = TranscriptionStatus.COMPLETED
-                transcription.provider = provider_used
+                transcription.mark_as_extracted(extracted_text, provider_used)
                 await self._repo.save(transcription)
 
                 if self._event_bus:
@@ -172,16 +169,18 @@ class TextExtractionService:
                             },
                         )
                     )
+                    # Como na transcrição de áudio: o módulo de mídias conclui a
+                    # mídia e anuncia o texto pronto para a análise.
                     await self._event_bus.publish(
-                        TextContentReady(
+                        TranscriptionCompleted(
                             media_id=str(media_id),
                             transcription_id=str(transcription.id),
                             text=extracted_text,
                             user_id=user_id or getattr(transcription, "user_id", None),
-                            filename=filename
-                            or getattr(transcription, "filename", None),
                             metadata={
                                 "provider": provider_used,
+                                "filename": filename or getattr(transcription, "filename", None),
+                                "language": transcription.language,
                             },
                             correlation_id=correlation_id,
                         )

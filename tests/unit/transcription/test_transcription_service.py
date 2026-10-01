@@ -33,7 +33,6 @@ def service_dependencies():
         transcription_metrics=metrics,
         storage_service=storage,
         speech_recognizer_factory=recognizer_factory,
-        media_queries=media_queries,
         event_bus=event_bus,
     )
     return (
@@ -197,7 +196,7 @@ async def test_execute_transcription_records_media_duration_before_transcribing(
     saved_during_transcription = {}
 
     async def transcribe(path, language=None):
-        saved_during_transcription.update(repo.save.call_args.args[0].result or {})
+        saved_during_transcription["seconds"] = repo.save.call_args.args[0].media_duration_seconds
         return {"text": "ok"}
 
     recognizer.transcribe.side_effect = transcribe
@@ -214,4 +213,4 @@ async def test_execute_transcription_records_media_duration_before_transcribing(
         language="pt",
     )
 
-    assert saved_during_transcription == {"media_duration_seconds": 5400.0}
+    assert saved_during_transcription == {"seconds": 5400.0}

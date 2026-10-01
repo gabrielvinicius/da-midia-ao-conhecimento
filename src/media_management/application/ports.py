@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Protocol
+import datetime
+from typing import Any, Dict, List, Optional, Protocol, Set
 from uuid import UUID
 
 from src.media_management.domain import Media
-from src.shared.infrastructure.observability.ports import LoggerPort, MetricsPort
-from src.storage.application.ports import FileStoragePort
+from src.shared.application.observability import LoggerPort, MetricsPort
 
-StorageUploadPort = FileStoragePort
 
 
 class MediaMetricsPort(MetricsPort, Protocol):
@@ -50,6 +49,28 @@ class MediaRepositoryPort(Protocol):
         search: str | None = None,
         order: str = "desc",
     ): ...
+
+
+class RecoverableMediaPort(Protocol):
+    async def list_waiting(self, created_before: datetime.datetime, limit: int = 50) -> List[Media]:
+        """Mídias ainda enviadas ou em processamento, criadas antes do instante dado."""
+        ...
+
+    async def update(self, media: Media): ...
+
+
+class ProcessingRecordsPort(Protocol):
+    """Diz quais mídias já ganharam registro no processamento (transcrição ou extração)."""
+
+    async def media_with_processing(self, media_ids: List[UUID]) -> Set[UUID]: ...
+
+
+class StoredFileRemoverPort(Protocol):
+    """Remove os arquivos de uma mídia do armazenamento (implementado pelo módulo storage)."""
+
+    async def delete_folder(self, provider_name: str, folder_path: str) -> None: ...
+
+    async def delete_file(self, provider_name: str, path: str) -> None: ...
 
 
 class MediaDataEraserPort(Protocol):

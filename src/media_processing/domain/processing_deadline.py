@@ -21,7 +21,6 @@ from src.media_processing.domain.entities.transcription import (
     TranscriptionStatus,
 )
 
-MEDIA_DURATION_KEY = "media_duration_seconds"
 
 
 def expected_processing_seconds(
@@ -67,8 +66,7 @@ class ProcessingDeadlinePolicy:
         if transcription.status == TranscriptionStatus.PENDING:
             return self.queue_seconds
         if transcription.status == TranscriptionStatus.PROCESSING:
-            media_seconds = (transcription.result or {}).get(MEDIA_DURATION_KEY)
-            return self.processing_deadline(media_seconds, realtime_factor)
+            return self.processing_deadline(transcription.media_duration_seconds, realtime_factor)
         return None
 
     def is_stalled(

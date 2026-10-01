@@ -5,17 +5,20 @@ Combines command and query operations for Media entities.
 
 from __future__ import annotations
 
+import contextlib
 import mimetypes
 import os
 import re
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, Dict, Optional, Sequence, Set
 
 import structlog
 
 from src.media_management.application.errors import MediaDataErasureError
 from src.media_management.application.policies import MediaAccessPolicy
+from src.media_management.application.upload_events import upload_event_for
+from src.shared.application.unit_of_work import UnitOfWorkPort
 from src.media_management.application.ports import (
     EventBusPort,
     MediaMetricsPort,
@@ -23,6 +26,7 @@ from src.media_management.application.ports import (
     StorageDownloaderPort,
     StorageUploaderPort,
     MediaDataEraserPort,
+    StoredFileRemoverPort,
     UploadMetadataMapperPort,
 )
 from src.media_management.application.services.components import (
@@ -33,17 +37,13 @@ from src.media_management.application.services.components import (
 )
 from src.media_management.config.settings import media_settings
 from src.media_management.domain import Media
-from src.media_management.domain.enums import MediaStatus, MediaType
+from src.media_management.domain.enums import MediaType
 from src.shared.domain.errors import ValidationError
 from src.shared.domain.events import (
     MediaDeleted,
     MediaReprocessRequested,
-    MediaUploaded,
 )
-from src.storage.application.services.maintenance_service import (
-    StorageMaintenanceService,
-)
-from src.user_management.domain.entities.user import UserRole
+from src.shared.domain.roles import UserRole
 
 from ..dtos import (
     CreateMediaCommand,
@@ -54,7 +54,6 @@ from ..dtos import (
     ListMediaQuery,
     MediaStreamDTO,
     ReprocessMediaCommand,
-    PaginatedMedia,
 )
 from .media_read_service import MediaReadService
 from .validators import MediaUploadValidator
@@ -103,9 +102,10 @@ class MediaService:
         upload_validator: MediaUploadValidator,
         media_read_service: MediaReadService,
         event_bus: EventBusPort | None = None,
-        storage_maintenance: StorageMaintenanceService | None = None,
+        storage_maintenance: StoredFileRemoverPort | None = None,
         data_erasers: Sequence[MediaDataEraserPort] = (),
         storage_downloader: StorageDownloaderPort | None = None,
+        unit_of_work: UnitOfWorkPort | None = None,
     ) -> None:
         self.media_repository = media_repository
         self.storage_uploader = storage_uploader
@@ -115,6 +115,7 @@ class MediaService:
         self.media_read_service = media_read_service
         self.event_bus = event_bus
         self.storage_downloader = storage_downloader
+        self._unit_of_work = unit_of_work
 
         # Provider allowlists per bounded context (soft validation: warn if unknown)
         self._allowed_storage_providers: Set[str] = set(
@@ -256,14 +257,13 @@ class MediaService:
         self.access_policy.ensure_can_access(media, effective_user, user_role)
 
         try:
-            # Delete associated records
-            await self._delete_associated_records(media.id)
-
-            # Delete file from storage
-            await self._delete_original_file(media)
-
-            # Delete from DB
-            await self.media_repository.delete(media.id)
+            # Uma só transação: os dados de cada módulo e o registro da mídia
+            # saem juntos. O arquivo é apagado antes da confirmação; se falhar,
+            # nada é apagado do banco e a exclusão pode ser repetida.
+            async with self._transaction():
+                await self._delete_associated_records(media.id)
+                await self._delete_original_file(media)
+                await self.media_repository.delete(media.id)
 
             # Publish Event
             if self.event_bus:
@@ -315,11 +315,12 @@ class MediaService:
         media.ensure_can_be_reprocessed()
 
         try:
-            # Clean up previous processing results to avoid unique constraint violations
-            await self._delete_associated_records(media.id)
-
-            media.process()
-            await self.media_repository.update(media)
+            # Os resultados anteriores saem e a mídia volta a "em processamento"
+            # na mesma transação; os eventos só são publicados depois dela.
+            async with self._transaction():
+                await self._delete_associated_records(media.id)
+                media.process()
+                await self.media_repository.update(media)
 
             # Publish Reprocess Requested Event
             if self.event_bus:
@@ -332,23 +333,7 @@ class MediaService:
                 )
                 # Also publish MediaUploaded to trigger the pipeline again
                 await self.event_bus.publish(
-                    MediaUploaded(
-                        media_id=str(media.id),
-                        user_id=str(media.user_id),
-                        filename=media.filename,
-                        storage_provider=media.storage_provider,
-                        media_type=media.media_type.value
-                        if hasattr(media.media_type, "value")
-                        else media.media_type,
-                        file_size_bytes=media.file_size,
-                        transcription_provider=media.transcription_provider,
-                        summarization_provider=media.summarization_provider,
-                        sentiment_provider=media.sentiment_provider,
-                        topic_modeling_provider=media.topic_modeling_provider,
-                        language=media.language,
-                        correlation_id=f"reprocess-{uuid.uuid4()}",
-                        file_path=media.original_file_path,
-                    )
+                    upload_event_for(media, correlation_id=f"reprocess-{uuid.uuid4()}")
                 )
 
             success = True
@@ -364,6 +349,32 @@ class MediaService:
                     media_type="unknown",
                     provider=None,
                 )
+
+    # ------------------------------------------------------------------ #
+    # Ciclo de vida, conduzido pelos eventos do processamento
+    # ------------------------------------------------------------------ #
+    async def record_processing_started(self, media_id: uuid.UUID) -> Optional[Media]:
+        return await self._transition(media_id, lambda media: media.mark_as_processing())
+
+    async def record_text_ready(self, media_id: uuid.UUID) -> Optional[Media]:
+        return await self._transition(media_id, lambda media: media.mark_as_completed())
+
+    async def record_processing_failed(
+        self, media_id: uuid.UUID, error_message: Optional[str]
+    ) -> Optional[Media]:
+        return await self._transition(
+            media_id, lambda media: media.mark_as_failed(error_message or "Erro desconhecido")
+        )
+
+    async def _transition(self, media_id: uuid.UUID, change) -> Optional[Media]:
+        """Carrega a mídia, aplica a regra da entidade e grava. None se não existir."""
+        media = await self.media_repository.get_by_id(media_id)
+        if not media:
+            logger.error("media_management.media_not_found", media_id=str(media_id))
+            return None
+        change(media)
+        await self.media_repository.update(media)
+        return media
 
     async def get_media(self, query: GetMediaQuery) -> Optional[Media]:
         """Retrieves a single media entity."""
@@ -478,6 +489,12 @@ class MediaService:
                 allowed=list(sorted(allowed)),
             )
         return name
+
+    def _transaction(self):
+        """Unidade de trabalho da operação (sem ela, cada repositório confirma a sua parte)."""
+        if self._unit_of_work is None:
+            return contextlib.nullcontext()
+        return self._unit_of_work.transaction()
 
     async def _delete_associated_records(self, media_id: uuid.UUID) -> None:
         """Pede a cada módulo que apague o que derivou da mídia.

@@ -3,18 +3,18 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Protocol
+from uuid import UUID
 
 from src.media_processing.domain import Transcription
 from src.shared.domain.events import MediaUploaded
-from src.shared.infrastructure.observability.ports import LoggerPort as SharedLoggerPort
-from src.shared.infrastructure.observability.ports import (
+from src.shared.application.observability import LoggerPort as SharedLoggerPort
+from src.shared.application.observability import (
     MetricsPort as SharedMetricsPort,
 )
-from src.storage.domain.value_objects.file_path import FilePath
 
 
 class StoragePort(Protocol):
-    async def retrieve(self, path: FilePath) -> bytes | None:
+    async def retrieve(self, path: str) -> bytes | None:
         ...
 
 
@@ -122,6 +122,38 @@ class VideoFrameExtractorPort(Protocol):
         ...
 
 
+class UnfinishedTranscriptionsPort(Protocol):
+    async def list_unfinished(self, started_before: datetime.datetime) -> List[Transcription]:
+        """Transcrições pendentes ou em andamento sem atualização desde o instante dado."""
+        ...
+
+
+class TranscriptionResultPort(Protocol):
+    async def process_transcription_result(
+        self,
+        transcription_id: UUID,
+        media_id: UUID,
+        result_data: dict,
+        provider: str,
+        success: bool,
+        error_message: Optional[str] = None,
+        *,
+        final_attempt: bool = False,
+        correlation_id: Optional[str] = None,
+    ) -> None:
+        """Registra o resultado (ou a falha) de uma transcrição e avisa os interessados."""
+        ...
+
+
+class VisualDescriberPort(Protocol):
+    """Descreve alguns quadros de uma gravação de vídeo (VisualDescriptionService)."""
+    async def describe_recording(
+        self, video_data: bytes, file_path: str, duration: Optional[float]
+    ) -> list[str]:
+        """Descrições "[mm:ss] texto"; lista vazia para áudio ou sem duração."""
+        ...
+
+
 class MediaDurationProbe(Protocol):
     """Lê a duração (em segundos) de um arquivo de áudio ou vídeo."""
     async def duration_seconds(self, file_path: str) -> float | None:
@@ -137,22 +169,6 @@ class RealtimeFactorPort(Protocol):
 class ProcessingTaskTerminator(Protocol):
     """Encerra a tarefa do worker que ainda processa uma transcrição."""
     async def terminate(self, transcription_id: str, media_id: str) -> bool:
-        ...
-
-
-@dataclass(frozen=True)
-class UnstartedMedia:
-    """Mídia enviada que nunca ganhou registro de processamento."""
-
-    upload: MediaUploaded  # evento reconstruído a partir do registro da mídia
-    uploaded_at: datetime.datetime
-
-
-class UnstartedMediaQueryPort(Protocol):
-    async def list_unstarted(
-        self, uploaded_before: datetime.datetime
-    ) -> List[UnstartedMedia]:
-        """Mídias ainda não concluídas, enviadas antes do instante dado, sem transcrição."""
         ...
 
 

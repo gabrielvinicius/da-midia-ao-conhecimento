@@ -12,6 +12,8 @@ class KnowledgeChunkModel(Base):
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     media_id = Column(Uuid(as_uuid=True), ForeignKey("media.id"), nullable=False, index=True)
+    # Dono do trecho: a busca filtra por ele sem consultar a tabela de mídias.
+    user_id = Column(Uuid(as_uuid=True), nullable=True, index=True)
     
     content = Column(Text, nullable=False)
     

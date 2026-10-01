@@ -45,6 +45,12 @@ class MediaSettings(BaseSettings):
         "bmp",
     ]
 
+    # Mídia enviada sem registro de processamento (UnstartedMediaRecovery):
+    # anunciada de novo após a folga e marcada como falha após o limite.
+    unstarted_check_interval_seconds: int = 300
+    unstarted_grace_minutes: float = 10
+    unstarted_give_up_minutes: float = 60
+
     model_config = SettingsConfigDict(
         env_prefix="MEDIA_",
         case_sensitive=False,

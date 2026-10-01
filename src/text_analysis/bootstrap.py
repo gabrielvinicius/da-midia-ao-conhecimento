@@ -73,7 +73,12 @@ async def build_text_analysis_module(
 
         repo = SqlAlchemyAnalysisRepository(session)
     
-    config = AnalysisConfig()
+    from src.text_analysis.infrastructure.dependencies.providers import (
+        build_analysis_config,
+        runtime_diagnostics,
+    )
+
+    config = build_analysis_config()
 
     # Provide a default transcription query adapter if none supplied
     if transcription_queries is None:
@@ -120,6 +125,7 @@ async def build_text_analysis_module(
         text_analysis_read_service=TextAnalysisReadService(repository=repo),
         settings=text_analysis_settings,
         stats_recorder=ProcessingStatsRepository(session) if session is not None else None,
+        runtime_diagnostics=runtime_diagnostics(),
     )
 
     knowledge_service = KnowledgeBaseService(

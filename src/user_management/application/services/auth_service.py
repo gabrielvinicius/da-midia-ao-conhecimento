@@ -3,12 +3,12 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 from uuid import UUID
 
-from src.shared.infrastructure.observability.logging.logging_config import get_logger
+import structlog
 from src.user_management.domain import User, UserRole
 
 from .user_service import UserService
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class AuthService:

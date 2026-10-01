@@ -6,7 +6,7 @@ import os
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 import structlog
@@ -19,21 +19,18 @@ from src.media_processing.application.ports import (
     StoragePort,
     TranscriptionRepositoryPort,
     TranscriptionTaskSchedulerPort,
+    VisualDescriberPort,
 )
 from src.media_processing.domain import Transcription, TranscriptionStatus
-from src.media_processing.domain.visual_sampling import VISUAL_CONTEXT_KEY, is_video_file
-from src.media_processing.domain.processing_deadline import (
-    MEDIA_DURATION_KEY,
-    expected_processing_seconds,
-)
+from src.media_processing.domain.processing_deadline import expected_processing_seconds
+from src.shared.application.ports import ProcessingStatsPort
 from src.shared.domain.errors import ResourceNotFoundError
 from src.shared.domain.events import (
     MediaProcessingStarted,
     TranscriptionCompleted,
     TranscriptionFailed,
 )
-from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
-from src.storage.domain.value_objects.file_path import FilePath
+from src.shared.application.event_bus import SupportsEventBus
 
 # DTOs
 from ..dtos import (
@@ -57,11 +54,10 @@ class TranscriptionService:
         transcription_metrics: MetricsPort,
         storage_service: StoragePort,
         speech_recognizer_factory: SpeechRecognizerFactory,
-        media_queries: Any,  # Duck typing for media_service.get_media
         event_bus: SupportsEventBus | None = None,
-        stats_recorder: Any | None = None,  # ProcessingStatsPort (opcional)
+        stats_recorder: ProcessingStatsPort | None = None,
         duration_probe: MediaDurationProbe | None = None,
-        visual_describer: Any | None = None,  # VisualDescriptionService (só no worker)
+        visual_describer: VisualDescriberPort | None = None,  # só no worker
     ) -> None:
         self._repo = transcription_repo
         self._task_scheduler = task_scheduler
@@ -69,7 +65,6 @@ class TranscriptionService:
         self._metrics = transcription_metrics
         self._storage = storage_service
         self._speech_recognizer_factory = speech_recognizer_factory
-        self._media_queries = media_queries
         self._event_bus = event_bus
         self._stats = stats_recorder
         self._duration_probe = duration_probe
@@ -113,7 +108,7 @@ class TranscriptionService:
         await self._repo.save(transcription)
 
         # Retrieve File
-        content = await self._storage.retrieve(FilePath(file_path))
+        content = await self._storage.retrieve(file_path)
         if not content:
             raise ResourceNotFoundError("File", file_path)
 
@@ -144,7 +139,7 @@ class TranscriptionService:
             )
 
             # Em vídeos, descreve alguns quadros com o arquivo já em mãos.
-            await self._describe_frames(result, content, file_path, transcription)
+            visual_context = await self._describe_frames(result, content, file_path, transcription)
 
             # Inject downstream provider preferences into result metadata for the event
             result["summarization_provider"] = summarization_provider
@@ -159,6 +154,7 @@ class TranscriptionService:
                 success=True,
                 final_attempt=final_attempt,
                 correlation_id=correlation_id,
+                visual_context=visual_context,
             )
             return result
         except Exception as exc:
@@ -188,7 +184,7 @@ class TranscriptionService:
         nesta instalação (processing_stats).
         """
         transcription = await self._repo.get_by_media_id(media_id)
-        media_seconds = (transcription.result or {}).get(MEDIA_DURATION_KEY) if transcription else None
+        media_seconds = transcription.media_duration_seconds if transcription else None
         factors: Dict[str, Optional[float]] = {"transcription": None, "text_analysis": None}
         if media_seconds and self._stats:
             for task in factors:
@@ -207,32 +203,14 @@ class TranscriptionService:
 
     async def _describe_frames(
         self, result: Dict[str, Any], content: bytes, file_path: str, transcription: Transcription
-    ) -> None:
-        if not self._visual or not is_video_file(file_path):
-            return
+    ) -> List[str]:
+        if not self._visual:
+            return []
         segments = result.get("segments") or []
-        duration = (
-            (segments[-1].get("end") if segments and isinstance(segments[-1], dict) else None)
-            or (transcription.result or {}).get(MEDIA_DURATION_KEY)
+        last_end = segments[-1].get("end") if segments and isinstance(segments[-1], dict) else None
+        return await self._visual.describe_recording(
+            content, file_path, last_end or transcription.media_duration_seconds
         )
-        if not duration:
-            return
-        started = time.perf_counter()
-        descriptions = await self._visual.describe(content, float(duration))
-        if descriptions:
-            result[VISUAL_CONTEXT_KEY] = descriptions
-        if self._stats:
-            try:
-                await self._stats.log_stat(
-                    "visual_description",
-                    time.perf_counter() - started,
-                    len(content),
-                    float(duration),
-                    getattr(self._visual, "model_label", None),
-                    "success" if descriptions else "failed",
-                )
-            except Exception as exc:
-                logger.warning("visual_description.stats_record_failed", error=str(exc))
 
     async def _record_media_duration(self, transcription: Transcription, path: str) -> None:
         """Guarda a duração da gravação: define o prazo desta tentativa (ver
@@ -242,7 +220,7 @@ class TranscriptionService:
         try:
             seconds = await self._duration_probe.duration_seconds(path)
             if seconds:
-                transcription.result = {**(transcription.result or {}), MEDIA_DURATION_KEY: seconds}
+                transcription.record_media_duration(seconds)
                 await self._repo.save(transcription)
         except Exception as exc:  # a duração é auxiliar; nunca derruba a transcrição
             logger.warning("transcription.media_duration_failed", error=str(exc))
@@ -375,6 +353,7 @@ class TranscriptionService:
         *,
         final_attempt: bool = False,
         correlation_id: Optional[str] = None,
+        visual_context: Optional[List[str]] = None,
     ) -> None:
         """Handles the result of an asynchronous transcription task."""
         transcription = await self._repo.get_by_id(transcription_id)
@@ -388,6 +367,8 @@ class TranscriptionService:
         original_status = transcription.status
         if success:
             transcription.mark_as_completed(result_data)
+            if visual_context:
+                transcription.attach_visual_context(visual_context)
         else:
             if final_attempt:
                 transcription.mark_as_failed(error_message or "Erro desconhecido")

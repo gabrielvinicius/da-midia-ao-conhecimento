@@ -1,6 +1,6 @@
 from .chunking import ChunkingServicePort
 from .embeddings import EmbeddingServicePort
-from .repository import AnalysisRepositoryPort
+from .repository import AnalysisRepositoryPort, FeedbackRepositoryPort
 from .resources import ReleasablePort
 from .sentiment import SentimentServicePort
 from .text_generation import TextGenerationPort, TextGenerationUnavailableError
@@ -15,6 +15,7 @@ __all__ = [
     "TextGenerationPort",
     "TextGenerationUnavailableError",
     "AnalysisRepositoryPort",
+    "FeedbackRepositoryPort",
     "ReleasablePort",
     "ChunkingServicePort",
     "TranscriptionQueryPort",

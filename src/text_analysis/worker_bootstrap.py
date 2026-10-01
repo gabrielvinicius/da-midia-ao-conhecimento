@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any, Optional
+from typing import Any
 
 from src.text_analysis.application import (
-    AnalysisConfig,
     NoOpTextAnalysisMetrics,
     TextAnalysisService,
 )
@@ -42,7 +41,12 @@ def build_text_analysis_service(
     )
     from src.text_analysis.infrastructure.repositories.feedback_repository import FeedbackRepository
 
-    config = AnalysisConfig()
+    from src.text_analysis.infrastructure.dependencies.providers import (
+        build_analysis_config,
+        runtime_diagnostics,
+    )
+
+    config = build_analysis_config()
     # O repositório SQLAlchemy expõe a sessão usada pelos demais repositórios.
     session = getattr(repository, "session", None)
     pipeline = build_analysis_pipeline(config, session).pipeline
@@ -61,6 +65,7 @@ def build_text_analysis_service(
         text_analysis_read_service=TextAnalysisReadService(repository=repository),
         settings=text_analysis_settings,
         stats_recorder=_stats_recorder(session),
+        runtime_diagnostics=runtime_diagnostics(),
     )
     return SimpleNamespace(service=service, repository=repository, config=config)
 

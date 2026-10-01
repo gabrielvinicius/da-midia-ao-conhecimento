@@ -4,9 +4,6 @@ from __future__ import annotations
 from pathlib import PurePosixPath
 from typing import List, Optional
 
-# Chave, no resultado da transcrição, das descrições dos quadros ("[mm:ss] texto").
-VISUAL_CONTEXT_KEY = "visual_context"
-
 # Formatos de vídeo aceitos no envio; áudios e documentos não têm quadros.
 VIDEO_EXTENSIONS = frozenset({".mp4", ".webm", ".mov", ".avi", ".mkv", ".flv"})
 

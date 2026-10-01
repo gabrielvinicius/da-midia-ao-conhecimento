@@ -21,10 +21,6 @@ class MediaProcessingSettings(BaseSettings):
     stall_unknown_duration_minutes: float = 60
     stall_queue_hours: float = 24
     stall_fallback_realtime_factor: float = 1.0
-    # Mídia enviada sem registro de processamento (UnstartedMediaRecovery):
-    # reenfileirada após a folga e marcada como falha após o limite.
-    unstarted_grace_minutes: float = 10
-    unstarted_give_up_minutes: float = 60
 
     def deadline_policy(self):
         from src.media_processing.domain.processing_deadline import (

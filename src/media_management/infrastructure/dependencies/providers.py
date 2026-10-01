@@ -4,12 +4,12 @@ from __future__ import annotations
 from src.media_management.application.ports import (
     EventBusPort,
     MediaMetricsPort,
-    StorageUploadPort,
 )
 from src.media_management.infrastructure.metrics.prometheus_metrics import (
     PrometheusMediaMetrics,
 )
-from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
+from src.shared.application.event_bus import SupportsEventBus
+from src.storage.application.ports import FileStoragePort as StorageUploadPort
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 

@@ -10,6 +10,10 @@ from sqlalchemy import Enum as SqlEnum
 from src.media_processing.domain import Transcription as DomainTranscription, TranscriptionStatus
 from src.shared.infrastructure.database.db import Base
 
+# Chaves, na coluna JSON "result", dos campos tipados da entidade.
+MEDIA_DURATION_KEY = "media_duration_seconds"
+VISUAL_CONTEXT_KEY = "visual_context"
+
 
 class TranscriptionModel(Base):
     __tablename__ = "transcriptions"
@@ -65,8 +69,10 @@ class TranscriptionModel(Base):
             updated_at=self.updated_at,
             processed_at=self.processed_at,
             error_message=self.error_message,
-            result=self.result,
-            speaker_aliases=self.speaker_aliases
+            result=_raw_result(self.result),
+            speaker_aliases=self.speaker_aliases,
+            media_duration_seconds=(self.result or {}).get(MEDIA_DURATION_KEY),
+            visual_context=(self.result or {}).get(VISUAL_CONTEXT_KEY),
         )
 
     @classmethod
@@ -88,6 +94,27 @@ class TranscriptionModel(Base):
             updated_at=transcription.updated_at,
             processed_at=transcription.processed_at,
             error_message=transcription.error_message,
-            result=transcription.result,
+            result=_stored_result(transcription),
             speaker_aliases=transcription.speaker_aliases
         )
+
+
+# Os campos tipados da entidade são guardados na coluna JSON "result", junto
+# com a saída do modelo (detalhe de persistência, sem migração).
+_TYPED_KEYS = (MEDIA_DURATION_KEY, VISUAL_CONTEXT_KEY)
+
+
+def _raw_result(stored):
+    if not stored:
+        return stored
+    raw = {k: v for k, v in stored.items() if k not in _TYPED_KEYS}
+    return raw or None
+
+
+def _stored_result(transcription):
+    stored = dict(transcription.result or {})
+    if getattr(transcription, "media_duration_seconds", None):
+        stored[MEDIA_DURATION_KEY] = transcription.media_duration_seconds
+    if getattr(transcription, "visual_context", None):
+        stored[VISUAL_CONTEXT_KEY] = list(transcription.visual_context)
+    return stored or None

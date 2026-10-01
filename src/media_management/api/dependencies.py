@@ -22,11 +22,12 @@ from src.media_management.infrastructure.adapters.storage_uploader_adapter impor
 from src.media_management.infrastructure.repositories.media_repository import (
     MediaRepository,
 )
+from src.shared.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 from src.media_management.infrastructure.dependencies.data_erasers import (
     build_media_data_erasers,
 )
 from src.shared.infrastructure.database.db import get_db
-from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
+from src.shared.application.event_bus import SupportsEventBus
 from src.storage.infrastructure.dependencies import StorageServiceFactory, get_storage_service_factory
 from src.storage.application.services.maintenance_service import (
     StorageMaintenanceService,
@@ -81,4 +82,5 @@ def get_media_service(
             storage_port=StorageMaintenanceAdapter(storage_factory),
         ),
         data_erasers=build_media_data_erasers(media_repository.db),
+        unit_of_work=SqlAlchemyUnitOfWork(media_repository.db),
     )

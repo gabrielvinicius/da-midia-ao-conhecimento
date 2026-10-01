@@ -83,7 +83,6 @@ async def test_transcription_smoke():
         transcription_metrics=DummyMetrics(),
         storage_service=DummyStorage(),
         speech_recognizer_factory=lambda provider: recognizer,
-        media_queries=None,
         event_bus=None,
     )
 

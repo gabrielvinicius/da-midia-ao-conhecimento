@@ -17,9 +17,6 @@ from src.media_processing.infrastructure.dependencies.providers import (
 from src.media_processing.infrastructure.logging import structured_transcription_logger
 from src.media_processing.infrastructure.metrics import prometheus_transcription_metrics
 from src.media_processing.infrastructure.repositories import transcription_repository
-from src.media_management.infrastructure.repositories.media_repository import (
-    MediaRepository,
-)
 from src.shared.infrastructure.database.db import get_db
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 
@@ -55,7 +52,6 @@ def get_transcription_dependencies(
     repo = TranscriptionRepository(db=session)
     storage_factory = StorageServiceFactory()
     storage_service = storage_factory.create_storage_service("local")
-    media_queries = MediaRepository(db=session)
     event_bus = _get_event_bus(request)
 
     service = TranscriptionService(
@@ -65,7 +61,6 @@ def get_transcription_dependencies(
         transcription_metrics=PrometheusTranscriptionMetrics(),
         storage_service=storage_service,
         speech_recognizer_factory=lambda provider: get_speech_recognizer(provider),
-        media_queries=media_queries,
         event_bus=event_bus,
     )
 

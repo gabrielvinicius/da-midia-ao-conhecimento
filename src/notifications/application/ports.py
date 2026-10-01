@@ -4,7 +4,7 @@ from typing import Any, Optional, Protocol
 from uuid import UUID
 
 from src.notifications.domain import Notification
-from src.shared.infrastructure.observability.ports import (
+from src.shared.application.observability import (
     MetricsPort as SharedMetricsPort,
 )
 

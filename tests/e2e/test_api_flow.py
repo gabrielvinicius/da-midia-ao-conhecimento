@@ -235,7 +235,7 @@ def test_upload_without_processing_record_is_requeued_then_failed(client):
     from sqlalchemy import text
 
     from src.media_processing.worker import MediaWorkerApp
-    from src.media_processing.worker_bootstrap import build_unstarted_media_recovery
+    from src.media_management.infrastructure.dependencies.recovery import build_unstarted_media_recovery
     from src.shared.infrastructure.database.db import AsyncSessionLocal, engine_sync
     from src.shared.infrastructure.messaging.event_bus_factory import get_event_bus
 
@@ -365,3 +365,96 @@ def test_deleting_analyzed_media_leaves_nothing_behind(client):
     assert counts() == {t: 0 for t in tables}
     # O arquivo enviado também sai do disco (antes ficava: a pasta não era apagada).
     assert not stored_file.exists()
+
+
+def test_failed_deletion_keeps_everything(client, monkeypatch):
+    """Unidade de trabalho: se o arquivo não puder ser apagado, nenhum dado
+    derivado sai do banco (antes, transcrição e análise já tinham sido
+    apagadas quando a falha acontecia) e a exclusão pode ser repetida."""
+    import time
+    import uuid as _uuid
+
+    from sqlalchemy import text
+
+    from src.shared.infrastructure.database.db import engine_sync
+    from src.storage.infrastructure.persistence.local_storage_repository import LocalStorageService
+
+    alice = _account(client, "hele")
+    r = client.post(
+        "/media/",
+        headers=alice,
+        files={"file": ("aula.txt", "A integral acumula a variação.".encode(), "text/plain")},
+    )
+    assert r.status_code == 201, r.text
+    media_id = r.json()["id"]
+
+    def count(table):
+        with engine_sync.connect() as conn:
+            return conn.execute(text(f"SELECT count(*) FROM {table} WHERE media_id = :id"), {"id": media_id}).scalar()
+
+    for _ in range(50):
+        if count("transcriptions"):
+            break
+        time.sleep(0.1)
+    with engine_sync.begin() as conn:
+        conn.execute(
+            text("INSERT INTO text_analysis_results (id, document_id, media_id, payload) "
+                 "VALUES (:aid, 'doc', :id, '{}'::jsonb)"),
+            {"aid": f"analysis-{_uuid.uuid4().hex[:8]}", "id": media_id},
+        )
+
+    async def broken_remove_folder(self, folder_path):
+        raise OSError("disco somente leitura")
+
+    monkeypatch.setattr(LocalStorageService, "remove_folder", broken_remove_folder)
+    r = client.delete(f"/media/{media_id}", headers=alice)
+    assert r.status_code == 503, r.text
+    assert count("transcriptions") == 1
+    assert count("text_analysis_results") == 1
+    assert client.get(f"/media/{media_id}", headers=alice).status_code == 200
+
+    monkeypatch.undo()
+    assert client.delete(f"/media/{media_id}", headers=alice).status_code == 204
+    assert count("transcriptions") == 0 and count("text_analysis_results") == 0
+
+
+def test_semantic_search_only_returns_the_owners_chunks(client):
+    """A busca filtra pelo dono gravado no próprio trecho (antes, consultava a
+    tabela de mídias, que é de outro módulo)."""
+    import asyncio
+    import time
+
+    from sqlalchemy import text
+
+    from src.shared.infrastructure.database.db import AsyncSessionLocal, engine_sync
+    from src.text_analysis.infrastructure.repositories.vector_repository import VectorRepository
+
+    owners = {}
+    for name in ("iara", "joao"):
+        headers = _account(client, name)
+        r = client.post(
+            "/media/",
+            headers=headers,
+            files={"file": (f"{name}.txt", "A derivada mede a variação.".encode(), "text/plain")},
+        )
+        assert r.status_code == 201, r.text
+        media_id = r.json()["id"]
+        with engine_sync.connect() as conn:
+            owners[name] = (media_id, conn.execute(
+                text("SELECT user_id FROM media WHERE id = :id"), {"id": media_id}
+            ).scalar())
+
+    vector = [0.1] * 384
+
+    async def index_and_search():
+        async with AsyncSessionLocal() as session:
+            repo = VectorRepository(session)
+            for name, (media_id, user_id) in owners.items():
+                await repo.save_chunks(
+                    media_id, [{"text": f"trecho de {name}", "embedding": vector}], user_id=user_id
+                )
+            rows = await repo.semantic_search(vector, limit=10, user_id=owners["iara"][1])
+            return [row.content for row, _ in rows]
+
+    time.sleep(0.2)
+    assert asyncio.run(index_and_search()) == ["trecho de iara"]
