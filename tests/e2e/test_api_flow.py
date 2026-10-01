@@ -174,7 +174,7 @@ def test_stalled_media_is_marked_failed_and_can_be_retried(client):
     from sqlalchemy import text
 
     from src.media_processing.worker import MediaWorkerApp
-    from src.media_processing.worker_bootstrap import (
+    from src.media_processing.infrastructure.dependencies.builders import (
         build_stalled_processing_monitor,
     )
     from src.shared.infrastructure.database.db import AsyncSessionLocal, engine_sync

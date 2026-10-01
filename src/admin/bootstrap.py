@@ -32,6 +32,7 @@ from src.admin.infrastructure.dependencies.providers import (
     get_user_read_adapter,
 )
 from src.media_management.application.services.media_service import MediaService
+from src.media_management.infrastructure.dependencies.builders import build_media_read_service
 from src.media_management.infrastructure.repositories.media_repository import (
     MediaRepository,
 )
@@ -72,7 +73,7 @@ def build_admin_module(
     media_repo_adapter = MediaRepositoryAdapter(media_repo)
 
     # Read adapters via ports
-    media_read_adapter: MediaReadAdapter = get_media_read_adapter(media_repo)
+    media_read_adapter: MediaReadAdapter = get_media_read_adapter(build_media_read_service(session))
     user_read_adapter: UserReadAdapter = get_user_read_adapter(auth_queries)
     admin_queries = AdminReadService(
         user_read_port=user_read_adapter,

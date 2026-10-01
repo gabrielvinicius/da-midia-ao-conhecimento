@@ -1,18 +1,33 @@
+"""Montagem dos serviços de mídias: um único lugar para a API e os workers.
+
+Antes, o MediaService era montado em três lugares, e as montagens divergiam:
+a da API gravava sempre no armazenamento local, ignorando o escolhido no
+envio, e só ela tinha o leitor de arquivos usado na reprodução.
+"""
 from __future__ import annotations
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 
 from src.media_management.application.event_handlers import MediaEventHandlers
 from src.media_management.application.services.media_read_service import MediaReadService
 from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.services.validators import MediaUploadValidator
 from src.media_management.config.settings import media_settings
+from src.media_management.infrastructure.adapters.file_validator_adapter import (
+    MediaFileReferenceValidator,
+)
 from src.media_management.infrastructure.adapters.media_repository_adapter import (
     MediaRepositoryAdapter,
+)
+from src.media_management.infrastructure.adapters.storage_downloader_adapter import (
+    StorageDownloaderAdapter,
 )
 from src.media_management.infrastructure.adapters.storage_uploader_adapter import (
     DefaultUploadMetadataMapper,
     StorageServiceFactoryUploader,
+)
+from src.media_management.infrastructure.dependencies.data_erasers import (
+    build_media_data_erasers,
 )
 from src.media_management.infrastructure.metrics.prometheus_metrics import (
     PrometheusMediaMetrics,
@@ -20,11 +35,8 @@ from src.media_management.infrastructure.metrics.prometheus_metrics import (
 from src.media_management.infrastructure.repositories.media_repository import (
     MediaRepository,
 )
-from src.shared.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
-from src.media_management.infrastructure.dependencies.data_erasers import (
-    build_media_data_erasers,
-)
 from src.shared.application.event_bus import SupportsEventBus
+from src.shared.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 from src.storage.application.services.maintenance_service import (
     StorageMaintenanceService,
 )
@@ -34,50 +46,47 @@ from src.storage.infrastructure.adapters.storage_maintenance_adapter import (
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 
+def build_media_read_service(session) -> MediaReadService:
+    return MediaReadService(media_repository=MediaRepositoryAdapter(MediaRepository(db=session)))
+
+
 def build_media_service(
     *,
-    session: AsyncSession,
+    session,
     storage_factory: StorageServiceFactory,
-    event_bus: SupportsEventBus,
+    event_bus: Optional[SupportsEventBus],
 ) -> MediaService:
-    """Constrói o MediaService (command-side) para uso em APIs e handlers."""
-
-    media_repo = MediaRepository(db=session)
-    media_repo_adapter = MediaRepositoryAdapter(media_repo)
-
-    media_read_service = MediaReadService(media_repository=media_repo_adapter)
-    upload_validator = MediaUploadValidator(settings=media_settings)
-
+    """Casos de uso das mídias (envio, exclusão, reprocessamento, ciclo de vida)."""
+    media_repository = MediaRepository(db=session)
+    storage_maintenance = StorageMaintenanceService(
+        storage_port=StorageMaintenanceAdapter(storage_factory)
+    )
+    # A limpeza de arquivos órfãos pergunta às mídias quais arquivos ainda existem.
+    storage_maintenance.register_validator(MediaFileReferenceValidator(media_repository))
     return MediaService(
-        media_repository=media_repo_adapter,
+        media_repository=MediaRepositoryAdapter(media_repository),
         storage_uploader=StorageServiceFactoryUploader(storage_factory),
         metadata_mapper=DefaultUploadMetadataMapper(),
         metrics_service=PrometheusMediaMetrics(),
-        upload_validator=upload_validator,
-        media_read_service=media_read_service,
+        upload_validator=MediaUploadValidator(settings=media_settings),
+        media_read_service=build_media_read_service(session),
         event_bus=event_bus,
-        storage_maintenance=StorageMaintenanceService(
-            storage_port=StorageMaintenanceAdapter(storage_factory),
-        ),
+        storage_maintenance=storage_maintenance,
         data_erasers=build_media_data_erasers(session),
         unit_of_work=SqlAlchemyUnitOfWork(session),
+        storage_downloader=StorageDownloaderAdapter(storage_factory),
     )
 
 
 def build_media_event_handlers(
     *,
-    session: AsyncSession,
+    session,
     storage_factory: StorageServiceFactory,
     event_bus: SupportsEventBus,
 ) -> MediaEventHandlers:
-    """Constrói handlers do media_management com dependências por evento."""
-
-    service = build_media_service(
-        session=session,
-        storage_factory=storage_factory,
-        event_bus=event_bus,
-    )
+    """Reações do módulo de mídias aos eventos do processamento."""
+    service = build_media_service(session=session, storage_factory=storage_factory, event_bus=event_bus)
     return MediaEventHandlers(service, event_bus=event_bus)
 
 
-__all__ = ["build_media_service", "build_media_event_handlers"]
+__all__ = ["build_media_event_handlers", "build_media_read_service", "build_media_service"]

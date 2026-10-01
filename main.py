@@ -24,7 +24,7 @@ from src.shared.application.lifecycle import (
     start_application_resources,
     stop_application_resources,
 )
-from src.shared.application.modules import (
+from src.shared.api.modules import (
     DEFAULT_MODULE_SPECS,
     include_module_routers,
     register_module_dependencies,
@@ -222,7 +222,6 @@ async def lifespan(app: FastAPI):
     media_module, _ = build_media_components(
         session=session,
         storage_service_factory=storage_factory,
-        metrics_service=None,
         event_bus=event_bus,
     )
     user_management_module = build_user_management_components(session=session)
@@ -292,32 +291,8 @@ async def lifespan(app: FastAPI):
     if not lightweight_mode and default_admin_email and default_admin_password:
         try:
             async with AsyncSessionLocal() as session:
-                from src.user_management.application.auth_queries import UserReadService
-                from src.user_management.application.services.user_service import (
-                    UserService,
-                )
-                from src.user_management.config.settings import user_settings
-                from src.user_management.infrastructure.adapters.user_repository_adapter import (
-                    UserRepositoryAdapter,
-                )
-                from src.user_management.infrastructure.dependencies.providers import (
-                    get_password_hasher,
-                    get_token_provider,
-                )
-                from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import (
-                    UserRepository,
-                )
-
-                user_repo = UserRepository(db=session)
-                user_repo_adapter = UserRepositoryAdapter(user_repo)
-                auth_queries = UserReadService(user_repository=user_repo_adapter)
-                user_service = UserService(
-                    user_repository=user_repo_adapter,
-                    user_read_service=auth_queries,
-                    password_hasher=get_password_hasher(),
-                    token_provider=get_token_provider(),
-                    settings=user_settings,
-                )
+                # A mesma montagem do módulo usada pela API.
+                user_service = build_user_management_components(session=session).user_service
 
                 admin_user = await user_service.ensure_admin_user(
                     email=default_admin_email,

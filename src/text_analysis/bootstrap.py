@@ -7,28 +7,14 @@ from typing import Any, Optional
 
 from fastapi import FastAPI
 
-from src.shared.domain.events import TextContentReady
-
-from .application import (
-    AnalysisConfig,
-    NoOpTextAnalysisMetrics,
-    TextAnalysisService,
-)
-from .application.event_handlers import build_text_content_ready_handler
+from .application import TextAnalysisService
 from .application.ports import TranscriptionQueryPort
-from .application.services.text_analysis_read_service import TextAnalysisReadService
 from .application.services.knowledge_base_service import KnowledgeBaseService
-from .infrastructure.repositories.feedback_repository import FeedbackRepository
-from src.shared.infrastructure.repositories.processing_stats_repository import (
-    ProcessingStatsRepository,
-)
-from src.media_processing.application.services.transcription_read_service import (
-    TranscriptionReadService,
-)
-from .config.settings import text_analysis_settings
-from .infrastructure.dependencies.pipeline_factory import build_analysis_pipeline
-from .infrastructure.metrics.prometheus_metrics import PrometheusTextAnalysisMetrics
 from .infrastructure.dependencies import registry as ta_registry
+from .infrastructure.dependencies.builders import (
+    build_knowledge_service,
+    build_text_analysis_service,
+)
 from .infrastructure.dependencies.registry import needs_health_refresh, update_health_timestamp
 from src.shared.infrastructure.observability.metrics.prometheus_metrics import SharedPrometheusMetrics
 
@@ -49,8 +35,6 @@ def _prom_available() -> bool:
 @dataclass
 class TextAnalysisModule:
     service: TextAnalysisService
-    repository: Any
-    config: AnalysisConfig
     knowledge_service: KnowledgeBaseService
 
 
@@ -61,111 +45,30 @@ async def build_text_analysis_module(
     transcription_queries: Optional[TranscriptionQueryPort] = None,
     **_kwargs: Any,
 ) -> TextAnalysisModule:
-    if repository is not None:
-        repo = repository
-    else:
-        from .infrastructure.repositories.sqlalchemy_analysis_repository import (
-            SqlAlchemyAnalysisRepository,
-        )
+    """Módulo da API, montado uma vez (sessão por requisição) pelas fábricas únicas.
 
-        if session is None:
-            raise RuntimeError("TextAnalysis requires a database session for persistence")
-
-        repo = SqlAlchemyAnalysisRepository(session)
-    
-    from src.text_analysis.infrastructure.dependencies.providers import (
-        build_analysis_config,
-        runtime_diagnostics,
-    )
-
-    config = build_analysis_config()
-
-    # Provide a default transcription query adapter if none supplied
-    if transcription_queries is None:
-        from src.media_processing.infrastructure.dependencies.transcription_query_adapter import (
-            TranscriptionQueryAdapter,
-        )
-        from src.media_processing.infrastructure.repositories.transcription_repository import (
-            TranscriptionRepository,
-        )
-        from src.media_management.infrastructure.repositories.media_repository import (
-            MediaRepository,
-        )
-        transcription_queries = TranscriptionQueryAdapter(
-            repo=TranscriptionRepository(session),
-            media_repo=MediaRepository(session)
-        )
-
-    # Normalizar acesso de leitura via serviço dedicado
-    transcription_queries = TranscriptionReadService(transcription_queries)
-
+    A análise em si roda no worker: a API não assina TextContentReady.
+    """
+    if session is None and repository is None:
+        raise RuntimeError("TextAnalysis requires a database session for persistence")
     _update_registry_availability()
-
-    # --- Pipeline (montagem única, compartilhada com os workers) ---
-    components = build_analysis_pipeline(config, session)
-    pipeline = components.pipeline
-    embedding_adapter = components.embedding_adapter
-    vector_repo = components.vector_repo
-    feedback_repo = FeedbackRepository(session)
-
-    metrics = (
-        PrometheusTextAnalysisMetrics()
-        if _prom_available()
-        else NoOpTextAnalysisMetrics()
-    )
-
-    service = TextAnalysisService(
-        repository=repo,
-        pipeline=pipeline,
-        feedback_repo=feedback_repo,
-        config=config,
-        metrics=metrics,
-        event_bus=event_bus,
-        transcription_queries=transcription_queries,
-        text_analysis_read_service=TextAnalysisReadService(repository=repo),
-        settings=text_analysis_settings,
-        stats_recorder=ProcessingStatsRepository(session) if session is not None else None,
-        runtime_diagnostics=runtime_diagnostics(),
-    )
-
-    knowledge_service = KnowledgeBaseService(
-        vector_repo=vector_repo,
-        embedding_service=embedding_adapter
-    )
-
-    if event_bus:
-        handler = build_text_content_ready_handler(service)
-        event_bus.subscribe(TextContentReady, handler)
-
     return TextAnalysisModule(
-        service=service,
-        repository=repo,
-        config=config,
-        knowledge_service=knowledge_service
+        service=build_text_analysis_service(
+            session,
+            event_bus,
+            repository=repository,
+            transcription_queries=transcription_queries,
+        ),
+        knowledge_service=build_knowledge_service(session),
     )
 
 
 def bind_text_analysis_module(app: FastAPI, module: TextAnalysisModule) -> None:
-    """Register dependency overrides for text analysis.
-    Uses dynamic resolution to ensure fresh sessions per request.
-    """
-    from fastapi import Depends
-    from sqlalchemy.ext.asyncio import AsyncSession
-    from src.shared.infrastructure.database.db import get_db
-    from .api.dependencies import get_text_analysis_service, get_knowledge_service
+    """Register dependency overrides for text analysis."""
+    from .api.dependencies import get_knowledge_service, get_text_analysis_service
 
-    async def resolve_service(session: AsyncSession = Depends(get_db)):
-        # Re-build the module logic using the current request's session
-        # This is the safest way to avoid 'session provisioning a new connection' errors
-        m = await build_text_analysis_module(session=session)
-        return m.service
-
-    async def resolve_knowledge(session: AsyncSession = Depends(get_db)):
-        m = await build_text_analysis_module(session=session)
-        return m.knowledge_service
-
-    app.dependency_overrides[get_text_analysis_service] = resolve_service
-    app.dependency_overrides[get_knowledge_service] = resolve_knowledge
+    app.dependency_overrides[get_text_analysis_service] = lambda: module.service
+    app.dependency_overrides[get_knowledge_service] = lambda: module.knowledge_service
 
 
 def _check_module_available(module_name: str) -> bool:

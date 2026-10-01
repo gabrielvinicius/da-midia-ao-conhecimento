@@ -6,7 +6,7 @@ from asgiref.sync import async_to_sync
 from celery import shared_task
 from celery.signals import worker_process_init
 
-from src.media_processing.worker_bootstrap import (
+from src.media_processing.infrastructure.dependencies.builders import (
     build_stalled_processing_monitor,
     build_text_extraction_service,
     build_transcription_service,

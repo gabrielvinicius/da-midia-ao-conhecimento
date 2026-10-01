@@ -24,7 +24,7 @@ from src.shared.infrastructure.messaging.event_bus_factory import (
 from src.text_analysis.application.dtos import AnalyzeTextCommand
 from src.text_analysis.application.services.text_analysis_service import TextAnalysisService
 from src.text_analysis.infrastructure.dependencies.providers import get_event_bus
-from src.text_analysis.worker_bootstrap import build_text_analysis_service
+from src.text_analysis.infrastructure.dependencies.builders import build_text_analysis_service
 
 TASK_TEXT_ANALYSIS_ANALYZE = "text_analysis.analyze"
 TASK_TEXT_ANALYSIS_SUMMARIZE = "text_analysis.summarize"
@@ -43,30 +43,7 @@ def _ensure_event_bus(bus=None):
 
 
 async def _build_service(*, session, event_bus) -> TextAnalysisService:
-    from src.media_processing.infrastructure.dependencies.transcription_query_adapter import (
-        TranscriptionQueryAdapter,
-    )
-    from src.media_processing.infrastructure.repositories.transcription_repository import (
-        TranscriptionRepository,
-    )
-    from src.media_management.infrastructure.repositories.media_repository import (
-        MediaRepository,
-    )
-    from src.text_analysis.infrastructure.repositories.sqlalchemy_analysis_repository import (
-        SqlAlchemyAnalysisRepository,
-    )
-
-    transcription_repo = TranscriptionRepository(session)
-    media_repo = MediaRepository(session)
-    transcription_queries = TranscriptionQueryAdapter(transcription_repo, media_repo)
-    repository = SqlAlchemyAnalysisRepository(session)
-
-    module = build_text_analysis_service(
-        repository=repository,
-        event_bus=_ensure_event_bus(event_bus),
-        transcription_queries=transcription_queries,
-    )
-    return module.service
+    return build_text_analysis_service(session, _ensure_event_bus(event_bus))
 
 
 async def _async_task_body(

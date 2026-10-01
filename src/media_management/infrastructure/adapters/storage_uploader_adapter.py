@@ -11,34 +11,7 @@ from src.media_management.application.ports import (
     UploadMetadataMapperPort,
     UploadResult,
 )
-from src.storage.application.ports import FileStoragePort as StorageUploadPort
 from src.storage.application.ports import StorageServiceResolverPort  # Use Port
-
-
-class StorageUploaderAdapter(StorageUploadPort):
-    """Adapter wrapping StorageServiceResolverPort to FileStoragePort."""
-
-    def __init__(
-        self,
-        factory: StorageServiceResolverPort,
-        provider_name: str = "local",
-    ) -> None:
-        self._factory = factory
-        self._provider = provider_name
-
-    async def upload(
-        self,
-        *,
-        file_data: bytes,
-        destination: str,
-        content_type: str,
-    ) -> dict:
-        storage = self._factory.create_storage_service(self._provider)
-        return await storage.upload(
-            file_data=file_data,
-            destination=destination,
-            content_type=content_type,
-        )
 
 
 class StorageServiceFactoryUploader(StorageUploaderPort):
@@ -93,37 +66,9 @@ class DefaultUploadMetadataMapper(UploadMetadataMapperPort):
         )
 
 
-class DefaultStorageUploader(StorageUploaderPort):
-    """Standard implementation of storage uploading using the adapter."""
-
-    def __init__(self, storage_adapter: StorageUploadPort):
-        self.storage = storage_adapter
-
-    async def upload(
-        self,
-        command,
-        media_id: uuid.UUID,
-        content_type: str,
-    ) -> UploadResult:
-        now = datetime.now(timezone.utc)
-        safe_filename = os.path.basename(command.filename)
-        destination_path = (
-            f"{command.user_id}/{now.year}/{now.month:02d}/{media_id}/{safe_filename}"
-        )
-
-        metadata = await self.storage.upload(
-            file_data=command.file,
-            destination=destination_path,
-            content_type=content_type,
-        )
-        return UploadResult(destination_path=destination_path, metadata=metadata)
-
-
 __all__ = [
-    "StorageUploaderAdapter",
     "StorageServiceFactoryUploader",
     "UploadResult",
     "UploadMetadata",
     "DefaultUploadMetadataMapper",
-    "DefaultStorageUploader",
 ]

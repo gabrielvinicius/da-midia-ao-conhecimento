@@ -57,8 +57,9 @@ def get_user_repository_adapter(session) -> UserRepositoryAdapter:
     return UserRepositoryAdapter(UserRepository(db=session))
 
 
-def get_media_read_adapter(media_repository) -> MediaReadAdapter:
-    return MediaReadAdapter(MediaReadService(media_repository))
+def get_media_read_adapter(media_read_service: MediaReadService) -> MediaReadAdapter:
+    """Leitura das mídias pelo serviço do próprio módulo de mídias (sua montagem única)."""
+    return MediaReadAdapter(media_read_service)
 
 
 def get_user_read_adapter(auth_queries: UserReadService) -> UserReadAdapter:
