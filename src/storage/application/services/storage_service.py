@@ -35,6 +35,11 @@ class StorageService:
         logger.info("storage.delete_file", path=str(file_path))
         return await self._repository.remove(file_path)
 
+    async def delete_folder(self, path: str) -> bool:
+        """Deletes a folder and everything in it (e.g. all files of a media)."""
+        logger.info("storage.delete_folder", path=path)
+        return await self._repository.remove_folder(path)
+
     async def file_exists(self, path: str) -> bool:
         """Checks if file exists."""
         file_path = FilePath.from_path(path)

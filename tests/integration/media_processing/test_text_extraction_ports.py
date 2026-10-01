@@ -6,7 +6,9 @@ from src.media_processing.application.services.text_extraction_service import (
     TextExtractionService,
 )
 from src.media_processing.domain import Transcription, TranscriptionStatus
-from src.media_processing.application.tasks import CeleryTextTaskScheduler
+from src.media_processing.infrastructure.adapters.celery_task_schedulers import (
+    CeleryTextTaskScheduler,
+)
 from src.shared.domain.events import MediaProcessingCompleted, TextContentReady
 
 

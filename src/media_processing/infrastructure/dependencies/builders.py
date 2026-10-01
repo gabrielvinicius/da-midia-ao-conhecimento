@@ -12,7 +12,7 @@ from src.media_processing.application.services.text_extraction_service import (
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
-from src.media_processing.application.tasks import (
+from src.media_processing.infrastructure.adapters.celery_task_schedulers import (
     CeleryTextTaskScheduler,
     CeleryTranscriptionTaskScheduler,
 )

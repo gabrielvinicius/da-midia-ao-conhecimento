@@ -115,6 +115,9 @@ class StorageClientAdapter(FileStoragePort):
     async def delete(self, file_path: str) -> bool:
         return await self.service.delete_file(file_path)
 
+    async def delete_folder(self, folder_path: str) -> bool:
+        return await self.service.delete_folder(folder_path)
+
     def delete_sync(self, file_path: str) -> bool:
         """Synchronous version of delete."""
         import asyncio

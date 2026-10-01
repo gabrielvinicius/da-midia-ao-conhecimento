@@ -54,7 +54,7 @@ def service_components() -> Dict[str, object]:
     metadata_mapper.map = MagicMock()
     metrics_service = MagicMock(spec=PrometheusMediaMetrics)
     upload_validator = MagicMock(spec=MediaUploadValidator)
-    storage_maintenance = MagicMock()
+    storage_maintenance = AsyncMock()
     access_policy = MagicMock()
 
     service = MediaService(
@@ -87,6 +87,7 @@ def service_components() -> Dict[str, object]:
         "metrics_service": metrics_service,
         "validator": upload_validator,
         "access_policy": access_policy,
+        "storage_maintenance": storage_maintenance,
     }
 
 
@@ -142,6 +143,9 @@ async def test_delete_media_checks_access_and_dispatches(service_components):
 
     access_policy.ensure_can_access.assert_called_once()
     media_repository.delete.assert_awaited_once()
+    service_components["storage_maintenance"].delete_file.assert_awaited_once_with(
+        "local", "media/demo.mp4"
+    )
     assert returned == media
 
 

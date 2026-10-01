@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 Backend code lives in `src/`, grouped by bounded contexts such as `media_management`, `media_processing`, `text_analysis`, `storage`, and `admin`. The system operates as a **Modular Monolith** with **Clean Architecture** and **DDD**.
 
-- `media_processing`: Orchestrates the Multimodal pipeline (Whisper for audio, Moondream 2 for vision). Handlers are in `tasks.py`.
+- `media_processing`: Orchestrates the Multimodal pipeline (Whisper for audio, Moondream 2 for vision). Celery tasks are in the module-root `tasks.py`.
 - `text_analysis`: Granular pipeline (Chunking -> Sentiment -> Topics -> Visual Integration -> Summary). Uses Llama 3 for synthesis.
 - `storage`: High-level ports for swappable backends (Local/S3/MinIO). Includes `StorageMaintenanceService` for cleanup.
 - `shared`: Common domain events, infrastructure middleware, and the `pgvector` semantic indexing bridge.
@@ -30,6 +30,7 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 - **Migrations**: `docker-compose exec backend alembic upgrade head`.
 - **Tests**: `poetry run pytest` (Unit, Integration, E2E). 90+ tests must pass.
 - **Linting**: `poetry run ruff check --fix` and `poetry run mypy .`.
+- **Architecture**: `lint-imports` checks the layer and module rules in `.importlinter` (also in CI). Composition code (`bootstrap.py`, `tasks.py`, `worker*.py`) lives at the module root, never in `application/`.
 
 ## Coding Style & Naming Conventions
 - **Python**: 4-space indent, Ruff formatting, strict type hints.

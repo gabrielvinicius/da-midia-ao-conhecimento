@@ -20,17 +20,8 @@ from src.media_management.infrastructure.metrics.prometheus_metrics import (
 from src.media_management.infrastructure.repositories.media_repository import (
     MediaRepository,
 )
-from src.media_processing.infrastructure.adapters.transcription_cleanup_adapter import (
-    TranscriptionCleanupAdapter,
-)
-from src.media_processing.infrastructure.repositories.transcription_repository import (
-    TranscriptionRepository,
-)
-from src.text_analysis.infrastructure.adapters.text_analysis_cleanup_adapter import (
-    TextAnalysisCleanupAdapter,
-)
-from src.text_analysis.infrastructure.repositories.sqlalchemy_analysis_repository import (
-    SqlAlchemyAnalysisRepository,
+from src.media_management.infrastructure.dependencies.data_erasers import (
+    build_media_data_erasers,
 )
 from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
 from src.storage.application.services.maintenance_service import (
@@ -51,7 +42,6 @@ def build_media_service(
     """Constrói o MediaService (command-side) para uso em APIs e handlers."""
 
     media_repo = MediaRepository(db=session)
-    transcription_repo = TranscriptionRepository(db=session)
     media_repo_adapter = MediaRepositoryAdapter(media_repo)
 
     media_read_service = MediaReadService(media_repository=media_repo_adapter)
@@ -68,10 +58,7 @@ def build_media_service(
         storage_maintenance=StorageMaintenanceService(
             storage_port=StorageMaintenanceAdapter(storage_factory),
         ),
-        transcription_cleanup=TranscriptionCleanupAdapter(transcription_repo),
-        text_analysis_cleanup=TextAnalysisCleanupAdapter(
-            SqlAlchemyAnalysisRepository(session)
-        ),
+        data_erasers=build_media_data_erasers(session),
     )
 
 

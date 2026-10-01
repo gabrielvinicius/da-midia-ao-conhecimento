@@ -114,6 +114,33 @@ def build_stalled_processing_monitor(session, event_bus: SupportsEventBus):
     )
 
 
+def build_unstarted_media_recovery(session, event_bus: SupportsEventBus):
+    from src.media_processing.application.services.unstarted_media_recovery import (
+        UnstartedMediaRecovery,
+    )
+    from src.media_processing.config.settings import processing_settings
+    from src.media_processing.infrastructure.adapters.unstarted_media_query import (
+        SqlUnstartedMediaQuery,
+    )
+    from src.media_processing.infrastructure.dependencies.builders import (
+        build_media_processing_event_handlers,
+    )
+
+    return UnstartedMediaRecovery(
+        query=SqlUnstartedMediaQuery(session),
+        # O mesmo tratamento do envio: cria o registro e agenda a tarefa.
+        upload_handler=build_media_processing_event_handlers(
+            session=session,
+            storage_factory=StorageServiceFactory(),
+            event_bus=event_bus,
+            storage_provider="local",
+        ),
+        event_bus=event_bus,
+        grace_seconds=processing_settings.unstarted_grace_minutes * 60,
+        give_up_seconds=processing_settings.unstarted_give_up_minutes * 60,
+    )
+
+
 class MediaProcessingServices:
     """Convenience container para tasks."""
 
@@ -145,5 +172,7 @@ __all__ = [
     "build_services",
     "build_transcription_service",
     "build_text_extraction_service",
+    "build_stalled_processing_monitor",
+    "build_unstarted_media_recovery",
     "MediaProcessingServices",
 ]

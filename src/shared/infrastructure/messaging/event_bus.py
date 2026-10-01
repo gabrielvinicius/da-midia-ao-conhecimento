@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections import defaultdict
 from typing import (
     Awaitable,
@@ -16,6 +17,8 @@ from typing import (
 )
 
 from src.shared.domain.events import DomainEvent
+
+logger = logging.getLogger(__name__)
 
 # --- From subscription_manager.py ---
 EventHandler = Callable[[DomainEvent], Awaitable[None]]
@@ -166,6 +169,14 @@ class AsyncQueueBrokerPublisher:
                 event = await self._queue.get()
                 try:
                     await listener(event)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    # Uma falha ao tratar um evento não pode parar o consumidor:
+                    # os eventos seguintes ainda precisam ser entregues.
+                    logger.exception(
+                        "Falha ao tratar o evento %s", type(event).__name__
+                    )
                 finally:
                     self._queue.task_done()
         except asyncio.CancelledError:  # pragma: no cover - cooperative shutdown
@@ -320,8 +331,24 @@ class EventBus:
     # --------------------------------------------------------------------- #
     async def _dispatch(self, event: DomainEvent) -> None:
         handlers = self._subscriptions.handlers_for(type(event))
+        failures: list[BaseException] = []
         for handler in handlers:
-            await handler(event)
+            # Cada handler é isolado: a falha de um módulo não impede os demais
+            # de reagirem ao mesmo evento.
+            try:
+                await handler(event)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.exception(
+                    "Handler %s falhou ao tratar %s",
+                    getattr(handler, "__qualname__", repr(handler)),
+                    type(event).__name__,
+                )
+                failures.append(exc)
+        if failures and not self._is_listening:
+            # Na entrega síncrona (workers), quem publicou precisa saber da falha.
+            raise failures[0]
 
 
 def create_inmemory_event_bus() -> EventBus:

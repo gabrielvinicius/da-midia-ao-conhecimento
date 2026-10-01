@@ -44,8 +44,8 @@ from src.media_management.infrastructure.adapters.storage_downloader_adapter imp
 from src.media_management.infrastructure.adapters.file_validator_adapter import (
     MediaFileReferenceValidator,
 )
-from src.media_processing.infrastructure.adapters.transcription_cleanup_adapter import (
-    TranscriptionCleanupAdapter,
+from src.media_management.infrastructure.dependencies.data_erasers import (
+    build_media_data_erasers,
 )
 from src.media_processing.infrastructure.dependencies.transcription_query_adapter import (
     TranscriptionQueryAdapter,
@@ -58,7 +58,7 @@ from src.media_processing.infrastructure.metrics import (
     prometheus_transcription_metrics,
 )
 from src.media_processing.infrastructure.repositories import transcription_repository
-from src.media_processing.application.tasks import (
+from src.media_processing.infrastructure.adapters.celery_task_schedulers import (
     CeleryTranscriptionTaskScheduler,
 )
 
@@ -136,15 +136,6 @@ def build_media_components(
         MediaFileReferenceValidator(media_repository)
     )
 
-    # Text analysis cleanup adapter (needed for media deletion)
-    from src.text_analysis.infrastructure.adapters.text_analysis_cleanup_adapter import (
-        TextAnalysisCleanupAdapter,
-    )
-    from src.text_analysis.infrastructure.repositories.sqlalchemy_analysis_repository import (
-        SqlAlchemyAnalysisRepository,
-    )
-    analysis_repo = SqlAlchemyAnalysisRepository(session)
-
     media_service = MediaService(
         media_repository=media_repo_adapter,
         storage_uploader=DefaultStorageUploader(StorageUploaderAdapter(storage_service_factory)),
@@ -154,8 +145,7 @@ def build_media_components(
         media_read_service=media_read_service,
         event_bus=event_bus,
         storage_maintenance=storage_maintenance_service,
-        transcription_cleanup=TranscriptionCleanupAdapter(transcription_repository),
-        text_analysis_cleanup=TextAnalysisCleanupAdapter(analysis_repo),
+        data_erasers=build_media_data_erasers(session),
         storage_downloader=StorageDownloaderAdapter(storage_service_factory),
     )
     transcription_service = TranscriptionService(

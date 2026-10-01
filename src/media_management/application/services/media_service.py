@@ -10,10 +10,11 @@ import os
 import re
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Sequence, Set
 
 import structlog
 
+from src.media_management.application.errors import MediaDataErasureError
 from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.application.ports import (
     EventBusPort,
@@ -21,8 +22,7 @@ from src.media_management.application.ports import (
     MediaRepositoryPort,
     StorageDownloaderPort,
     StorageUploaderPort,
-    TranscriptionCleanupPort,
-    TextAnalysisCleanupPort,
+    MediaDataEraserPort,
     UploadMetadataMapperPort,
 )
 from src.media_management.application.services.components import (
@@ -104,8 +104,7 @@ class MediaService:
         media_read_service: MediaReadService,
         event_bus: EventBusPort | None = None,
         storage_maintenance: StorageMaintenanceService | None = None,
-        transcription_cleanup: TranscriptionCleanupPort | None = None,
-        text_analysis_cleanup: TextAnalysisCleanupPort | None = None,
+        data_erasers: Sequence[MediaDataEraserPort] = (),
         storage_downloader: StorageDownloaderPort | None = None,
     ) -> None:
         self.media_repository = media_repository
@@ -142,8 +141,8 @@ class MediaService:
         # Components for Maintenance
         self.access_policy = MediaAccessPolicy()
         self.storage_maintenance = storage_maintenance
-        self.transcription_cleanup = transcription_cleanup
-        self.text_analysis_cleanup = text_analysis_cleanup
+        # Um por módulo que guarda dados derivados da mídia, na ordem de exclusão.
+        self.data_erasers = list(data_erasers)
 
     async def create_media(self, command: CreateMediaCommand) -> Media:
         """Uploads and creates a new media entity."""
@@ -481,27 +480,27 @@ class MediaService:
         return name
 
     async def _delete_associated_records(self, media_id: uuid.UUID) -> None:
-        # 1. Clean up Text Analysis first (avoids FK violation in transcription)
-        if self.text_analysis_cleanup:
-            try:
-                await self.text_analysis_cleanup.delete_by_media_id(media_id)
-            except Exception as exc:
-                logger.warning(
-                    "media.delete.text_analysis_failed",
-                    media_id=str(media_id),
-                    error=str(exc),
-                )
+        """Pede a cada módulo que apague o que derivou da mídia.
 
-        # 2. Clean up Transcriptions
-        if self.transcription_cleanup:
+        Uma falha interrompe a operação e chega ao usuário: seguir adiante
+        deixaria dados para trás (RNF06) ou, no reprocessamento, um registro
+        antigo em conflito com o novo. Os apagadores são idempotentes, então a
+        exclusão pode simplesmente ser repetida.
+        """
+        for eraser in self.data_erasers:
             try:
-                await self.transcription_cleanup.delete_by_media_id(media_id)
+                await eraser.erase(media_id)
             except Exception as exc:
-                logger.warning(
-                    "media.delete.transcription_failed",
+                logger.error(
+                    "media.delete.erase_failed",
                     media_id=str(media_id),
+                    module=getattr(eraser, "name", type(eraser).__name__),
                     error=str(exc),
                 )
+                raise MediaDataErasureError(
+                    "Não foi possível apagar os dados derivados da mídia. "
+                    "Nada foi perdido; tente novamente."
+                ) from exc
 
     async def _delete_original_file(self, media: Media) -> None:
         file_path = getattr(media, "original_file_path", None)
@@ -531,9 +530,14 @@ class MediaService:
                 await self.storage_maintenance.delete_file(provider, file_path)
                 logger.info("media.delete.file_deleted", path=file_path, provider=provider)
         except Exception as exc:
-            logger.warning(
+            # Um arquivo esquecido no disco é dado do usuário que fica (RNF06):
+            # a exclusão para aqui, com a mídia ainda registrada, e pode ser repetida.
+            logger.error(
                 "media.delete.storage_cleanup_failed",
                 path=file_path,
                 provider=provider,
                 error=str(exc),
             )
+            raise MediaDataErasureError(
+                "Não foi possível apagar o arquivo da mídia. Tente novamente."
+            ) from exc

@@ -173,8 +173,8 @@ def test_stalled_media_is_marked_failed_and_can_be_retried(client):
 
     from sqlalchemy import text
 
-    from src.media_processing.application.worker import MediaWorkerApp
-    from src.media_processing.application.worker_bootstrap import (
+    from src.media_processing.worker import MediaWorkerApp
+    from src.media_processing.worker_bootstrap import (
         build_stalled_processing_monitor,
     )
     from src.shared.infrastructure.database.db import AsyncSessionLocal, engine_sync
@@ -224,3 +224,144 @@ def test_stalled_media_is_marked_failed_and_can_be_retried(client):
     assert "tempo esperado" in media["error_message"]
     # E agora o usuário pode tentar de novo.
     assert client.post(f"/media/{media_id}/reprocess", headers=alice).status_code == 200
+
+
+def test_upload_without_processing_record_is_requeued_then_failed(client):
+    """API caiu entre gravar a mídia e criar o registro do processamento: a
+    mídia ficava "enviada" para sempre, invisível ao monitor de prazos."""
+    import asyncio
+    import time
+
+    from sqlalchemy import text
+
+    from src.media_processing.worker import MediaWorkerApp
+    from src.media_processing.worker_bootstrap import build_unstarted_media_recovery
+    from src.shared.infrastructure.database.db import AsyncSessionLocal, engine_sync
+    from src.shared.infrastructure.messaging.event_bus_factory import get_event_bus
+
+    alice = _account(client, "fabia")
+    r = client.post(
+        "/media/",
+        headers=alice,
+        files={"file": ("notas.txt", "A derivada mede a taxa de variação.".encode(), "text/plain")},
+    )
+    assert r.status_code == 201, r.text
+    media_id = r.json()["id"]
+
+    def has_record():
+        with engine_sync.connect() as conn:
+            return conn.execute(
+                text("SELECT 1 FROM transcriptions WHERE media_id = :id"), {"id": media_id}
+            ).first() is not None
+
+    for _ in range(50):
+        if has_record():
+            break
+        time.sleep(0.1)
+
+    def lose_record(minutes_ago):
+        with engine_sync.begin() as conn:
+            conn.execute(text("DELETE FROM transcriptions WHERE media_id = :id"), {"id": media_id})
+            conn.execute(
+                text(
+                    "UPDATE media SET status = 'UPLOADED', "
+                    "created_at = (now() at time zone 'utc') - make_interval(mins => :m) "
+                    "WHERE id = :id"
+                ),
+                {"id": media_id, "m": minutes_ago},
+            )
+
+    async def recover():
+        bus = get_event_bus()
+        MediaWorkerApp(event_bus=bus).ensure_subscribers()  # como no worker
+        async with AsyncSessionLocal() as session:
+            return await build_unstarted_media_recovery(session, bus).sweep()
+
+    # Perdida há 20 min: volta para a fila.
+    lose_record(20)
+    result = asyncio.run(recover())
+    assert media_id in result.requeued
+    assert has_record()
+
+    # Perdida há 2 h (reenfileirar não adiantou): falha, e o usuário pode tentar de novo.
+    lose_record(120)
+    result = asyncio.run(recover())
+    assert media_id in result.failed
+    media = client.get(f"/media/{media_id}", headers=alice).json()
+    assert media["status"].lower() == "failed"
+    assert "não chegou a começar" in media["error_message"]
+    assert client.post(f"/media/{media_id}/reprocess", headers=alice).status_code == 200
+
+
+def test_deleting_analyzed_media_leaves_nothing_behind(client):
+    """RNF06. A rota da API montava a exclusão sem a análise: os trechos
+    indexados barravam a exclusão (chave estrangeira) depois de a transcrição
+    já ter sido apagada, e análises e avaliações ficavam órfãs."""
+    import time
+    import uuid as _uuid
+
+    from sqlalchemy import text
+
+    from src.shared.infrastructure.database.db import engine_sync
+
+    alice = _account(client, "gabi")
+    r = client.post(
+        "/media/",
+        headers=alice,
+        files={"file": ("aula.txt", "A regra da cadeia deriva funções compostas.".encode(), "text/plain")},
+    )
+    assert r.status_code == 201, r.text
+    media_id = r.json()["id"]
+
+    tables = {
+        "transcriptions": "media_id = :id",
+        "text_analysis_results": "media_id = :id",
+        "knowledge_chunks": "media_id = :id",
+        "analysis_feedback": "analysis_id IN (SELECT id FROM text_analysis_results WHERE media_id = :id) OR analysis_id = :aid",
+    }
+    analysis_id = f"analysis-{_uuid.uuid4().hex[:8]}"
+
+    def counts():
+        with engine_sync.connect() as conn:
+            return {
+                t: conn.execute(text(f"SELECT count(*) FROM {t} WHERE {where}"), {"id": media_id, "aid": analysis_id}).scalar()
+                for t, where in tables.items()
+            }
+
+    for _ in range(50):
+        if counts()["transcriptions"]:
+            break
+        time.sleep(0.1)
+
+    # Simula o que o worker gravaria: análise, trecho indexado e uma avaliação.
+    with engine_sync.begin() as conn:
+        user_id = conn.execute(text("SELECT user_id FROM media WHERE id = :id"), {"id": media_id}).scalar()
+        conn.execute(
+            text("INSERT INTO text_analysis_results (id, document_id, media_id, user_id, payload) "
+                 "VALUES (:aid, 'doc', :id, :uid, '{}'::jsonb)"),
+            {"aid": analysis_id, "id": media_id, "uid": user_id},
+        )
+        conn.execute(
+            text("INSERT INTO knowledge_chunks (id, media_id, content, embedding) "
+                 "VALUES (:cid, :id, 'regra da cadeia', array_fill(0.1, ARRAY[384])::vector)"),
+            {"cid": str(_uuid.uuid4()), "id": media_id},
+        )
+        conn.execute(
+            text("INSERT INTO analysis_feedback (id, analysis_id, user_id, score, aspect) "
+                 "VALUES (:fid, :aid, :uid, 1, 'summary')"),
+            {"fid": str(_uuid.uuid4()), "aid": analysis_id, "uid": user_id},
+        )
+    assert all(counts().values())
+
+    from src.storage.infrastructure.dependencies import StorageServiceFactory
+
+    with engine_sync.connect() as conn:
+        stored = conn.execute(text("SELECT original_file_path FROM media WHERE id = :id"), {"id": media_id}).scalar()
+    stored_file = StorageServiceFactory().get_provider_root("local") / stored
+    assert stored_file.exists()
+
+    assert client.delete(f"/media/{media_id}", headers=alice).status_code == 204
+    assert client.get(f"/media/{media_id}", headers=alice).status_code == 404
+    assert counts() == {t: 0 for t in tables}
+    # O arquivo enviado também sai do disco (antes ficava: a pasta não era apagada).
+    assert not stored_file.exists()

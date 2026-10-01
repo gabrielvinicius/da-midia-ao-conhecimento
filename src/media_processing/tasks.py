@@ -1,3 +1,4 @@
+"""Tarefas Celery do módulo (camada de montagem: liga serviços e adaptadores)."""
 import structlog
 from uuid import UUID
 from typing import Any, Dict, Optional
@@ -5,12 +6,13 @@ from asgiref.sync import async_to_sync
 from celery import shared_task
 from celery.signals import worker_process_init
 
-from src.media_processing.application.worker_bootstrap import (
+from src.media_processing.worker_bootstrap import (
     build_stalled_processing_monitor,
     build_text_extraction_service,
     build_transcription_service,
+    build_unstarted_media_recovery,
 )
-from src.media_processing.application.worker import MediaWorkerApp
+from src.media_processing.worker import MediaWorkerApp
 from src.media_processing.infrastructure.dependencies.providers import get_event_bus
 from src.shared.events.integration_events import (
     TASK_MEDIA_SWEEP_STALLED,
@@ -58,135 +60,6 @@ async def _run_with_session(coro_factory):
     async with AsyncSessionLocal() as session:
         return await coro_factory(session)
 
-
-# --- Celery task schedulers (kept close to tasks for simplicity) ----------
-
-
-class CeleryTextTaskScheduler:
-    """Schedule text extraction tasks using Celery."""
-
-    async def schedule_text_extraction(
-        self,
-        media_id: UUID,
-        file_path: str,
-        storage_provider: str,
-        user_id: str | None = None,
-        filename: str | None = None,
-        triggered_by: str | None = None,
-        actor_id: str | None = None,
-        correlation_id: str | None = None,
-    ) -> Any:
-        logger.info(
-            "celery_task_scheduler.scheduling_text_extraction",
-            media_id=str(media_id),
-            file_path=file_path,
-        )
-        queue = "text_analysis_queue"
-        task = process_text_extraction_task.apply_async(
-            kwargs={
-                "media_id": str(media_id),
-                "file_path": file_path,
-                "storage_provider": storage_provider,
-                "user_id": user_id,
-                "filename": filename,
-                "triggered_by": triggered_by,
-                "actor_id": actor_id,
-                "correlation_id": correlation_id or str(media_id),
-            },
-            queue=queue
-        )
-        logger.info(
-            "celery_task_scheduler.text_extraction_scheduled",
-            media_id=str(media_id),
-            task_id=task.id,
-            queue=queue,
-        )
-        return {"task_id": task.id}
-
-
-class CeleryTranscriptionTaskScheduler:
-    """Schedule transcription tasks using Celery."""
-
-    async def schedule_transcription(
-        self,
-        transcription_id: UUID,
-        media_id: UUID,
-        file_path: str,
-        storage_provider: str,
-        transcription_provider: str,
-        language: str,
-        file_size_bytes: int | None = None,
-        summarization_provider: Optional[str] = None,
-        sentiment_provider: Optional[str] = None,
-        topic_modeling_provider: Optional[str] = None,
-        user_id: Optional[str] = None,
-        filename: Optional[str] = None,
-        triggered_by: Optional[str] = None,
-        actor_id: Optional[str] = None,
-        correlation_id: Optional[str] = None,
-    ) -> Any:
-        logger.info(
-            "celery_task_scheduler.scheduling_transcription",
-            media_id=str(media_id),
-            transcription_id=str(transcription_id),
-            provider=transcription_provider,
-        )
-        
-        # Simple heuristic: < 50MB goes to fast lane
-        queue = "transcription_queue"
-        if file_size_bytes and file_size_bytes < 50 * 1024 * 1024:
-            queue = "transcription_fast_lane"
-
-        task = process_transcription_task.apply_async(
-            kwargs={
-                "media_id": str(media_id),
-                "file_path": file_path,
-                "storage_provider": storage_provider,
-                "transcription_provider": transcription_provider,
-                "transcription_id": str(transcription_id),
-                "language": language,
-                "file_size_bytes": file_size_bytes,
-                "summarization_provider": summarization_provider,
-                "sentiment_provider": sentiment_provider,
-                "topic_modeling_provider": topic_modeling_provider,
-                "correlation_id": correlation_id or str(media_id),
-                "user_id": user_id,
-                "filename": filename,
-                "triggered_by": triggered_by,
-                "actor_id": actor_id,
-            },
-            queue=queue
-        )
-        logger.info(
-            "celery_task_scheduler.transcription_task_scheduled",
-            media_id=str(media_id),
-            task_id=task.id,
-            queue=queue,
-        )
-        return {"task_id": task.id}
-
-
-def bootstrap_transcription_service(
-    session, event_bus, storage_provider: str = "local"
-):
-    # Mantido por compatibilidade com schedulers; usa builder centralizado
-    service = build_transcription_service(
-        session=session,
-        event_bus=event_bus,
-        storage_provider=storage_provider,
-    )
-    # Reassocia scheduler específico de Celery
-    service.task_scheduler = CeleryTranscriptionTaskScheduler()
-    return service
-
-def bootstrap_text_extraction_service(
-    session, event_bus, storage_provider: str = "local"
-):
-    return build_text_extraction_service(
-        session=session,
-        event_bus=event_bus,
-        storage_provider=storage_provider,
-    )
 
 @shared_task(
     bind=True,
@@ -306,16 +179,22 @@ def process_transcription_task(
 
 
 @shared_task(name=TASK_MEDIA_SWEEP_STALLED, ignore_result=True)
-def sweep_stalled_processing_task() -> list:
-    """Periódica (Celery beat, fila leve): marca como falha mídias paradas."""
+def sweep_stalled_processing_task() -> dict:
+    """Periódica (Celery beat, fila leve): reenfileira as mídias que não
+    começaram e marca como falha as que passaram do prazo."""
 
     async def _run():
+        bus = _ensure_event_bus()
         async with AsyncSessionLocal() as session:
-            monitor = build_stalled_processing_monitor(session, _ensure_event_bus())
-            return await monitor.sweep()
+            recovery = await build_unstarted_media_recovery(session, bus).sweep()
+        async with AsyncSessionLocal() as session:
+            failed = await build_stalled_processing_monitor(session, bus).sweep()
+        return {
+            "requeued": recovery.requeued,
+            "failed": failed + recovery.failed,
+        }
 
-    failed = async_to_sync(_run)()
-    if failed:
-        logger.warning("stalled_monitor.sweep_done", failed_media=failed)
-    return failed
-
+    result = async_to_sync(_run)()
+    if result["requeued"] or result["failed"]:
+        logger.warning("stalled_monitor.sweep_done", **result)
+    return result

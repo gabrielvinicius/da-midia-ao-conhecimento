@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.shared.application.utils.serialization import to_json_serializable
 from src.text_analysis.application.ports.repository import AnalysisRepositoryPort
 from src.text_analysis.domain import Analysis, Topic
+from src.text_analysis.infrastructure.persistence.feedback_models import FeedbackModel
 from src.text_analysis.infrastructure.persistence.knowledge_models import KnowledgeChunkModel
 from src.text_analysis.infrastructure.persistence.models import AnalysisModel
 
@@ -154,13 +155,21 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         return analysis.topics if analysis else []
 
     async def delete_by_media_id(self, media_id: uuid.UUID) -> None:
-        """Remove as análises e os trechos indexados (busca semântica) da mídia.
+        """Remove as análises, suas avaliações e os trechos indexados da mídia.
 
         knowledge_chunks tem chave estrangeira para media sem exclusão em
         cascata: sem apagar os trechos aqui, a exclusão da mídia falharia.
+        As avaliações não têm chave estrangeira e ficariam órfãs (RNF06).
         """
         await self.session.execute(
             delete(KnowledgeChunkModel).where(KnowledgeChunkModel.media_id == media_id)
+        )
+        await self.session.execute(
+            delete(FeedbackModel).where(
+                FeedbackModel.analysis_id.in_(
+                    select(AnalysisModel.id).where(AnalysisModel.media_id == media_id)
+                )
+            )
         )
         stmt = select(AnalysisModel).where(AnalysisModel.media_id == media_id)
         result = await self.session.execute(stmt)

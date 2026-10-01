@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 import mimetypes
 from datetime import datetime, timezone
 from pathlib import Path
@@ -75,6 +76,20 @@ class LocalStorageService(StorageRepositoryPort):
             raise Exception(
                 f"Falha ao remover arquivo {file_path}: {exc}"
             ) from exc
+
+    async def remove_folder(self, folder_path: str) -> bool:
+        """Remove a pasta e tudo o que há nela. False se ela não existir.
+
+        Recusa caminhos fora da raiz do armazenamento (ex.: "../").
+        """
+        root = self._root.resolve()
+        target = (root / folder_path).resolve()
+        if target == root or root not in target.parents:
+            raise ValueError(f"Pasta fora do armazenamento: {folder_path}")
+        if not target.is_dir():
+            return False
+        await asyncio.to_thread(shutil.rmtree, target)
+        return True
 
     async def exists(self, file_path: FilePath) -> bool:
         """Check if file exists."""

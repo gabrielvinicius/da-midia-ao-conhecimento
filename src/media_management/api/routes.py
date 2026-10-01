@@ -25,6 +25,7 @@ from src.media_management.application.dtos import (
     ReprocessMediaCommand,
 )
 from src.media_management.application.services.media_service import MediaService
+from src.media_management.application.errors import MediaDataErasureError
 from src.media_management.domain import MediaNotReprocessableError
 from src.shared.application.schemas import (
     BaseResponseSchema,
@@ -191,6 +192,9 @@ async def delete_media(
             user_id=current_user.id,
             user_role=current_user.role,
         )
+    except MediaDataErasureError as e:
+        # Nada foi apagado pela metade sem aviso: a operação pode ser repetida.
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except PermissionError:
         raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")
     except ValueError as exc:
@@ -258,6 +262,9 @@ async def reprocess_media(
             message="Media reprocessing started successfully"
         )
 
+    except MediaDataErasureError as e:
+        # Nada foi apagado pela metade sem aviso: a operação pode ser repetida.
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except PermissionError:
         raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")
     except MediaNotReprocessableError as e:

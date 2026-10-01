@@ -6,13 +6,12 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 import structlog
 
-from src.text_analysis.application.ports import EmbeddingServicePort
-from src.text_analysis.infrastructure.repositories.vector_repository import VectorRepository
+from src.text_analysis.application.ports import EmbeddingServicePort, VectorSearchPort
 
 logger = structlog.get_logger(__name__)
 
 class KnowledgeBaseService:
-    def __init__(self, vector_repo: VectorRepository, embedding_service: EmbeddingServicePort):
+    def __init__(self, vector_repo: VectorSearchPort, embedding_service: EmbeddingServicePort):
         self._repo = vector_repo
         self._embedding_service = embedding_service
 

@@ -49,11 +49,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install "$(grep -E '^torch==' requirements.txt)" --index-url https://download.pytorch.org/whl/cpu
           grep -vE '^torch==' requirements.txt > requirements-ci.txt
-          pip install -r requirements-ci.txt ruff
+          pip install -r requirements-ci.txt ruff import-linter==2.15
 
       # Erros que quebram em execução: sintaxe e nomes indefinidos.
       - name: Lint (critical errors)
         run: ruff check src tests --select E9,F63,F7,F82
+
+      # Regras de dependência entre camadas e módulos (arquivo .importlinter).
+      - name: Architecture (import contracts)
+        run: lint-imports
 
       - name: Tests (unit, smoke, integration)
         run: pytest tests/unit tests/smoke tests/integration -q

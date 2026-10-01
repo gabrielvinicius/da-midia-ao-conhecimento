@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from src.media_processing.application.event_handlers import MediaProcessingEventHandlers
-from src.shared.domain.events import MediaUploaded, TextContentReady
+from src.shared.domain.events import MediaUploaded
 
 
 def _handler():
@@ -60,13 +60,3 @@ async def test_audio_and_video_uploads_go_to_transcription(media_type):
 
     handler._transcription_service.request_transcription_generation.assert_awaited_once()
     handler._text_extraction_service.request_text_extraction.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_handle_text_content_ready_noops_on_empty():
-    handler = _handler()
-
-    event = TextContentReady(media_id=str(uuid4()), text="")
-    await handler.handle_text_content_ready(event)
-
-    # Não deve lançar nem chamar serviços

@@ -1,7 +1,7 @@
 """Event handlers for the media_processing module."""
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from uuid import UUID
 
 import structlog
@@ -12,8 +12,9 @@ from src.media_processing.application.services.text_extraction_service import (
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
-from src.media_management.domain.enums import MediaType as _MediaType
-from src.shared.domain.events import MediaUploaded, TextContentReady
+from src.shared.domain.events import MediaUploaded
+
+TEXT_MEDIA_TYPE = "text"
 
 logger = structlog.get_logger(__name__).bind(
     component="media_processing.event_handlers"
@@ -49,7 +50,7 @@ class MediaProcessingEventHandlers:
 
             # Documentos e imagens seguem para extração de texto (com OCR);
             # áudio e vídeo, para a transcrição, que lê o arquivo original.
-            if media_type == _MediaType.TEXT:
+            if media_type == TEXT_MEDIA_TYPE:
                 await self._delegate_text_extraction(event, context, media_id)
             else:
                 await self._delegate_transcription(event, context, media_id)
@@ -162,106 +163,17 @@ class MediaProcessingEventHandlers:
                 error=str(exc),
             )
 
-    def _resolve_media_type(self, media_type_value):
-        try:
-            from src.media_management.domain.enums import MediaType as _MediaType
-            if isinstance(media_type_value, _MediaType):
-                return media_type_value
-            elif media_type_value is not None:
-                # Os valores do enum são minúsculos ("text", "video", "audio").
-                return _MediaType(str(media_type_value).strip().lower())
-        except Exception:
-            pass
-        return None
+    @staticmethod
+    def _resolve_media_type(media_type_value) -> Optional[str]:
+        """Tipo da mídia como texto ("text", "audio", "video").
 
-    async def handle_text_content_ready(
-        self,
-        event: TextContentReady,
-        *,
-        context: Optional[dict[str, Any]] = None,
-    ) -> None:
-        """Trigger downstream text analysis once transcription finishes."""
-        context = context or {}
-
-        text = (event.text or "").strip()
-        if not text:
-            self._logger.info(
-                "text_content_ready.skipped",
-                media_id=event.media_id,
-                reason="empty_text",
-            )
-            return
-
-        # Dynamic dispatch to Text Analysis tasks
-        try:
-            from src.text_analysis.tasks import (
-                sentiment_task,
-                summarize_task,
-                topic_modeling_task,
-            )
-        except Exception as exc:
-            self._logger.warning(
-                "text_content_ready.analysis_task_unavailable",
-                media_id=event.media_id,
-                error=str(exc),
-            )
-            return
-
-        metadata = event.metadata or {}
-        base_payload: Dict[str, Any] = {
-            "text": text,
-            "media_id": event.media_id,
-            "transcription_id": event.transcription_id,
-            "language": metadata.get("language") or context.get("language"),
-        }
-
-        jobs = [
-            (
-                summarize_task,
-                {
-                    **base_payload,
-                    "provider": metadata.get("summarization_provider"),
-                },
-                "summarization",
-            ),
-            (
-                sentiment_task,
-                {
-                    **base_payload,
-                    "provider": metadata.get("sentiment_provider"),
-                },
-                "sentiment",
-            ),
-            (
-                topic_modeling_task,
-                {
-                    **base_payload,
-                    "provider": metadata.get("topic_provider"),
-                },
-                "topic_modeling",
-            ),
-        ]
-
-        for task_fn, payload, name in jobs:
-            try:
-                if hasattr(task_fn, "delay"):
-                    task_fn.delay(payload)
-                else:
-                    task_fn(payload)
-                self._logger.info(
-                    "text_content_ready.analysis_enqueued",
-                    media_id=event.media_id,
-                    transcription_id=event.transcription_id,
-                    task=name,
-                )
-            except Exception as exc:
-                self._logger.error(
-                    "text_content_ready.analysis_failed",
-                    media_id=event.media_id,
-                    transcription_id=event.transcription_id,
-                    task=name,
-                    error=str(exc),
-                )
+        O evento carrega o valor do enum de media_management; este módulo
+        compara pelo valor para não depender do domínio de outro módulo.
+        """
+        if media_type_value is None:
+            return None
+        value = getattr(media_type_value, "value", media_type_value)
+        return str(value).strip().lower() or None
 
     def _validate_provider(self, name: str | None) -> str | None:
         return name

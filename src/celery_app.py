@@ -55,12 +55,10 @@ def create_celery() -> Celery:
     # Autodiscover tasks in namespaced packages
     app.autodiscover_tasks(
         [
-            # New consolidated modules
-            "src.media_processing.application",
+            # Cada módulo declara as tarefas no próprio tasks.py (montagem).
+            "src.media_processing",
             "src.text_analysis",
-
-            # Notifications tasks live in application/tasks.py
-            "src.notifications.application",
+            "src.notifications",
         ]
     )
 

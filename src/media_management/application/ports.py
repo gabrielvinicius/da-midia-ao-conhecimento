@@ -52,12 +52,17 @@ class MediaRepositoryPort(Protocol):
     ): ...
 
 
-class TranscriptionCleanupPort(Protocol):
-    async def delete_by_media_id(self, media_id: UUID) -> None: ...
+class MediaDataEraserPort(Protocol):
+    """Apaga o que um módulo derivou de uma mídia (transcrição, análise...).
 
+    Cada módulo implementa a sua, sobre os próprios dados; este módulo só
+    conhece a lista. Deve ser idempotente: uma exclusão interrompida pode ser
+    repetida.
+    """
 
-class TextAnalysisCleanupPort(Protocol):
-    async def delete_by_media_id(self, media_id: UUID) -> None: ...
+    name: str
+
+    async def erase(self, media_id: UUID) -> None: ...
 
 
 @dataclass

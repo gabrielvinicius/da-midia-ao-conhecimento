@@ -98,9 +98,7 @@ async def test_media_service_create_media_with_ports():
         media_read_service=read_service,
         event_bus=FakeEventBus(),
         storage_maintenance=None,
-        transcription_cleanup=None,
-        text_analysis_cleanup=None,
-        storage_downloader=None,
+                        storage_downloader=None,
     )
 
     cmd = CreateMediaCommand(

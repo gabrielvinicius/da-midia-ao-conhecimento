@@ -22,11 +22,8 @@ from src.media_management.infrastructure.adapters.storage_uploader_adapter impor
 from src.media_management.infrastructure.repositories.media_repository import (
     MediaRepository,
 )
-from src.media_processing.infrastructure.adapters.transcription_cleanup_adapter import (
-    TranscriptionCleanupAdapter,
-)
-from src.media_processing.infrastructure.repositories.transcription_repository import (
-    TranscriptionRepository,
+from src.media_management.infrastructure.dependencies.data_erasers import (
+    build_media_data_erasers,
 )
 from src.shared.infrastructure.database.db import get_db
 from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
@@ -72,8 +69,6 @@ def get_media_service(
     media_read_service: MediaReadService = Depends(get_media_read_service),
     event_bus: SupportsEventBus = Depends(get_event_bus),
 ) -> MediaService:
-    transcription_repo = TranscriptionRepository(db=media_repository.db)
-
     return MediaService(
         media_repository=MediaRepositoryAdapter(media_repository),
         storage_uploader=StorageServiceFactoryUploader(storage_factory),
@@ -85,5 +80,5 @@ def get_media_service(
         storage_maintenance=StorageMaintenanceService(
             storage_port=StorageMaintenanceAdapter(storage_factory),
         ),
-        transcription_cleanup=TranscriptionCleanupAdapter(transcription_repo),
+        data_erasers=build_media_data_erasers(media_repository.db),
     )

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import Callable, Optional, Protocol
+import datetime
+from dataclasses import dataclass
+from typing import Callable, List, Optional, Protocol
 
 from src.media_processing.domain import Transcription
+from src.shared.domain.events import MediaUploaded
 from src.shared.infrastructure.observability.ports import LoggerPort as SharedLoggerPort
 from src.shared.infrastructure.observability.ports import (
     MetricsPort as SharedMetricsPort,
@@ -134,4 +137,26 @@ class RealtimeFactorPort(Protocol):
 class ProcessingTaskTerminator(Protocol):
     """Encerra a tarefa do worker que ainda processa uma transcrição."""
     async def terminate(self, transcription_id: str, media_id: str) -> bool:
+        ...
+
+
+@dataclass(frozen=True)
+class UnstartedMedia:
+    """Mídia enviada que nunca ganhou registro de processamento."""
+
+    upload: MediaUploaded  # evento reconstruído a partir do registro da mídia
+    uploaded_at: datetime.datetime
+
+
+class UnstartedMediaQueryPort(Protocol):
+    async def list_unstarted(
+        self, uploaded_before: datetime.datetime
+    ) -> List[UnstartedMedia]:
+        """Mídias ainda não concluídas, enviadas antes do instante dado, sem transcrição."""
+        ...
+
+
+class AnalysisRequestPort(Protocol):
+    def request_analysis(self, payload: dict) -> None:
+        """Pede a análise do texto pronto (feita pelo módulo text_analysis)."""
         ...

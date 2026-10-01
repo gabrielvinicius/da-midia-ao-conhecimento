@@ -1,3 +1,4 @@
+"""Assinaturas de eventos dos workers (camada de montagem)."""
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -7,6 +8,9 @@ import structlog
 
 from src.media_management.infrastructure.dependencies.builders import (
     build_media_event_handlers,
+)
+from src.media_processing.infrastructure.adapters.celery_task_schedulers import (
+    CeleryAnalysisRequester,
 )
 from src.notifications.bootstrap import bootstrap_pipeline_notification_service
 from src.shared.domain.events import (
@@ -24,14 +28,16 @@ logger = structlog.get_logger(__name__)
 
 
 class MediaWorkerApp:
-    """Encapsulates the worker application logic and event subscriptions.
-    
-    This class replaces the ad-hoc `_bind_worker_subscribers` function in tasks.py,
-    providing a clean, testable entry point for the worker's reactive logic.
+    """Montagem do worker: liga os eventos do processamento aos módulos que reagem.
+
+    Fica na raiz do módulo (camada de montagem), e não em application/, porque
+    conhece adaptadores de outros módulos (mídias, notificações, armazenamento).
     """
 
-    def __init__(self, event_bus=None):
+    def __init__(self, event_bus=None, analysis_requester=None):
         self.event_bus = event_bus or get_event_bus()
+        # O pedido de análise segue pelo nome da tarefa, sem importar text_analysis.
+        self.analysis_requester = analysis_requester or CeleryAnalysisRequester()
         self._subscribers_bound = False
 
     def ensure_subscribers(self):
@@ -117,15 +123,8 @@ class MediaWorkerApp:
         }
 
         try:
-            from src.text_analysis.tasks import analyze_task  # noqa: WPS433
-
-            if hasattr(analyze_task, "apply_async"):
-                analyze_task.apply_async(kwargs=payload, queue="text_analysis_queue")
-            elif hasattr(analyze_task, "delay"):
-                analyze_task.delay(**payload)
-            else:  # pragma: no cover
-                analyze_task(**payload)
-        except Exception as exc:  # pragma: no cover
+            self.analysis_requester.request_analysis(payload)
+        except Exception as exc:
             logger.warning(
                 "text_analysis.enqueue_failed",
                 media_id=str(event.media_id),

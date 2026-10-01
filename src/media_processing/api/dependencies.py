@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
-from src.media_processing.application.tasks import CeleryTranscriptionTaskScheduler
+from src.media_processing.infrastructure.adapters.celery_task_schedulers import (
+    CeleryTranscriptionTaskScheduler,
+)
 from src.media_processing.infrastructure.dependencies.providers import (
     get_speech_recognizer,
 )

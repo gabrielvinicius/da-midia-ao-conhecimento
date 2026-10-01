@@ -1,4 +1,4 @@
-# Celery tasks for notifications (moved to application/tasks.py)
+# Tarefas Celery de notificações (camada de montagem do módulo).
 import asyncio
 from typing import Any, Dict
 
@@ -14,7 +14,8 @@ from src.shared.infrastructure.database.db import get_sync_session
 
 logger = structlog.get_logger(__name__)
 
-@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
+@shared_task(
+    bind=True, name="notifications.send", autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
 def send_notification_task(
     self,
     user_id: str,

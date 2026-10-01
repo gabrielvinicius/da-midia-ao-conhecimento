@@ -55,9 +55,7 @@ async def client():
             media_read_service=media_read_service,
             event_bus=fake_event_bus,
             storage_maintenance=None,
-            transcription_cleanup=None,
-            text_analysis_cleanup=None,
-            storage_downloader=None,
+                                    storage_downloader=None,
         )
         app.dependency_overrides[get_media_service] = lambda: media_service
 

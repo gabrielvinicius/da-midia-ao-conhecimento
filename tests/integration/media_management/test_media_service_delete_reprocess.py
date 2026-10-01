@@ -58,11 +58,15 @@ class FakeMaintenance:
         self.deleted.append((provider, path))
 
 
-class FakeTranscriptionCleanup:
-    def __init__(self):
-        self.cleaned = []
-    async def delete_by_media_id(self, media_id):
-        self.cleaned.append(media_id)
+class FakeEraser:
+    def __init__(self, name, log, fail=False):
+        self.name = name
+        self.log = log
+        self.fail = fail
+    async def erase(self, media_id):
+        if self.fail:
+            raise ConnectionError("banco indisponível")
+        self.log.append((self.name, media_id))
 
 
 class FakeBus:
@@ -78,7 +82,7 @@ async def test_delete_and_reprocess_flow():
     repo = FakeRepo()
     read_service = MediaReadService(media_repository=repo)
     maintenance = FakeMaintenance()
-    cleanup = FakeTranscriptionCleanup()
+    erased = []
     bus = FakeBus()
 
     service = MediaService(
@@ -90,8 +94,7 @@ async def test_delete_and_reprocess_flow():
         media_read_service=read_service,
         event_bus=bus,
         storage_maintenance=maintenance,
-        transcription_cleanup=cleanup,
-        text_analysis_cleanup=None,
+        data_erasers=[FakeEraser("text_analysis", erased), FakeEraser("transcription", erased)],
         storage_downloader=None,
     )
 
@@ -117,5 +120,54 @@ async def test_delete_and_reprocess_flow():
 
     assert media.id not in repo.saved
     assert maintenance.deleted  # file deletion attempted
-    # O reprocessamento limpa os resultados anteriores e a exclusão limpa de novo.
-    assert cleanup.cleaned == [media.id, media.id]
+    # O reprocessamento limpa os resultados anteriores e a exclusão limpa de
+    # novo, cada módulo os próprios dados, na ordem registrada.
+    assert erased == [
+        ("text_analysis", media.id),
+        ("transcription", media.id),
+    ] * 2
+
+
+@pytest.mark.integration
+@pytest.mark.anyio
+async def test_delete_stops_when_a_module_cannot_erase_its_data():
+    """Antes, a falha virava um aviso no log e a mídia sumia com dados para trás."""
+    from src.media_management.application.errors import MediaDataErasureError
+
+    repo = FakeRepo()
+    maintenance = FakeMaintenance()
+    erased = []
+    bus = FakeBus()
+    service = MediaService(
+        media_repository=repo,
+        storage_uploader=FakeUploader(),
+        metadata_mapper=FakeMetadataMapper(),
+        metrics_service=None,
+        upload_validator=MediaUploadValidator(settings=media_settings),
+        media_read_service=MediaReadService(media_repository=repo),
+        event_bus=bus,
+        storage_maintenance=maintenance,
+        data_erasers=[FakeEraser("text_analysis", erased, fail=True), FakeEraser("transcription", erased)],
+    )
+    media = await service.create_media(
+        CreateMediaCommand(
+            user_id=str(uuid4()),
+            file=b"hello",
+            filename="file.mp4",
+            storage_provider="local",
+            transcription_provider=None,
+            summarization_provider=None,
+            sentiment_provider=None,
+            topic_modeling_provider=None,
+            metadata=None,
+        )
+    )
+
+    with pytest.raises(MediaDataErasureError):
+        await service.delete_media(DeleteMediaCommand(media_id=media.id), user_id=media.user_id, user_role=None)
+
+    # A mídia e o arquivo continuam, e a exclusão pode ser repetida.
+    assert media.id in repo.saved
+    assert not maintenance.deleted
+    assert erased == []
+    assert not any(type(e).__name__ == "MediaDeleted" for e in bus.events)
