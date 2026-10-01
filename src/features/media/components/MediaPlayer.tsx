@@ -6,9 +6,21 @@ interface MediaPlayerProps {
   mediaType: MediaType.AUDIO | MediaType.VIDEO;
   onTimeUpdate: (time: number) => void;
   playerRef: React.RefObject<HTMLMediaElement>;
+  /** Segundo em que a reprodução deve começar (ex.: trecho achado na busca). */
+  startAt?: number;
 }
 
-export const MediaPlayer = ({ src, mediaType, onTimeUpdate, playerRef }: MediaPlayerProps) => {
+export const MediaPlayer = ({ src, mediaType, onTimeUpdate, playerRef, startAt }: MediaPlayerProps) => {
+  // Posiciona quando os metadados chegam: antes disso o navegador ignora a
+  // mudança de tempo. Não inicia a reprodução, que os navegadores bloqueiam
+  // sem um clique do usuário.
+  const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLMediaElement>) => {
+    const { duration } = e.currentTarget;
+    if (startAt && startAt > 0 && (!Number.isFinite(duration) || startAt < duration)) {
+      e.currentTarget.currentTime = startAt;
+    }
+  };
+
   const handleTimeUpdate = (e: React.SyntheticEvent<HTMLMediaElement>) => {
     onTimeUpdate(e.currentTarget.currentTime);
   };
@@ -21,6 +33,7 @@ export const MediaPlayer = ({ src, mediaType, onTimeUpdate, playerRef }: MediaPl
         controls
         className="w-full rounded-lg bg-black"
         onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
       />
     );
   }
@@ -33,6 +46,7 @@ export const MediaPlayer = ({ src, mediaType, onTimeUpdate, playerRef }: MediaPl
         controls
         className="w-full"
         onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
       />
     );
   }

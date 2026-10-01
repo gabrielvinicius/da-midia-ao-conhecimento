@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { UserRole } from "@/types";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useMediaByIdQuery, useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
 import { useReprocessMediaCommand } from "@/hooks/useCommands";
 import { InteractiveTranscriptionPanel } from "@/features/transcription/components/InteractiveTranscriptionPanel";
@@ -46,6 +46,9 @@ type PipelineStep = {
 
 const MediaDetailPage = () => {
   const { id } = useParams<{ id: string }>();
+  // ?t=SEGUNDOS: a busca abre a mídia no momento do trecho encontrado.
+  const [searchParams] = useSearchParams();
+  const startAt = Number(searchParams.get("t")) || undefined;
   const { user } = useAuth();
   const playerRef = useRef<HTMLMediaElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -242,6 +245,7 @@ const MediaDetailPage = () => {
                   mediaType={media.media_type as MediaType.AUDIO | MediaType.VIDEO}
                   playerRef={playerRef}
                   onTimeUpdate={setCurrentTime}
+                  startAt={startAt}
                 />
               ) : isTextMedia ? (
                   <div className="p-6">

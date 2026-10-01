@@ -95,8 +95,12 @@ const SearchPage = () => {
             <Card key={`${result.media_id}-${index}`}>
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center justify-between text-base">
-                  <Link to={`/media/${result.media_id}`} className="hover:underline">
-                    Abrir mídia
+                  {/* Com horário, a mídia abre no momento do trecho (?t=segundos). */}
+                  <Link
+                    to={`/media/${result.media_id}${result.start != null ? `?t=${Math.floor(result.start)}` : ""}`}
+                    className="hover:underline"
+                  >
+                    {result.start != null ? "Abrir no trecho" : "Abrir mídia"}
                   </Link>
                   <Badge variant="secondary">{result.relevance.toFixed(0)}% de relevância</Badge>
                 </CardTitle>

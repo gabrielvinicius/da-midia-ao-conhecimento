@@ -117,15 +117,17 @@ export const getTextAnalysisByMediaId = async (mediaId: string): Promise<TextAna
   }
 };
 
+// Tempo estimado do processamento completo, calculado pela duração da
+// gravação e pela velocidade medida nos processamentos anteriores. Nulo
+// enquanto não há base para estimar (duração ainda não lida, sem histórico).
 export type AnalysisEstimation = {
-  estimated_seconds: number;
-  vram_gb: number;
-  risk: 'safe' | 'warning' | 'dangerous' | 'terminal';
-  recommendation: string;
+  estimated_seconds: number | null;
+  media_seconds: number | null;
+  includes_analysis: boolean;
 };
 
 export const getAnalysisEstimation = async (mediaId: string): Promise<AnalysisEstimation> => {
-  const response = await api.get<AnalysisEstimation>(`/text-analysis/media/${mediaId}/estimate`);
+  const response = await api.get<AnalysisEstimation>(`/transcriptions/media/${mediaId}/estimate`);
   return response.data;
 };
 

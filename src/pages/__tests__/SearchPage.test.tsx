@@ -40,7 +40,7 @@ describe("SearchPage", () => {
     expect(get).toHaveBeenCalledWith("/text-analysis/search", { params: { query: "regra da cadeia", limit: 10 } });
     expect(screen.getByText("Trecho em 12:34 – 13:10")).toBeInTheDocument();
     expect(screen.getByText("82% de relevância")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /abrir mídia/i })).toHaveAttribute("href", "/media/m1");
+    expect(screen.getByRole("link", { name: /abrir no trecho/i })).toHaveAttribute("href", "/media/m1?t=754");
   });
 
   it("does not search with fewer than 3 characters", () => {
