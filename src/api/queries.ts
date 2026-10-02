@@ -1,5 +1,6 @@
 // Queries API - Para operações de leitura (CQRS Read Side)
 import api from '@/lib/api';
+import { apiErrorStatus } from '@/lib/errors';
 import {
   Media,
   User,
@@ -17,7 +18,7 @@ export type ProviderOption = {
   name: string;
   label: string;
   description?: string | null;
-  capabilities?: Record<string, any>;
+  capabilities?: Record<string, unknown>;
 };
 
 export type ProvidersResponse = {
@@ -33,16 +34,16 @@ const normalizeTranscription = (payload: RawTranscription): Transcription => {
   return {
     id: String(payload.id),
     media_id: String(payload.media_id),
-    status: payload.status as any,
+    status: payload.status as Transcription['status'],
     provider: payload.provider ?? null,
     created_at: String(payload.created_at),
-    processed_at: (payload.processed_at as any) ?? null,
-    error_message: (payload.error_message as any) ?? null,
-    text: String((payload as any).text ?? payload.content ?? ""),
+    processed_at: payload.processed_at ?? null,
+    error_message: payload.error_message ?? null,
+    text: String(payload.text ?? payload.content ?? ""),
     segments,
-    speaker_aliases: (payload as any).speaker_aliases ?? {},
-    language: (payload as any).language ?? null,
-    confidence_score: (payload as any).confidence_score ?? null,
+    speaker_aliases: payload.speaker_aliases ?? {},
+    language: payload.language ?? null,
+    confidence_score: payload.confidence_score ?? null,
   };
 };
 
@@ -109,8 +110,8 @@ export const getTextAnalysisByMediaId = async (mediaId: string): Promise<TextAna
   try {
     const response = await api.get<TextAnalysisResponse>(`/text-analysis/media/${mediaId}`);
     return response.data;
-  } catch (error: any) {
-    if (error?.response?.status === 404) {
+  } catch (error) {
+    if (apiErrorStatus(error) === 404) {
       return null;
     }
     throw error;

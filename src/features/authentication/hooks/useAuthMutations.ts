@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { login, register, changePassword, getMe } from '../api';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiErrorMessage } from '@/lib/errors';
 import { UserCredentials, UserRegistration, ChangePasswordPayload } from '@/types';
 
 export const useLogin = () => {
@@ -27,10 +28,9 @@ export const useLogin = () => {
         toast.error('Erro ao carregar dados do usuário');
       }
     },
-    onError: (error: any) => {
+    onError: (error) => {
       console.error('Login failed:', error);
-      const message = error?.response?.data?.detail || error?.message || 'Credenciais inválidas';
-      toast.error(message);
+      toast.error(apiErrorMessage(error, 'Não foi possível entrar. Tente novamente.'));
     },
   });
 };

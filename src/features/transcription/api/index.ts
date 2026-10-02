@@ -1,4 +1,5 @@
 import api from "@/lib/api";
+import { apiErrorStatus } from '@/lib/errors';
 import { Transcription, TranscriptionSegment, TranscriptionStatus } from "@/types";
 
 interface RawTranscriptionSegment {
@@ -52,8 +53,8 @@ export const getTranscriptionByMediaId = async (mediaId: string): Promise<Transc
   try {
     const response = await api.get<RawTranscriptionResponse>(`/transcriptions/?media_id=${mediaId}`);
     return adaptTranscription(response.data);
-  } catch (error: any) {
-    if (error.response && error.response.status === 404) {
+  } catch (error) {
+    if (apiErrorStatus(error) === 404) {
       return null;
     }
     throw error;

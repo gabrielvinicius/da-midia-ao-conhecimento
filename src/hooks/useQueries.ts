@@ -1,5 +1,6 @@
 // CQRS Query Hooks - Para operações de leitura
 import { useQuery } from '@tanstack/react-query';
+import { apiErrorStatus } from '@/lib/errors';
 import {
   getMediaById,
   getMediaByUser,
@@ -59,30 +60,6 @@ export const useMediaStatsQuery = () => {
 // TRANSCRIPTION QUERIES
 // =============================================================================
 
-export const useTranscriptionByMediaIdQuery = (mediaId: string) => {
-  return useQuery({
-    queryKey: ['transcription', mediaId],
-    queryFn: () => getTranscriptionByMediaId(mediaId),
-    enabled: !!mediaId,
-    retry: (failureCount, error: any) => {
-      // Não fazer retry se for 404 ou 202 (ainda processando)
-      if (error?.response?.status === 404 || error?.response?.status === 202) {
-        return false;
-      }
-      return failureCount < 3;
-    },
-    refetchOnWindowFocus: false,
-  });
-};
-
-export const useTranscriptionByIdQuery = (transcriptionId: string) => {
-  return useQuery({
-    queryKey: ['transcription', transcriptionId],
-    queryFn: () => getTranscriptionById(transcriptionId),
-    enabled: !!transcriptionId,
-  });
-};
-
 // =============================================================================
 // TEXT ANALYSIS QUERIES (unificado)
 // =============================================================================
@@ -92,12 +69,7 @@ export const useTextAnalysisByMediaIdQuery = (mediaId: string) => {
     queryKey: ['text-analysis', mediaId],
     queryFn: () => getTextAnalysisByMediaId(mediaId),
     enabled: !!mediaId,
-    retry: (failureCount, error: any) => {
-      if (error?.response?.status === 404) {
-        return false;
-      }
-      return failureCount < 3;
-    },
+    retry: (failureCount, error) => apiErrorStatus(error) !== 404 && failureCount < 3,
     refetchOnWindowFocus: false,
   });
 };
@@ -105,15 +77,6 @@ export const useTextAnalysisByMediaIdQuery = (mediaId: string) => {
 // =============================================================================
 // AUTH QUERIES
 // =============================================================================
-
-export const useCurrentUserQuery = () => {
-  return useQuery({
-    queryKey: ['current-user'],
-    queryFn: getCurrentUser,
-    staleTime: 5 * 60 * 1000, // 5 minutos
-    retry: false,
-  });
-};
 
 // =============================================================================
 // NOTIFICATION QUERIES
@@ -125,49 +88,11 @@ export const useCurrentUserQuery = () => {
 // ADMIN QUERIES
 // =============================================================================
 
-export const useSystemStatsQuery = () => {
-  return useQuery({
-    queryKey: ['admin', 'stats'],
-    queryFn: getSystemStats,
-    refetchOnWindowFocus: false,
-  });
-};
-
-export const useAllUsersQuery = () => {
-  return useQuery({
-    queryKey: ['admin', 'users'],
-    queryFn: getAllUsers,
-    staleTime: 2 * 60 * 1000, // 2 minutos
-  });
-};
-
-export const useAllMediaAdminQuery = () => {
-  return useQuery({
-    queryKey: ['admin', 'media'],
-    queryFn: getAllMediaAdmin,
-    staleTime: 60000, // 1 minuto
-  });
-};
-
 // =============================================================================
 // UTILITY HOOKS
 // =============================================================================
 
 // Hook combinado para buscar todos os dados de uma mídia
-export const useMediaDetailQuery = (mediaId: string) => {
-  const mediaQuery = useMediaByIdQuery(mediaId);
-  const transcriptionQuery = useTranscriptionByMediaIdQuery(mediaId);
-  const textAnalysisQuery = useTextAnalysisByMediaIdQuery(mediaId);
-
-  return {
-    media: mediaQuery,
-    transcription: transcriptionQuery,
-    text_analysis: textAnalysisQuery,
-    isLoading: mediaQuery.isLoading,
-    hasError: mediaQuery.isError,
-  };
-};
-
 export const useAnalysisEstimationQuery = (mediaId: string, enabled: boolean = true) => {
   return useQuery({
     queryKey: ['analysis-estimation', mediaId],

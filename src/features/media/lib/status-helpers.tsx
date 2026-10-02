@@ -1,36 +1,17 @@
 import { MediaStatus, TranscriptionStatus, MediaType } from "@/types";
-import { Loader2, Info } from "lucide-react";
+import { CheckCircle2, Loader2, Info } from "lucide-react";
 import { ReactNode } from "react";
 
+/** Estado de uma etapa: o próprio, se já começou; senão, o da mídia. */
 export const computeStageStatus = (
   mediaStatus: MediaStatus,
-  mediaType: MediaType,
+  _mediaType: MediaType,
   primaryStatus?: string | null,
   configured: boolean = true
 ): string => {
   if (!configured) return "SKIPPED";
-  if (primaryStatus && primaryStatus !== TranscriptionStatus.PENDING) {
-    return primaryStatus;
-  }
-  if (primaryStatus === TranscriptionStatus.FAILED) {
-    return "FAILED";
-  }
-  if (primaryStatus === TranscriptionStatus.PROCESSING) {
-    return "PROCESSING";
-  }
-  if (mediaStatus === MediaStatus.FAILED) {
-    return MediaStatus.FAILED;
-  }
-  if (mediaStatus === MediaStatus.PROCESSING) {
-    return MediaStatus.PROCESSING;
-  }
-  if (mediaStatus === MediaStatus.COMPLETED) {
-    return MediaStatus.COMPLETED;
-  }
-  if (mediaStatus === MediaStatus.UPLOADED) {
-    return MediaStatus.UPLOADED;
-  }
-  return "PENDING";
+  if (primaryStatus && primaryStatus !== TranscriptionStatus.PENDING) return primaryStatus;
+  return mediaStatus ?? "PENDING";
 };
 
 export const getStatusToken = (status?: string | null): { label: string; badge: string; icon: ReactNode } => {
@@ -41,7 +22,7 @@ export const getStatusToken = (status?: string | null): { label: string; badge: 
       return { 
         label: "Concluído", 
         badge: "bg-emerald-500/10 text-emerald-600", 
-        icon: <Loader2 className="h-4 w-4 text-emerald-500" /> 
+        icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" /> 
       };
     case MediaStatus.PROCESSING:
     case TranscriptionStatus.PROCESSING:

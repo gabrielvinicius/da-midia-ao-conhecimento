@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 import { Media, MediaStatus } from "@/types";
-import { useAllMedia } from "../hooks/useAdminQueries";
+import { useAllMedia, useSystemStats } from "../hooks/useAdminQueries";
 import { useDeleteMedia, useReprocessMedia, useBulkReprocessMedia } from "../hooks/useAdminMutations";
 import { DataTable } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
@@ -138,7 +138,8 @@ export const AdminAllMediaPage = () => {
   const items = data?.items ?? defaultData;
   const totalItems = data?.total ?? 0;
   const totalPages = data?.pages ?? Math.max(1, Math.ceil(totalItems / pageSize));
-  const metrics = (data as any)?.metrics ?? {};
+  // Contagens de todo o sistema (a listagem traz só a página atual).
+  const { data: stats } = useSystemStats();
 
   const pagination = React.useMemo(
     () => ({ pageIndex, pageSize }),
@@ -186,7 +187,7 @@ export const AdminAllMediaPage = () => {
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-sky-600">
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-2xl font-semibold">{metrics?.processing ?? 0}</span>
+            <span className="text-2xl font-semibold">{stats?.processing_media ?? 0}</span>
           </CardContent>
         </Card>
         <Card className="border border-[#ede4d5] bg-white">
@@ -196,7 +197,7 @@ export const AdminAllMediaPage = () => {
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-emerald-600">
             <CheckCircle className="h-4 w-4" />
-            <span className="text-2xl font-semibold">{metrics?.completed ?? 0}</span>
+            <span className="text-2xl font-semibold">{stats?.completed_media ?? 0}</span>
           </CardContent>
         </Card>
         <Card className="border border-[#ede4d5] bg-white">
@@ -206,7 +207,7 @@ export const AdminAllMediaPage = () => {
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-red-600">
             <ShieldCheck className="h-4 w-4" />
-            <span className="text-2xl font-semibold">{metrics?.failed ?? 0}</span>
+            <span className="text-2xl font-semibold">{stats?.failed_media ?? 0}</span>
           </CardContent>
         </Card>
       </div>

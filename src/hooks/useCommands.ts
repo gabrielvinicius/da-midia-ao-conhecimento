@@ -32,6 +32,8 @@ import {
   ProvidersResponse,
 } from '@/api/queries';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiErrorMessage } from '@/lib/errors';
+import { removeFromCachedPages, restoreCachedPages } from '@/lib/optimistic';
 
 // =============================================================================
 // MEDIA COMMANDS
@@ -53,13 +55,12 @@ export const useCreateMediaCommand = () => {
     onSuccess: (data) => {
       const filename = data.filename || 'arquivo';
       const pipeline = data.processing_pipeline?.join(' → ');
-      const correlationId = (data as any)?.correlation_id;
 
       const successMsg = pipeline
         ? `Arquivo "${filename}" enviado. Pipeline: ${pipeline}`
         : `Arquivo "${filename}" enviado.`;
 
-      toast.success(successMsg + (correlationId ? ` (correlation_id: ${correlationId})` : ''));
+      toast.success(successMsg);
       setProgress(100);
       
       // Invalidar queries relacionadas
@@ -68,23 +69,10 @@ export const useCreateMediaCommand = () => {
       
       navigate('/dashboard');
     },
-    onError: (error: any) => {
+    onError: (error) => {
       console.error('❌ CreateMediaCommand falhou:', error);
       setProgress(0);
-      
-      const payload = error?.response?.data;
-      const errorMessage =
-        payload?.message ||
-        payload?.error ||
-        payload?.detail ||
-        error?.message ||
-        'Erro ao fazer upload do arquivo';
-
-      if (error?.response?.headers?.['x-correlation-id']) {
-        console.warn('correlation_id:', error.response.headers['x-correlation-id']);
-      }
-      
-      toast.error(errorMessage);
+      toast.error(apiErrorMessage(error, 'Erro ao fazer upload do arquivo'));
     },
   });
 
@@ -106,10 +94,9 @@ export const useReprocessMediaCommand = () => {
       queryClient.invalidateQueries({ queryKey: ['text-analysis', variables.mediaId] });
       queryClient.invalidateQueries({ queryKey: ['media-stats'] });
     },
-    onError: (error: any) => {
+    onError: (error) => {
       // 409: a mídia não falhou (já foi reenviada ou está em processamento).
-      const detail = error?.response?.data?.detail;
-      toast.error(typeof detail === 'string' && detail ? detail : 'Não foi possível reprocessar a mídia');
+      toast.error(apiErrorMessage(error, 'Não foi possível reprocessar a mídia'));
     },
   });
 };
@@ -121,16 +108,7 @@ export const useDeleteUserMediaCommand = () => {
     mutationFn: (command: DeleteUserMediaCommand) => executeDeleteUserMedia(command),
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ['media-list'] });
-      const previous = queryClient.getQueryData<any>(['media-list']);
-
-      // Otimista: remove item da primeira página em cache se existir
-      if (previous && Array.isArray(previous.items)) {
-        const items = previous.items.filter((m: any) => m.id !== variables.mediaId);
-        const total = typeof previous.total === 'number' ? Math.max(0, previous.total - 1) : items.length;
-        queryClient.setQueryData(['media-list'], { ...previous, items, total });
-      }
-
-      return { previous };
+      return { previous: removeFromCachedPages(queryClient, ['media-list'], variables.mediaId) };
     },
     onSuccess: (_, variables) => {
       toast.success('Mídia excluída com sucesso.');
@@ -141,13 +119,11 @@ export const useDeleteUserMediaCommand = () => {
         queryClient.removeQueries({ queryKey: ['media', variables.mediaId] });
       }
     },
-    onError: (error: any, _vars, context) => {
+    onError: (error, _vars, context) => {
       console.error('❌ DeleteMediaCommand falhou:', error);
-      const message = error?.response?.data?.detail || 'Erro ao excluir a mídia';
+      const message = apiErrorMessage(error, 'Erro ao excluir a mídia');
       toast.error(message);
-      if (context?.previous) {
-        queryClient.setQueryData(['media-list'], context.previous);
-      }
+      restoreCachedPages(queryClient, context?.previous);
     },
   });
 };
@@ -156,167 +132,10 @@ export const useDeleteUserMediaCommand = () => {
 // AUTH COMMANDS
 // =============================================================================
 
-export const useAuthenticateUserCommand = () => {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { setUser } = useAuth();
-
-  return useMutation({
-    mutationFn: (command: AuthenticateUserCommand) => executeAuthenticateUser(command),
-    onSuccess: async (data) => {
-      try {
-        // Buscar dados do usuário após login
-      const user = await getCurrentUser();
-        
-        setUser(user);
-        queryClient.setQueryData(['current-user'], user);
-        
-        toast.success('Login realizado com sucesso!');
-        navigate('/dashboard');
-      } catch (userError) {
-        console.error('Erro ao buscar dados do usuário:', userError);
-        toast.error('Erro ao carregar dados do usuário');
-      }
-    },
-    onError: (error: any) => {
-      console.error('❌ AuthenticateUserCommand falhou:', error);
-      const message = error?.response?.data?.detail || 'Credenciais inválidas';
-      toast.error(message);
-    },
-  });
-};
-
-export const useCreateUserCommand = () => {
-  const navigate = useNavigate();
-
-  return useMutation({
-    mutationFn: (command: CreateUserCommand) => executeCreateUser(command),
-    onSuccess: () => {
-      toast.success('Usuário criado com sucesso! Faça login para continuar.');
-      navigate('/login');
-    },
-    onError: (error: any) => {
-      console.error('❌ CreateUserCommand falhou:', error);
-      const message = error?.response?.data?.detail || 'Erro ao criar usuário';
-      toast.error(message);
-    },
-  });
-};
-
-export const useChangePasswordCommand = () => {
-  return useMutation({
-    mutationFn: (command: ChangePasswordCommand) => executeChangePassword(command),
-    onSuccess: () => {
-      toast.success('Senha alterada com sucesso!');
-    },
-    onError: (error: any) => {
-      console.error('❌ ChangePasswordCommand falhou:', error);
-      const message = error?.response?.data?.detail || 'Erro ao alterar senha';
-      toast.error(message);
-    },
-  });
-};
-
 // =============================================================================
 // TRANSCRIPTION COMMANDS
 // =============================================================================
 
-export const useSetSpeakerAliasesCommand = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (command: SetSpeakerAliasesCommand) => executeSetSpeakerAliases(command),
-    onSuccess: (data, variables) => {
-      toast.success('Nomes dos falantes atualizados!');
-      
-      // Invalidar queries relacionadas
-      queryClient.invalidateQueries({ queryKey: ['transcription', variables.transcriptionId] });
-      queryClient.setQueryData(['transcription', variables.transcriptionId], data);
-    },
-    onError: (error: any) => {
-      console.error('❌ SetSpeakerAliasesCommand falhou:', error);
-      toast.error('Erro ao atualizar nomes dos falantes');
-    },
-  });
-};
-
 // =============================================================================
 // ADMIN COMMANDS
 // =============================================================================
-
-export const useUpdateUserRoleCommand = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (command: UpdateUserRoleCommand) => executeUpdateUserRole(command),
-    onSuccess: (data) => {
-      toast.success(`Role do usuário atualizada para ${data.role}`);
-      
-      // Invalidar queries relacionadas
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-      queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] });
-    },
-    onError: (error: any) => {
-      console.error('❌ UpdateUserRoleCommand falhou:', error);
-      toast.error('Erro ao atualizar role do usuário');
-    },
-  });
-};
-
-export const useDeleteUserCommand = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (command: DeleteUserCommand) => executeDeleteUser(command),
-    onSuccess: () => {
-      toast.success('Usuário removido com sucesso');
-      
-      // Invalidar queries relacionadas
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-      queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] });
-    },
-    onError: (error: any) => {
-      console.error('❌ DeleteUserCommand falhou:', error);
-      toast.error('Erro ao remover usuário');
-    },
-  });
-};
-
-export const useDeleteMediaCommand = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (command: DeleteMediaCommand) => executeDeleteMedia(command),
-    onSuccess: () => {
-      toast.success('Mídia removida com sucesso');
-      
-      // Invalidar queries relacionadas
-      queryClient.invalidateQueries({ queryKey: ['admin', 'media'] });
-      queryClient.invalidateQueries({ queryKey: ['media-list'] });
-      queryClient.invalidateQueries({ queryKey: ['admin', 'stats'] });
-    },
-    onError: (error: any) => {
-      console.error('❌ DeleteMediaCommand falhou:', error);
-      toast.error('Erro ao remover mídia');
-    },
-  });
-};
-
-export const useAdminReprocessMediaCommand = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (command: ReprocessMediaCommand) => executeAdminReprocessMedia(command),
-    onSuccess: (data, variables) => {
-      toast.info(data.message);
-      
-      // Invalidar queries relacionadas
-      queryClient.invalidateQueries({ queryKey: ['admin', 'media'] });
-      queryClient.invalidateQueries({ queryKey: ['media', variables.mediaId] });
-    },
-    onError: (error: any) => {
-      console.error('❌ Admin ReprocessMediaCommand falhou:', error);
-      toast.error('Erro ao reprocessar mídia (admin)');
-    },
-  });
-};

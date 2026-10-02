@@ -13,9 +13,6 @@ export interface CreateMediaCommand {
   file: File;
   storageProvider: string;
   transcriptionProvider?: string;
-  summarizationProvider?: string;
-  sentimentProvider?: string;
-  topicModelingProvider?: string;
 }
 
 export interface ReprocessMediaCommand {
@@ -29,27 +26,18 @@ type UploadOptions = {
 export const executeCreateMedia = async (
   command: CreateMediaCommand,
   options?: UploadOptions,
-): Promise<Media & { correlation_id?: string }> => {
+): Promise<Media> => {
   const { file, ...queryParams } = command;
   const formData = new FormData();
   formData.append('file', file, file.name);
 
   // Converter camelCase para snake_case para o backend
-  const backendParams: any = {};
+  const backendParams: Record<string, string> = {};
   if (queryParams.storageProvider) {
     backendParams.storage_provider = queryParams.storageProvider;
   }
   if (queryParams.transcriptionProvider) {
     backendParams.transcription_provider = queryParams.transcriptionProvider;
-  }
-  if (queryParams.summarizationProvider) {
-    backendParams.summarization_provider = queryParams.summarizationProvider;
-  }
-  if (queryParams.sentimentProvider) {
-    backendParams.sentiment_provider = queryParams.sentimentProvider;
-  }
-  if (queryParams.topicModelingProvider) {
-    backendParams.topic_modeling_provider = queryParams.topicModelingProvider;
   }
 
   const queryString = new URLSearchParams(backendParams).toString();
@@ -66,8 +54,7 @@ export const executeCreateMedia = async (
       options?.onProgress?.(percentCompleted, event);
     },
   });
-  const correlationId = response.headers?.['x-correlation-id'];
-  return { ...response.data, correlation_id: correlationId };
+  return response.data;
 };
 
 export const executeReprocessMedia = async (command: ReprocessMediaCommand): Promise<{ message: string }> => {

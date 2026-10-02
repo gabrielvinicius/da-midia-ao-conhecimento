@@ -9,13 +9,12 @@ import { SentimentResultPanel } from "@/features/sentiment_analysis/components/S
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { MagicSurface } from "@/components/ui/MagicSurface";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { MediaStatus, TranscriptionStatus, MediaType } from "@/types";
-import { cn } from "@/lib/utils";
+import { MediaStatus, MediaType } from "@/types";
 import { MediaPlayer } from "@/features/media/components/MediaPlayer";
 import { useTranscription } from "@/features/transcription/hooks/useTranscription";
 import { TranscriptionPanel } from "@/features/transcription/components/TranscriptionPanel";
@@ -24,25 +23,17 @@ import { SummaryPanel } from "@/features/summarization/components/SummaryPanel";
 import authService from "@/services/auth.service";
 import { PredictiveInsight } from "@/components/PredictiveInsight";
 import { ProcessingTrace } from "@/components/ProcessingTrace";
-import { computeStageStatus, getStatusToken } from "@/features/media/lib/status-helpers";
+import { getStatusToken } from "@/features/media/lib/status-helpers";
+import { mediaPipelineSteps } from "@/features/media/lib/pipelineSteps";
+import { MediaSystemCard } from "@/features/media/components/MediaSystemCard";
+import { TextPreview } from "@/features/media/components/TextPreview";
 
 import {
   CalendarDays,
-  HardDrive,
-  Shield,
   Loader2,
   Info,
   RefreshCw,
-  Languages,
-  FileText,
 } from "lucide-react";
-
-type PipelineStep = {
-  key: string;
-  label: string;
-  status?: string | null;
-  description: string;
-};
 
 const MediaDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -58,13 +49,14 @@ const MediaDetailPage = () => {
     isError: isTranscriptionError,
   } = useTranscription(id ?? "");
 
+  // Hooks sempre na mesma ordem: o retorno antecipado vem depois deles.
+  const { data: media, isLoading, isError } = useMediaByIdQuery(id ?? "");
+  const reprocessMutation = useReprocessMediaCommand();
+  const { data: textAnalysis } = useTextAnalysisByMediaIdQuery(id ?? "");
+
   if (!id) {
     return <p className="text-destructive">Nenhum ID de mídia informado.</p>;
   }
-
-  const { data: media, isLoading, isError } = useMediaByIdQuery(id);
-  const reprocessMutation = useReprocessMediaCommand();
-  const { data: textAnalysis } = useTextAnalysisByMediaIdQuery(id);
 
   const handleReprocess = () => {
     if (media) {
@@ -115,71 +107,6 @@ const MediaDetailPage = () => {
   const derivedLanguage = media.language || transcriptionData?.language;
   const languageLabel = derivedLanguage ? derivedLanguage.toUpperCase() : "Indefinido";
   
-  const summaryConfigured = Boolean(media.summarization_provider) || media.status === MediaStatus.COMPLETED;
-  const topicsConfigured = Boolean(media.topic_modeling_provider) || media.status === MediaStatus.COMPLETED;
-
-  const uploadStageStatus = media.status === MediaStatus.FAILED ? MediaStatus.FAILED : MediaStatus.COMPLETED;
-  const transcriptionStageStatus = computeStageStatus(
-    media.status,
-    media.media_type,
-    transcriptionData?.status ?? (isTextMedia ? transcriptionData?.status : undefined),
-    true
-  );
-  
-  const analysisStage = textAnalysis ? MediaStatus.COMPLETED : undefined;
-  const summaryStageStatus = computeStageStatus(
-    media.status, 
-    media.media_type, 
-    analysisStage, 
-    summaryConfigured
-  );
-  const topicStageStatus = computeStageStatus(
-    media.status, 
-    media.media_type, 
-    analysisStage, 
-    topicsConfigured
-  );
-
-  const pipelineSteps: PipelineStep[] = [];
-
-  pipelineSteps.push({
-    key: "upload",
-    label: "Upload e validação",
-    status: media.status === MediaStatus.FAILED ? MediaStatus.FAILED : uploadStageStatus,
-    description: "Arquivo recebido, validado e armazenado com segurança.",
-  });
-
-  pipelineSteps.push({
-    key: "transcription",
-    label: isTextMedia ? "Extração do texto" : "Transcrição",
-    status: transcriptionStageStatus,
-    description: isTextMedia
-      ? "Conversão de arquivos de texto em conteúdo bruto estruturado."
-      : "Conversão da fala em texto, com o horário de cada trecho.",
-  });
-
-  pipelineSteps.push({
-    key: "topics",
-    label: "Temas",
-    status: topicStageStatus,
-    description: topicStageStatus === MediaStatus.COMPLETED
-      ? "Temas e conceitos extraídos com sucesso."
-      : topicStageStatus === MediaStatus.PROCESSING
-      ? "Mapeando a topografia semântica..."
-      : "Aguardando processamento textual.",
-  });
-
-  pipelineSteps.push({
-    key: "summary",
-    label: "Resumo",
-    status: summaryStageStatus,
-    description: summaryStageStatus === MediaStatus.COMPLETED
-      ? "Artigo analítico consolidado."
-      : summaryStageStatus === MediaStatus.PROCESSING
-      ? "Gerando narrativa multimodal..."
-      : "Aguardando descoberta de tópicos.",
-  });
-
   return (
     <div className="space-y-6 h-full flex flex-col pb-12">
       {/* Header Section */}
@@ -196,7 +123,6 @@ const MediaDetailPage = () => {
               </Badge>
               <Badge className={getStatusToken(media.status).badge}>{getStatusToken(media.status).label}</Badge>
               
-              {/* Level 6.0 Visual Observability */}
               <ProcessingTrace media={media} analysis={textAnalysis} />
             </div>
           </div>
@@ -291,112 +217,14 @@ const MediaDetailPage = () => {
           {/* Tom predominante (análise de sentimento) */}
           <SentimentResultPanel mediaId={id} mediaStatus={media.status} />
 
-          {/* Metadata / Pipeline Status */}
-          <Card className="border border-slate-200 bg-white shadow-sm">
-            <CardHeader className="pb-3 border-b border-slate-50">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-400">Dados do Sistema</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4 text-sm">
-              <div className="flex justify-between py-1.5">
-                <span className="text-muted-foreground flex items-center gap-2"><FileText className="h-3.5 w-3.5"/> Nome</span>
-                <span className="font-medium truncate max-w-[150px] text-slate-700" title={media.filename || media.id}>{media.filename || media.id}</span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-muted-foreground flex items-center gap-2"><Shield className="h-3.5 w-3.5"/> Tamanho</span>
-                <span className="font-medium text-slate-700">{formattedFileSize}</span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-muted-foreground flex items-center gap-2"><HardDrive className="h-3.5 w-3.5"/> Storage</span>
-                <span className="font-medium text-slate-700">{media.storage_provider ?? "Local"}</span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-muted-foreground flex items-center gap-2"><Languages className="h-3.5 w-3.5"/> Idioma</span>
-                <span className="font-medium text-slate-700">{languageLabel}</span>
-              </div>
-              
-              <div className="pt-4 border-t border-slate-50">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Etapas de Processamento</p>
-                <div className="space-y-3">
-                  {pipelineSteps.map((step) => {
-                    const token = getStatusToken(step.status);
-                    return (
-                      <div key={step.key} className="group flex items-start justify-between gap-4">
-                        <div className="flex items-center gap-2">
-                          <div className="mt-0.5">{token.icon}</div>
-                          <div className="flex flex-col">
-                            <span className="text-xs font-medium text-slate-700 leading-none">{step.label}</span>
-                          </div>
-                        </div>
-                        <Badge className={cn("text-[9px] font-bold px-1.5 h-4 min-w-[70px] justify-center uppercase tracking-tighter", token.badge)}>
-                          {token.label}
-                        </Badge>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <MediaSystemCard
+            filename={displayName}
+            fileSize={formattedFileSize}
+            storage={media.storage_provider ?? "Local"}
+            language={languageLabel}
+            steps={mediaPipelineSteps(media, transcriptionData?.status, textAnalysis)}
+          />
         </div>
-      </div>
-    </div>
-  );
-};
-
-type TextPreviewProps = {
-  transcription: string;
-  isLoading: boolean;
-  isError: boolean;
-  status?: TranscriptionStatus;
-};
-
-const TextPreview = ({ transcription, isLoading, isError, status }: TextPreviewProps) => {
-  const statusMap: Record<string, string> = {
-    [TranscriptionStatus.COMPLETED]: "Concluído",
-    [TranscriptionStatus.PROCESSING]: "Processando",
-    [TranscriptionStatus.FAILED]: "Falhou",
-    [TranscriptionStatus.PENDING]: "Pendente",
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-4 w-1/2" />
-      </div>
-    );
-  }
-
-  if (isError) {
-    return <p className="text-sm text-destructive">Erro ao carregar a transcrição.</p>;
-  }
-
-  if (!transcription) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Estamos processando o texto deste documento. Volte em instantes para visualizar a transcrição.
-      </p>
-    );
-  }
-
-  const truncated = transcription.length > 800 ? `${transcription.slice(0, 800)}…` : transcription;
-  const statusLabel = status ? statusMap[status] ?? status : "";
-
-  return (
-    <div className="space-y-2">
-      <pre className="max-h-60 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 text-sm">
-        {truncated}
-      </pre>
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span className="flex items-center gap-2">
-          <Badge variant="secondary" className="uppercase tracking-wide">
-            {statusLabel || "Transcrito"}
-          </Badge>
-          Prévia em texto bruto
-        </span>
-        <span>
-          Exibindo {Math.min(truncated.length, transcription.length)} de {transcription.length} caracteres
-        </span>
       </div>
     </div>
   );
