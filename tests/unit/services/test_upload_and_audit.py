@@ -30,8 +30,8 @@ class Uploader:
 
 
 class Mapper:
-    def map(self, storage_metadata, default_path, file_data):
-        return UploadMetadata(stored_path=default_path, file_size=len(file_data))
+    def map(self, storage_metadata, default_path, file_size):
+        return UploadMetadata(stored_path=default_path, file_size=file_size)
 
 
 @pytest.mark.asyncio
@@ -44,7 +44,7 @@ async def test_the_file_is_removed_when_the_media_cannot_be_saved():
         media_read_service=MediaReadService(media_repository=repo), event_bus=None,
         storage_maintenance=None, storage_downloader=None,
     )
-    command = CreateMediaCommand(user_id=str(uuid4()), file=b"texto", filename="a.txt", storage_provider="local")
+    command = CreateMediaCommand(user_id=str(uuid4()), file_path="/tmp/upload.bin", file_size_bytes=5, filename="a.txt", storage_provider="local")
 
     with pytest.raises(ConnectionError):
         await service.create_media(command)

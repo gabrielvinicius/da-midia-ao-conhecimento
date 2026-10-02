@@ -46,7 +46,7 @@ class MediaWorkerApp:
         """Idempotently registers event subscribers for the worker process."""
         if self._subscribers_bound:
             return
-        
+
         # Mídia anunciada no worker (recuperação de envios que não começaram).
         self.event_bus.subscribe(MediaUploaded, self._on_media_uploaded)
         self.event_bus.subscribe(TranscriptionCompleted, self._on_transcription_completed)
@@ -54,7 +54,7 @@ class MediaWorkerApp:
         self.event_bus.subscribe(TextContentReady, self._on_text_content_ready)
         self.event_bus.subscribe(MediaProcessingStarted, self._on_media_processing_started)
         self.event_bus.subscribe(MediaProcessingFailed, self._on_media_processing_failed)
-        
+
         self._subscribers_bound = True
         logger.info("media_processing.worker.subscribers_bound")
 
@@ -86,10 +86,8 @@ class MediaWorkerApp:
         if not getattr(event, "text", None):
             return
 
-        async with AsyncSessionLocal() as session:
-            handlers = self._build_media_handlers(session)
-            await handlers.handle_text_content_ready(event)
-
+        # A mídia já foi concluída ao receber TranscriptionCompleted (antes,
+        # era gravada de novo aqui).
         # Trigger Text Analysis Task
         payload: Dict[str, Any] = {
             "media_id": str(event.media_id),

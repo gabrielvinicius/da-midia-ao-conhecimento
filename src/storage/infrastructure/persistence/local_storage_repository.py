@@ -52,6 +52,28 @@ class LocalStorageService(StorageRepositoryPort):
                 f"Falha ao gravar arquivo {file_path}: {exc}"
             ) from exc
 
+    async def store_from(self, file_path: FilePath, source_path: str) -> FileMetadata:
+        destination = self._resolve_path(file_path)
+
+        def _copy() -> None:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source_path, destination)
+
+        await asyncio.to_thread(_copy)
+        return await self.get_metadata(file_path)
+
+    async def read_range(self, file_path: FilePath, start: int, end: int) -> Optional[bytes]:
+        source = self._resolve_path(file_path)
+        if not source.exists():
+            return None
+
+        def _read() -> bytes:
+            with open(source, "rb") as handle:
+                handle.seek(start)
+                return handle.read(end - start + 1)
+
+        return await asyncio.to_thread(_read)
+
     async def download_to(self, file_path: FilePath, destination: str) -> bool:
         source = self._resolve_path(file_path)
         if not source.exists():

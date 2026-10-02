@@ -17,7 +17,6 @@ from src.media_management.application.ports import (
 )
 from src.media_management.application.services.components import (
     DefaultMediaUploadSideEffectPublisher,
-    FileSizeMediaFileValidator,
     MediaEventPublisher,
     MediaMetricsPublisher,
 )
@@ -29,8 +28,6 @@ from src.media_management.application.errors import InvalidUploadError
 
 logger = structlog.get_logger(__name__)
 
-MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024  # 500 MB
-MIN_FILE_SIZE_BYTES = 1
 
 _MEDIA_TYPE_BY_EXTENSION: Dict[str, MediaType] = {
     **{ext: MediaType.AUDIO for ext in (".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a")},
@@ -62,9 +59,6 @@ class UploadMedia:
         self._uploader = storage_uploader
         self._metadata_mapper = metadata_mapper
         self._upload_validator = upload_validator
-        self._size_validator = FileSizeMediaFileValidator(
-            min_size_bytes=MIN_FILE_SIZE_BYTES, max_size_bytes=MAX_FILE_SIZE_BYTES
-        )
         self.side_effect_publisher = DefaultMediaUploadSideEffectPublisher(
             metrics_publisher=MediaMetricsPublisher(metrics_service=metrics),
             event_publisher=MediaEventPublisher(event_bus=event_bus),
@@ -76,8 +70,7 @@ class UploadMedia:
         }
 
     async def execute(self, command: CreateMediaCommand) -> Media:
-        self._upload_validator.validate(command.file, command.filename)
-        self._size_validator.validate(command.file, command.filename)
+        self._upload_validator.validate(command.file_size_bytes, command.filename)
         self._warn_unknown_providers(command)
 
         media_type = media_type_of(command.filename)
@@ -90,7 +83,7 @@ class UploadMedia:
         upload_metadata = self._metadata_mapper.map(
             upload_result.metadata,
             default_path=upload_result.destination_path,
-            file_data=command.file,
+            file_size=command.file_size_bytes,
         )
         media = Media.create(
             media_id=media_id,

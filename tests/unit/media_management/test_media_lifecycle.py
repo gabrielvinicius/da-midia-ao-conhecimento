@@ -63,7 +63,7 @@ def _handlers():
     service = MagicMock()
     for name in ("record_processing_started", "record_text_ready", "record_processing_failed"):
         setattr(service, name, AsyncMock())
-    return MediaEventHandlers(service, AsyncMock()), service
+    return MediaEventHandlers(service, AsyncMock(), retry_delays=(0, 0, 0)), service
 
 
 @pytest.mark.asyncio

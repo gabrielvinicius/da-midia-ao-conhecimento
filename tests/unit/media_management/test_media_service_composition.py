@@ -11,9 +11,9 @@ class _Storage:
     def __init__(self, provider, calls):
         self.provider, self.calls = provider, calls
 
-    async def upload(self, *, file_data, destination, content_type):
+    async def upload_file(self, *, source_path, destination, content_type):
         self.calls.append(self.provider)
-        return {"path": destination, "size": len(file_data)}
+        return {"path": destination, "size": 1}
 
 
 class _Factory:
@@ -30,7 +30,7 @@ async def test_upload_goes_to_the_provider_chosen_by_the_user():
     escolhido: leituras e exclusões depois procuravam no lugar errado."""
     factory = _Factory()
     service = build_media_service(session=None, storage_factory=factory, event_bus=None)
-    command = SimpleNamespace(user_id=uuid4(), filename="aula.mp4", file=b"x", storage_provider="s3")
+    command = SimpleNamespace(user_id=uuid4(), filename="aula.mp4", file_path="/tmp/upload.bin", file_size_bytes=1, storage_provider="s3")
 
     await service.storage_uploader.upload(command, uuid4(), "video/mp4")
 

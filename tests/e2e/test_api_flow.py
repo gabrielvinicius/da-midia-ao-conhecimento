@@ -601,6 +601,10 @@ def test_s3_storage_keeps_files_in_the_bucket(client):
     token = me["Authorization"].split()[1]
     stream = client.get(f"/media/{media['id']}/stream?token={token}")
     assert stream.status_code == 200 and stream.content == "Ata da reunião.".encode()
+    # O reprodutor pede trechos: só o intervalo pedido volta (lido em partes).
+    part = client.get(f"/media/{media['id']}/stream?token={token}", headers={"Range": "bytes=0-2"})
+    assert part.status_code == 206 and part.content == b"Ata"
+    assert part.headers["content-range"].startswith("bytes 0-2/")
 
     assert client.delete(f"/media/{media['id']}", headers=me).status_code == 204
     keys = [o["Key"] for o in s3.list_objects_v2(Bucket=storage_settings.s3_bucket).get("Contents", [])]

@@ -49,7 +49,8 @@ def service_components() -> Dict[str, object]:
     storage_uploader = MagicMock()
     storage_uploader.upload = AsyncMock()
     storage_downloader = MagicMock()
-    storage_downloader.download = AsyncMock()
+    storage_downloader.size = AsyncMock()
+    storage_downloader.read_range = AsyncMock()
     metadata_mapper = MagicMock()
     metadata_mapper.map = MagicMock()
     metrics_service = MagicMock(spec=PrometheusMediaMetrics)
@@ -102,7 +103,7 @@ async def test_upload_media_invokes_validator_and_handler(service_components):
 
     cmd = CreateMediaCommand(
         user_id=uuid4(),
-        file=b"bytes",
+        file_path="/tmp/upload.bin", file_size_bytes=5,
         filename="sample.mp4",
         storage_provider="local",
         transcription_provider="mock",
@@ -111,7 +112,7 @@ async def test_upload_media_invokes_validator_and_handler(service_components):
 
     result = await service.create_media(cmd)
 
-    validator.validate.assert_called_once_with(b"bytes", "sample.mp4")
+    validator.validate.assert_called_once_with(5, "sample.mp4")
     publisher.publish.assert_awaited()
     assert result.id
 
@@ -238,7 +239,9 @@ async def test_get_media_stream_processes_range_header(service_components):
         storage_provider="local",
     )
     media_repository.get_by_id.return_value = media
-    storage_downloader.download.return_value = b"0123456789" * 10 # 100 bytes
+    content = b"0123456789" * 10  # 100 bytes
+    storage_downloader.size.return_value = len(content)
+    storage_downloader.read_range.side_effect = lambda provider, path, start, end: content[start : end + 1]
 
     query = GetMediaStreamQuery(
         media_id=media.id,
@@ -248,6 +251,8 @@ async def test_get_media_stream_processes_range_header(service_components):
     stream_dto = await service.get_media_stream(query, user_id=media.user_id)
 
     assert stream_dto.status_code == 206
-    assert stream_dto.content == b"0123456789"
+    assert b"".join([c async for c in stream_dto.chunks]) == b"0123456789"
+    # Só o trecho pedido foi lido do armazenamento.
+    storage_downloader.read_range.assert_called_once_with("local", "path/to/file", 0, 9)
     assert stream_dto.headers["Content-Range"] == "bytes 0-9/100"
     assert stream_dto.headers["Content-Length"] == "10"

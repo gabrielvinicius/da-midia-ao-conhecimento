@@ -14,11 +14,6 @@ class BrokenQueue:
         raise ConnectionError("redis fora do ar")
 
 
-class Handlers:
-    async def handle_text_content_ready(self, event):
-        return None
-
-
 @pytest.mark.asyncio
 async def test_failed_enqueue_marks_the_media_as_failed(monkeypatch):
     @asynccontextmanager
@@ -28,7 +23,6 @@ async def test_failed_enqueue_marks_the_media_as_failed(monkeypatch):
     monkeypatch.setattr(worker_module, "AsyncSessionLocal", session)
     bus = InMemoryEventBus()
     app = worker_module.MediaWorkerApp(event_bus=bus, analysis_requester=BrokenQueue())
-    monkeypatch.setattr(app, "_build_media_handlers", lambda _s: Handlers())
     media_id = str(uuid4())
 
     await app._on_text_content_ready(

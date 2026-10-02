@@ -79,3 +79,17 @@ async def test_local_download_copies_the_file(tmp_path):
     assert await local.download_to(FilePath("u1/a.txt"), str(target)) is True
     assert target.read_bytes() == b"texto"
     assert await local.download_to(FilePath("u1/nada.txt"), str(tmp_path / "y")) is False
+
+
+@pytest.mark.asyncio
+async def test_range_reads_only_the_requested_bytes(repo, tmp_path):
+    from src.storage.infrastructure.persistence.local_storage_repository import LocalStorageService
+
+    storage, _ = repo
+    await storage.store(FilePath("u1/v.mp4"), b"0123456789")
+    assert await storage.read_range(FilePath("u1/v.mp4"), 2, 5) == b"2345"
+    assert await storage.read_range(FilePath("u1/nada.mp4"), 0, 1) is None
+
+    local = LocalStorageService(tmp_path / "root")
+    await local.store(FilePath("u1/v.mp4"), b"0123456789")
+    assert await local.read_range(FilePath("u1/v.mp4"), 7, 9) == b"789"

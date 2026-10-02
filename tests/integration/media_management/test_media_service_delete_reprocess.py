@@ -43,12 +43,12 @@ class FakeRepo:
 
 class FakeUploader:
     async def upload(self, command, media_id, content_type: str):
-        return type("UploadResult", (), {"destination_path": f"/fake/{media_id}", "metadata": {"size": len(command.file)}})()
+        return type("UploadResult", (), {"destination_path": f"/fake/{media_id}", "metadata": {"size": command.file_size_bytes}})()
 
 
 class FakeMetadataMapper:
-    def map(self, storage_metadata, default_path, file_data: bytes):
-        return UploadMetadata(stored_path=default_path, file_size=len(file_data))
+    def map(self, storage_metadata, default_path, file_size: int):
+        return UploadMetadata(stored_path=default_path, file_size=file_size)
 
 
 class FakeMaintenance:
@@ -100,7 +100,7 @@ async def test_delete_and_reprocess_flow():
 
     cmd = CreateMediaCommand(
         user_id=str(uuid4()),
-        file=b"hello",
+        file_path="/tmp/upload.bin", file_size_bytes=5,
         filename="file.mp4",
         storage_provider="local",
         transcription_provider=None,
@@ -149,7 +149,7 @@ async def test_delete_stops_when_a_module_cannot_erase_its_data():
     media = await service.create_media(
         CreateMediaCommand(
             user_id=str(uuid4()),
-            file=b"hello",
+            file_path="/tmp/upload.bin", file_size_bytes=5,
             filename="file.mp4",
             storage_provider="local",
             transcription_provider=None,

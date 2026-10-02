@@ -40,8 +40,8 @@ class StorageServiceFactoryUploader(StorageUploaderPort):
 
         provider = getattr(command, "storage_provider", None) or self._default_provider
         storage = self._factory.create_storage_service(str(provider))
-        metadata = await storage.upload(
-            file_data=command.file,
+        metadata = await storage.upload_file(
+            source_path=command.file_path,
             destination=destination_path,
             content_type=content_type,
         )
@@ -59,9 +59,9 @@ class DefaultUploadMetadataMapper(UploadMetadataMapperPort):
         self,
         storage_metadata: Dict[str, Any],
         default_path: str,
-        file_data: bytes,
+        file_size: int,
     ) -> UploadMetadata:
-        size = storage_metadata.get("size") or len(file_data)
+        size = storage_metadata.get("size") or file_size
         path = storage_metadata.get("path") or default_path
         return UploadMetadata(
             stored_path=path,

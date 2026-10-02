@@ -63,6 +63,27 @@ class S3StorageRepository(StorageRepositoryPort):
             updated_at=now,
         )
 
+    async def store_from(self, file_path: FilePath, source_path: str) -> FileMetadata:
+        """Envio em partes (upload_file do boto3), sem ler o arquivo para a memória."""
+        await self._ensure_bucket()
+        key = _key(file_path)
+        content_type = mimetypes.guess_type(key)[0] or "application/octet-stream"
+        await asyncio.to_thread(
+            self._s3.upload_file, source_path, self._bucket, key, ExtraArgs={"ContentType": content_type}
+        )
+        return await self.get_metadata(file_path)
+
+    async def read_range(self, file_path: FilePath, start: int, end: int) -> Optional[bytes]:
+        try:
+            response = await asyncio.to_thread(
+                self._s3.get_object, Bucket=self._bucket, Key=_key(file_path), Range=f"bytes={start}-{end}"
+            )
+        except Exception as exc:
+            if _not_found(exc):
+                return None
+            raise
+        return await asyncio.to_thread(response["Body"].read)
+
     async def download_to(self, file_path: FilePath, destination: str) -> bool:
         """Baixa em partes direto para o disco (download_file do boto3)."""
         try:

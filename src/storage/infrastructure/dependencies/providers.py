@@ -24,65 +24,33 @@ logger = structlog.get_logger(__name__)
 
 @dataclass
 class StorageClientAdapter(FileStoragePort):
-    """Adapter exposing a uniform interface for upload/download used by other modules.
-    Wraps the Application Service to maintain backward compatibility.
-    """
+    """Arquivos das mídias para os demais módulos, sempre sem carregá-los
+    inteiros na memória: grava a partir de um temporário, lê por trechos e
+    baixa direto para o disco."""
 
     service: StorageService
     provider_name: str
 
-    async def upload(
-        self,
-        *,
-        file_data: bytes,
-        destination: str,
-        content_type: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        # Ensure deterministic path layout
-        normalized_path = str(Path(destination))
-
-        # Use new Service API
-        file_meta = await self.service.store_file(normalized_path, file_data)
-
+    async def upload_file(self, *, source_path: str, destination: str, content_type: str) -> Dict[str, Any]:
+        """Grava o arquivo enviado a partir do temporário da API."""
+        file_meta = await self.service.store_file_from(str(Path(destination)), source_path)
         return {
             "path": str(file_meta.file_path),
             "provider": self.provider_name,
             "content_type": file_meta.content_type,
-            "metadata": metadata or {},
-            "size": file_meta.size.bytes
+            "size": file_meta.size.bytes,
         }
 
-    async def retrieve(self, path: Any):
-        """Compat: usado por services que esperam StoragePort.retrieve(FilePath)."""
-        normalized_path = str(path)
-        return await self.service.retrieve_file(normalized_path)
+    async def size(self, path: Any) -> Optional[int]:
+        meta = await self.service.get_file_metadata(str(path))
+        return meta.size.bytes if meta else None
+
+    async def read_range(self, path: Any, start: int, end: int) -> Optional[bytes]:
+        return await self.service.read_file_range(str(path), start, end)
 
     async def download_to(self, path: Any, destination: str) -> bool:
         """Grava o arquivo em ``destination`` (vídeos de até 500 MB não passam pela memória)."""
         return await self.service.download_file_to(str(path), destination)
-
-    async def download(self, file_path: str):
-        normalized_path = str(Path(file_path))
-        data = await self.service.retrieve_file(normalized_path)
-        if data is None:
-            return None
-
-        # Reconstruct filename from path
-        filename = Path(normalized_path).name
-        return data, filename
-
-    async def download_file(self, file_path: str) -> bytes:
-        normalized_path = str(Path(file_path))
-        data = await self.service.retrieve_file(normalized_path)
-        if data is None:
-            raise FileNotFoundError(
-                (
-                    f"File '{normalized_path}' not found in storage provider "
-                    f"'{self.provider_name}'"
-                )
-            )
-        return data
 
     async def delete(self, file_path: str) -> bool:
         return await self.service.delete_file(file_path)

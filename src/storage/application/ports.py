@@ -43,6 +43,15 @@ class StorageRepositoryPort(Protocol):
 
     async def retrieve(self, file_path: FilePath) -> Optional[bytes]: ...
 
+    async def store_from(self, file_path: FilePath, source_path: str) -> FileMetadata:
+        """Grava a partir de um arquivo local, sem carregá-lo na memória."""
+        ...
+
+    async def read_range(self, file_path: FilePath, start: int, end: int) -> Optional[bytes]:
+        """Bytes de ``start`` a ``end`` (inclusivos), sem ler o resto do arquivo.
+        None se o arquivo não existir."""
+        ...
+
     async def download_to(self, file_path: FilePath, destination: str) -> bool:
         """Grava o arquivo em ``destination`` sem carregá-lo inteiro na memória.
         False se o arquivo não existir."""
@@ -62,23 +71,16 @@ class StorageRepositoryPort(Protocol):
 class FileStoragePort(Protocol):
     """Narrow upload/download port used by media_management."""
 
-    async def upload(
-        self,
-        *,
-        file_data: bytes,
-        destination: str,
-        content_type: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]: ...
+    async def upload_file(self, *, source_path: str, destination: str, content_type: str) -> Dict[str, Any]: ...
 
-    async def download_file(self, file_path: str) -> bytes: ...
+    async def delete(self, file_path: str) -> bool: ...
 
 
 class StorageServiceResolverPort(Protocol):
     """Port for resolving storage services by provider name."""
 
     def create_storage_service(self, provider: str) -> FileStoragePort: ...
-    
+
     def get_download_service(self, provider: str) -> FileStoragePort: ...
 
 

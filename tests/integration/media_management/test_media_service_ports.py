@@ -56,12 +56,12 @@ class FakeMediaRepo(MediaRepositoryPort):
 
 class FakeUploader(StorageUploaderPort):
     async def upload(self, command, media_id, content_type: str):
-        return type("UploadResult", (), {"destination_path": f"/fake/{media_id}", "metadata": {"size": len(command.file)}})()
+        return type("UploadResult", (), {"destination_path": f"/fake/{media_id}", "metadata": {"size": command.file_size_bytes}})()
 
 
 class FakeMetadataMapper(UploadMetadataMapperPort):
-    def map(self, storage_metadata, default_path, file_data: bytes):
-        return UploadMetadata(stored_path=default_path, file_size=len(file_data))
+    def map(self, storage_metadata, default_path, file_size: int):
+        return UploadMetadata(stored_path=default_path, file_size=file_size)
 
 
 class FakeMetrics(MediaMetricsPort):
@@ -104,7 +104,7 @@ async def test_media_service_create_media_with_ports():
 
     cmd = CreateMediaCommand(
         user_id=str(uuid4()),
-        file=b"hello",
+        file_path="/tmp/upload.bin", file_size_bytes=5,
         filename="file.txt",
         storage_provider="local",
         transcription_provider=None,

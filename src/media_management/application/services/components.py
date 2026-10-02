@@ -18,47 +18,12 @@ from src.media_management.application.ports import (
     UploadResult,
 )
 from src.media_management.application.upload_events import upload_event_for
-from src.shared.domain.errors import ValidationError
 from src.shared.domain.events import (
     MediaDeleted,
     MediaReprocessRequested,
 )
 
 logger = structlog.get_logger(__name__)
-
-
-class MediaFileValidator:
-    """Protocol-like base class for validators."""
-
-    def validate(
-        self,
-        file_data: bytes,
-        filename: str,
-    ) -> None:  # pragma: no cover - interface
-        raise NotImplementedError
-
-
-class FileSizeMediaFileValidator(MediaFileValidator):
-    """Validates that the uploaded file is within the configured size bounds."""
-
-    def __init__(self, min_size_bytes: int, max_size_bytes: int) -> None:
-        self._min = min_size_bytes
-        self._max = max_size_bytes
-
-    def validate(self, file_data: bytes, filename: str) -> None:
-        size = len(file_data) if hasattr(file_data, "__len__") else 0
-        if size < self._min:
-            raise ValidationError(
-                "file",
-                filename,
-                f"File too small (min {self._min} bytes)",
-            )
-        if size > self._max:
-            raise ValidationError(
-                "file",
-                filename,
-                f"File too large (max {self._max} bytes)",
-            )
 
 
 class MediaMetricsPublisher:
@@ -166,9 +131,6 @@ __all__ = [
     "UploadMetadata",
     "StorageUploaderPort",
     "UploadMetadataMapperPort",
-    # Validators
-    "MediaFileValidator",
-    "FileSizeMediaFileValidator",
     # Publishers
     "MediaMetricsPublisher",
     "MediaEventPublisher",

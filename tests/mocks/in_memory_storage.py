@@ -47,6 +47,10 @@ class InMemoryStorage(StorageRepositoryPort):
         path_str = str(file_path)
         return self.files.get(path_str)
 
+    async def read_range(self, file_path: FilePath, start: int, end: int) -> Optional[bytes]:
+        data = self.files.get(str(file_path))
+        return None if data is None else data[start : end + 1]
+
     async def download_to(self, file_path: FilePath, destination: str) -> bool:
         data = await self.retrieve(file_path)
         if data is None:

@@ -1,5 +1,9 @@
 # src/media_management/api/routers.py
-from typing import Optional
+import asyncio
+import os
+import tempfile
+from contextlib import asynccontextmanager, suppress
+from typing import AsyncIterator, Optional
 from uuid import UUID
 
 from fastapi import (
@@ -12,9 +16,10 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import Response
+from fastapi.responses import StreamingResponse
 
-from src.media_management.application.errors import InvalidRangeError
+from src.media_management.application.errors import InvalidRangeError, InvalidUploadError
+from src.media_management.config.settings import media_settings
 from src.shared.domain.errors import NotFoundError
 from src.media_management.application.dtos import (
     CreateMediaCommand,
@@ -38,6 +43,32 @@ from src.user_management.domain import UserRole
 from .dependencies import get_media_service
 from .schemas import MediaResponse
 
+UPLOAD_CHUNK_BYTES = 1024 * 1024
+
+
+@asynccontextmanager
+async def received_file(upload: UploadFile, max_bytes: int) -> AsyncIterator[tuple[str, int]]:
+    """Grava o envio num temporário, em partes de 1 MB, e o apaga ao sair.
+
+    Antes, o arquivo inteiro (até 500 MB) era lido para a memória da API. Um
+    envio acima do limite é recusado durante a cópia, sem chegar a ocupar o
+    disco por inteiro.
+    """
+    descriptor, path = tempfile.mkstemp(suffix=os.path.splitext(upload.filename or "")[1])
+    size = 0
+    try:
+        with os.fdopen(descriptor, "wb") as target:
+            while chunk := await upload.read(UPLOAD_CHUNK_BYTES):
+                size += len(chunk)
+                if size > max_bytes:
+                    raise InvalidUploadError("Tamanho do arquivo excede o limite máximo")
+                await asyncio.to_thread(target.write, chunk)
+        yield path, size
+    finally:
+        with suppress(FileNotFoundError):
+            os.remove(path)
+
+
 router = APIRouter(
     prefix="/media",
     tags=["Media"],
@@ -58,17 +89,19 @@ async def create_media(
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
 ):
-    command = CreateMediaCommand(
-        user_id=current_user.id,
-        file=await file.read(),
-        filename=file.filename,
-        storage_provider=storage_provider,
-        transcription_provider=transcription_provider,
-        correlation_id=correlation_id_of(request),
-    )
-    # Erros de validação viram 400 nos tratadores globais; o resto, 500 sem
-    # expor a mensagem interna.
-    media = await service.create_media(command)
+    async with received_file(file, media_settings.media_max_file_size_bytes) as (path, size):
+        command = CreateMediaCommand(
+            user_id=current_user.id,
+            file_path=path,
+            file_size_bytes=size,
+            filename=file.filename,
+            storage_provider=storage_provider,
+            transcription_provider=transcription_provider,
+            correlation_id=correlation_id_of(request),
+        )
+        # Erros de validação viram 400 nos tratadores globais; o resto, 500 sem
+        # expor a mensagem interna.
+        media = await service.create_media(command)
     return MediaResponse.from_domain(media)
 
 
@@ -172,8 +205,9 @@ async def stream_media(
             user_role=current_user.role,
         )
 
-        return Response(
-            content=stream_dto.content,
+        # Enviado em partes, lidas do armazenamento à medida que saem.
+        return StreamingResponse(
+            stream_dto.chunks,
             media_type=stream_dto.media_type,
             headers=stream_dto.headers,
             status_code=stream_dto.status_code,

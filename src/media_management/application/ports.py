@@ -116,7 +116,16 @@ class StorageUploaderPort(Protocol):
 
 
 class StorageDownloaderPort(Protocol):
-    async def download(self, provider_name: str, path: str) -> bytes: ...
+    """Leitura do arquivo para o reprodutor, por trechos: um vídeo de 500 MB
+    nunca passa inteiro pela memória da API."""
+
+    async def size(self, provider_name: str, path: str) -> Optional[int]:
+        """Tamanho em bytes, ou None se o arquivo não existir."""
+        ...
+
+    async def read_range(self, provider_name: str, path: str, start: int, end: int) -> Optional[bytes]:
+        """Bytes de ``start`` a ``end`` (inclusivos)."""
+        ...
 
 
 class UploadMetadataMapperPort(Protocol):
@@ -124,5 +133,5 @@ class UploadMetadataMapperPort(Protocol):
         self,
         storage_metadata: Dict[str, Any],
         default_path: str,
-        file_data: bytes,
+        file_size: int,
     ) -> UploadMetadata: ...

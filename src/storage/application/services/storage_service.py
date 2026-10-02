@@ -29,6 +29,16 @@ class StorageService:
         file_path = FilePath.from_path(path)
         return await self._repository.retrieve(file_path)
 
+    async def store_file_from(self, path: str, source_path: str) -> FileMetadata:
+        """Grava a partir de um arquivo local (envios de até 500 MB)."""
+        file_path = FilePath.from_path(path)
+        logger.info("storage.store_file", path=str(file_path))
+        return await self._repository.store_from(file_path, source_path)
+
+    async def read_file_range(self, path: str, start: int, end: int) -> Optional[bytes]:
+        """Trecho do arquivo (para o reprodutor), sem lê-lo inteiro."""
+        return await self._repository.read_range(FilePath.from_path(path), start, end)
+
     async def download_file_to(self, path: str, destination: str) -> bool:
         """Grava o arquivo em disco sem passar pela memória."""
         return await self._repository.download_to(FilePath.from_path(path), destination)
