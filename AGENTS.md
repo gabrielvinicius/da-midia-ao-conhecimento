@@ -21,14 +21,17 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 - **Complexity**: functions stay at McCabe complexity 12 or less (checked in CI); split long flows into named steps.
 - **Data model**: ids are UUID; timestamps are `DateTime(timezone=True)` in UTC (`shared/domain/time/clock.utcnow`); enums are stored as text via `shared/infrastructure/database/types.enum_column` (no native PostgreSQL enums). Tables derived from a media reference `media.id` with a foreign key; deletion is done by the application (`MediaDataEraserPort` per media, `UserDataEraserPort` per user), never by cascades across modules.
 - **Repositories**: map rows to domain objects right away; no `rollback` before reads (a failed commit is rolled back inside `unit_of_work.commit`); no `refresh` after commit unless a server-side default must be read.
-- - **Rich entities**: state changes go through entity methods (`mark_as_failed`, `override_status`, `mark_as_extracted`), never by assigning `status` from services.
+- **Rich entities**: state changes go through entity methods (`mark_as_failed`, `override_status`, `mark_as_extracted`), never by assigning `status` from services.
+- **Observability**: logs are JSON by default (`LOG_FORMAT=console` for local reading) and every line carries the `correlation_id` bound in `contextvars` by `CorrelationIdMiddleware` (API) or `task_prerun` (Celery). The request id travels in `MediaUploaded` to the queued tasks. Prometheus metrics are never served by the public API: API and workers expose them on the internal `METRICS_PORT` (workers in multiprocess mode, `PROMETHEUS_MULTIPROC_DIR`), scraped by the `prometheus` Compose service. `/health` checks the database and Redis and answers 503 when one is down.
+- **Text generation**: only through Ollama (`OllamaTextGenerationAdapter`, main and reserve model from settings). There is no Transformers path for the LLM.
+- **Configuration**: environment-specific values (CORS origins in `CORS_ORIGINS`, hosts, models) come from settings, never hard-coded lists.
 - **Hexagonal Integrity**: Business logic interacts with the world only through Ports (`application/ports.py`). Adapters stay in `infrastructure/`.
 - **Granular Pipeline**: Analysis is step-based. Partial results MUST be saved to allow resilience and adaptive retries.
 - **Semantic indexing**: Every processed chunk is vectorized via `pgvector` for global semantic search.
 
 ### Module Deprecations & Cleanup Status
 - `media_management`: each operation is a use-case class in `application/use_cases/` (`UploadMedia`, `DeleteMedia`, `ReprocessMedia`, `StreamMedia`, `MediaLifecycle`); `MediaService` is only a facade over them.
-- `monitoring`: Partially legacy. Prefer using the new observability ports (`LoggerPort`, `MetricsPort`).
+- `monitoring`: only `HardwareAdvisor` and `gpu_stats` (admin panel). Logging and metrics live in `shared/infrastructure/observability`.
 - `tests`: Directories like `tests/unit/auth` are removed. Unit tests reside within context folders (e.g., `tests/unit/user_management`).
 
 ## Intelligence & Autonomy Features
