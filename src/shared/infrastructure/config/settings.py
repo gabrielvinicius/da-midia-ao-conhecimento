@@ -22,6 +22,17 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     auth_password_min_length: int = 8
 
+    # Origens aceitas pelo CORS, separadas por vírgula (CORS_ORIGINS). Em
+    # produção o frontend chega pelo proxy do Nginx, na mesma origem.
+    cors_origins: str = (
+        "http://localhost:5173,http://localhost:5174,http://localhost:3000,"
+        "http://127.0.0.1:5173,http://127.0.0.1:5174"
+    )
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 

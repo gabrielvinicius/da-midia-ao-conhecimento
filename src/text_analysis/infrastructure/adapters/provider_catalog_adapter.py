@@ -25,16 +25,6 @@ class TextAnalysisProvidersCatalogAdapter(PipelineProviderCatalogPort):
                 )
                 for e in TEXT_GEN_PROVIDERS
             ],
-            # Alias para o frontend legacy que espera "summarization"
-            "summarization": [
-                ProviderOption(
-                    name=e.name,
-                    label=e.label,
-                    description=e.description,
-                    capabilities={"available": e.available},
-                )
-                for e in TEXT_GEN_PROVIDERS
-            ],
             "sentiment": [
                 ProviderOption(
                     name=e.name,

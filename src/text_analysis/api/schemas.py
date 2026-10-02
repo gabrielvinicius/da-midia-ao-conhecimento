@@ -20,12 +20,8 @@ class AnalyzeRequest(BaseModel):
     transcription_id: Optional[UUID] = None
     segments: Optional[List[Segment]] = None
     language: Optional[str] = Field(default="pt")
-    provider: Optional[str] = None
     chunk_size: Optional[int] = None
     chunk_overlap: Optional[int] = None
-    use_transformer_topic_representation: Optional[bool] = None
-    transformer_representation_model: Optional[str] = None
-    llm_model: Optional[str] = None
 
     @model_validator(mode="before")
     def trim_text(cls, values: dict[str, Any]) -> dict[str, Any]:  # noqa: N805

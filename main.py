@@ -72,6 +72,7 @@ from src.shared.infrastructure.middleware.validation_middleware import (
 from src.shared.infrastructure.observability.health.health_check import (
     router as health_router,
 )
+from src.shared.infrastructure.config.settings import settings
 from src.shared.infrastructure.observability.metrics.exposition import start_metrics_server
 from src.shared.infrastructure.observability.logging.logging_config import (
     configure_logging,
@@ -363,17 +364,10 @@ def create_app() -> FastAPI:
     # Registrar middlewares de performance
     register_performance_middleware(app)
 
-    # Add CORS middleware (configuração segura)
+    # CORS: origens do ambiente, nunca uma lista fixa no código.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:5173",
-            "http://localhost:5174",  # Vite às vezes usa esta porta
-            "http://localhost:3000",
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:5174",
-            "https://yourdomain.com"  # Adicionar domínio de produção
-        ],
+        allow_origins=settings.cors_origin_list,  # CORS_ORIGINS
         allow_credentials=True,  # Necessário para cookies httpOnly
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
         allow_headers=[

@@ -13,15 +13,8 @@ from src.text_analysis.infrastructure.adapters import (
     embeddings_sentence_transformers_adapter,
     sentiment_transformers_adapter,
     text_generation_ollama_adapter,
-    text_generation_llama3_transformers_adapter,
-    text_generation_transformers_adapter,
     topic_modeling_bertopic_adapter,
     topic_modeling_tfidf_adapter,
-)
-from src.text_analysis.infrastructure.dependencies.registry import (
-    resolve_textgen_target,
-    TEXT_GEN_ROUTING,
-    validate_textgen_name,
 )
 
 SimpleChunker = chunking_simple_adapter.SimpleChunker
@@ -33,12 +26,6 @@ TransformersSentimentAdapter = (
 )
 OllamaTextGenerationAdapter = (
     text_generation_ollama_adapter.OllamaTextGenerationAdapter
-)
-TransformersTextGenerationAdapter = (
-    text_generation_transformers_adapter.TransformersTextGenerationAdapter
-)
-Llama3TransformersTextGenerationAdapter = (
-    text_generation_llama3_transformers_adapter.Llama3TransformersTextGenerationAdapter
 )
 BERTopicAdapter = topic_modeling_bertopic_adapter.BERTopicAdapter
 TFIDFTopicModelingAdapter = topic_modeling_tfidf_adapter.TFIDFTopicModelingAdapter
@@ -76,45 +63,27 @@ def get_topic_modeling_adapter(config: AnalysisConfig):
 
     return BERTopicAdapter(
         config.topic_model,
-        use_transformer_representation=config.use_transformer_topic_representation,
-        transformer_model_name=config.transformer_representation_model,
         embedding_model_name=config.embedding_model,
         embedding_model_inst=embedding_model_inst, # Inject shared instance
     )
 
 
 def get_text_generation_adapter(config: AnalysisConfig):
-    model_cfg = str(config.llm_model)
-    # Roteamento declarativo
-    if model_cfg in TEXT_GEN_ROUTING:
-        model_cfg = TEXT_GEN_ROUTING[model_cfg]
-    return model_cache.get_or_create(
-        ("text_generation", model_cfg), lambda: _build_text_generation_adapter(model_cfg)
+    # Nome do modelo servido pelo Ollama (ex.: "qwen3.5:9b").
+    model = str(config.llm_model).removeprefix("ollama:")
+    return model_cache.get_or_create(("text_generation", model), lambda: _build_text_generation_adapter(model))
+
+
+def _build_text_generation_adapter(model: str):
+    from src.shared.infrastructure.config.settings import settings
+
+    return OllamaTextGenerationAdapter(
+        model=model,
+        host=settings.ollama_host,
+        timeout=settings.llm_timeout_seconds,
+        fallback_model=settings.llm_fallback_model,
+        context_tokens=settings.llm_context_tokens,
     )
-
-
-def _build_text_generation_adapter(model_cfg: str):
-    if model_cfg.startswith(("hf-llama3", "hf:llama3")) or model_cfg == "llama3":
-        adapter = Llama3TransformersTextGenerationAdapter()
-    elif model_cfg.startswith("hf:"):
-        if not validate_textgen_name(model_cfg):
-            raise ValueError(f"Modelo de geração de texto desconhecido: {model_cfg}")
-        name = model_cfg.replace("hf:", "", 1) or "facebook/bart-large-cnn"
-        model_name = resolve_textgen_target(name)
-        adapter = TransformersTextGenerationAdapter(model_name=model_name)
-    else:
-        from src.shared.infrastructure.config.settings import settings
-
-        # Nome sem prefixo = modelo servido pelo Ollama (ex.: "qwen3.5:9b").
-        model_cfg = model_cfg.removeprefix("ollama:")
-        adapter = OllamaTextGenerationAdapter(
-            model=model_cfg,
-            host=settings.ollama_host,
-            timeout=settings.llm_timeout_seconds,
-            fallback_model=settings.llm_fallback_model,
-            context_tokens=settings.llm_context_tokens,
-        )
-    return adapter
 
 
 def get_chunker_adapter(_: AnalysisConfig):

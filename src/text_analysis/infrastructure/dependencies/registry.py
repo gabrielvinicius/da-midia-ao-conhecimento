@@ -5,7 +5,9 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Mapping, Optional
+from typing import List
+
+from src.shared.infrastructure.config.settings import settings
 
 
 @dataclass(slots=True)
@@ -14,110 +16,22 @@ class ProviderEntry:
     label: str
     description: str
     available: bool = True
-    target: Optional[str] = None  # para transformers/ollama
 
 
+# A geração de texto roda só no Ollama: o modelo principal e o de reserva
+# vêm das configurações (LLM_MODEL e LLM_FALLBACK_MODEL).
 TEXT_GEN_PROVIDERS: List[ProviderEntry] = [
     ProviderEntry(
-        name="hf:mistralai/Mistral-7B-Instruct-v0.3",
-        label="Mistral 7B (Transformers/HF)",
-        description="Equilíbrio qualidade/VRAM; use 8-bit/4-bit em 12GB.",
-        target="hf:mistralai/Mistral-7B-Instruct-v0.3",
+        name=settings.llm_model,
+        label=f"{settings.llm_model} (Ollama)",
+        description="Modelo principal do resumo e dos títulos dos temas.",
     ),
     ProviderEntry(
-        name="hf:NousResearch/Meta-Llama-3.1-8B-Instruct",
-        label="Llama 3.1 8B (NousResearch)",
-        description="Versão aberta do Llama 3.1, sem restrições de acesso.",
-        target="hf:NousResearch/Meta-Llama-3.1-8B-Instruct",
-    ),
-    ProviderEntry(
-        name="hf:mistralai/Mistral-Nemo-Instruct-v1",
-        label="Mistral Nemo 12B (SOTA Raciocínio)",
-        description="Recomendado para 12GB+ VRAM. Raciocínio superior ao Llama 8B. Requer 4-bit quantization.",
-        target="hf:mistralai/Mistral-Nemo-Instruct-v1",
-    ),
-    ProviderEntry(
-        name="hf:nvidia/Nemotron-Orchestrator-8B",
-        label="NVIDIA Nemotron 8B",
-        description="Especialista em orquestração e análise técnica profunda.",
-        target="hf:nvidia/Nemotron-Orchestrator-8B",
-    ),
-    ProviderEntry(
-        name="hf:DavidAU/Llama3.3-8B-Instruct-Thinking-Heretic-Uncensored-Claude-4.5-Opus-High-Reasoning",
-        label="Llama 3.3 Heretic (High Reasoning)",
-        description="Modelo uncensored com raciocínio extremo e lógica avançada.",
-        target="hf:DavidAU/Llama3.3-8B-Instruct-Thinking-Heretic-Uncensored-Claude-4.5-Opus-High-Reasoning",
-    ),
-    ProviderEntry(
-        name="hf:meta-llama/Llama-3.1-8B-Instruct",
-        label="Llama 3.1 8B (Transformers/HF)",
-        description="Versão atualizada com melhor raciocínio e contexto expandido.",
-        target="hf:meta-llama/Llama-3.1-8B-Instruct",
-    ),
-    ProviderEntry(
-        name="hf:meta-llama/Meta-Llama-3-8B-Instruct",
-        label="Llama 3 8B (Transformers/HF)",
-        description="Qualidade alta; preferir quantização em 12GB.",
-        target="hf:meta-llama/Meta-Llama-3-8B-Instruct",
-    ),
-    ProviderEntry(
-        name="hf:NousResearch/Meta-Llama-3-8B-Instruct",
-        label="Llama 3 8B (NousResearch)",
-        description="Versão aberta do Llama 3, alta qualidade e sem restrições de acesso.",
-        target="hf:NousResearch/Meta-Llama-3-8B-Instruct",
-    ),
-    ProviderEntry(
-        name="hf:microsoft/Phi-3-mini-4k-instruct",
-        label="Phi-3 Mini 4k (Transformers/HF)",
-        description="Leve e rápido; excelente para summaries em CPU/GPU.",
-        target="hf:microsoft/Phi-3-mini-4k-instruct",
-    ),
-    ProviderEntry(
-        name="hf:microsoft/Phi-3-small-8k-instruct",
-        label="Phi-3 Small (Transformers/HF)",
-        description="Leve e rápido; bom fallback em CPU.",
-        target="hf:microsoft/Phi-3-small-8k-instruct",
-    ),
-    ProviderEntry(
-        name="hf:google/gemma-2-9b-it",
-        label="Gemma 2 9B (Transformers/HF)",
-        description="Melhor PT/EN; ideal quantizado.",
-        target="hf:google/gemma-2-9b-it",
-    ),
-    ProviderEntry(
-        name="hf:Qwen/Qwen2.5-3B-Instruct",
-        label="Qwen 2.5 3B (Instruct)",
-        description="Melhor modelo pequeno atual (SOTA < 7B). Excelente suporte a Português.",
-        target="hf:Qwen/Qwen2.5-3B-Instruct",
-    ),
-    ProviderEntry(
-        name="hf:Qwen/Qwen2.5-7B-Instruct",
-        label="Qwen 2.5 7B (Instruct)",
-        description="Modelo 7B extremamente capaz, supera muitos 13B.",
-        target="hf:Qwen/Qwen2.5-7B-Instruct",
-    ),
-    ProviderEntry(
-        name="hf:Qwen/Qwen2-7B-Instruct",
-        label="Qwen2 7B (Transformers/HF)",
-        description="Multilíngue forte; bom custo/benefício.",
-        target="hf:Qwen/Qwen2-7B-Instruct",
+        name=settings.llm_fallback_model,
+        label=f"{settings.llm_fallback_model} (Ollama)",
+        description="Reserva, usada quando o principal falha.",
     ),
 ]
-
-TEXT_GEN_ROUTING: Mapping[str, str] = {
-    # nomes amigáveis -> destino transformers
-    "qwen": "hf:Qwen/Qwen2.5-3B-Instruct",
-    "qwen-7b": "hf:Qwen/Qwen2.5-7B-Instruct",
-    "nemo": "hf:mistralai/Mistral-Nemo-Instruct-v1",
-    "nemotron": "hf:nvidia/Nemotron-Orchestrator-8B",
-    "llama3.3-heretic": "hf:DavidAU/Llama3.3-8B-Instruct-Thinking-Heretic-Uncensored-Claude-4.5-Opus-High-Reasoning",
-    "mistral-7b": "hf:mistralai/Mistral-7B-Instruct-v0.3",
-    "phi3-small": "hf:microsoft/Phi-3-small-8k-instruct",
-    "gemma2-9b": "hf:google/gemma-2-9b-it",
-    "qwen2-7b": "hf:Qwen/Qwen2-7B-Instruct",
-    # llama3 permanece com adapter dedicado, mas normalizamos alias
-    "llama3": "llama3",
-}
 
 # TTL para revalidação de health (segundos)
 HEALTH_TTL_SECONDS = int(os.getenv("TEXT_ANALYSIS_HEALTH_TTL", "300"))
@@ -166,20 +80,6 @@ EMBEDDING_PROVIDERS: List[ProviderEntry] = [
 ]
 
 
-def resolve_textgen_target(name: str) -> str:
-    """Mapeia nome amigável para repo real; retorna o próprio se não houver."""
-    aliases: Dict[str, str] = {k: v for k, v in TEXT_GEN_ROUTING.items() if v.startswith("hf:")}
-    return aliases.get(name, name)
-
-
-def validate_textgen_name(name: str) -> bool:
-    """Verifica se o nome está listado no registry (providers ou aliases)."""
-    names = {p.name for p in TEXT_GEN_PROVIDERS}
-    names.update(TEXT_GEN_ROUTING.keys())
-    names.update(TEXT_GEN_ROUTING.values())
-    return name in names
-
-
 def needs_health_refresh() -> bool:
     return (time.time() - _last_health_check) > HEALTH_TTL_SECONDS
 
@@ -195,5 +95,4 @@ __all__ = [
     "TOPIC_PROVIDERS",
     "SENTIMENT_PROVIDERS",
     "EMBEDDING_PROVIDERS",
-    "resolve_textgen_target",
 ]

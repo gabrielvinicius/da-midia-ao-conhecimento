@@ -43,15 +43,11 @@ class BERTopicAdapter(TopicModelingPort):
     def __init__(
         self,
         model_name: str,
-        use_transformer_representation: bool = False,
-        transformer_model_name: str | None = None,
         embedding_model_name: str | None = None,
         embedding_model_inst: Any | None = None,  # modelo de vetores já carregado (reaproveitado)
         device: str | None = None,
     ) -> None:
         self.model_name = model_name
-        self.use_transformer_representation = use_transformer_representation
-        self.transformer_model_name = transformer_model_name
         self.embedding_model_name = embedding_model_name
         self.embedding_model_inst = embedding_model_inst
         self.device = device or settings.resolved_device
@@ -63,27 +59,12 @@ class BERTopicAdapter(TopicModelingPort):
         """Carrega os modelos pesados (LLM, Embeddings) apenas uma vez."""
         if not self._dependencies_loaded:
             try:  # pragma: no cover
-                from bertopic.representation import KeyBERTInspired, TextGeneration
+                from bertopic.representation import KeyBERTInspired
 
                 # 1. Base Representation: KeyBERTInspired
                 self._representation_models = {
                     "KeyBERT": KeyBERTInspired()
                 }
-
-                # Opcional (desligado por padrão): títulos dos temas por um modelo de linguagem.
-                if self.use_transformer_representation:
-                    try:
-                        from transformers import pipeline
-                        device_idx = -1 if self.device == "cpu" else 0
-                        model_name = self.transformer_model_name or "Qwen/Qwen2.5-3B-Instruct"
-                        if model_name.startswith("hf:"): model_name = model_name[3:]
-                        import torch
-                        torch_dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16
-                        generator = pipeline("text-generation", model=model_name, device=device_idx, torch_dtype=torch_dtype, max_new_tokens=64)
-                        base_instruction = "Tarefa: Identifique o tema unificador dos documentos abaixo.\nInstrução: Gere APENAS um título curto (máx 6 palavras), direto e profissional em Português.\nREGRAS: NÃO use aspas, NÃO explique, NÃO diga 'Aqui está o título', responda APENAS o texto do título.\n\nDocumentos:\n[DOCUMENTS]\n\nTítulo:"
-                        self._representation_models["LLM"] = TextGeneration(generator, prompt=base_instruction)
-                    except Exception as rep_exc:
-                        logger.warning("bertopic.llm_representation_failed", error=str(rep_exc))
 
                 # Initialize Embedding Model
                 # Optimization: Use injected instance if available to save VRAM

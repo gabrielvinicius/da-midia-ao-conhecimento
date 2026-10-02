@@ -46,12 +46,11 @@ O processamento ocorre de forma sequencial e resiliente através da classe `Anal
 ### Adaptadores Principais
 
 *   **`BERTopicAdapter`:**
-    *   Configura o BERTopic para usar `SentenceTransformer` (Embeddings) e `TextGeneration` (Llama 3) para representação.
+    *   Configura o BERTopic com `SentenceTransformer` (embeddings) e `KeyBERTInspired` (palavras-chave); os títulos dos temas vêm do LLM principal no `TopicTitleStep`.
     *   Possui fallback automático para TF-IDF/Keywords se o modelo neural falhar ou não encontrar tópicos.
 
-*   **`TransformersTextGenerationAdapter`:**
-    *   Gerencia o pipeline de geração de texto do Hugging Face.
-    *   Suporta carregamento em `float16` para GPU (CUDA) ou `float32`/`int8` para CPU.
+*   **`OllamaTextGenerationAdapter`:**
+    *   Única via de geração de texto (resumo e títulos), com modelo de reserva quando o principal falha.
 
 ### Resiliência e Otimização
 

@@ -191,34 +191,6 @@ class SharedPrometheusMetrics:
             Counter,
         )
 
-    def get_textgen_transformers_attempts(self) -> Counter:
-        return self._get_or_create_metric(
-            "counter",
-            "textgen_transformers_attempts_total",
-            "Transformers text generation attempts",
-            ["model"],
-            Counter,
-        )
-
-    def get_textgen_transformers_failures(self) -> Counter:
-        return self._get_or_create_metric(
-            "counter",
-            "textgen_transformers_failures_total",
-            "Transformers text generation failures",
-            ["model"],
-            Counter,
-        )
-
-    def get_textgen_transformers_success(self) -> Counter:
-        return self._get_or_create_metric(
-            "counter",
-            "textgen_transformers_success_total",
-            "Transformers text generation successes",
-            ["model"],
-            Counter,
-        )
-
-
 
 # Global shared instance
 shared_metrics = SharedPrometheusMetrics()

@@ -69,7 +69,7 @@ opentelemetry-exporter-otlp-proto-http>=1.28.0
 opentelemetry-instrumentation-fastapi>=0.50b0
 opentelemetry-instrumentation-celery>=0.50b0
 opentelemetry-instrumentation-sqlalchemy>=0.50b0
-# Quantizacao 4-bit para o adaptador Transformers (opcional quando o LLM roda no Ollama)
+# Quantizacao 4-bit da descricao visual opcional (Qwen2-VL)
 bitsandbytes>=0.43.0
 # Embeddings (e5) e BERTopic
 sentence-transformers>=3.0.0

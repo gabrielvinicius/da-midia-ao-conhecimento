@@ -85,14 +85,6 @@ def _update_registry_availability() -> None:
 
     metrics = SharedPrometheusMetrics().get_provider_health_checks_total()
 
-    # Transformers (HF)
-    hf_available = _check_module_available("transformers")
-
-    for entry in ta_registry.TEXT_GEN_PROVIDERS:
-        if entry.name.startswith("hf:"):
-            entry.available = hf_available
-            metrics.labels(provider_type="textgen_hf", status="up" if hf_available else "down").inc()
-
     # Ollama: ping /api/tags com timeout curto
     ollama_ok = False
     if httpx:
@@ -106,9 +98,8 @@ def _update_registry_availability() -> None:
         except Exception:
             ollama_ok = False
     for entry in ta_registry.TEXT_GEN_PROVIDERS:
-        if entry.name.startswith("ollama:"):
-            entry.available = ollama_ok
-            metrics.labels(provider_type="textgen_ollama", status="up" if ollama_ok else "down").inc()
+        entry.available = ollama_ok
+    metrics.labels(provider_type="textgen_ollama", status="up" if ollama_ok else "down").inc()
 
     # Topic modeling
     bertopic_ok = _check_module_available("bertopic")

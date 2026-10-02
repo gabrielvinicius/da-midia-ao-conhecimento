@@ -35,8 +35,8 @@ LLM_CONTEXT_TOKENS=32768
 - O modo de raciocínio (`think`) é desligado nas chamadas, pois só aumentaria o tempo de resposta.
 - Se o modelo principal falhar, o adaptador tenta o reserva. Se ambos falharem, devolve um texto
   simples e o pipeline registra `diagnostics.summary_source = "fallback"`.
-- Nomes com prefixo `hf:` (ex.: `hf:Qwen/Qwen2.5-7B-Instruct`) usam o adaptador Transformers
-  em vez do Ollama; esse caminho exige `bitsandbytes` para modelos de 7B ou mais.
+- A geração de texto roda só no Ollama: não há caminho paralelo pelo Transformers. O catálogo
+  (`GET /providers`) lista o modelo principal e o de reserva configurados.
 
 ## Orçamento de memória (GPU de 12 GB)
 
