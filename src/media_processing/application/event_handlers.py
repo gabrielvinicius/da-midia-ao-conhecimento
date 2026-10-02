@@ -121,6 +121,4 @@ class MediaProcessingEventHandlers:
         value = getattr(media_type_value, "value", media_type_value)
         return str(value).strip().lower() or None
 
-    def _validate_provider(self, name: str | None) -> str | None:
-        return name
 

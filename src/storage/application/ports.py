@@ -2,35 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Protocol
 
-from src.shared.application.observability import LoggerPort, MetricsPort
 from src.storage.domain.entities.file_metadata import FileMetadata
 from src.storage.domain.value_objects.file_path import FilePath
-
-
-class StorageMetricsPort(MetricsPort, Protocol):
-    """Metrics for storage operations."""
-
-    async def record_operation(
-        self,
-        operation: str,
-        provider: str,
-        duration: float,
-        success: bool,
-    ) -> None: ...
-
-
-class StorageOperationLoggerPort(LoggerPort, Protocol):
-    """Logger for storage operations."""
-
-    async def log_operation(
-        self,
-        operation: str,
-        file_path: FilePath,
-        success: bool,
-        duration: float,
-        error: Optional[Exception] = None,
-        **extra: Any,
-    ) -> None: ...
 
 
 class StorageRepositoryPort(Protocol):
@@ -85,8 +58,6 @@ class StorageServiceResolverPort(Protocol):
 
 
 __all__ = [
-    "StorageMetricsPort",
-    "StorageOperationLoggerPort",
     "StorageRepositoryPort",
     "FileStoragePort",
     "StorageServiceResolverPort",

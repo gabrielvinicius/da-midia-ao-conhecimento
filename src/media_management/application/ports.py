@@ -6,15 +6,11 @@ from typing import Any, Dict, List, Optional, Protocol, Set
 from uuid import UUID
 
 from src.media_management.domain import Media
-from src.shared.application.observability import LoggerPort, MetricsPort
+from src.shared.application.observability import MetricsPort
 
 
 
 class MediaMetricsPort(MetricsPort, Protocol):
-    ...
-
-
-class MediaLoggerPort(LoggerPort, Protocol):
     ...
 
 

@@ -140,55 +140,6 @@ def get_visual_analyzer(provider: str | None = None) -> VisualAnalysisPort:
     return model_cache.get_or_create(("visual", key), factory)
 
 
-# ----------------- TTS providers -----------------
-from src.media_processing.application.ports.tts_port import TTSProviderPort
-
-def _load_kokoro():
-    try:
-        from src.media_processing.infrastructure.adapters.audio.kokoro_adapter import (
-            KokoroTTSAdapter,
-        )
-        return KokoroTTSAdapter
-    except ImportError:
-        return None
-
-_TTS_PROVIDERS: Dict[str, Callable[[], TTSProviderPort]] = {}
-_TTS_META: Dict[str, Dict[str, Any]] = {}
-
-def _register_tts_providers():
-    cls_kokoro = _load_kokoro()
-    if cls_kokoro:
-        _TTS_PROVIDERS["kokoro"] = lambda: cls_kokoro()
-        _TTS_META["kokoro"] = {
-            "label": "Kokoro-82M",
-            "public": True,
-            "description": "TTS Neural SOTA ultraleve.",
-        }
-        _TTS_PROVIDERS["default"] = _TTS_PROVIDERS["kokoro"]
-
-_register_tts_providers()
-
-def get_tts_provider(provider: str | None = None) -> TTSProviderPort:
-    key = (provider or "default").lower()
-    factory = _TTS_PROVIDERS.get(key)
-    if not factory:
-        if "default" in _TTS_PROVIDERS:
-            return _TTS_PROVIDERS["default"]()
-        raise RuntimeError(f"Provider TTS '{key}' não encontrado.")
-    return factory()
-
-def register_tts_provider(name: str, factory: Callable[[], TTSProviderPort], meta: Dict[str, Any] | None = None):
-    _TTS_PROVIDERS[name] = factory
-    if meta:
-        _TTS_META[name] = meta
-
-def list_tts_providers(public_only: bool = True) -> list[str]:
-    return sorted([k for k, v in _TTS_META.items() if not public_only or v.get("public", True)])
-
-def tts_provider_meta(name: str) -> Dict[str, Any]:
-    return _TTS_META.get(name, {})
-
-
 # ----------------- Speech recognizers -----------------
 class BasicWhisperRecognizer:
     """Stub recognizer to keep unit paths lightweight."""
@@ -421,5 +372,4 @@ __all__ = [
     "ocr_provider_meta",
     "get_visual_analyzer",
     "get_event_bus",
-    "get_tts_provider",
 ]

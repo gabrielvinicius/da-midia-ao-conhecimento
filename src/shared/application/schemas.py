@@ -19,6 +19,3 @@ class PaginatedResponse(BaseModel, Generic[T]):
 
 def create_success_response(data: Any, message: str = "Success") -> BaseResponseSchema:
     return BaseResponseSchema(status="success", message=message, data=data)
-
-def create_error_response(error: Any, message: str = "Error") -> BaseResponseSchema:
-    return BaseResponseSchema(status="error", message=message, error=error)

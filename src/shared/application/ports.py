@@ -5,13 +5,6 @@ from typing import Any, Dict, List, Protocol
 from src.shared.application.provider_catalog import ProviderOption
 
 
-class ModuleRegistryPort(Protocol):
-    """Expose domain service registry for diagnostics or cross-cutting access."""
-
-    def attach(self, app: Any) -> None: ...
-    def get(self) -> Any: ...
-
-
 class PipelineProviderCatalogPort(Protocol):
     """Catálogo de providers expostos para seleção no pipeline.
 
@@ -22,7 +15,7 @@ class PipelineProviderCatalogPort(Protocol):
     def list_pipeline_providers(self) -> Dict[str, List[ProviderOption]]: ...
 
 
-__all__ = ["ModuleRegistryPort", "PipelineProviderCatalogPort"]
+__all__ = ["PipelineProviderCatalogPort"]
 
 
 class ProcessingStatsPort(Protocol):
