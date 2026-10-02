@@ -167,6 +167,11 @@ export const TopicModelingResultPanel = ({ mediaId, mediaStatus }: TopicModeling
       );
     }
 
+    // Etapas registradas sem a de temas: o fator foi desligado (ANALYSIS_FACTORS).
+    const steps = analysis.diagnostics?.steps;
+    if (steps && !("topic_modeling" in steps)) {
+      return <p className="text-muted-foreground text-center text-xs">Os temas não foram analisados nesta mídia.</p>;
+    }
     return <p className="text-muted-foreground text-center text-xs">Nenhum tópico detectado.</p>;
   };
 
