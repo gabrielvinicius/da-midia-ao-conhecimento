@@ -123,95 +123,97 @@ class TextExtractionService:
         mime_type, _ = mimetypes.guess_type(file_path)
         mime_type = mime_type or "application/octet-stream"
 
-        extracted_text = ""
-        provider_used = "unknown"
-
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(content)
             tmp_path = tmp.name
 
+        context = {
+            "storage_provider": storage_provider,
+            "file_path": file_path,
+            "user_id": user_id or getattr(transcription, "user_id", None),
+            "filename": filename or getattr(transcription, "filename", None),
+        }
         try:
-            if self._is_native_text(mime_type, suffix):
-                provider_used = "text_extractor"
-                extracted_text = await self._text_extractor.extract(tmp_path, mime_type)
-            elif self._is_image(mime_type, suffix):
-                provider_used = "ocr"
-                extracted_text = await self._ocr_provider.extract(tmp_path)
-            elif mime_type == "application/pdf" or suffix == ".pdf":
-                text = await self._text_extractor.extract(tmp_path, mime_type)
-                if len(text.strip()) < 50:
-                    provider_used = "ocr_pdf"
-                    extracted_text = await self._ocr_provider.extract(tmp_path)
-                else:
-                    provider_used = "pdf_native"
-                    extracted_text = text
-            else:
-                provider_used = "fallback"
-                extracted_text = ""
-
+            extracted_text, provider_used = await self._extract(tmp_path, mime_type, suffix)
             if transcription:
                 transcription.mark_as_extracted(extracted_text, provider_used)
                 await self._repo.save(transcription)
-
-                if self._event_bus:
-                    await self._event_bus.publish(
-                        MediaProcessingCompleted(
-                            media_id=str(media_id),
-                            stage="text_extraction",
-                            result_id=str(transcription.id),
-                            correlation_id=correlation_id,
-                            metadata={
-                                "provider": provider_used,
-                                "storage_provider": storage_provider,
-                                "file_path": file_path,
-                                "user_id": user_id or getattr(transcription, "user_id", None),
-                                "filename": filename or getattr(transcription, "filename", None),
-                            },
-                        )
-                    )
-                    # Como na transcrição de áudio: o módulo de mídias conclui a
-                    # mídia e anuncia o texto pronto para a análise.
-                    await self._event_bus.publish(
-                        TranscriptionCompleted(
-                            media_id=str(media_id),
-                            transcription_id=str(transcription.id),
-                            text=extracted_text,
-                            user_id=user_id or getattr(transcription, "user_id", None),
-                            metadata={
-                                "provider": provider_used,
-                                "filename": filename or getattr(transcription, "filename", None),
-                                "language": transcription.language,
-                            },
-                            correlation_id=correlation_id,
-                        )
-                    )
-
-        except Exception as exc:
-            if transcription:
-                if final_attempt:
-                    transcription.mark_as_failed(str(exc))
-                else:
-                    transcription.record_processing_error(str(exc))
-                await self._repo.save(transcription)
-            if self._event_bus and final_attempt:
-                await self._event_bus.publish(
-                    MediaProcessingFailed(
-                        media_id=str(media_id),
-                        stage="text_extraction",
-                        error_message=str(exc),
-                        correlation_id=correlation_id,
-                        metadata={
-                            "storage_provider": storage_provider,
-                            "file_path": file_path,
-                            "user_id": user_id or getattr(transcription, "user_id", None),
-                            "filename": filename or getattr(transcription, "filename", None),
-                        },
-                    )
+                await self._announce_extracted(
+                    media_id, transcription, extracted_text, provider_used, context, correlation_id
                 )
+        except Exception as exc:  # registra a falha e devolve à fila para nova tentativa
+            await self._record_failure(
+                media_id, transcription, exc, final_attempt, context, correlation_id
+            )
             raise
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+
+    async def _extract(self, path: str, mime_type: str, suffix: str) -> tuple[str, str]:
+        """Texto do arquivo e o método usado: leitura direta, OCR ou PDF (com OCR
+        quando o PDF não tem texto, como um documento escaneado)."""
+        if self._is_native_text(mime_type, suffix):
+            return await self._text_extractor.extract(path, mime_type), "text_extractor"
+        if self._is_image(mime_type, suffix):
+            return await self._ocr_provider.extract(path), "ocr"
+        if mime_type == "application/pdf" or suffix == ".pdf":
+            text = await self._text_extractor.extract(path, mime_type)
+            if len(text.strip()) < 50:
+                return await self._ocr_provider.extract(path), "ocr_pdf"
+            return text, "pdf_native"
+        return "", "fallback"
+
+    async def _announce_extracted(
+        self, media_id, transcription, text, provider_used, context, correlation_id
+    ) -> None:
+        if not self._event_bus:
+            return
+        await self._event_bus.publish(
+            MediaProcessingCompleted(
+                media_id=str(media_id),
+                stage="text_extraction",
+                result_id=str(transcription.id),
+                correlation_id=correlation_id,
+                metadata={"provider": provider_used, **context},
+            )
+        )
+        # Como na transcrição de áudio: o módulo de mídias conclui a
+        # mídia e anuncia o texto pronto para a análise.
+        await self._event_bus.publish(
+            TranscriptionCompleted(
+                media_id=str(media_id),
+                transcription_id=str(transcription.id),
+                text=text,
+                user_id=context["user_id"],
+                metadata={
+                    "provider": provider_used,
+                    "filename": context["filename"],
+                    "language": transcription.language,
+                },
+                correlation_id=correlation_id,
+            )
+        )
+
+    async def _record_failure(
+        self, media_id, transcription, exc, final_attempt, context, correlation_id
+    ) -> None:
+        if transcription:
+            if final_attempt:
+                transcription.mark_as_failed(str(exc))
+            else:
+                transcription.record_processing_error(str(exc))
+            await self._repo.save(transcription)
+        if self._event_bus and final_attempt:
+            await self._event_bus.publish(
+                MediaProcessingFailed(
+                    media_id=str(media_id),
+                    stage="text_extraction",
+                    error_message=str(exc),
+                    correlation_id=correlation_id,
+                    metadata=context,
+                )
+            )
 
     def _is_native_text(self, mime: str, ext: str) -> bool:
         return mime.startswith("text/") or ext in [

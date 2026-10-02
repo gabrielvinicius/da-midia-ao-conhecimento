@@ -379,41 +379,10 @@ class TranscriptionService:
 
         await self._repo.save(transcription)
 
-        if asyncio.iscoroutinefunction(getattr(self._logger, "log_operation", None)):
-            await self._logger.log_operation(
-                operation="process_transcription_result",
-                media_id=str(media_id),
-                provider=provider,
-                success=success,
-                duration=result_data.get("duration") or 0.0,
-                transcription_id=str(transcription_id),
-                status="COMPLETED" if success else "FAILED",
-                original_status=original_status.value,
-                error_message=error_message,
-            )
-        if hasattr(self._metrics, "set_context"):
-            maybe = self._metrics.set_context
-            if asyncio.iscoroutinefunction(maybe):
-                await maybe(str(media_id))
-            else:
-                maybe(str(media_id))
-        if hasattr(self._metrics, "record_operation"):
-            record = self._metrics.record_operation
-            duration = result_data.get("duration") or 0.0
-            input_len = result_data.get("input_audio_length_seconds") or 0.0
-            payload = dict(
-                operation="process_transcription_result",
-                provider=provider,
-                success=success,
-                status=transcription.status.value,
-                duration=duration,
-                input_audio_length_seconds=input_len,
-                output_text_length_chars=len(transcription.text),
-            )
-            if asyncio.iscoroutinefunction(record):
-                await record(**payload)
-            else:
-                record(**payload)
+        await self._record_result_observability(
+            transcription, media_id, result_data, provider, success,
+            error_message, original_status,
+        )
 
         if self._event_bus:
             if success:
@@ -455,3 +424,50 @@ class TranscriptionService:
                         correlation_id=correlation_id,
                     )
                 )
+
+    async def _record_result_observability(
+        self,
+        transcription: Transcription,
+        media_id: UUID,
+        result_data: Dict[str, Any],
+        provider: str,
+        success: bool,
+        error_message: Optional[str],
+        original_status: TranscriptionStatus,
+    ) -> None:
+        """Registra o resultado no log e nas métricas."""
+        if asyncio.iscoroutinefunction(getattr(self._logger, "log_operation", None)):
+            await self._logger.log_operation(
+                operation="process_transcription_result",
+                media_id=str(media_id),
+                provider=provider,
+                success=success,
+                duration=result_data.get("duration") or 0.0,
+                transcription_id=str(transcription.id),
+                status="COMPLETED" if success else "FAILED",
+                original_status=original_status.value,
+                error_message=error_message,
+            )
+        if hasattr(self._metrics, "set_context"):
+            maybe = self._metrics.set_context
+            if asyncio.iscoroutinefunction(maybe):
+                await maybe(str(media_id))
+            else:
+                maybe(str(media_id))
+        if hasattr(self._metrics, "record_operation"):
+            record = self._metrics.record_operation
+            duration = result_data.get("duration") or 0.0
+            input_len = result_data.get("input_audio_length_seconds") or 0.0
+            payload = dict(
+                operation="process_transcription_result",
+                provider=provider,
+                success=success,
+                status=transcription.status.value,
+                duration=duration,
+                input_audio_length_seconds=input_len,
+                output_text_length_chars=len(transcription.text),
+            )
+            if asyncio.iscoroutinefunction(record):
+                await record(**payload)
+            else:
+                record(**payload)

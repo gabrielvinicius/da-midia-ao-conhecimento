@@ -41,137 +41,120 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
         keywords: list[str],
         language: str,
     ) -> str:
-        import torch
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            
         self._m_attempts.labels(model=self.model_name).inc()
         if not self._available:
             raise TextGenerationUnavailableError(f"{self.model_name} indisponível")
-
-        if not self._initialized:
-            try:  # Lazy load
-                # Determine task based on model type
-                task = "text-generation" if self._is_instruct else "summarization"
-
-                import torch
-                from transformers import BitsAndBytesConfig, pipeline
-                
-                # Check for quantization need (Large models on consumer GPU)
-                is_large_model = any(s in self.model_name for s in ["7B", "8B", "9B", "14B", "30B", "32B"])
-                model_kwargs = {}
-                
-                if is_large_model:
-                    logger.info("transformers_generation.enabling_4bit_quantization", model=self.model_name)
-                    quantization_config = BitsAndBytesConfig(
-                        load_in_4bit=True,
-                        bnb_4bit_compute_dtype=torch.float16,
-                        bnb_4bit_quant_type="nf4",
-                    )
-                    model_kwargs["quantization_config"] = quantization_config
-                
-                # Pipeline configuration optimized for RTX 3060
-                pipeline_kwargs = {
-                    "task": task,
-                    "model": self.model_name,
-                    "device_map": "auto",
-                    "token": settings.hf_token,
-                    "model_kwargs": {
-                        "max_memory": {0: "10GB"}, # 2GB reserved for system
-                        "attn_implementation": "flash_attention_2" if torch.cuda.is_available() else "eager",
-                        **model_kwargs
-                    }
-                }
-                
-                if not is_large_model:
-                     # For smaller models like 3B, we ensure float16 for best 3060 performance
-                     pipeline_kwargs["torch_dtype"] = torch.float16
-
-                self._pipe = pipeline(**pipeline_kwargs)
-            except Exception as exc:  # pragma: no cover - runtime path
-                logger.warning("transformers_generation.load_failed", error=str(exc))
-                self._available = False
-                raise TextGenerationUnavailableError(f"{self.model_name} indisponível")
-            self._initialized = True
+        self._ensure_loaded()
 
         try:
             if self._is_instruct:
-                # Handle Instruct Models (Qwen, Mistral, Llama)
-                
-                # Check for dynamic system prompt injection
-                system_prompt = "Você é um assistente especialista em sumarização de textos técnicos."
-                user_content = content
-                
-                if "<<<SYSTEM>>>" in content and "<<<END_SYSTEM>>>" in content:
-                    parts = content.split("<<<END_SYSTEM>>>", 1)
-                    if len(parts) == 2:
-                        sys_part = parts[0].replace("<<<SYSTEM>>>", "").strip()
-                        if sys_part:
-                            system_prompt = sys_part
-                        user_content = parts[1].strip()
-
-                has_instruction = "Analise o texto" in user_content or "[TEXTO]" in user_content
-                
-                # Construct messages for Chat Templates
-                if not has_instruction:
-                    # Enrich user content if it's just raw text
-                    user_content = (
-                        f"Gere um resumo detalhado e estruturado em Markdown sobre o tópico '{title_hint}'. "
-                        f"Considere as palavras-chave: {', '.join(keywords)}. \n\n"
-                        f"Texto base:\n{user_content}"
-                    )
-                
-                # Try to use chat template via messages list
-                messages = [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content}
-                ]
-                
-                import torch
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-
-                # Optimized Pipeline Execution for RTX 3060
-                outputs = self._pipe(
-                    messages,
-                    max_new_tokens=3000, # Increased for exhaustive manifestos
-                    do_sample=True,
-                    temperature=0.35, # Optimized within 0.2-0.4 range for precision
-                    top_p=0.82,
-                    top_k=50,
-                    repetition_penalty=1.12,
-                    pad_token_id=151643,
-                    return_full_text=False
-                )
-                summary = outputs[0]["generated_text"].strip()
-                
+                summary = self._generate_chat(title_hint, content, keywords)
             else:
-                # Handle Standard Summarization Models (e.g., BART, T5)
-                # Concatena keywords para dar contexto
-                prompt = (
-                    f"Título: {title_hint or 'Tópico'}\n"
-                    f"Palavras-chave: {', '.join(keywords) if keywords else 'Nenhuma'}\n\n"
-                    f"Conteúdo:\n{content}"
-                )
-                
-                summary = self._pipe(
-                    prompt,
-                    max_length=220,
-                    min_length=60,
-                    do_sample=False,
-                )[0]["summary_text"]
-
-            self._m_success.labels(model=self.model_name).inc()
-            
-            # Ensure it starts with the title if not present (simple cleanup)
-            if not summary.strip().startswith("#"):
-                 return f"# {title_hint or 'Tópico'}\n{summary}"
-            return summary
-
+                summary = self._generate_summary(title_hint, content, keywords)
         except Exception as exc:  # pragma: no cover - runtime path
             logger.warning("transformers_generation.failed", error=str(exc))
             self._available = False
             self._m_failures.labels(model=self.model_name).inc()
             raise TextGenerationUnavailableError(f"{self.model_name} indisponível")
+
+        self._m_success.labels(model=self.model_name).inc()
+        # Garante que o resumo comece pelo título do tópico.
+        if not summary.strip().startswith("#"):
+            return f"# {title_hint or 'Tópico'}\n{summary}"
+        return summary
+
+    def _ensure_loaded(self) -> None:
+        """Carrega o pipeline na primeira chamada."""
+        if self._initialized:
+            return
+        try:
+            self._pipe = self._load_pipeline()
+        except Exception as exc:  # pragma: no cover - runtime path
+            logger.warning("transformers_generation.load_failed", error=str(exc))
+            self._available = False
+            raise TextGenerationUnavailableError(f"{self.model_name} indisponível")
+        self._initialized = True
+
+    def _load_pipeline(self):  # pragma: no cover - runtime path
+        import torch
+        from transformers import BitsAndBytesConfig, pipeline
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        task = "text-generation" if self._is_instruct else "summarization"
+        # Modelos grandes só cabem na GPU de 12 GB quantizados em 4 bits.
+        is_large_model = any(s in self.model_name for s in ["7B", "8B", "9B", "14B", "30B", "32B"])
+        model_kwargs: dict = {
+            "max_memory": {0: "10GB"},  # 2 GB ficam para o sistema
+            "attn_implementation": "flash_attention_2" if torch.cuda.is_available() else "eager",
+        }
+        pipeline_kwargs: dict = {
+            "task": task,
+            "model": self.model_name,
+            "device_map": "auto",
+            "token": settings.hf_token,
+            "model_kwargs": model_kwargs,
+        }
+        if is_large_model:
+            logger.info("transformers_generation.enabling_4bit_quantization", model=self.model_name)
+            model_kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_quant_type="nf4",
+            )
+        else:
+            pipeline_kwargs["torch_dtype"] = torch.float16
+        return pipeline(**pipeline_kwargs)
+
+    @staticmethod
+    def _chat_messages(title_hint: Optional[str], content: str, keywords: list[str]) -> list[dict]:
+        """Separa o prompt de sistema embutido (<<<SYSTEM>>>...<<<END_SYSTEM>>>)
+        e, se o conteúdo for só o texto, acrescenta a instrução de resumo."""
+        system_prompt = "Você é um assistente especialista em sumarização de textos técnicos."
+        user_content = content
+        if "<<<SYSTEM>>>" in content and "<<<END_SYSTEM>>>" in content:
+            sys_part, user_content = content.split("<<<END_SYSTEM>>>", 1)
+            sys_part = sys_part.replace("<<<SYSTEM>>>", "").strip()
+            system_prompt = sys_part or system_prompt
+            user_content = user_content.strip()
+
+        if "Analise o texto" not in user_content and "[TEXTO]" not in user_content:
+            user_content = (
+                f"Gere um resumo detalhado e estruturado em Markdown sobre o tópico '{title_hint}'. "
+                f"Considere as palavras-chave: {', '.join(keywords)}. \n\n"
+                f"Texto base:\n{user_content}"
+            )
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ]
+
+    def _generate_chat(self, title_hint: Optional[str], content: str, keywords: list[str]) -> str:  # pragma: no cover - runtime path
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        outputs = self._pipe(
+            self._chat_messages(title_hint, content, keywords),
+            max_new_tokens=3000,
+            do_sample=True,
+            temperature=0.35,
+            top_p=0.82,
+            top_k=50,
+            repetition_penalty=1.12,
+            pad_token_id=151643,
+            return_full_text=False,
+        )
+        return outputs[0]["generated_text"].strip()
+
+    def _generate_summary(self, title_hint: Optional[str], content: str, keywords: list[str]) -> str:  # pragma: no cover - runtime path
+        """Modelos de sumarização (BART, T5): título e palavras-chave dão o contexto."""
+        prompt = (
+            f"Título: {title_hint or 'Tópico'}\n"
+            f"Palavras-chave: {', '.join(keywords) if keywords else 'Nenhuma'}\n\n"
+            f"Conteúdo:\n{content}"
+        )
+        return self._pipe(prompt, max_length=220, min_length=60, do_sample=False)[0]["summary_text"]
+
 
 __all__ = ["TransformersTextGenerationAdapter"]

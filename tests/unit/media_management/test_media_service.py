@@ -67,8 +67,8 @@ def service_components() -> Dict[str, object]:
         event_bus=None,
         storage_maintenance=storage_maintenance,
         storage_downloader=storage_downloader,
+        access_policy=access_policy,
     )
-    service.access_policy = access_policy
 
     # Inject async storage_uploader stub
     async def _upload_stub(command, media_id, content_type):
@@ -96,8 +96,9 @@ async def test_upload_media_invokes_validator_and_handler(service_components):
     service: MediaService = service_components["service"]
     validator: MagicMock = service_components["validator"]
     validator.validate.return_value = None
-    service.side_effect_publisher = MagicMock()
-    service.side_effect_publisher.publish = AsyncMock(return_value={"id": "123"})
+    publisher = MagicMock()
+    publisher.publish = AsyncMock(return_value={"id": "123"})
+    service.upload.side_effect_publisher = publisher
 
     cmd = CreateMediaCommand(
         user_id=uuid4(),
@@ -114,7 +115,7 @@ async def test_upload_media_invokes_validator_and_handler(service_components):
     result = await service.create_media(cmd)
 
     validator.validate.assert_called_once_with(b"bytes", "sample.mp4")
-    service.side_effect_publisher.publish.assert_awaited()
+    publisher.publish.assert_awaited()
     assert result.id
 
 
@@ -198,7 +199,8 @@ async def test_reprocess_media_refuses_media_that_did_not_fail(service_component
     )
     media.status = status
     media_repository.get_by_id.return_value = media
-    service._delete_associated_records = AsyncMock()
+    eraser = AsyncMock()
+    service.data_erasers.append(eraser)
 
     with pytest.raises(MediaNotReprocessableError):
         await service.reprocess_media(
@@ -207,7 +209,7 @@ async def test_reprocess_media_refuses_media_that_did_not_fail(service_component
             user_role=UserRole.USER,
         )
 
-    service._delete_associated_records.assert_not_awaited()
+    eraser.erase.assert_not_awaited()
     media_repository.update.assert_not_awaited()
     assert media.status == status
 

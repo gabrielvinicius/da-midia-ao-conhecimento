@@ -15,8 +15,6 @@ from src.media_management.api.schemas import MediaResponse
 from src.media_management.application.dtos import (
     ListMediaQuery,
 )
-from src.media_management.application.errors import MediaDataErasureError
-from src.media_management.domain import MediaNotReprocessableError
 from src.shared.application.schemas import PaginatedResponse
 from src.user_management.api.dependencies import get_current_admin_user
 from src.user_management.api.schemas import UserResponse
@@ -174,9 +172,6 @@ async def delete_media(
             media_id=media_id,
             admin_user=current_admin,
         )
-    except MediaDataErasureError as e:
-        # Nada foi apagado pela metade sem aviso: a operação pode ser repetida.
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except (ValueError, PermissionError) as e:
         status_code = (
             status.HTTP_404_NOT_FOUND
@@ -203,11 +198,6 @@ async def reprocess_media(
             admin_user=current_admin,
         )
         return {"message": "Reprocessing initiated."}
-    except MediaDataErasureError as e:
-        # Nada foi apagado pela metade sem aviso: a operação pode ser repetida.
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
-    except MediaNotReprocessableError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except (ValueError, PermissionError) as e:
         status_code = (
             status.HTTP_400_BAD_REQUEST

@@ -24,6 +24,8 @@ from src.shared.domain.events import MediaFailed
 
 logger = structlog.get_logger(__name__)
 
+PAGE_SIZE = 50
+
 GIVE_UP_MESSAGE = (
     "O processamento não chegou a começar. Tente novamente; se voltar a "
     "acontecer, verifique se os workers estão em execução."
@@ -57,9 +59,21 @@ class UnstartedMediaRecovery:
         now = now or datetime.datetime.now(datetime.timezone.utc)
         result = RecoveryResult()
         # A folga evita disputar com um envio que ainda está sendo tratado.
-        waiting = await self._media.list_waiting(now - datetime.timedelta(seconds=self._grace))
-        if not waiting:
-            return result
+        created_before = now - datetime.timedelta(seconds=self._grace)
+        # Percorre todas as páginas: as mídias já em processamento (que podem
+        # ser muitas numa fila longa) não podem esconder as mais novas.
+        last = None
+        while True:
+            page = await self._media.list_waiting(created_before, PAGE_SIZE, last)
+            if not page:
+                break
+            await self._recover(page, now, result)
+            if len(page) < PAGE_SIZE:
+                break
+            last = page[-1]
+        return result
+
+    async def _recover(self, waiting, now: datetime.datetime, result: RecoveryResult) -> None:
         started = await self._processing.media_with_processing([m.id for m in waiting])
         for media in waiting:
             if media.id in started:
@@ -74,7 +88,6 @@ class UnstartedMediaRecovery:
                 upload_event_for(media, correlation_id=f"recovered-{media.id}")
             )
             result.requeued.append(str(media.id))
-        return result
 
     async def _give_up_on(self, media) -> None:
         logger.warning("unstarted_media.marking_failed", media_id=str(media.id))

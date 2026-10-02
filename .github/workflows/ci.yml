@@ -55,6 +55,8 @@ jobs:
       # morto (imports e variáveis sem uso, definições repetidas).
       - name: Lint
         run: ruff check src tests main.py --select E9,F63,F7,F82,F401,F811,F841
+      - name: Complexidade (McCabe até 12)
+        run: ruff check src --select C901 --config 'lint.mccabe.max-complexity=12'
 
       # Regras de dependência entre camadas e módulos (arquivo .importlinter).
       - name: Architecture (import contracts)

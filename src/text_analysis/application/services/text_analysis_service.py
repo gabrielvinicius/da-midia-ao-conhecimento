@@ -89,66 +89,15 @@ class TextAnalysisService:
         command: AnalyzeTextCommand,
     ) -> dict[str, Any]:
         """Main orchestrator for analyzing text content."""
-        text_content = command.text_content
-        transcription_id = command.transcription_id
-        user_id = command.user_id
-        media_id = command.media_id
-
-        # 1. Busca a transcrição pela porta. Mesmo quando o texto já vem no
-        # comando, os segmentos (com horários) só existem na transcrição; sem
-        # eles, a análise visual e os horários da busca semântica não funcionam.
-        segments: list = []
-        language: Optional[str] = None
-        visual_context: list = []
-        if media_id and self.transcription_queries:
-            try:
-                text_source = await self.transcription_queries.get_text_source(media_id)
-                if text_source:
-                    text_content = text_content or text_source.text
-                    transcription_id = transcription_id or text_source.id
-                    segments = list(text_source.segments or [])
-                    language = getattr(text_source, "language", None)
-                    visual_context = list(getattr(text_source, "visual_context", None) or [])
-            except Exception as exc:
-                logger.warning("text_analysis.fetch_text_failed", media_id=str(media_id), error=str(exc))
-
-        # Dados da mídia (tipo, arquivo) usados pelas etapas da análise.
-        media_info = {}
-        if media_id and self.transcription_queries:
-            try:
-                media_info = await self.transcription_queries.get_media_info(media_id) or {}
-            except Exception as exc:  # sem os dados da mídia, a análise segue só com o texto
-                logger.warning("text_analysis.fetch_media_info_failed", media_id=str(media_id), error=str(exc))
-
+        media_id, user_id = command.media_id, command.user_id
         start = time.perf_counter()
         success = False
         try:
-            # Agregado da análise, com os trechos e horários da transcrição.
-            document = Document.from_payload(text_content or "", segments)
-            analysis = Analysis.new(
-                document,
-                media_id=media_id,
-                transcription_id=transcription_id,
-                user_id=user_id,
-            )
-            
-            # Inject media context for the pipeline
-            if media_info:
-                analysis.diagnostics.update(media_info)
-            # Idioma detectado na transcrição: palavras vazias e sentimento
-            # seguem o idioma da gravação (o resumo continua em português).
-            if language and language.lower() not in ("auto", "unknown"):
-                analysis.diagnostics["language"] = language.lower()
-            # O que aparecia na tela, descrito no processamento do vídeo.
-            if visual_context:
-                analysis.diagnostics["visual_context"] = visual_context
+            analysis = await self._new_analysis(command)
 
-            # 4. Pipeline granular. Cada etapa grava seu resultado ao terminar
+            # Pipeline granular. Cada etapa grava seu resultado ao terminar
             # (checkpoint); se o worker cair no meio, o que já foi calculado
             # continua disponível.
-            # Dispositivo e precisão em uso, informados pela montagem do módulo.
-            analysis.diagnostics.update(self.runtime_diagnostics)
-
             async def checkpoint(current: Analysis, step_name: str) -> None:
                 await self.repository.save(current)
 
@@ -156,35 +105,84 @@ class TextAnalysisService:
             analysis = await self.pipeline.run(analysis, on_step_completed=checkpoint)
             await self._record_durations(analysis, time.perf_counter() - pipeline_started)
 
-            # 5. Persistência final
             analysis_id = await self.repository.save(analysis)
             logger.info("text_analysis.stored", analysis_id=analysis_id)
 
-            # 6. Emit Events
             if self.event_bus:
                 await self._emit_completed_events(analysis)
 
-            result_dto = analysis_to_dto(analysis)
-            result = result_dto.to_dict()
-            
-            # Enrich result with IDs for API response
-            if media_id: result["media_id"] = str(media_id)
-            if transcription_id: result["transcription_id"] = str(transcription_id)
-            if user_id: result["user_id"] = str(user_id)
-            
+            result = analysis_to_dto(analysis).to_dict()
+            # Identificadores para a resposta da API.
+            for key, value in (
+                ("media_id", media_id),
+                ("transcription_id", analysis.transcription_id),
+                ("user_id", user_id),
+            ):
+                if value:
+                    result[key] = str(value)
+
             success = True
             return result
         finally:
-            try:
-                if hasattr(self.metrics, "set_context"):
-                    self.metrics.set_context(str(media_id), str(user_id))
-                await self.metrics.record_operation(
-                    operation="analyze_text_content",
-                    duration=time.perf_counter() - start,
-                    success=success,
-                )
-            except Exception as exc:  # métrica nunca derruba a análise
-                logger.warning("text_analysis.metrics_failed", error=str(exc))
+            await self._record_metrics(media_id, user_id, time.perf_counter() - start, success)
+
+    async def _new_analysis(self, command: AnalyzeTextCommand) -> Analysis:
+        """Monta o agregado da análise com o texto, os trechos e o contexto da mídia.
+
+        Mesmo quando o texto já vem no comando, os segmentos (com horários) só
+        existem na transcrição; sem eles, a análise visual e os horários da busca
+        semântica não funcionam. Uma falha ao ler a transcrição interrompe a
+        análise (a tarefa tenta de novo), em vez de seguir com um resultado pior
+        em silêncio.
+        """
+        text_content = command.text_content
+        transcription_id = command.transcription_id
+        media_id = command.media_id
+        segments: list = []
+        language: Optional[str] = None
+        visual_context: list = []
+        media_info: dict = {}
+
+        if media_id and self.transcription_queries:
+            text_source = await self.transcription_queries.get_text_source(media_id)
+            if text_source:
+                text_content = text_content or text_source.text
+                transcription_id = transcription_id or text_source.id
+                segments = list(text_source.segments or [])
+                language = getattr(text_source, "language", None)
+                visual_context = list(getattr(text_source, "visual_context", None) or [])
+            # Dados da mídia (tipo, arquivo) usados pelas etapas da análise.
+            media_info = await self.transcription_queries.get_media_info(media_id) or {}
+
+        analysis = Analysis.new(
+            Document.from_payload(text_content or "", segments),
+            media_id=media_id,
+            transcription_id=transcription_id,
+            user_id=command.user_id,
+        )
+        analysis.diagnostics.update(media_info)
+        # Idioma detectado na transcrição: palavras vazias e sentimento
+        # seguem o idioma da gravação (o resumo continua em português).
+        if language and language.lower() not in ("auto", "unknown"):
+            analysis.diagnostics["language"] = language.lower()
+        # O que aparecia na tela, descrito no processamento do vídeo.
+        if visual_context:
+            analysis.diagnostics["visual_context"] = visual_context
+        # Dispositivo e precisão em uso, informados pela montagem do módulo.
+        analysis.diagnostics.update(self.runtime_diagnostics)
+        return analysis
+
+    async def _record_metrics(self, media_id, user_id, duration: float, success: bool) -> None:
+        try:
+            if hasattr(self.metrics, "set_context"):
+                self.metrics.set_context(str(media_id), str(user_id))
+            await self.metrics.record_operation(
+                operation="analyze_text_content",
+                duration=duration,
+                success=success,
+            )
+        except Exception as exc:  # métrica nunca derruba a análise
+            logger.warning("text_analysis.metrics_failed", error=str(exc))
 
     async def _record_durations(self, analysis: Analysis, total_seconds: float) -> None:
         """Grava a duração total e a de cada etapa (para avaliação e estimativas)."""

@@ -6,9 +6,10 @@ from uuid import UUID
 
 from src.shared.domain.base_entity import BaseEntity
 from src.media_management.domain.enums import MediaStatus, MediaType
+from src.shared.domain.errors import ConflictError
 
 
-class MediaNotReprocessableError(ValueError):
+class MediaNotReprocessableError(ConflictError):
     """A mídia não está em um estado que permita reprocessamento."""
 
 

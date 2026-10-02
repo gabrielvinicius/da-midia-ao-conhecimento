@@ -6,6 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.shared.infrastructure.exceptions.exception_handlers import register_exception_handlers
 from src.text_analysis.api import routers
 from src.text_analysis.api.dependencies import (
     get_knowledge_service,
@@ -47,6 +48,7 @@ class FakeKnowledge:
 
 def _client(user_id, role=UserRole.USER):
     app = FastAPI()
+    register_exception_handlers(app)  # como na aplicação: erros de acesso viram 403
     app.include_router(routers.router)
     service, knowledge = FakeService(), FakeKnowledge()
     app.dependency_overrides[get_text_analysis_service] = lambda: service

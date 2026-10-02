@@ -7,7 +7,7 @@ from uuid import UUID
 
 import structlog
 from datetime import datetime, timezone
-from sqlalchemy import func, select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.domain import Media
@@ -149,19 +149,22 @@ class MediaRepository:
         result = await self.db.execute(select(func.count()).select_from(MediaEntity))
         return result.scalar_one()
 
-    async def list_waiting(self, created_before: datetime, limit: int = 50) -> List[Media]:
-        """Mídias enviadas ou em processamento, criadas antes de created_before."""
+    async def list_waiting(
+        self, created_before: datetime, limit: int = 50, after: Optional[Media] = None
+    ) -> List[Media]:
+        """Mídias enviadas ou em processamento, criadas antes de created_before,
+        em páginas ordenadas por (created_at, id); after é a última da página anterior."""
         await self._ensure_clean()
-        cutoff = created_before.astimezone(timezone.utc).replace(tzinfo=None)
-        stmt = (
-            select(MediaEntity)
-            .where(
-                MediaEntity.status.in_([MediaStatus.UPLOADED, MediaStatus.PROCESSING]),
-                MediaEntity.created_at < cutoff,
-            )
-            .order_by(MediaEntity.created_at)
-            .limit(limit)
+        stmt = select(MediaEntity).where(
+            MediaEntity.status.in_([MediaStatus.UPLOADED, MediaStatus.PROCESSING]),
+            MediaEntity.created_at < _naive_utc(created_before),
         )
+        if after is not None:
+            stmt = stmt.where(
+                tuple_(MediaEntity.created_at, MediaEntity.id)
+                > tuple_(_naive_utc(after.created_at), after.id)
+            )
+        stmt = stmt.order_by(MediaEntity.created_at, MediaEntity.id).limit(limit)
         result = await self.db.execute(stmt)
         return [self._mapper.to_domain(entity) for entity in result.scalars().all()]
 
@@ -242,3 +245,10 @@ class MediaRepository:
                 error=str(exc),
                 message="Failed to rollback pending transaction (best-effort cleanup)",
             )
+
+
+def _naive_utc(moment: datetime) -> datetime:
+    # O banco grava em UTC sem fuso.
+    if moment.tzinfo is None:
+        return moment
+    return moment.astimezone(timezone.utc).replace(tzinfo=None)

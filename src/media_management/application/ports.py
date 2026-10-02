@@ -52,8 +52,14 @@ class MediaRepositoryPort(Protocol):
 
 
 class RecoverableMediaPort(Protocol):
-    async def list_waiting(self, created_before: datetime.datetime, limit: int = 50) -> List[Media]:
-        """Mídias ainda enviadas ou em processamento, criadas antes do instante dado."""
+    async def list_waiting(
+        self,
+        created_before: datetime.datetime,
+        limit: int = 50,
+        after: Optional[Media] = None,
+    ) -> List[Media]:
+        """Mídias ainda enviadas ou em processamento, criadas antes do instante
+        dado, da mais antiga para a mais nova; after continua depois dessa mídia."""
         ...
 
     async def update(self, media: Media): ...

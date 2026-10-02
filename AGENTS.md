@@ -15,13 +15,15 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 - **Integration events**: each event in `shared/domain/events.py` declares `published_by`; only that module creates it (`tests/unit/test_architecture_event_ownership.py`).
 - **Transactions**: a repository commits its own single-aggregate change; a use case that touches several repositories runs inside `UnitOfWorkPort.transaction()` (repositories then only flush).
 - **Single composition**: each application service has one factory, in its module's `infrastructure/dependencies/builders.py`, used by the API bootstrap, the workers and the event handlers alike. API dependency defaults (`api/dependencies.py`) never build services; they raise until `bootstrap.bind_*_module` binds the instance (`tests/unit/test_architecture_single_composition.py`).
+- **Errors**: application and domain errors extend `shared/domain/errors.py` (`NotFoundError`, `AccessDeniedError`, `ConflictError`, `TemporarilyUnavailableError`, `ValidationError`, `DomainError`). They are translated to HTTP in one place (`shared/infrastructure/exceptions/exception_handlers.py`); routes don't catch them just to change the status code. Unexpected errors become a 500 without the internal message.
+- **Complexity**: functions stay at McCabe complexity 12 or less (checked in CI); split long flows into named steps.
 - **Rich entities**: state changes go through entity methods (`mark_as_failed`, `override_status`, `mark_as_extracted`), never by assigning `status` from services.
 - **Hexagonal Integrity**: Business logic interacts with the world only through Ports (`application/ports.py`). Adapters stay in `infrastructure/`.
 - **Granular Pipeline**: Analysis is step-based. Partial results MUST be saved to allow resilience and adaptive retries.
 - **Semantic indexing**: Every processed chunk is vectorized via `pgvector` for global semantic search.
 
 ### Module Deprecations & Cleanup Status
-- `media_management`: `MediaService` is the unique orchestrator. Legacy `MediaOrchestrator` and utilities are removed.
+- `media_management`: each operation is a use-case class in `application/use_cases/` (`UploadMedia`, `DeleteMedia`, `ReprocessMedia`, `StreamMedia`, `MediaLifecycle`); `MediaService` is only a facade over them.
 - `monitoring`: Partially legacy. Prefer using the new observability ports (`LoggerPort`, `MetricsPort`).
 - `tests`: Directories like `tests/unit/auth` are removed. Unit tests reside within context folders (e.g., `tests/unit/user_management`).
 

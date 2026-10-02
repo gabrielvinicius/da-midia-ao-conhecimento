@@ -14,6 +14,7 @@ from fastapi import (
 )
 from fastapi.responses import Response
 
+from src.media_management.application.errors import InvalidRangeError
 from src.media_management.application.dtos import (
     CreateMediaCommand,
     DeleteMediaCommand,
@@ -24,14 +25,10 @@ from src.media_management.application.dtos import (
     ReprocessMediaCommand,
 )
 from src.media_management.application.services.media_service import MediaService
-from src.media_management.application.errors import MediaDataErasureError
-from src.media_management.domain import MediaNotReprocessableError
 from src.shared.application.schemas import (
     BaseResponseSchema,
     create_success_response,
 )
-from src.shared.domain.errors import DomainError
-from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.user_management.api.dependencies import get_current_user, get_current_user_from_query
 from src.user_management.domain import User
 from src.user_management.domain import UserRole
@@ -44,7 +41,6 @@ router = APIRouter(
     tags=["Media"],
 )
 
-logger = get_logger("media_api")
 
 @router.post(
     "/",
@@ -62,39 +58,20 @@ async def create_media(
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
 ):
-    try:
-        file_content = await file.read()
-
-        command = CreateMediaCommand(
-            user_id=current_user.id,
-            file=file_content,
-            filename=file.filename,
-            storage_provider=storage_provider,
-            transcription_provider=transcription_provider,
-            summarization_provider=summarization_provider,
-            sentiment_provider=sentiment_provider,
-            topic_modeling_provider=topic_modeling_provider,
-        )
-
-        media = await service.create_media(command)
-
-        return MediaResponse.from_domain(media)
-    except DomainError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as exc:
-        logger.error(
-            "media_api.upload_failed",
-            error=str(exc),
-            exc_info=True,
-            filename=file.filename if file else None,
-            user_id=str(current_user.id),
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc),
-        )
+    command = CreateMediaCommand(
+        user_id=current_user.id,
+        file=await file.read(),
+        filename=file.filename,
+        storage_provider=storage_provider,
+        transcription_provider=transcription_provider,
+        summarization_provider=summarization_provider,
+        sentiment_provider=sentiment_provider,
+        topic_modeling_provider=topic_modeling_provider,
+    )
+    # Erros de validação viram 400 nos tratadores globais; o resto, 500 sem
+    # expor a mensagem interna.
+    media = await service.create_media(command)
+    return MediaResponse.from_domain(media)
 
 
 @router.get(
@@ -191,13 +168,9 @@ async def delete_media(
             user_id=current_user.id,
             user_role=current_user.role,
         )
-    except MediaDataErasureError as e:
-        # Nada foi apagado pela metade sem aviso: a operação pode ser repetida.
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except PermissionError:
+        # Mídia de outro usuário: 404, sem revelar que ela existe.
         raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
 
 
 @router.get("/{media_id}/stream", summary="Stream media bytes for playback")
@@ -224,11 +197,11 @@ async def stream_media(
             headers=stream_dto.headers,
             status_code=stream_dto.status_code,
         )
-    except (ValueError, PermissionError) as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-    except Exception as exc:
-        logger.error("media_api.stream_failed", media_id=str(media_id), error=str(exc))
-        raise HTTPException(status_code=500, detail="Internal server error during streaming")
+    except PermissionError:
+        # Mídia de outro usuário: 404, sem revelar que ela existe.
+        raise HTTPException(status_code=404, detail="Mídia não encontrada")
+    except InvalidRangeError as exc:
+        raise HTTPException(status_code=416, detail=str(exc))
 
 
 @router.post(
@@ -261,13 +234,6 @@ async def reprocess_media(
             message="Media reprocessing started successfully"
         )
 
-    except MediaDataErasureError as e:
-        # Nada foi apagado pela metade sem aviso: a operação pode ser repetida.
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except PermissionError:
-        raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")
-    except MediaNotReprocessableError as e:
-        # 409: a mídia existe, mas o estado dela não permite a operação.
-        raise HTTPException(status_code=409, detail=str(e))
-    except ValueError:
+        # Mídia de outro usuário: 404, sem revelar que ela existe.
         raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")

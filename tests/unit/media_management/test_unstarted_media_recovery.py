@@ -95,3 +95,20 @@ async def test_upload_that_never_starts_is_marked_failed():
 def test_limits_must_be_ordered():
     with pytest.raises(ValueError):
         UnstartedMediaRecovery(AsyncMock(), AsyncMock(), AsyncMock(), 600, 600)
+
+
+@pytest.mark.asyncio
+async def test_a_full_page_of_started_media_does_not_hide_newer_ones():
+    """Numa fila longa, as 50 mídias mais antigas já estão em processamento;
+    a busca só olhava essa primeira página e nunca via o envio perdido."""
+    from src.media_management.application.services.unstarted_media_recovery import PAGE_SIZE
+
+    started = [_media(40) for _ in range(PAGE_SIZE)]
+    lost = _media(20)
+    recovery, query, bus = _recovery([], started=[m.id for m in started])
+    query.list_waiting.side_effect = [started, [lost]]
+
+    result = await recovery.sweep(NOW)
+
+    assert result.requeued == [str(lost.id)]
+    assert query.list_waiting.await_args_list[1].args[2] is started[-1]  # continua da última

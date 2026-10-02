@@ -85,7 +85,7 @@ class RedisNotificationPubSubBridge:
         finally:
             try:
                 await pubsub.unsubscribe(self._channel)
-                await pubsub.close()
+                await pubsub.aclose()
             finally:
                 await client.aclose()
             logger.info("notifications.realtime.bridge_stopped", channel=self._channel)
