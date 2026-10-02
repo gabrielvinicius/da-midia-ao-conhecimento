@@ -99,7 +99,7 @@ export const AdminDashboardPage = () => {
                   Usuários ativos: {health.active_users}/{health.total_users}
                 </div>
                 <div className="text-muted-foreground">
-                  Processando: {health.processing_media} · Falhas: {health.failed_media}
+                  Na fila: {health.waiting_media} · Processando: {health.processing_media} · Falhas nas últimas {health.failure_window_hours} h: {health.failed_media}
                 </div>
                 {health.issues && health.issues.length > 0 ? (
                   <ul className="list-disc space-y-1 pl-4 text-amber-600">

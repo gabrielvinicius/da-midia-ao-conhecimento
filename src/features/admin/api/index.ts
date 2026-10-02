@@ -16,7 +16,9 @@ export interface SystemHealth {
   total_users: number;
   active_users: number;
   failed_media: number;
+  failure_window_hours: number;
   processing_media: number;
+  waiting_media: number;
   issues: string[];
   timestamp: string;
 }
