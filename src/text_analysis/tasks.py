@@ -18,6 +18,7 @@ from src.shared.infrastructure.database.db import AsyncSessionLocal
 from src.shared.events.integration_events import TASK_TEXT_ANALYSIS_ANALYZE
 from src.shared.infrastructure.messaging.process_bus import process_event_bus
 from src.shared.infrastructure.tasks.retry import TRANSIENT_ERRORS, is_transient
+from src.shared.domain.events import AnalysisFailed
 from src.shared.domain.value_objects.identifiers import parse_id, parse_media_id
 from src.text_analysis.application.dtos import AnalyzeTextCommand
 from src.text_analysis.application.services.text_analysis_service import TextAnalysisService
@@ -91,48 +92,20 @@ async def _async_task_body(
             pass
 
 
-async def _notify_user(
-    *,
-    session,
-    payload: Dict[str, Any],
-    message: str,
-    evento: str,
-    extra: Optional[Dict[str, Any]] = None,
-) -> None:
-    """Avisa o dono da mídia pelo WebSocket (via Redis, como os demais workers)."""
-    user_id = payload.get("user_id")
-    if not user_id:
-        return
-
-    from uuid import UUID
-
-    from src.notifications.bootstrap import bootstrap_pipeline_notification_service
-
-    service = bootstrap_pipeline_notification_service(session)
-    await service.notify(
-        user_id=UUID(str(user_id)),
-        message=message,
-        correlation_id=payload.get("correlation_id"),
-        variables={
-            "media_id": payload.get("media_id"),
-            "transcription_id": payload.get("transcription_id"),
-            "evento": evento,
-            **(extra or {}),
-        },
-    )
-
-
-def completion_message(result: Dict[str, Any]) -> str:
-    """Texto do aviso de conclusão, citando as etapas que falharam, se houver."""
-    steps = (result.get("diagnostics") or {}).get("steps") or {}
-    failed = [name for name, status in steps.items() if str(status).startswith("failed")]
-    if failed:
-        return (
-            "Análise concluída com etapas incompletas ("
-            + ", ".join(failed)
-            + "). Os resultados das demais etapas estão disponíveis."
+async def _announce_failure(event_bus, payload: Dict[str, Any], exc: Exception) -> None:
+    """Falha definitiva da análise, para quem reagir (o módulo de avisos avisa o dono)."""
+    try:
+        await event_bus.publish(
+            AnalysisFailed(
+                media_id=payload.get("media_id"),
+                transcription_id=payload.get("transcription_id"),
+                user_id=payload.get("user_id"),
+                error_message=str(exc),
+                correlation_id=payload.get("correlation_id"),
+            )
         )
-    return "Análise concluída. O resumo já está disponível."
+    except Exception as notify_exc:  # o anúncio não pode esconder a falha original
+        logger.warning("text_analysis.failure_event_failed", error=str(notify_exc))
 
 
 def _task_body_with_retry_context(
@@ -143,40 +116,18 @@ def _task_body_with_retry_context(
     final_attempt: bool,
 ) -> Dict[str, Any]:
     async def _run() -> Dict[str, Any]:
+        bus = _ensure_event_bus(event_bus)
         async with AsyncSessionLocal() as session:
-            service = await _build_service(
-                session=session,
-                event_bus=_ensure_event_bus(event_bus),
-            )
+            service = await _build_service(session=session, event_bus=bus)
             try:
-                result = await _async_task_body(payload, op_name, service)
+                # O fim da análise é anunciado pelo serviço (AnalysisCompleted).
+                return await _async_task_body(payload, op_name, service)
             except Exception as exc:
                 # Erro que não passa sozinho (defeito, dado inválido) não é
                 # repetido: esta já é a última tentativa.
                 if final_attempt or not is_transient(exc):
-                    try:
-                        await _notify_user(
-                            session=session,
-                            payload=payload,
-                            message="Falha ao analisar o texto.",
-                            evento="TextAnalysisFailed",
-                            extra={"op": op_name, "erro": str(exc)},
-                        )
-                    except Exception as notify_exc:  # o aviso não pode esconder a falha original
-                        logger.warning("text_analysis.failure_notice_failed", error=str(notify_exc))
+                    await _announce_failure(bus, payload, exc)
                 raise
-            # O aviso é o que faz a tela da mídia exibir o resumo sem recarregar.
-            try:
-                await _notify_user(
-                    session=session,
-                    payload=payload,
-                    message=completion_message(result),
-                    evento="TextAnalysisCompleted",
-                    extra={"analysis_id": result.get("analysis_id")},
-                )
-            except Exception as exc:  # o aviso não pode desfazer a análise
-                logger.warning("text_analysis.notify_failed", error=str(exc))
-            return result
 
     return asyncio.run(_run())
 

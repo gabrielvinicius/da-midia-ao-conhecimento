@@ -92,6 +92,7 @@ def create_celery() -> Celery:
             # Cada módulo declara as tarefas no próprio tasks.py (montagem).
             "src.media_management",
             "src.media_processing",
+            "src.notifications",  # só assina eventos (avisos ao usuário)
             "src.text_analysis",
         ]
     )
@@ -129,7 +130,15 @@ def _clear_task_context(**_kwargs) -> None:
 
 @worker_process_init.connect(weak=False)
 def _init_worker_tracing(**_kwargs) -> None:
-    """Ativa o tracing em cada processo do worker (após o fork)."""
+    """Ativa o tracing em cada processo do worker (após o fork).
+
+    Também recomeça o barramento de eventos do processo. Fica aqui, e não na
+    montagem de um módulo, porque este sinal é registrado antes dos outros:
+    se um módulo o recomeçasse, apagaria as inscrições feitas antes dele.
+    """
+    from src.shared.infrastructure.messaging.process_bus import reset_process_event_bus
+
+    reset_process_event_bus()
     from src.shared.infrastructure.observability.tracing.tracer import configure_tracer
 
     configure_tracer("video-summarizer-worker")

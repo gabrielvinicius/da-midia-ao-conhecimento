@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from typing import Any, Dict
-from uuid import UUID
 
 import structlog
 
@@ -12,9 +11,7 @@ from src.media_management.infrastructure.dependencies.builders import (
 from src.media_processing.infrastructure.adapters.celery_task_schedulers import (
     CeleryAnalysisRequester,
 )
-from src.notifications.bootstrap import bootstrap_pipeline_notification_service
 from src.shared.domain.events import (
-    MediaFailed,
     MediaProcessingFailed,
     MediaProcessingStarted,
     MediaUploaded,
@@ -31,6 +28,9 @@ logger = structlog.get_logger(__name__)
 
 class MediaWorkerApp:
     """Montagem do worker: liga os eventos do processamento aos módulos que reagem.
+
+    Os avisos ao usuário não ficam aqui: o módulo de avisos assina os mesmos
+    eventos (notifications/worker.py).
 
     Fica na raiz do módulo (camada de montagem), e não em application/, porque
     conhece adaptadores de outros módulos (mídias, notificações, armazenamento).
@@ -54,7 +54,6 @@ class MediaWorkerApp:
         self.event_bus.subscribe(TextContentReady, self._on_text_content_ready)
         self.event_bus.subscribe(MediaProcessingStarted, self._on_media_processing_started)
         self.event_bus.subscribe(MediaProcessingFailed, self._on_media_processing_failed)
-        self.event_bus.subscribe(MediaFailed, self._on_media_failed)
         
         self._subscribers_bound = True
         logger.info("media_processing.worker.subscribers_bound")
@@ -78,41 +77,10 @@ class MediaWorkerApp:
             handlers = self._build_media_handlers(session)
             await handlers.handle_transcription_completed(event)
 
-            if getattr(event, "user_id", None):
-                service = bootstrap_pipeline_notification_service(session)
-                await service.notify(
-                    user_id=UUID(str(event.user_id)),
-                    message="Transcrição concluída com sucesso.",
-                    correlation_id=getattr(event, "correlation_id", None),
-                    variables={
-                        "media_id": str(event.media_id),
-                        "transcription_id": str(event.transcription_id),
-                        "evento": "TranscriptionCompleted",
-                    },
-                )
-
     async def _on_transcription_failed(self, event: TranscriptionFailed) -> None:
         async with AsyncSessionLocal() as session:
             handlers = self._build_media_handlers(session)
             await handlers.handle_transcription_failed(event)
-
-            if getattr(event, "user_id", None):
-                service = bootstrap_pipeline_notification_service(session)
-                await service.notify(
-                    user_id=UUID(str(event.user_id)),
-                    message="Falha ao processar a transcrição.",
-                    correlation_id=getattr(event, "correlation_id", None),
-                    variables={
-                        "media_id": str(event.media_id),
-                        "transcription_id": (
-                            str(event.transcription_id)
-                            if getattr(event, "transcription_id", None)
-                            else None
-                        ),
-                        "erro": getattr(event, "error_message", None),
-                        "evento": "TranscriptionFailed",
-                    },
-                )
 
     async def _on_text_content_ready(self, event: TextContentReady) -> None:
         if not getattr(event, "text", None):
@@ -163,39 +131,6 @@ class MediaWorkerApp:
         async with AsyncSessionLocal() as session:
             handlers = self._build_media_handlers(session)
             await handlers.handle_media_processing_failed(event)
-
-            user_id = event.user_id
-            if user_id:
-                service = bootstrap_pipeline_notification_service(session)
-                await service.notify(
-                    user_id=UUID(str(user_id)),
-                    message="Falha durante o processamento do arquivo.",
-                    correlation_id=getattr(event, "correlation_id", None),
-                    variables={
-                        "media_id": str(event.media_id),
-                        "stage": getattr(event, "stage", None),
-                        "erro": getattr(event, "error_message", None),
-                        "evento": "MediaProcessingFailed",
-                    },
-                )
-
-    async def _on_media_failed(self, event: MediaFailed) -> None:
-        """A mídia já foi marcada pelo próprio módulo; aqui só se avisa o usuário."""
-        if not event.user_id:
-            return
-        async with AsyncSessionLocal() as session:
-            service = bootstrap_pipeline_notification_service(session)
-            await service.notify(
-                user_id=UUID(str(event.user_id)),
-                message="Falha durante o processamento do arquivo.",
-                correlation_id=getattr(event, "correlation_id", None),
-                variables={
-                    "media_id": str(event.media_id),
-                    "stage": event.stage,
-                    "erro": event.error_message,
-                    "evento": "MediaFailed",
-                },
-            )
 
     def _build_media_handlers(self, session):
         return build_media_event_handlers(

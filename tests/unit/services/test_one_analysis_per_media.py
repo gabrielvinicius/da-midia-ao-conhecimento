@@ -44,13 +44,10 @@ def test_only_errors_that_can_pass_by_themselves_are_retried():
 
 
 def test_a_bug_is_reported_at_once_instead_of_rerunning_the_pipeline(monkeypatch):
-    """Erro que não passa sozinho: aviso de falha já na primeira tentativa."""
+    """Erro que não passa sozinho: AnalysisFailed já na primeira tentativa."""
+    from src.shared.domain.events import AnalysisFailed
     from src.text_analysis import tasks
-
-    notices = []
-
-    async def notify(**kwargs):
-        notices.append(kwargs["evento"])
+    from tests.mocks.in_memory_event_bus import InMemoryEventBus
 
     async def build(**_kwargs):
         return object()
@@ -58,7 +55,6 @@ def test_a_bug_is_reported_at_once_instead_of_rerunning_the_pipeline(monkeypatch
     async def body(*_args):
         raise TypeError("defeito no código")
 
-    monkeypatch.setattr(tasks, "_notify_user", notify)
     monkeypatch.setattr(tasks, "_build_service", build)
     monkeypatch.setattr(tasks, "_async_task_body", body)
 
@@ -70,9 +66,14 @@ def test_a_bug_is_reported_at_once_instead_of_rerunning_the_pipeline(monkeypatch
             return False
 
     monkeypatch.setattr(tasks, "AsyncSessionLocal", Session)
+    bus = InMemoryEventBus()
     with pytest.raises(TypeError):
-        tasks._task_body_with_retry_context({"user_id": str(uuid4())}, op_name="t", event_bus=object(), final_attempt=False)
-    assert notices == ["TextAnalysisFailed"]
+        tasks._task_body_with_retry_context(
+            {"user_id": str(uuid4()), "media_id": str(uuid4()), "correlation_id": "req-2"},
+            op_name="t", event_bus=bus, final_attempt=False,
+        )
+    [failure] = [e for e in bus.events if isinstance(e, AnalysisFailed)]
+    assert failure.correlation_id == "req-2" and "defeito" in failure.error_message
     assert TypeError not in tasks.analyze_task.autoretry_for
 
 
@@ -94,4 +95,5 @@ async def test_the_request_id_reaches_the_analysis_events():
     await service.analyze_text_content(
         AnalyzeTextCommand(media_id=media_id, document_id=media_id, text_content="t", correlation_id="req-9")
     )
-    assert bus.events and all(e.correlation_id == "req-9" for e in bus.events)
+    [completed] = bus.events
+    assert type(completed).__name__ == "AnalysisCompleted" and completed.correlation_id == "req-9"

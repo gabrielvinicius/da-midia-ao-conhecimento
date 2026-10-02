@@ -150,3 +150,12 @@ forbidden_modules =
     src.user_management
     src.notifications
     src.admin
+
+[importlinter:contract:avisos-por-eventos]
+name = Processamento e análise não chamam o módulo de avisos (ele assina os eventos)
+type = forbidden
+source_modules =
+    src.media_processing
+    src.text_analysis
+forbidden_modules =
+    src.notifications

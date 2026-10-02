@@ -11,6 +11,7 @@ from fastapi import (
 from fastapi.security import OAuth2PasswordRequestForm
 
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
+from src.shared.application.privacy import masked_email
 from src.user_management.api.dependencies import (
     get_current_user,
     get_login_throttle,
@@ -67,7 +68,7 @@ async def login_for_access_token(
     client_ip = _client_ip(request)
     wait = await throttle.retry_after(form_data.username, client_ip)
     if wait > 0:
-        logger.warning("auth.login.throttled", email=form_data.username, ip=client_ip)
+        logger.warning("auth.login.throttled", email=masked_email(form_data.username), ip=client_ip)
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Muitas tentativas de login. Tente novamente em {max(1, wait // 60)} minuto(s).",

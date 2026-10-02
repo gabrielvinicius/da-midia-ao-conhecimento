@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, ClassVar, Optional
+from typing import ClassVar, List, Optional
 from uuid import UUID, uuid4
 
 
@@ -149,36 +149,33 @@ class TextContentReady(DomainEvent):
 
 # --- Text analysis outputs ---
 @dataclass
-class SummarizationCompleted(DomainEvent):
+class AnalysisCompleted(DomainEvent):
+    """Fim da análise de uma mídia. É o ponto de entrada de novas camadas
+    (avisos hoje; catálogo e tendências depois): traz o que a análise achou
+    em campos simples, sem obrigar quem reage a ler a análise inteira."""
+
     published_by: ClassVar[str] = "text_analysis"
 
     analysis_id: str = ""
     media_id: Optional[str] = None
     transcription_id: Optional[str] = None
-    summary: Optional[str] = None
-
-
-@dataclass
-class SentimentAnalysisCompleted(DomainEvent):
-    published_by: ClassVar[str] = "text_analysis"
-
-    analysis_id: str = ""
-    media_id: Optional[str] = None
-    transcription_id: Optional[str] = None
-    sentiment_score: Optional[float] = None
+    user_id: Optional[str] = None
+    summary_source: Optional[str] = None
     overall_sentiment: Optional[str] = None
+    topic_titles: List[str] = field(default_factory=list)
+    failed_steps: List[str] = field(default_factory=list)
 
 
 @dataclass
-class TopicModelingCompleted(DomainEvent):
+class AnalysisFailed(DomainEvent):
+    """A análise falhou de vez (última tentativa ou erro que não passa sozinho)."""
+
     published_by: ClassVar[str] = "text_analysis"
 
-    analysis_id: str = ""
     media_id: Optional[str] = None
     transcription_id: Optional[str] = None
-    topics: Optional[Any] = None
-
-
+    user_id: Optional[str] = None
+    error_message: Optional[str] = None
 
 
 __all__ = [
@@ -193,7 +190,6 @@ __all__ = [
     "TranscriptionCompleted",
     "TranscriptionFailed",
     "TextContentReady",
-    "SummarizationCompleted",
-    "SentimentAnalysisCompleted",
-    "TopicModelingCompleted",
+    "AnalysisCompleted",
+    "AnalysisFailed",
 ]

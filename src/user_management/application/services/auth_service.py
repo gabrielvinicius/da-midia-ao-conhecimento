@@ -7,6 +7,8 @@ import structlog
 
 from src.user_management.domain.errors import InvalidCredentialsError
 
+from src.shared.application.privacy import masked_email
+
 from .user_service import UserService
 
 logger = structlog.get_logger(__name__)
@@ -18,13 +20,13 @@ class AuthService:
         self.settings = settings
 
     async def authenticate_user(self, email: str, password: str) -> dict[str, Any]:
-        logger.info("auth.authenticate.started", email=email)
+        logger.info("auth.authenticate.started", email=masked_email(email))
         try:
             result = await self.user_service.authenticate_user(email, password)
         except InvalidCredentialsError as exc:
-            logger.warning("auth.authenticate.failed", email=email, reason=str(exc) or "invalid_credentials")
+            logger.warning("auth.authenticate.failed", email=masked_email(email), reason=str(exc) or "invalid_credentials")
             raise
-        logger.info("auth.authenticate.success", email=email)
+        logger.info("auth.authenticate.success", email=masked_email(email))
         return result
 
     async def refresh(self, refresh_token: str) -> dict[str, str]:

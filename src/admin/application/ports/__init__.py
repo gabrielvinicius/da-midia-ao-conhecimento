@@ -95,24 +95,6 @@ class AdminAuditPort(Protocol):
         details: dict | None = None,
     ) -> None: ...
 
-    async def get_audit_entries(
-        self,
-        page: int = 1,
-        limit: int = 50,
-        target_type: str | None = None,
-        admin_id: UUID | None = None,
-        action_type: str | None = None,
-    ): ...
-
-    async def get_user_audit_trail(self, user_id: UUID): ...
-    async def get_admin_activity_summary(self, admin_id: UUID, days: int = 30): ...
-    async def export_audit_log(
-        self,
-        start_date=None,
-        end_date=None,
-        format_type: str = "json",
-    ) -> str: ...
-    async def cleanup_old_audit_entries(self, days_to_keep: int = 365) -> int: ...
 
 
 __all__ = [

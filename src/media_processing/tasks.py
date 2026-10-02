@@ -20,10 +20,7 @@ from src.shared.events.integration_events import (
     TASK_MEDIA_TRANSCRIPTION,
 )
 from src.shared.infrastructure.database.db import AsyncSessionLocal
-from src.shared.infrastructure.messaging.process_bus import (
-    process_event_bus,
-    reset_process_event_bus,
-)
+from src.shared.infrastructure.messaging.process_bus import process_event_bus
 logger = structlog.get_logger(__name__)
 
 def _ensure_event_bus(bus=None):
@@ -38,7 +35,6 @@ def setup_worker_subscribers(**kwargs):
     """Registra, em cada processo do worker, as reações aos eventos."""
     logger.info("media_processing.worker.init")
     try:
-        reset_process_event_bus()  # cada processo filho começa com o seu
         MediaWorkerApp(event_bus=process_event_bus()).ensure_subscribers()
         logger.info("media_processing.worker.subscribers_configured")
     except Exception as exc:

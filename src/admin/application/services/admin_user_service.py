@@ -46,9 +46,7 @@ class AdminUserService:
             target_type="user",
             target_id=user_id,
             details={
-                "old_role": "unknown", # Port simplified
                 "new_role": new_role.value if hasattr(new_role, 'value') else str(new_role),
-                "target_email": updated_user.email,
             },
         )
 
@@ -64,9 +62,6 @@ class AdminUserService:
             action="delete_user",
             target_type="user",
             target_id=user_id,
-            details={
-                "target_id": str(user_id),
-            },
         )
 
     async def list_users(self, query: Any) -> dict:

@@ -82,19 +82,10 @@ class StorageServiceResolverPort(Protocol):
     def get_download_service(self, provider: str) -> FileStoragePort: ...
 
 
-class FileReferenceValidatorPort(Protocol):
-    """Protocol for modules that hold references to files in storage."""
-
-    async def validate_batch(self, provider: str, paths: List[str]) -> Any:
-        """Given a list of file paths, return the set of paths that are valid/referenced."""
-        ...
-
-
 __all__ = [
     "StorageMetricsPort",
     "StorageOperationLoggerPort",
     "StorageRepositoryPort",
     "FileStoragePort",
     "StorageServiceResolverPort",
-    "FileReferenceValidatorPort",
 ]

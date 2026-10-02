@@ -110,6 +110,10 @@ class StorageUploaderPort(Protocol):
         self, command, media_id: UUID, content_type: str
     ) -> UploadResult: ...
 
+    async def discard(self, command, destination_path: str) -> None:
+        """Apaga um arquivo enviado cuja mídia não chegou a ser gravada."""
+        ...
+
 
 class StorageDownloaderPort(Protocol):
     async def download(self, provider_name: str, path: str) -> bytes: ...

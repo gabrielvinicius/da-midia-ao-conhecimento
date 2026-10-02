@@ -19,7 +19,8 @@ class KnowledgeBaseService:
         self, query: str, limit: int = 5, user_id: Optional[UUID] = None
     ) -> List[Dict[str, Any]]:
         """Performs semantic search for a given natural language query."""
-        logger.info("knowledge_base.search_started", query=query)
+        # O texto da pergunta não vai ao log (dado pessoal); só o tamanho.
+        logger.info("knowledge_base.search_started", query_chars=len(query))
         
         # 1. Embed the query
         # O modelo de vetores é síncrono e pesado: roda fora do laço da API.

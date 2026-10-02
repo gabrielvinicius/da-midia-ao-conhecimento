@@ -104,10 +104,22 @@ class UploadMedia:
             transcription_provider=command.transcription_provider,
             language="auto",
         )
-        saved = await self._media.save(media)
+        try:
+            saved = await self._media.save(media)
+        except Exception:
+            # Sem o registro, o arquivo ficaria órfão no armazenamento (era a
+            # única origem de órfãos; a exclusão já não deixa sobras).
+            await self._discard_upload(command, upload_metadata.stored_path)
+            raise
         await self.side_effect_publisher.publish(saved, upload_metadata, command.correlation_id)
         logger.info("media_management.create_media.completed", media_id=str(saved.id), user_id=str(saved.user_id))
         return saved
+
+    async def _discard_upload(self, command: CreateMediaCommand, path: str) -> None:
+        try:
+            await self._uploader.discard(command, path)
+        except Exception as exc:  # a falha original é a que importa
+            logger.warning("media_management.upload_discard_failed", path=path, error=str(exc))
 
     def _warn_unknown_providers(self, command: CreateMediaCommand) -> None:
         for field, allowed in self._allowed.items():

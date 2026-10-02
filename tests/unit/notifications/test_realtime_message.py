@@ -11,7 +11,7 @@ from src.notifications.application.services.pipeline_notification_service import
     PipelineNotificationService,
 )
 from src.notifications.domain import Notification, NotificationType
-from src.text_analysis.tasks import completion_message
+from src.notifications.application.pipeline_notices import completion_message
 
 
 class FakeRepo:
@@ -90,9 +90,5 @@ async def test_pipeline_notification_uses_realtime_envelope():
 
 
 def test_completion_message_mentions_failed_steps():
-    ok = {"diagnostics": {"steps": {"sentiment": "ok", "synthesis": "ok"}}}
-    partial = {"diagnostics": {"steps": {"sentiment": "ok", "visual_insight": "failed: timeout"}}}
-
-    assert completion_message(ok) == "Análise concluída. O resumo já está disponível."
-    assert "visual_insight" in completion_message(partial)
-    assert "sentiment" not in completion_message(partial)
+    assert completion_message([]) == "Análise concluída. O resumo já está disponível."
+    assert "grounding_check" in completion_message(["grounding_check"])

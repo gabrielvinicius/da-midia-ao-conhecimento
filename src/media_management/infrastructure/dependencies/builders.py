@@ -13,9 +13,6 @@ from src.media_management.application.services.media_read_service import MediaRe
 from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.services.validators import MediaUploadValidator
 from src.media_management.config.settings import media_settings
-from src.media_management.infrastructure.adapters.file_validator_adapter import (
-    MediaFileReferenceValidator,
-)
 from src.media_management.infrastructure.adapters.media_repository_adapter import (
     MediaRepositoryAdapter,
 )
@@ -61,8 +58,6 @@ def build_media_service(
     storage_maintenance = StorageMaintenanceService(
         storage_port=StorageMaintenanceAdapter(storage_factory)
     )
-    # A limpeza de arquivos órfãos pergunta às mídias quais arquivos ainda existem.
-    storage_maintenance.register_validator(MediaFileReferenceValidator(media_repository))
     return MediaService(
         media_repository=MediaRepositoryAdapter(media_repository),
         storage_uploader=StorageServiceFactoryUploader(storage_factory),

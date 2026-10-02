@@ -14,6 +14,7 @@ import structlog
 
 from src.shared.application.event_bus import SupportsEventBus
 from src.shared.application.ports import ProcessingStatsPort
+from src.shared.domain.events import AnalysisCompleted
 from src.text_analysis.application.ports.repository import FeedbackRepositoryPort
 
 from src.text_analysis.domain import Analysis, Document
@@ -105,7 +106,7 @@ class TextAnalysisService:
             logger.info("text_analysis.stored", analysis_id=analysis_id)
 
             if self.event_bus:
-                await self._emit_completed_events(analysis)
+                await self._announce_completed(analysis)
 
             result = analysis_to_dto(analysis).to_dict()
             # Identificadores para a resposta da API.
@@ -206,43 +207,28 @@ class TextAnalysisService:
         except Exception as exc:  # estatística nunca pode derrubar a análise
             logger.warning("text_analysis.stats_record_failed", error=str(exc))
 
-    async def _emit_completed_events(self, analysis: Analysis) -> None:
-        """Publishes domain events for successful stages of the pipeline."""
-        if not self.event_bus: return
-        
-        # Helper to avoid repetitive boilerplate
-        async def _pub(event):
-            try:
-                await self.event_bus.publish(event)
-            except Exception as e:
-                logger.warning("text_analysis.event_emit_failed", error=str(e))
+    async def _announce_completed(self, analysis: Analysis) -> None:
+        """Anuncia o fim da análise. Quem quiser reagir (avisos ao usuário,
+        novas camadas) assina AnalysisCompleted, sem que a análise o conheça.
 
-        if analysis.overall_sentiment:
-            from src.shared.domain.events import SentimentAnalysisCompleted
-            await _pub(SentimentAnalysisCompleted(
-                analysis_id=str(analysis.id),
-                media_id=str(analysis.media_id) if analysis.media_id else None,
-                overall_sentiment=analysis.overall_sentiment.value,
-                correlation_id=analysis.correlation_id
-            ))
-
-        if analysis.summary:
-            from src.shared.domain.events import SummarizationCompleted
-            await _pub(SummarizationCompleted(
-                analysis_id=str(analysis.id),
-                media_id=str(analysis.media_id) if analysis.media_id else None,
-                summary=analysis.summary,
-                correlation_id=analysis.correlation_id
-            ))
-
-        if analysis.topics:
-            from src.shared.domain.events import TopicModelingCompleted
-            await _pub(TopicModelingCompleted(
-                analysis_id=str(analysis.id),
-                media_id=str(analysis.media_id) if analysis.media_id else None,
-                topics=analysis.topics,
-                correlation_id=analysis.correlation_id
-            ))
+        Uma falha de quem reage não desfaz a análise já gravada.
+        """
+        steps = analysis.diagnostics.get("steps", {})
+        event = AnalysisCompleted(
+            analysis_id=str(analysis.id),
+            media_id=str(analysis.media_id) if analysis.media_id else None,
+            transcription_id=str(analysis.transcription_id) if analysis.transcription_id else None,
+            user_id=str(analysis.user_id) if analysis.user_id else None,
+            summary_source=analysis.diagnostics.get("summary_source"),
+            overall_sentiment=getattr(analysis.overall_sentiment, "value", analysis.overall_sentiment),
+            topic_titles=[t.title for t in analysis.topics if getattr(t, "id", 0) != -1 and t.title],
+            failed_steps=[name for name, status in steps.items() if str(status).startswith("failed")],
+            correlation_id=analysis.correlation_id,
+        )
+        try:
+            await self.event_bus.publish(event)
+        except Exception as exc:
+            logger.warning("text_analysis.completed_event_failed", error=str(exc))
 
     async def get_analysis(self, query: GetAnalysisQuery) -> Dict[str, Any]:
         return await self.text_analysis_read_service.get_analysis(query)

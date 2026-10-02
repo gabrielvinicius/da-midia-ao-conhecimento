@@ -47,6 +47,10 @@ class StorageServiceFactoryUploader(StorageUploaderPort):
         )
         return UploadResult(destination_path=destination_path, metadata=metadata)
 
+    async def discard(self, command, destination_path: str) -> None:
+        provider = getattr(command, "storage_provider", None) or self._default_provider
+        await self._factory.create_storage_service(str(provider)).delete(destination_path)
+
 
 class DefaultUploadMetadataMapper(UploadMetadataMapperPort):
     """Standard implementation of metadata mapping."""
