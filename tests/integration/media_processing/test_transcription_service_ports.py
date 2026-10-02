@@ -56,9 +56,6 @@ class FakeMediaQueries:
                 "transcription_provider": "fake_whisper",
                 "language": "en",
                 "file_size": 123,
-                "summarization_provider": None,
-                "sentiment_provider": None,
-                "topic_modeling_provider": None,
             },
         )()
 

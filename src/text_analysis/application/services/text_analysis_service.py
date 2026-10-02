@@ -16,7 +16,6 @@ import structlog
 from src.shared.application.event_bus import SupportsEventBus
 from src.shared.application.ports import ProcessingStatsPort
 from src.text_analysis.application.ports.repository import FeedbackRepositoryPort
-from src.text_analysis.config.settings import text_analysis_settings
 
 from src.text_analysis.domain import Analysis, Document
 from src.text_analysis.domain import Topic
@@ -53,7 +52,6 @@ class TextAnalysisService:
         event_bus: SupportsEventBus | None = None,
         transcription_queries: Optional[TranscriptionQueryPort] = None,
         text_analysis_read_service: TextAnalysisReadService,
-        settings=text_analysis_settings,
         stats_recorder: ProcessingStatsPort | None = None,
         runtime_diagnostics: Optional[dict] = None,
     ) -> None:
@@ -65,7 +63,6 @@ class TextAnalysisService:
         self.event_bus = event_bus
         self.transcription_queries = transcription_queries
         self.text_analysis_read_service = text_analysis_read_service
-        self.settings = settings
         self.stats_recorder = stats_recorder
         # Ex.: {"hardware_target": "cuda", "compute_type": "float16"}.
         self.runtime_diagnostics = dict(runtime_diagnostics or {})

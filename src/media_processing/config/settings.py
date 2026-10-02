@@ -1,17 +1,9 @@
-from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class MediaProcessingSettings(BaseSettings):
     """Media-processing/worker specific settings."""
-
-    transcription_providers_allowed: List[str] = [
-        "whisper",
-        "fastwhisper",
-        "mock",
-        "mock_whisper",
-    ]
 
     # Mídia parada (ver ProcessingDeadlinePolicy). Variáveis PROCESSING_STALL_*.
     stall_check_interval_seconds: int = 300

@@ -26,9 +26,6 @@ class Media(BaseEntity):
     original_file_path: str
     status: MediaStatus
     transcription_provider: Optional[str]
-    summarization_provider: Optional[str]
-    sentiment_provider: Optional[str]
-    topic_modeling_provider: Optional[str]
     language: str
     created_at: datetime.datetime
     updated_at: datetime.datetime
@@ -47,9 +44,6 @@ class Media(BaseEntity):
         original_file_path: str,
         status: MediaStatus = MediaStatus.UPLOADED,
         transcription_provider: Optional[str] = None,
-        summarization_provider: Optional[str] = None,
-        sentiment_provider: Optional[str] = None,
-        topic_modeling_provider: Optional[str] = None,
         language: str = "auto",
         created_at: Optional[datetime.datetime] = None,
         updated_at: Optional[datetime.datetime] = None,
@@ -66,9 +60,6 @@ class Media(BaseEntity):
         self.original_file_path = original_file_path
         self.status = status
         self.transcription_provider = transcription_provider
-        self.summarization_provider = summarization_provider
-        self.sentiment_provider = sentiment_provider
-        self.topic_modeling_provider = topic_modeling_provider
         self.language = language
         self.created_at = created_at or datetime.datetime.now(datetime.timezone.utc)
         self.updated_at = updated_at or datetime.datetime.now(datetime.timezone.utc)
@@ -87,9 +78,6 @@ class Media(BaseEntity):
         mime_type: Optional[str] = None,
         duration: Optional[int] = None,
         transcription_provider: Optional[str] = None,
-        summarization_provider: Optional[str] = None,
-        sentiment_provider: Optional[str] = None,
-        topic_modeling_provider: Optional[str] = None,
         language: str = "auto",
     ) -> Media:
         return cls(
@@ -103,9 +91,6 @@ class Media(BaseEntity):
             mime_type=mime_type,
             duration=duration,
             transcription_provider=transcription_provider,
-            summarization_provider=summarization_provider,
-            sentiment_provider=sentiment_provider,
-            topic_modeling_provider=topic_modeling_provider,
             language=language,
         )
 

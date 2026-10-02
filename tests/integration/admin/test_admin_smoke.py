@@ -73,6 +73,9 @@ class InMemoryMediaRepo(AdminMediaRepositoryPort):
 
 
 class DummyPermission:
+    def require_admin(self, admin_user):
+        return None
+
     def validate_admin_operation(self, admin_user, target_user_id):
         return None
 
@@ -96,9 +99,6 @@ async def test_admin_smoke():
         storage_provider="local",
         original_file_path="/tmp/file.txt",
         transcription_provider=None,
-        summarization_provider=None,
-        sentiment_provider=None,
-        topic_modeling_provider=None,
         language="en",
     )
     media.status = MediaStatus.FAILED

@@ -73,9 +73,6 @@ class UploadMedia:
         self._allowed: Dict[str, Set[str]] = {
             "storage_provider": set(media_settings.storage_providers_allowed or []),
             "transcription_provider": set(media_settings.transcription_providers_allowed or []),
-            "summarization_provider": set(media_settings.summarization_providers_allowed or []),
-            "sentiment_provider": set(media_settings.sentiment_providers_allowed or []),
-            "topic_modeling_provider": set(media_settings.topic_providers_allowed or []),
         }
 
     async def execute(self, command: CreateMediaCommand) -> Media:
@@ -105,9 +102,6 @@ class UploadMedia:
             storage_provider=command.storage_provider,
             original_file_path=upload_metadata.stored_path,
             transcription_provider=command.transcription_provider,
-            summarization_provider=command.summarization_provider,
-            sentiment_provider=command.sentiment_provider,
-            topic_modeling_provider=command.topic_modeling_provider,
             language="auto",
         )
         saved = await self._media.save(media)

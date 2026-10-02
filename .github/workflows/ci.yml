@@ -49,7 +49,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install "$(grep -E '^torch==' requirements.txt)" --index-url https://download.pytorch.org/whl/cpu
           grep -vE '^torch==' requirements.txt > requirements-ci.txt
-          pip install -r requirements-ci.txt ruff import-linter==2.15
+          pip install -r requirements-ci.txt ruff import-linter==2.15 "moto[s3,server]>=5"
 
       # Erros que quebram em execução (sintaxe, nomes indefinidos) e código
       # morto (imports e variáveis sem uso, definições repetidas).
@@ -67,7 +67,8 @@ jobs:
 
       # API real contra PostgreSQL e Redis: cadastro, login, envio, isolamento
       # entre usuários, exclusão e bloqueio de login. Os modelos de IA não
-      # rodam; as tarefas ficam na fila.
+      # rodam; as tarefas ficam na fila. O armazenamento S3 usa o servidor
+      # do moto, que fala a mesma API do S3 e do MinIO.
       - name: End-to-end API tests
         env:
           E2E: "1"
@@ -79,7 +80,12 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           CELERY_BROKER_URL: redis://localhost:6379/0
           CELERY_RESULT_BACKEND: redis://localhost:6379/1
+          STORAGE_S3_BUCKET: midias
+          STORAGE_S3_ENDPOINT_URL: http://localhost:5000
+          STORAGE_S3_ACCESS_KEY: ci
+          STORAGE_S3_SECRET_KEY: ci
         run: |
+          moto_server -p 5000 &
           alembic upgrade head
           pytest tests/e2e -q
 

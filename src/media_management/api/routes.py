@@ -52,9 +52,6 @@ async def create_media(
     file: UploadFile = File(...),
     storage_provider: Optional[str] = Query("local"),
     transcription_provider: Optional[str] = Query(None),
-    summarization_provider: Optional[str] = Query(None),
-    sentiment_provider: Optional[str] = Query(None),
-    topic_modeling_provider: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
 ):
@@ -64,9 +61,6 @@ async def create_media(
         filename=file.filename,
         storage_provider=storage_provider,
         transcription_provider=transcription_provider,
-        summarization_provider=summarization_provider,
-        sentiment_provider=sentiment_provider,
-        topic_modeling_provider=topic_modeling_provider,
     )
     # Erros de validação viram 400 nos tratadores globais; o resto, 500 sem
     # expor a mensagem interna.

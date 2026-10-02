@@ -113,7 +113,6 @@ async def test_text_analysis_smoke():
         event_bus=None,
         transcription_queries=None,
         text_analysis_read_service=None,
-        settings=None,
     )
 
     cmd = AnalyzeTextCommand(

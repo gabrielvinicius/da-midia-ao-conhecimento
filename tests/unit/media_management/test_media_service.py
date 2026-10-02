@@ -106,9 +106,6 @@ async def test_upload_media_invokes_validator_and_handler(service_components):
         filename="sample.mp4",
         storage_provider="local",
         transcription_provider="mock",
-        summarization_provider="mock",
-        sentiment_provider=None,
-        topic_modeling_provider=None,
         metadata={},
     )
 

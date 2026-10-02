@@ -39,9 +39,6 @@ from src.admin.bootstrap import (
 from src.notifications.bootstrap import (
     build_notifications_module,
 )
-from src.notifications.infrastructure.adapters.auth_queries_adapter import (
-    NotificationsAuthQueriesAdapter,
-)
 from src.text_analysis.bootstrap import (
     build_text_analysis_module,
 )
@@ -224,12 +221,7 @@ async def lifespan(app: FastAPI):
     )
     user_management_module = build_user_management_components(session=session)
     
-    # Build notifications module using auth queries from the same session context
-    notifications_module = build_notifications_module(
-        session=session,
-        auth_queries=NotificationsAuthQueriesAdapter(db_session=session),
-        event_bus=event_bus
-    )
+    notifications_module = build_notifications_module(session=session)
 
     admin_module = build_admin_module(
         session=session,

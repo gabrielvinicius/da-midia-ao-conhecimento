@@ -1,85 +1,57 @@
-# src/notifications/api/routers.py
+"""Avisos do usuário: a lista do sino e a marcação como lido.
+
+Os avisos chegam em tempo real pelo WebSocket, mas ficam gravados: quem fecha
+a página durante o processamento os encontra aqui ao voltar.
+"""
+from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.notifications.application.dtos import (
-    GetNotificationQuery,
-    SendNotificationCommand,
+    GetUserNotificationsQuery,
+    MarkNotificationAsReadCommand,
 )
-from src.notifications.domain import NotificationPriority, NotificationType
+from src.notifications.application.realtime import realtime_message
 from src.user_management.api.dependencies import get_current_user
-from src.user_management.domain import User, UserRole
+from src.user_management.domain import User
 
 from ..application.services.notification_service import NotificationService
 from .dependencies import get_notification_service
-from .schemas import NotificationRequest, NotificationResponse
-
-# --- Router Definition ---
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
-# --- Endpoints ---
 
-@router.post("/", status_code=status.HTTP_202_ACCEPTED)
-async def request_notification(
-    request: NotificationRequest,
+@router.get("/", summary="Avisos mais recentes do usuário")
+async def list_my_notifications(
+    limit: int = Query(30, ge=1, le=100),
     service: NotificationService = Depends(get_notification_service),
     current_user: User = Depends(get_current_user),
-):
-    if (
-        str(request.user_id) != str(current_user.id)
-        and current_user.role != UserRole.ADMIN
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Não autorizado a enviar notificação para este usuário",
-        )
-    try:
-        command = SendNotificationCommand(
-            user_id=request.user_id,
-            message=request.message,
-            notification_type=NotificationType(request.type),
-            priority=NotificationPriority.NORMAL,
-        )
-        notification_id = await service.send_notification(command)
-        return {
-            "message": "Solicitação de notificação aceita e em processamento.",
-            "notification_id": str(notification_id),
-        }
-    except ValueError as e:
-        # Ideally catch specific domain exceptions
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-
-
-@router.get("/{notification_id}", response_model=NotificationResponse)
-async def get_notification_by_id(
-    notification_id: UUID, # Changed to UUID, as query expects UUID
-    service: NotificationService = Depends(get_notification_service),
-    current_user: User = Depends(get_current_user),
-):
-    query = GetNotificationQuery(notification_id=notification_id)
-    notification = await service.get_notification_by_id(query)
-    if not notification:
-        raise HTTPException(status_code=404, detail="Notificação não encontrada")
-    if (
-        str(notification.user_id) != str(current_user.id)
-        and current_user.role != UserRole.ADMIN
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Não autorizado a acessar esta notificação",
-        )
-
-    # Explicit mapping Domain Entity -> DTO
-    return NotificationResponse(
-        id=notification.id,
-        user_id=notification.user_id,
-        type=notification.type.value,
-        content=notification.content,
-        status=notification.status.value,
-        priority=notification.priority.value,
-        created_at=notification.created_at,
-        sent_at=notification.sent_at,
-        error_message=notification.error_message
+) -> list[dict[str, Any]]:
+    notifications = await service.get_user_notifications(
+        GetUserNotificationsQuery(user_id=current_user.id, limit=limit)
     )
+    # Mesmo formato da mensagem do WebSocket: a interface trata os dois igual.
+    return [realtime_message(n)["payload"] for n in notifications]
+
+
+@router.post("/read-all", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_all_my_notifications_as_read(
+    service: NotificationService = Depends(get_notification_service),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    await service.mark_all_as_read(current_user.id)
+
+
+@router.post("/{notification_id}/read", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_notification_as_read(
+    notification_id: UUID,
+    service: NotificationService = Depends(get_notification_service),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    marked = await service.mark_notification_as_read(
+        MarkNotificationAsReadCommand(notification_id=notification_id, user_id=current_user.id)
+    )
+    if not marked:
+        # Inexistente ou de outro usuário: 404, sem revelar qual.
+        raise HTTPException(status_code=404, detail="Aviso não encontrado")

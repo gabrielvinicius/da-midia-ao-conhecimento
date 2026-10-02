@@ -39,6 +39,7 @@ class TokenProviderPort(Protocol):
 
 
 class PermissionServicePort(Protocol):
+    def require_admin(self, admin_user: User) -> None: ...
     def validate_admin_operation(self, admin_user: User, target_user_id: UUID) -> None: ...
 
 

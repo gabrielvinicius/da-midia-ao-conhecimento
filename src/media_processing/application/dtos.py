@@ -23,18 +23,6 @@ class RequestTranscriptionCommand(BaseModel):
         ge=0,
         description="Size of the media file in bytes.",
     )
-    summarization_provider: Optional[str] = Field(
-        None,
-        description="Provider to use for summarization.",
-    )
-    sentiment_provider: Optional[str] = Field(
-        None,
-        description="Provider to use for sentiment analysis.",
-    )
-    topic_modeling_provider: Optional[str] = Field(
-        None,
-        description="Provider to use for topic modeling.",
-    )
     user_id: Optional[UUID] = Field(
         None,
         description="Owner of the media (for audit).",

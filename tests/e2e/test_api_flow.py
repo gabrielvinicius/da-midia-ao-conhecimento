@@ -505,3 +505,97 @@ def test_deactivated_user_loses_access(client):
     assert client.post("/auth/refresh").status_code == 401
     r = client.post("/auth/token", data={"username": email, "password": "Senha123"})
     assert r.status_code == 401 and "desativada" in r.json()["detail"]
+
+
+def test_notifications_survive_a_closed_page(client):
+    """Os avisos eram gravados, mas a interface só via os que chegavam pelo
+    WebSocket com a página aberta, e "lido" se perdia ao recarregar."""
+    import asyncio
+
+    from src.notifications.domain import Notification, NotificationType
+    from src.notifications.infrastructure.repositories.notification_repository import (
+        NotificationRepository,
+    )
+    from src.shared.infrastructure.database.db import AsyncSessionLocal
+
+    alice = _account(client, "nina")
+    alice_id = client.get("/auth/me", headers=alice).json()["id"]
+    bob = _account(client, "otto")
+
+    async def store(text):
+        async with AsyncSessionLocal() as session:
+            saved = await NotificationRepository(db=session).save(
+                Notification(user_id=uuid.UUID(alice_id), type=NotificationType.WEBSOCKET, content=text)
+            )
+            return str(saved.id)
+
+    first = asyncio.run(store("Transcrição concluída"))
+    asyncio.run(store("Análise concluída"))
+
+    items = client.get("/notifications/", headers=alice).json()
+    assert [n["content"] for n in items] == ["Análise concluída", "Transcrição concluída"]
+    assert not any(n["read"] for n in items)
+    assert client.get("/notifications/", headers=bob).json() == []
+
+    assert client.post(f"/notifications/{first}/read", headers=bob).status_code == 404
+    assert client.post(f"/notifications/{first}/read", headers=alice).status_code == 204
+    read = {n["id"]: n["read"] for n in client.get("/notifications/", headers=alice).json()}
+    assert read[first] is True and list(read.values()).count(False) == 1
+
+    assert client.post("/notifications/read-all", headers=alice).status_code == 204
+    assert all(n["read"] for n in client.get("/notifications/", headers=alice).json())
+
+
+def test_admin_manages_own_media_and_owner_is_reported(client):
+    """O painel barrava o admin nas próprias mídias (regra feita para contas),
+    e a resposta da mídia não dizia o dono, então o dono não via "Reprocessar"."""
+    admin_email, admin_password = os.environ.get("DEFAULT_ADMIN_EMAIL"), os.environ.get("DEFAULT_ADMIN_PASSWORD")
+    if not (admin_email and admin_password):
+        pytest.skip("sem administrador padrão")
+    token = client.post("/auth/token", data={"username": admin_email, "password": admin_password}).json()["access_token"]
+    admin = {"Authorization": f"Bearer {token}"}
+    admin_id = client.get("/auth/me", headers=admin).json()["id"]
+
+    r = client.post("/media/", headers=admin, files={"file": ("pauta.txt", b"Reuniao de pauta.", "text/plain")})
+    assert r.status_code == 201, r.text
+    assert r.json()["user_id"] == admin_id
+
+    assert client.delete(f"/admin/media/{r.json()['id']}", headers=admin).status_code == 204
+
+
+def test_s3_storage_keeps_files_in_the_bucket(client):
+    """A opção "s3" gravava no disco local. Roda quando há um bucket configurado
+    (STORAGE_S3_BUCKET), por exemplo com um MinIO ou o servidor do moto."""
+    from src.storage.config.settings import storage_settings
+
+    if not storage_settings.s3_configured:
+        pytest.skip("sem S3 configurado")
+    import boto3
+
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=storage_settings.s3_endpoint_url,
+        aws_access_key_id=storage_settings.s3_access_key,
+        aws_secret_access_key=storage_settings.s3_secret_key,
+        region_name=storage_settings.s3_region,
+    )
+    me = _account(client, "sara")
+    r = client.post(
+        "/media/?storage_provider=s3",
+        headers=me,
+        files={"file": ("ata.txt", "Ata da reunião.".encode(), "text/plain")},
+    )
+    assert r.status_code == 201, r.text
+    media = r.json()
+    assert media["storage_provider"] == "s3"
+
+    keys = [o["Key"] for o in s3.list_objects_v2(Bucket=storage_settings.s3_bucket).get("Contents", [])]
+    assert any(media["id"] in key for key in keys)
+
+    token = me["Authorization"].split()[1]
+    stream = client.get(f"/media/{media['id']}/stream?token={token}")
+    assert stream.status_code == 200 and stream.content == "Ata da reunião.".encode()
+
+    assert client.delete(f"/media/{media['id']}", headers=me).status_code == 204
+    keys = [o["Key"] for o in s3.list_objects_v2(Bucket=storage_settings.s3_bucket).get("Contents", [])]
+    assert not any(media["id"] in key for key in keys)

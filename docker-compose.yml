@@ -33,8 +33,8 @@ services:
     image: minio/minio:latest
     container_name: video_summarizer_minio
     environment:
-      MINIO_ROOT_USER: ${ACCESS_KEY:-minio}
-      MINIO_ROOT_PASSWORD: ${SECRET_KEY_S3:-minio123}
+      MINIO_ROOT_USER: ${STORAGE_S3_ACCESS_KEY:-minio}
+      MINIO_ROOT_PASSWORD: ${STORAGE_S3_SECRET_KEY:-minio123}
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
@@ -136,12 +136,14 @@ services:
       timeout: 10s
       retries: 3
     environment:
-      - DB_HOST=postgres
-      - REDIS_HOST=redis
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - STORAGE_S3_BUCKET=${STORAGE_S3_BUCKET:-video-summarizer}
+      - STORAGE_S3_ENDPOINT_URL=${STORAGE_S3_ENDPOINT_URL:-http://minio:9000}
+      - STORAGE_S3_ACCESS_KEY=${STORAGE_S3_ACCESS_KEY:-minio}
+      - STORAGE_S3_SECRET_KEY=${STORAGE_S3_SECRET_KEY:-minio123}
       - HF_TOKEN=${HF_TOKEN}
       - AI_DEVICE=cuda
       - OLLAMA_HOST=http://ollama:11434
@@ -181,12 +183,14 @@ services:
               count: all
               capabilities: [gpu]
     environment:
-      - DB_HOST=postgres
-      - REDIS_HOST=redis
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - STORAGE_S3_BUCKET=${STORAGE_S3_BUCKET:-video-summarizer}
+      - STORAGE_S3_ENDPOINT_URL=${STORAGE_S3_ENDPOINT_URL:-http://minio:9000}
+      - STORAGE_S3_ACCESS_KEY=${STORAGE_S3_ACCESS_KEY:-minio}
+      - STORAGE_S3_SECRET_KEY=${STORAGE_S3_SECRET_KEY:-minio123}
       - HF_TOKEN=${HF_TOKEN}
       - AI_DEVICE=cuda
       - OLLAMA_HOST=http://ollama:11434
@@ -220,12 +224,14 @@ services:
         limits:
           memory: 2G
     environment:
-      - DB_HOST=postgres
-      - REDIS_HOST=redis
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      - STORAGE_S3_BUCKET=${STORAGE_S3_BUCKET:-video-summarizer}
+      - STORAGE_S3_ENDPOINT_URL=${STORAGE_S3_ENDPOINT_URL:-http://minio:9000}
+      - STORAGE_S3_ACCESS_KEY=${STORAGE_S3_ACCESS_KEY:-minio}
+      - STORAGE_S3_SECRET_KEY=${STORAGE_S3_SECRET_KEY:-minio123}
       - HF_TOKEN=${HF_TOKEN}
       - AI_DEVICE=cpu
 

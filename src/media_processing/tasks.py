@@ -110,9 +110,6 @@ def process_transcription_task(
     transcription_id: str,
     language: str = "en",
     file_size_bytes: Optional[int] = None,
-    summarization_provider: Optional[str] = None,
-    sentiment_provider: Optional[str] = None,
-    topic_modeling_provider: Optional[str] = None,
     correlation_id: Optional[str] = None,
     user_id: Optional[str] = None,
     filename: Optional[str] = None,
@@ -146,9 +143,6 @@ def process_transcription_task(
                 transcription_provider=transcription_provider,
                 language=language,
                 final_attempt=final_attempt,
-                summarization_provider=summarization_provider,
-                sentiment_provider=sentiment_provider,
-                topic_modeling_provider=topic_modeling_provider,
                 correlation_id=correlation_id,
             )
 

@@ -107,9 +107,6 @@ async def test_media_service_create_media_with_ports():
         filename="file.txt",
         storage_provider="local",
         transcription_provider=None,
-        summarization_provider=None,
-        sentiment_provider=None,
-        topic_modeling_provider=None,
         metadata=None,
     )
 

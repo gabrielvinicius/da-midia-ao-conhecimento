@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import structlog
 
-from src.storage.infrastructure.adapters.s3_stub_adapter import S3StorageService
+from src.storage.infrastructure.adapters.s3_storage_adapter import S3StorageRepository
 from src.storage.application.ports import (
     StorageRepositoryPort,
     StorageServiceResolverPort,
@@ -98,12 +98,8 @@ class StorageServiceFactory(StorageServiceResolverPort):
     """Resolves storage services based on the provider."""
 
     def __init__(self) -> None:
-        # Initialize repositories
-        self._repositories: Dict[str, StorageRepositoryPort] = {
-            "local": LocalStorageService(),
-            "s3": S3StorageService(),
-        }
-        # metadados (label/description/public/capabilities)
+        self._repositories: Dict[str, StorageRepositoryPort] = {"local": LocalStorageService()}
+        # Metadados exibidos na escolha do armazenamento.
         self._meta: Dict[str, Dict[str, Any]] = {
             "local": {
                 "label": "Local (Filesystem)",
@@ -111,15 +107,25 @@ class StorageServiceFactory(StorageServiceResolverPort):
                 "public": True,
                 "capabilities": {"upload": True, "download": True},
             },
-            "s3": {
+        }
+        # S3 só é oferecido quando há um bucket configurado; antes, a opção
+        # existia sempre e gravava no disco local.
+        if storage_settings.s3_configured:
+            self._repositories["s3"] = S3StorageRepository(
+                bucket=storage_settings.s3_bucket,
+                endpoint_url=storage_settings.s3_endpoint_url,
+                access_key=storage_settings.s3_access_key,
+                secret_key=storage_settings.s3_secret_key,
+                region=storage_settings.s3_region,
+            )
+            self._meta["s3"] = {
                 "label": "S3 / MinIO",
-                "description": "Compatível com S3/MinIO (stub filesystem para dev)",
+                "description": f"Bucket {storage_settings.s3_bucket} em serviço compatível com S3",
                 "public": True,
                 "capabilities": {"upload": True, "download": True},
-            },
-        }
-        self._allowed = set(
-            storage_settings.providers_allowed or self._repositories.keys()
+            }
+        self._allowed = set(storage_settings.providers_allowed or self._repositories) & set(
+            self._repositories
         )
 
     def _get_service(self, provider: str) -> StorageClientAdapter:

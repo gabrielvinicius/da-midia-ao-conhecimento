@@ -80,9 +80,6 @@ class TranscriptionService:
         language: str,
         *,
         final_attempt: bool = False,
-        summarization_provider: Optional[str] = None,
-        sentiment_provider: Optional[str] = None,
-        topic_modeling_provider: Optional[str] = None,
         correlation_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Executes the transcription process: download, transcribe, and publish."""
@@ -261,9 +258,6 @@ class TranscriptionService:
                 transcription_provider=command.transcription_provider,
                 language=command.language,
                 file_size_bytes=command.file_size_bytes,
-                summarization_provider=command.summarization_provider,
-                sentiment_provider=command.sentiment_provider,
-                topic_modeling_provider=command.topic_modeling_provider,
                 user_id=str(command.user_id) if command.user_id else None,
                 filename=command.filename,
                 triggered_by=command.triggered_by,

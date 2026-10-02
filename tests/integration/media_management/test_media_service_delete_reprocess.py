@@ -104,9 +104,6 @@ async def test_delete_and_reprocess_flow():
         filename="file.mp4",
         storage_provider="local",
         transcription_provider=None,
-        summarization_provider=None,
-        sentiment_provider=None,
-        topic_modeling_provider=None,
         metadata=None,
     )
     media = await service.create_media(cmd)
@@ -156,9 +153,6 @@ async def test_delete_stops_when_a_module_cannot_erase_its_data():
             filename="file.mp4",
             storage_provider="local",
             transcription_provider=None,
-            summarization_provider=None,
-            sentiment_provider=None,
-            topic_modeling_provider=None,
             metadata=None,
         )
     )

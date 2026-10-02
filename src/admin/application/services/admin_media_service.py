@@ -93,7 +93,7 @@ class AdminMediaService:
         if not media:
             raise ValueError(f"Mídia com id {media_id} não foi encontrada")
 
-        self.permission_service.validate_admin_operation(admin_user, media.user_id)
+        self.permission_service.require_admin(admin_user)
 
         await self._dispatch_admin_delete(media_id, actor_id=str(admin_user.id))
 
@@ -110,7 +110,7 @@ class AdminMediaService:
         if not media:
             raise ValueError(f"Mídia com id {media_id} não foi encontrada")
 
-        self.permission_service.validate_admin_operation(admin_user, media.user_id)
+        self.permission_service.require_admin(admin_user)
 
         # A regra de quando reprocessar é do domínio da mídia.
         media.ensure_can_be_reprocessed()
@@ -182,7 +182,7 @@ class AdminMediaService:
         if not media:
             raise ValueError(f"Media with id {media_id} not found")
 
-        self.permission_service.validate_admin_operation(admin_user, media.user_id)
+        self.permission_service.require_admin(admin_user)
 
         media.override_status(new_status)
         await self.media_repository.update(media)

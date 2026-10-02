@@ -17,7 +17,6 @@ from src.text_analysis.application.services.knowledge_base_service import (
 from src.text_analysis.application.services.text_analysis_read_service import (
     TextAnalysisReadService,
 )
-from src.text_analysis.config.settings import text_analysis_settings
 from src.text_analysis.infrastructure.dependencies.pipeline_factory import (
     build_analysis_pipeline,
 )
@@ -89,7 +88,6 @@ def build_text_analysis_service(
         event_bus=event_bus,
         transcription_queries=transcription_queries or build_transcription_queries(session),
         text_analysis_read_service=TextAnalysisReadService(repository=repository),
-        settings=text_analysis_settings,
         stats_recorder=_stats_recorder(session),
         runtime_diagnostics=runtime_diagnostics(),
     )

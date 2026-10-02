@@ -18,15 +18,6 @@ class CreateMediaCommand(BaseModel):
     transcription_provider: Optional[str] = Field(
         None, description="Provider de transcrição a utilizar."
     )
-    summarization_provider: Optional[str] = Field(
-        None, description="Provider de sumarização a utilizar."
-    )
-    sentiment_provider: Optional[str] = Field(
-        None, description="Provider de sentimento a utilizar."
-    )
-    topic_modeling_provider: Optional[str] = Field(
-        None, description="Provider de tópicos a utilizar."
-    )
     metadata: Optional[Dict[str, Any]] = Field(
         None, description="Metadados adicionais enviados pelo cliente."
     )
