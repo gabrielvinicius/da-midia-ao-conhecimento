@@ -11,7 +11,6 @@ numa placa de 12 GB não cabem todos juntos.
 """
 from __future__ import annotations
 
-import inspect
 import math
 import re
 from typing import Any, Optional, Sequence
@@ -50,10 +49,6 @@ def format_timestamp(seconds: Optional[float]) -> Optional[str]:
     return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes:02d}:{secs:02d}"
 
 
-async def _maybe_await(value):
-    return await value if inspect.isawaitable(value) else value
-
-
 class ChunkingStep(AnalysisStep):
     def __init__(self, chunker: ChunkingServicePort, size: Optional[int] = None, overlap: Optional[int] = None):
         self.chunker = chunker
@@ -82,7 +77,7 @@ class SentimentStep(AnalysisStep):
         if not analysis.chunks:
             return analysis
         language = _analysis_language(analysis, self.language)
-        sentiments = await _maybe_await(self.service.analyze(analysis.chunks, language))
+        sentiments = self.service.analyze(analysis.chunks, language)
         analysis.sentiments = sentiments
 
         # Agregação: soma das confianças por rótulo, o que pondera pela
@@ -113,9 +108,7 @@ class ChunkEmbeddingStep(AnalysisStep):
     async def process(self, analysis: Analysis) -> Analysis:
         if not analysis.chunks:
             return analysis
-        embeddings = await _maybe_await(
-            self.embedding_service.embed([chunk.text for chunk in analysis.chunks])
-        )
+        embeddings = self.embedding_service.embed([chunk.text for chunk in analysis.chunks])
         analysis.chunk_embeddings = [e.tolist() if hasattr(e, "tolist") else list(e) for e in embeddings]
         return analysis
 
@@ -660,8 +653,8 @@ class GroundingCheckStep(AnalysisStep):
 
         passages = analysis.chunk_embeddings
         if len(passages) != len(analysis.chunks):
-            passages = await _maybe_await(self.embedding_service.embed([c.text for c in analysis.chunks]))
-        queries = await _maybe_await(self.embedding_service.embed(sentences, kind="query"))
+            passages = self.embedding_service.embed([c.text for c in analysis.chunks])
+        queries = self.embedding_service.embed(sentences, kind="query")
         report = assess_grounding(
             sentences, queries, passages, [c.start for c in analysis.chunks], self.threshold
         )

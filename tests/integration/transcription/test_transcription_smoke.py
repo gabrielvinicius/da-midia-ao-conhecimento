@@ -2,8 +2,8 @@ import pytest
 
 from uuid import uuid4
 
-from src.media_processing.application.services.transcription_service import (
-    TranscriptionService,
+from src.media_processing.application.services.transcription_runner import (
+    TranscriptionRunner,
 )
 from src.media_processing.domain import Transcription
 from src.media_processing.domain.entities.transcription import TranscriptionStatus
@@ -44,8 +44,10 @@ class DummyScheduler(TranscriptionTaskSchedulerPort):
 
 
 class DummyStorage(StoragePort):
-    async def retrieve(self, path):
-        return b"audio-bytes"
+    async def download_to(self, path, destination):
+        with open(destination, "wb") as target:
+            target.write(b"audio-bytes")
+        return True
 
 
 class DummyRecognizer(SpeechRecognizer):
@@ -65,7 +67,7 @@ class DummyLogger(OperationLoggerPort):
 
 
 class DummyMetrics(MetricsPort):
-    def record_operation(self, **kwargs):
+    async def record_operation(self, **kwargs):  # contrato assíncrono único
         return None
 
 
@@ -75,9 +77,8 @@ async def test_transcription_smoke():
     repo = InMemoryTranscriptionRepo()
     recognizer = DummyRecognizer()
 
-    service = TranscriptionService(
+    service = TranscriptionRunner(
         transcription_repo=repo,
-        task_scheduler=DummyScheduler(),
         transcription_logger=DummyLogger(),
         transcription_metrics=DummyMetrics(),
         storage_service=DummyStorage(),

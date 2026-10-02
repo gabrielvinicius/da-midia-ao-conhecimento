@@ -6,7 +6,6 @@ Now uses a Pipeline pattern for granular and resilient processing.
 
 from __future__ import annotations
 
-import inspect
 import time
 from typing import Any, Optional, List, Dict
 from uuid import UUID
@@ -178,8 +177,6 @@ class TextAnalysisService:
 
     async def _record_metrics(self, media_id, user_id, duration: float, success: bool) -> None:
         try:
-            if hasattr(self.metrics, "set_context"):
-                self.metrics.set_context(str(media_id), str(user_id))
             await self.metrics.record_operation(
                 operation="analyze_text_content",
                 duration=duration,
@@ -216,8 +213,7 @@ class TextAnalysisService:
         # Helper to avoid repetitive boilerplate
         async def _pub(event):
             try:
-                res = self.event_bus.publish(event)
-                if inspect.isawaitable(res): await res
+                await self.event_bus.publish(event)
             except Exception as e:
                 logger.warning("text_analysis.event_emit_failed", error=str(e))
 

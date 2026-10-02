@@ -54,3 +54,28 @@ async def test_remove_folder_deletes_only_that_media(repo):
     assert await storage.remove_folder("u1/m1") is False
     with pytest.raises(ValueError):
         await storage.remove_folder("../fora")
+
+
+@pytest.mark.asyncio
+async def test_download_goes_straight_to_disk(repo, tmp_path):
+    """O worker baixa a mídia direto para o disco, sem lê-la para a memória."""
+    storage, _ = repo
+    await storage.store(FilePath("u1/aula.mp4"), b"video")
+    target = tmp_path / "aula.mp4"
+
+    assert await storage.download_to(FilePath("u1/aula.mp4"), str(target)) is True
+    assert target.read_bytes() == b"video"
+    assert await storage.download_to(FilePath("u1/nada.mp4"), str(tmp_path / "x")) is False
+
+
+@pytest.mark.asyncio
+async def test_local_download_copies_the_file(tmp_path):
+    from src.storage.infrastructure.persistence.local_storage_repository import LocalStorageService
+
+    local = LocalStorageService(tmp_path / "root")
+    await local.store(FilePath("u1/a.txt"), b"texto")
+    target = tmp_path / "copia.txt"
+
+    assert await local.download_to(FilePath("u1/a.txt"), str(target)) is True
+    assert target.read_bytes() == b"texto"
+    assert await local.download_to(FilePath("u1/nada.txt"), str(tmp_path / "y")) is False

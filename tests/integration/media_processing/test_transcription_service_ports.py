@@ -76,9 +76,6 @@ class FakeMetrics:
         self.calls.append(kwargs)
         return None
 
-    def set_context(self, *args, **kwargs):
-        return None
-
 
 class FakeLogger:
     async def log_operation(self, **kwargs):
@@ -90,8 +87,6 @@ class FakeLogger:
 async def test_request_transcription_saves_and_schedules():
     repo = FakeTranscriptionRepo()
     scheduler = FakeScheduler()
-    storage = FakeStorage()
-    event_bus = FakeEventBus()
     metrics = FakeMetrics()
 
     service = TranscriptionService(
@@ -99,9 +94,6 @@ async def test_request_transcription_saves_and_schedules():
         task_scheduler=scheduler,
         transcription_logger=FakeLogger(),
         transcription_metrics=metrics,
-        storage_service=storage,
-        speech_recognizer_factory=lambda provider: FakeRecognizer(),
-        event_bus=event_bus,
     )
 
     command = RequestTranscriptionCommand(

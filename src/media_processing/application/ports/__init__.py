@@ -14,7 +14,8 @@ from src.shared.application.observability import (
 
 
 class StoragePort(Protocol):
-    async def retrieve(self, path: str) -> bytes | None:
+    async def download_to(self, path: str, destination: str) -> bool:
+        """Grava o arquivo em ``destination``; False se ele não existir."""
         ...
 
 
@@ -111,10 +112,10 @@ class VisualAnalysisPort(Protocol):
 
 class VideoFrameExtractorPort(Protocol):
     """Extrai quadros de um vídeo."""
-    async def extract_frames(self, video_data: bytes, timestamps: list[float]) -> list[Optional[bytes]]:
+    async def extract_frames(self, video_path: str, timestamps: list[float]) -> list[Optional[bytes]]:
         """Um quadro (JPEG) por instante, na mesma ordem; None se falhar.
 
-        O vídeo é gravado uma única vez em disco para todos os quadros.
+        Lê o vídeo já em disco (o mesmo arquivo usado pela transcrição).
         """
         ...
 
@@ -145,7 +146,7 @@ class TranscriptionResultPort(Protocol):
 class VisualDescriberPort(Protocol):
     """Descreve alguns quadros de uma gravação de vídeo (VisualDescriptionService)."""
     async def describe_recording(
-        self, video_data: bytes, file_path: str, duration: Optional[float]
+        self, video_path: str, size_bytes: int, duration: Optional[float]
     ) -> list[str]:
         """Descrições "[mm:ss] texto"; lista vazia para áudio ou sem duração."""
         ...

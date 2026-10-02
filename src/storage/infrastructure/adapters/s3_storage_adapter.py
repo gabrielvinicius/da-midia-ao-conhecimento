@@ -63,6 +63,16 @@ class S3StorageRepository(StorageRepositoryPort):
             updated_at=now,
         )
 
+    async def download_to(self, file_path: FilePath, destination: str) -> bool:
+        """Baixa em partes direto para o disco (download_file do boto3)."""
+        try:
+            await asyncio.to_thread(self._s3.download_file, self._bucket, _key(file_path), destination)
+        except Exception as exc:
+            if _not_found(exc):
+                return False
+            raise
+        return True
+
     async def retrieve(self, file_path: FilePath) -> Optional[bytes]:
         try:
             response = await asyncio.to_thread(

@@ -59,23 +59,12 @@ async def set_speaker_aliases(
     if not transcription:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcription not found")
     await _ensure_media_access(transcription.media_id, media_service, current_user)
-    try:
-        command = SetSpeakerAliasesCommand(
-            transcription_id=transcription_id,
-            aliases=request_data.aliases,
-        )
-        result = await transcription_service.set_speaker_aliases(command)
-        return create_success_response(
-            data=result,
-            message="Speaker aliases set successfully",
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
-        )
+    # Erros saem pelos tratadores globais; um erro inesperado vira 500 sem
+    # expor a mensagem interna (antes, ela ia ao cliente).
+    result = await transcription_service.set_speaker_aliases(
+        SetSpeakerAliasesCommand(transcription_id=transcription_id, aliases=request_data.aliases)
+    )
+    return create_success_response(data=result, message="Speaker aliases set successfully")
 
 
 @router.get(

@@ -4,8 +4,8 @@ from uuid import uuid4
 
 import pytest
 
-from src.media_processing.application.services.transcription_service import (
-    TranscriptionService,
+from src.media_processing.application.services.transcription_runner import (
+    TranscriptionRunner,
 )
 from src.media_processing.application.services.visual_description_service import (
     VisualDescriptionService,
@@ -37,8 +37,8 @@ class _FakeExtractor:
     def __init__(self):
         self.calls = []
 
-    async def extract_frames(self, data, timestamps):
-        self.calls.append(len(timestamps))  # o vídeo é gravado uma vez para todos
+    async def extract_frames(self, video_path, timestamps):
+        self.calls.append(len(timestamps))  # todos os quadros do mesmo arquivo em disco
         return [b"frame"] * len(timestamps)
 
 
@@ -64,7 +64,7 @@ class _FakeVision:
 async def test_describes_frames_skips_failures_and_releases_memory():
     vision, extractor = _FakeVision(), _FakeExtractor()
 
-    context = await VisualDescriptionService(vision, extractor).describe(b"video", 60)
+    context = await VisualDescriptionService(vision, extractor).describe("/tmp/aula.mp4", 60)
 
     assert len(context) == 2  # 3 quadros, 1 sem descrição
     assert all("gráfico" in line for line in context)
@@ -77,20 +77,25 @@ async def test_describes_frames_skips_failures_and_releases_memory():
 async def test_vision_failure_does_not_break_processing():
     vision = _FakeVision(fail=True)
 
-    assert await VisualDescriptionService(vision, _FakeExtractor()).describe(b"video", 60) == []
+    assert await VisualDescriptionService(vision, _FakeExtractor()).describe("/tmp/aula.mp4", 60) == []
     assert vision.released
 
 
 def _service(visual):
     repo, storage, recognizer, bus, stats = (AsyncMock() for _ in range(5))
-    storage.retrieve.return_value = b"bytes"
+
+    async def download_to(path, destination):
+        with open(destination, "wb") as target:
+            target.write(b"bytes")
+        return True
+
+    storage.download_to.side_effect = download_to
     recognizer.transcribe.return_value = {
         "text": "a derivada",
         "segments": [{"text": "a derivada", "start": 0.0, "end": 600.0}],
     }
-    service = TranscriptionService(
+    service = TranscriptionRunner(
         transcription_repo=repo,
-        task_scheduler=None,
         transcription_logger=AsyncMock(),
         transcription_metrics=AsyncMock(),
         storage_service=storage,
@@ -123,7 +128,9 @@ async def test_video_descriptions_are_stored_with_the_transcription():
 
     await _run(service, transcription, "u/2026/10/m/aula.mp4")
 
-    visual.describe_recording.assert_awaited_once_with(b"bytes", "u/2026/10/m/aula.mp4", 600.0)
+    # O vídeo vai ao modelo de visão pelo arquivo em disco, não em memória.
+    video_path, size, duration = visual.describe_recording.await_args.args
+    assert video_path.endswith(".mp4") and size == len(b"bytes") and duration == 600.0
     # Guardadas na transcrição, de onde a análise as lê.
     assert transcription.visual_context == ["[05:00] um slide com a regra da cadeia"]
 
@@ -133,7 +140,7 @@ async def test_audio_is_not_sent_to_the_vision_model():
     vision, extractor, stats = _FakeVision(), _FakeExtractor(), AsyncMock()
     describer = VisualDescriptionService(vision, extractor, stats=stats)
 
-    assert await describer.describe_recording(b"audio", "u/2026/10/m/aula.mp3", 600) == []
+    assert await describer.describe_recording("/tmp/aula.mp3", 5, 600) == []
     assert vision.calls == 0 and extractor.calls == []
     stats.log_stat.assert_not_awaited()
 
@@ -143,7 +150,7 @@ async def test_video_description_time_is_recorded():
     stats = AsyncMock()
     describer = VisualDescriptionService(_FakeVision(), _FakeExtractor(), stats=stats)
 
-    await describer.describe_recording(b"video", "u/2026/10/m/aula.mp4", 60)
+    await describer.describe_recording("/tmp/aula.mp4", 5, 60)
 
     assert stats.log_stat.await_args.args[0] == "visual_description"
     assert stats.log_stat.await_args.args[3] == 60.0  # duração da gravação

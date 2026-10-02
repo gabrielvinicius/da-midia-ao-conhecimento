@@ -30,5 +30,19 @@ class User:
     def deactivate(self) -> None:
         self.is_active = False
 
+    def change_email(self, email: str) -> None:
+        from src.user_management.domain.rules import validate_email
+
+        self.email = validate_email(email)
+
+    def change_role(self, role: UserRole | str) -> None:
+        from src.user_management.domain.rules import parse_role
+
+        self.role = parse_role(role)
+
+    def change_password_hash(self, password_hash: str) -> None:
+        """O hash vem do adaptador de senhas; a regra de força é verificada antes."""
+        self.password_hash = password_hash
+
 
 __all__ = ["User", "UserRole"]

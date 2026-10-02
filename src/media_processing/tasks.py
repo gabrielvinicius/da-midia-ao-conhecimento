@@ -9,7 +9,7 @@ from celery.signals import worker_process_init
 from src.media_processing.infrastructure.dependencies.builders import (
     build_stalled_processing_monitor,
     build_text_extraction_service,
-    build_transcription_service,
+    build_transcription_runner,
 )
 from src.media_processing.worker import MediaWorkerApp
 from src.shared.domain.errors import DomainError
@@ -132,7 +132,7 @@ def process_transcription_task(
         # Subscribers are bound at worker process init
 
         async with AsyncSessionLocal() as session:
-            service = build_transcription_service(
+            service = build_transcription_runner(
                 session=session,
                 event_bus=_ensure_event_bus(),
                 storage_provider=storage_provider,

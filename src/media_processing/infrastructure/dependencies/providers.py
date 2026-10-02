@@ -35,18 +35,6 @@ def _load_fastwhisper():
         ) from exc
 
 
-def _load_huggingface():
-    try:
-        from src.media_processing.infrastructure.adapters.transcription.huggingface_adapter import (
-            HuggingfaceTranscriber,
-        )
-        return HuggingfaceTranscriber
-    except Exception as exc:  # pragma: no cover - optional dependency
-        raise ImportError(
-            "Provider 'huggingface' requer deps do transformers instaladas."
-        ) from exc
-
-
 def _load_openai_whisper():
     try:
         from src.media_processing.infrastructure.adapters.transcription.openai_whisper_adapter import (
@@ -210,7 +198,7 @@ class BasicWhisperRecognizer:
         if settings.app_env.lower() not in ("dev", "development", "local"):
             raise RuntimeError(
                 "Provider 'whisper' (stub) não está habilitado em produção. "
-                "Configure um provider real (ex.: 'huggingface')."
+                "Configure um provider real (ex.: 'fastwhisper')."
             )
         return {
             "text": "",
@@ -243,19 +231,6 @@ def _register_fastwhisper():
         pass
 
 
-def _register_huggingface():
-    try:
-        cls = _load_huggingface()
-        _SPEECH_RECOGNIZERS["huggingface"] = lambda: cls()
-        _SPEECH_META["huggingface"] = {
-            "label": "Transformers ASR (HF)",
-            "public": True,
-            "description": "",
-        }
-    except ImportError:
-        pass
-
-
 def _register_openai_whisper():
     try:
         cls = _load_openai_whisper()
@@ -270,10 +245,9 @@ def _register_openai_whisper():
 
 
 _register_fastwhisper()
-_register_huggingface()
 _register_openai_whisper()
 
-# definir default: prioriza fastwhisper, depois openai-whisper, depois huggingface; se nada, mantém stub (não público)
+# definir default: prioriza fastwhisper, depois openai-whisper; se nada, mantém stub (não público)
 if "fastwhisper" in _SPEECH_RECOGNIZERS:
     _SPEECH_RECOGNIZERS["default"] = _SPEECH_RECOGNIZERS["fastwhisper"]
     _SPEECH_META["default"] = {
@@ -287,13 +261,6 @@ elif "openai-whisper" in _SPEECH_RECOGNIZERS:
         "label": "OpenAI Whisper (default)",
         "public": True,
         "description": "Provider padrão usando modelo oficial.",
-    }
-elif "huggingface" in _SPEECH_RECOGNIZERS:
-    _SPEECH_RECOGNIZERS["default"] = _SPEECH_RECOGNIZERS["huggingface"]
-    _SPEECH_META["default"] = {
-        "label": "Transformers ASR (HF) (default)",
-        "public": True,
-        "description": "Provider padrão para transcrição.",
     }
 else:
     _SPEECH_RECOGNIZERS["default"] = _SPEECH_RECOGNIZERS["whisper"]

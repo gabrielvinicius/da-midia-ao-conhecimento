@@ -8,6 +8,10 @@ from typing import Any, Dict, List, Optional
 from prometheus_client import REGISTRY, Counter, Gauge, Histogram
 
 
+# Rótulos só com valores de conjunto pequeno (operação, provedor, situação).
+# Ids de mídia ou de usuário criariam uma série por mídia, e a memória do
+# Prometheus cresceria sem limite; quem precisa seguir uma mídia usa os logs
+# (correlation_id) ou os tempos gravados em processing_stats.
 class SharedPrometheusMetrics:
     """Singleton for managing Prometheus metrics that can be shared
     between different contexts (API and Celery) to avoid duplication.
@@ -77,7 +81,7 @@ class SharedPrometheusMetrics:
     def get_media_operations_total(self) -> Counter:
         return self._get_or_create_metric(
             "counter", 'media_operations_total', 'Total number of media operations',
-            ['operation', 'provider', 'status', 'media_id'], Counter
+            ['operation', 'provider', 'status'], Counter
         )
 
     def get_media_duration_seconds(self) -> Histogram:
@@ -85,7 +89,7 @@ class SharedPrometheusMetrics:
             "histogram",
             "media_operation_duration_seconds",
             "Duration of media operations in seconds",
-            ["operation", "provider", "status", "media_id"],
+            ["operation", "provider", "status"],
             Histogram,
         )
 
@@ -141,7 +145,7 @@ class SharedPrometheusMetrics:
             "counter",
             "text_analysis_operations_total",
             "Total number of text analysis operations",
-            ["operation", "provider", "status", "media_id", "user_id"],
+            ["operation", "provider", "status"],
             Counter
         )
 
@@ -150,7 +154,7 @@ class SharedPrometheusMetrics:
             "histogram",
             "text_analysis_operation_duration_seconds",
             "Duration of text analysis operations in seconds",
-            ["operation", "provider", "status", "media_id", "user_id"],
+            ["operation", "provider", "status"],
             Histogram,
         )
 

@@ -10,7 +10,7 @@ from src.text_analysis.infrastructure.dependencies import pipeline_factory, prov
 
 
 class FakeEmbeddings:
-    async def embed(self, texts, kind="passage"):
+    def embed(self, texts, kind="passage"):
         return [[1.0, 0.0] for _ in texts]
 
 

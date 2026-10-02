@@ -20,12 +20,12 @@ class FakeChunker:
 
 
 class FakeSentiment:
-    async def analyze(self, chunks, language):
+    def analyze(self, chunks, language):
         return [Sentiment(chunk_id=chunks[0].id, label=SentimentLabel.NEUTRAL, score=0.5)]
 
 
 class FakeEmbeddings:
-    async def embed(self, texts):
+    def embed(self, texts):
         return [[float(len(texts[0]))]]
 
 

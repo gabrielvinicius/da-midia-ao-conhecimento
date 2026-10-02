@@ -24,7 +24,12 @@ def _service(record, text):
     repo.get_by_media_id = AsyncMock(return_value=record)
     repo.save = AsyncMock()
     storage = MagicMock()
-    storage.retrieve = AsyncMock(return_value=b"%PDF")
+    async def download_to(path, destination):
+        with open(destination, "wb") as target:
+            target.write(b"%PDF")
+        return True
+
+    storage.download_to = AsyncMock(side_effect=download_to)
     extractor = MagicMock()
     extractor.extract = AsyncMock(return_value=text)
     ocr = MagicMock()

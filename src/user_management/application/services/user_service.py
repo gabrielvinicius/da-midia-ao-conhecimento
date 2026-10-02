@@ -18,6 +18,7 @@ from src.user_management.domain.errors import (
     WrongCurrentPasswordError,
 )
 from src.user_management.domain import User, UserRole
+from src.user_management.domain.rules import normalize_email, parse_role, validate_password
 
 from ..dtos import (
     CreateUserCommand,
@@ -26,12 +27,6 @@ from ..dtos import (
     UpdateUserCommand,
 )
 from src.user_management.application.auth_queries import UserReadService
-
-
-def normalize_email(email: str) -> str:
-    """E-mails comparados sem diferença de maiúsculas: ``A@x.com`` e ``a@x.com``
-    eram duas contas, e o login dependia de como o endereço foi digitado."""
-    return (email or "").strip().lower()
 
 
 class UserService:
@@ -57,11 +52,7 @@ class UserService:
         email = normalize_email(command.email)
         await self._ensure_email_available(email)
         self._validate_password_strength(command.password)
-        normalised_role = (
-            command.role
-            if isinstance(command.role, UserRole)
-            else self._normalise_role(str(command.role))
-        )
+        normalised_role = parse_role(command.role)
 
         user = User.create(
             email=email,
@@ -92,22 +83,19 @@ class UserService:
 
         user = await self._get_or_raise(command.user_id)
 
-        if command.email:
-            email = normalize_email(command.email)
-            self._validate_email_format(email)
-            if email != user.email:
-                await self._ensure_email_available(email)
-            user.email = email
+        if command.email and normalize_email(command.email) != user.email:
+            await self._ensure_email_available(normalize_email(command.email))
+            user.change_email(command.email)
 
         if command.role:
-            user.role = self._normalise_role(command.role.value)
+            user.change_role(command.role)
 
         if command.is_active is not None:
-            user.is_active = command.is_active
+            user.activate() if command.is_active else user.deactivate()
 
         if command.password:
             self._validate_password_strength(command.password)
-            user.password_hash = self.password_hasher.hash(command.password)
+            user.change_password_hash(self.password_hasher.hash(command.password))
 
         return await self.user_repository.save(user)
 
@@ -128,12 +116,12 @@ class UserService:
 
     async def activate_user(self, command: GetUserQuery) -> User:
         user = await self._get_or_raise(command.user_id)
-        user.is_active = True
+        user.activate()
         return await self.user_repository.save(user)
 
     async def deactivate_user(self, command: GetUserQuery) -> User:
         user = await self._get_or_raise(command.user_id)
-        user.is_active = False
+        user.deactivate()
         return await self.user_repository.save(user)
 
     async def change_password(
@@ -143,7 +131,7 @@ class UserService:
         if not self.password_hasher.verify(old_password, user.password_hash):
             raise WrongCurrentPasswordError()
         self._validate_password_strength(new_password)
-        user.password_hash = self.password_hasher.hash(new_password)
+        user.change_password_hash(self.password_hasher.hash(new_password))
         await self.user_repository.save(user)
 
     async def ensure_admin_user(
@@ -171,11 +159,11 @@ class UserService:
 
         updated = False
         if existing.role != UserRole.ADMIN:
-            existing.role = UserRole.ADMIN
+            existing.change_role(UserRole.ADMIN)
             updated = True
 
         if force_password_reset:
-            existing.password_hash = self.password_hasher.hash(default_password)
+            existing.change_password_hash(self.password_hasher.hash(default_password))
             updated = True
 
         if updated:
@@ -213,29 +201,10 @@ class UserService:
             raise UserNotFoundError(str(user_id))
         return user
 
-    def _validate_email_format(self, email: str) -> None:
-        if not email or "@" not in email or "." not in email.split("@")[-1]:
-            raise InvalidUserDataError("Formato de email inválido")
-
     async def _ensure_email_available(self, email: str) -> None:
         existing = await self.user_read_service.get_user_by_email(email)
         if existing is not None:
             raise UserAlreadyExistsError(email)
 
     def _validate_password_strength(self, password: str) -> None:
-        min_length = self.settings.auth_password_min_length
-        if len(password) < min_length:
-            raise InvalidUserDataError(f"Senha deve ter pelo menos {min_length} caracteres")
-        if not any(c.isupper() for c in password):
-            raise InvalidUserDataError("Senha deve conter ao menos uma letra maiúscula")
-        if not any(c.islower() for c in password):
-            raise InvalidUserDataError("Senha deve conter ao menos uma letra minúscula")
-        if not any(c.isdigit() for c in password):
-            raise InvalidUserDataError("Senha deve conter ao menos um número")
-
-    def _normalise_role(self, role: str) -> UserRole:
-        try:
-            return UserRole(role.upper())
-        except ValueError:
-            valid = ", ".join(r.value for r in UserRole)
-            raise InvalidUserDataError(f"Perfil inválido. Perfis válidos: {valid}") from None
+        validate_password(password, self.settings.auth_password_min_length)

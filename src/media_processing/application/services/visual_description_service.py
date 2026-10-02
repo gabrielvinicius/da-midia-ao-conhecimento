@@ -7,7 +7,6 @@ conhece modelos de visão nem o arquivo de vídeo.
 """
 from __future__ import annotations
 
-import inspect
 import time
 from typing import List, Optional
 
@@ -44,20 +43,20 @@ class VisualDescriptionService:
         self._stats = stats
 
     async def describe_recording(
-        self, video_data: bytes, file_path: str, duration: Optional[float]
+        self, video_path: str, size_bytes: int, duration: Optional[float]
     ) -> List[str]:
         """Descreve os quadros se a gravação for um vídeo com duração conhecida,
         e registra quanto tempo isso levou ("visual_description")."""
-        if not is_video_file(file_path) or not duration:
+        if not is_video_file(video_path) or not duration:
             return []
         started = time.perf_counter()
-        descriptions = await self.describe(video_data, float(duration))
+        descriptions = await self.describe(video_path, float(duration))
         if self._stats:
             try:
                 await self._stats.log_stat(
                     "visual_description",
                     time.perf_counter() - started,
-                    len(video_data),
+                    size_bytes,
                     float(duration),
                     getattr(self._analyzer, "model_label", None),
                     "success" if descriptions else "failed",
@@ -66,7 +65,7 @@ class VisualDescriptionService:
                 logger.warning("visual_description.stats_record_failed", error=str(exc))
         return descriptions
 
-    async def describe(self, video_data: bytes, duration: float) -> List[str]:
+    async def describe(self, video_path: str, duration: float) -> List[str]:
         """Descrições "[mm:ss] texto", na ordem do vídeo.
 
         Os quadros complementam a transcrição; uma falha aqui é registrada e
@@ -77,7 +76,7 @@ class VisualDescriptionService:
             return []
         descriptions: List[str] = []
         try:
-            frames = await self._extractor.extract_frames(video_data, timestamps)
+            frames = await self._extractor.extract_frames(video_path, timestamps)
             for ts, frame in zip(timestamps, frames):
                 if not frame:
                     continue
@@ -92,12 +91,7 @@ class VisualDescriptionService:
 
     async def _release(self) -> None:
         # Devolve a memória da GPU antes da análise, que usa o modelo de linguagem.
-        release = getattr(self._analyzer, "release", None)
-        if not release:
-            return
         try:
-            result = release()
-            if inspect.isawaitable(result):
-                await result
+            await self._analyzer.release()
         except Exception as exc:
             logger.warning("visual_description.release_failed", error=str(exc))

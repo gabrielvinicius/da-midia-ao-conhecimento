@@ -1,7 +1,7 @@
 """Service for Semantic Knowledge Base search."""
 from __future__ import annotations
 
-import inspect
+import asyncio
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 import structlog
@@ -22,9 +22,8 @@ class KnowledgeBaseService:
         logger.info("knowledge_base.search_started", query=query)
         
         # 1. Embed the query
-        embeddings = self._embedding_service.embed([query], kind="query")
-        if inspect.isawaitable(embeddings):
-            embeddings = await embeddings
+        # O modelo de vetores é síncrono e pesado: roda fora do laço da API.
+        embeddings = await asyncio.to_thread(self._embedding_service.embed, [query], kind="query")
         query_vector = embeddings[0]
         
         # 2. Search in Vector DB

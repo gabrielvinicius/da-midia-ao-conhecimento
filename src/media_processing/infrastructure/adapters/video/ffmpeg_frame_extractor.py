@@ -14,18 +14,15 @@ logger = structlog.get_logger(__name__)
 
 
 class FFmpegFrameExtractor(VideoFrameExtractorPort):
-    """Grava o vídeo uma vez em disco e extrai dele todos os quadros pedidos.
+    """Extrai os quadros do vídeo já em disco (o arquivo da transcrição).
 
-    Antes, o vídeo inteiro (até 500 MB) era regravado para cada quadro.
+    Antes, o vídeo inteiro (até 500 MB) vinha em memória e era regravado.
     """
 
-    async def extract_frames(self, video_data: bytes, timestamps: list[float]) -> list[Optional[bytes]]:
+    async def extract_frames(self, video_path: str, timestamps: list[float]) -> list[Optional[bytes]]:
         if not timestamps:
             return []
         with tempfile.TemporaryDirectory() as workdir:
-            video_path = os.path.join(workdir, "video")
-            with open(video_path, "wb") as video_file:
-                video_file.write(video_data)
             return [await self._frame_at(video_path, ts, workdir, i) for i, ts in enumerate(timestamps)]
 
     @staticmethod

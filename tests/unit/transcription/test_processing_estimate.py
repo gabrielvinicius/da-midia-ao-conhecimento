@@ -26,8 +26,7 @@ def _service(transcription, factors):
     stats.realtime_factor.side_effect = lambda task: factors.get(task)
     return TranscriptionService(
         transcription_repo=repo, task_scheduler=None, transcription_logger=AsyncMock(),
-        transcription_metrics=AsyncMock(), storage_service=AsyncMock(),
-        speech_recognizer_factory=lambda p: None, stats_recorder=stats,
+        transcription_metrics=AsyncMock(), stats_recorder=stats,
     )
 
 

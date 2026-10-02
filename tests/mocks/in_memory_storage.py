@@ -47,6 +47,14 @@ class InMemoryStorage(StorageRepositoryPort):
         path_str = str(file_path)
         return self.files.get(path_str)
 
+    async def download_to(self, file_path: FilePath, destination: str) -> bool:
+        data = await self.retrieve(file_path)
+        if data is None:
+            return False
+        with open(destination, "wb") as target:
+            target.write(data)
+        return True
+
     async def remove(self, file_path: FilePath) -> bool:
         """Remove file from memory storage."""
         path_str = str(file_path)

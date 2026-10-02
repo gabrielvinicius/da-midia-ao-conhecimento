@@ -29,6 +29,10 @@ class StorageService:
         file_path = FilePath.from_path(path)
         return await self._repository.retrieve(file_path)
 
+    async def download_file_to(self, path: str, destination: str) -> bool:
+        """Grava o arquivo em disco sem passar pela memória."""
+        return await self._repository.download_to(FilePath.from_path(path), destination)
+
     async def delete_file(self, path: str) -> bool:
         """Deletes a file."""
         file_path = FilePath.from_path(path)

@@ -15,6 +15,7 @@ from src.media_processing.application.event_handlers import MediaProcessingEvent
 from src.media_processing.application.services.text_extraction_service import (
     TextExtractionService,
 )
+from src.media_processing.application.services.transcription_runner import TranscriptionRunner
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
@@ -77,18 +78,28 @@ def _visual_describer(stats=None):
     return VisualDescriptionService(analyzer, FFmpegFrameExtractor(), stats=stats)
 
 
-def build_transcription_service(
+def build_transcription_service(session, event_bus: Optional[SupportsEventBus] = None) -> TranscriptionService:
+    """Agenda, estima e consulta transcrições (API e handlers)."""
+    return TranscriptionService(
+        transcription_repo=TranscriptionRepository(session),
+        task_scheduler=CeleryTranscriptionTaskScheduler(),
+        transcription_logger=StructuredTranscriptionLogger(),
+        transcription_metrics=PrometheusTranscriptionMetrics(),
+        stats_recorder=_stats_recorder(session),
+    )
+
+
+def build_transcription_runner(
     session,
     event_bus: Optional[SupportsEventBus],
     storage_provider: str = "local",
     storage_factory: Optional[StorageServiceFactory] = None,
-) -> TranscriptionService:
-    """Agenda (API e handlers) e executa (worker) transcrições; estima o tempo."""
+) -> TranscriptionRunner:
+    """Executa a transcrição no worker: modelo de fala, quadros e resultado."""
     stats = _stats_recorder(session)
     storage_factory = storage_factory or StorageServiceFactory()
-    return TranscriptionService(
+    return TranscriptionRunner(
         transcription_repo=TranscriptionRepository(session),
-        task_scheduler=CeleryTranscriptionTaskScheduler(),
         transcription_logger=StructuredTranscriptionLogger(),
         transcription_metrics=PrometheusTranscriptionMetrics(),
         storage_service=storage_factory.create_storage_service(storage_provider),
@@ -129,9 +140,7 @@ def build_media_processing_event_handlers(
 ) -> MediaProcessingEventHandlers:
     """Handler de MediaUploaded: cria o registro e agenda a tarefa."""
     return MediaProcessingEventHandlers(
-        transcription_service=build_transcription_service(
-            session, event_bus, storage_provider, storage_factory
-        ),
+        transcription_service=build_transcription_service(session, event_bus),
         text_extraction_service=build_text_extraction_service(
             session, event_bus, storage_provider, storage_factory
         ),
@@ -149,7 +158,7 @@ def build_stalled_processing_monitor(session, event_bus: SupportsEventBus):
 
     return StalledProcessingMonitor(
         repository=TranscriptionRepository(session),
-        transcription_service=build_transcription_service(session, event_bus),
+        transcription_service=build_transcription_runner(session, event_bus),
         policy=processing_settings.deadline_policy(),
         realtime_factors=_stats_recorder(session),
         terminator=CeleryTaskTerminator(),
@@ -160,5 +169,6 @@ __all__ = [
     "build_media_processing_event_handlers",
     "build_stalled_processing_monitor",
     "build_text_extraction_service",
+    "build_transcription_runner",
     "build_transcription_service",
 ]

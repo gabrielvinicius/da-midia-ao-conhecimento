@@ -9,8 +9,9 @@ from typing import Any, Protocol
 
 
 class MetricsPort(Protocol):
+    """Contrato único: assíncrono. Quem chama sempre usa ``await``."""
+
     async def record_operation(self, **kwargs) -> Any: ...
-    def set_context(self, *args, **kwargs) -> Any: ...
 
 
 class LoggerPort(Protocol):

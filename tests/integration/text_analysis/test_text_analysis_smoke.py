@@ -21,7 +21,7 @@ from src.text_analysis.application.ports import (
 
 
 class DummySentiment(SentimentServicePort):
-    async def analyze(self, text, language=None):
+    def analyze(self, text, language=None):
         # text comes as list of chunks; map to sentiments
         items = []
         for idx, chunk in enumerate(text if isinstance(text, list) else [text]):
@@ -66,7 +66,7 @@ class DummyChunker(ChunkingServicePort):
 
 
 class DummyEmbeddings(EmbeddingServicePort):
-    async def embed(self, texts):
+    def embed(self, texts):
         return [[0.0] * len(texts)]
 
 

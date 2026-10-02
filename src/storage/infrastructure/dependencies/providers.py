@@ -58,6 +58,10 @@ class StorageClientAdapter(FileStoragePort):
         normalized_path = str(path)
         return await self.service.retrieve_file(normalized_path)
 
+    async def download_to(self, path: Any, destination: str) -> bool:
+        """Grava o arquivo em ``destination`` (vídeos de até 500 MB não passam pela memória)."""
+        return await self.service.download_file_to(str(path), destination)
+
     async def download(self, file_path: str):
         normalized_path = str(Path(file_path))
         data = await self.service.retrieve_file(normalized_path)

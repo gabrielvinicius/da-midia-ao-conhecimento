@@ -2,7 +2,7 @@
 import pytest
 
 from src.user_management.application.dtos import CreateUserCommand
-from src.user_management.application.services.user_service import normalize_email
+from src.user_management.domain.rules import normalize_email
 from src.user_management.domain.errors import UserAlreadyExistsError
 from src.user_management.infrastructure.dependencies.providers import PasslibPasswordHasher
 from src.shared.domain.errors import ConflictError, NotFoundError

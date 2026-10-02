@@ -38,8 +38,10 @@ class FakeStorage:
     async def download_file(self, path: str):
         return b"file-bytes", "file.txt"
 
-    async def retrieve(self, file_path):
-        return b"file-bytes"
+    async def download_to(self, path, destination):
+        with open(destination, "wb") as target:
+            target.write(b"file-bytes")
+        return True
 
 
 class FakeEventBus:

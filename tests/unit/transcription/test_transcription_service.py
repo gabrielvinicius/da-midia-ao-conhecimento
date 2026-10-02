@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 
 from src.media_processing.application.dtos import RequestTranscriptionCommand
+from src.media_processing.application.services.transcription_runner import TranscriptionRunner
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
@@ -26,14 +27,32 @@ def service_dependencies():
     def recognizer_factory(_provider: str):
         return recognizer
 
-    service = TranscriptionService(
+    async def download_to(path, destination):
+        with open(destination, "wb") as target:
+            target.write(storage.content)
+        return True
+
+    storage.content = b"audio-bytes"
+    storage.download_to = AsyncMock(side_effect=download_to)
+    requests = TranscriptionService(
         transcription_repo=repo,
         task_scheduler=scheduler,
+        transcription_logger=logger,
+        transcription_metrics=metrics,
+    )
+    runner = TranscriptionRunner(
+        transcription_repo=repo,
         transcription_logger=logger,
         transcription_metrics=metrics,
         storage_service=storage,
         speech_recognizer_factory=recognizer_factory,
         event_bus=event_bus,
+    )
+    # Agendar fica na API (TranscriptionService); executar, no worker (TranscriptionRunner).
+    service = SimpleNamespace(
+        request_transcription_generation=requests.request_transcription_generation,
+        execute_transcription=runner.execute_transcription,
+        runner=runner,
     )
     return (
         service,
@@ -88,7 +107,6 @@ async def test_execute_transcription_success(service_dependencies):
     transcription = Transcription(media_id=media_id, provider="whisper")
     repo.get_by_id.return_value = transcription
 
-    storage.retrieve.return_value = b"audio-bytes"
     recognizer.transcribe.return_value = {"text": "ok"}
 
     result = await service.execute_transcription(
@@ -129,7 +147,6 @@ async def test_execute_transcription_failure_intermediate_does_not_publish_faile
     transcription = Transcription(media_id=media_id, provider="whisper")
     repo.get_by_id.return_value = transcription
 
-    storage.retrieve.return_value = b"audio-bytes"
     recognizer.transcribe.side_effect = RuntimeError("falha transitória")
 
     with pytest.raises(RuntimeError):
@@ -166,7 +183,6 @@ async def test_execute_transcription_failure_final_publishes_failed(service_depe
     transcription = Transcription(media_id=media_id, provider="whisper")
     repo.get_by_id.return_value = transcription
 
-    storage.retrieve.return_value = b"audio-bytes"
     recognizer.transcribe.side_effect = RuntimeError("falha permanente")
 
     with pytest.raises(RuntimeError):
@@ -192,7 +208,6 @@ async def test_execute_transcription_records_media_duration_before_transcribing(
     service, repo, _, _, storage, recognizer, _, _ = service_dependencies
     transcription = Transcription(media_id=uuid4(), provider="fastwhisper")
     repo.get_by_id.return_value = transcription
-    storage.retrieve.return_value = b"audio-bytes"
     saved_during_transcription = {}
 
     async def transcribe(path, language=None):
@@ -202,7 +217,7 @@ async def test_execute_transcription_records_media_duration_before_transcribing(
     recognizer.transcribe.side_effect = transcribe
     probe = AsyncMock()
     probe.duration_seconds.return_value = 5400.0
-    service._duration_probe = probe
+    service.runner._duration_probe = probe
 
     await service.execute_transcription(
         transcription_id=transcription.id,
@@ -214,3 +229,45 @@ async def test_execute_transcription_records_media_duration_before_transcribing(
     )
 
     assert saved_during_transcription == {"seconds": 5400.0}
+
+
+@pytest.mark.asyncio
+async def test_a_missing_file_is_recorded_as_a_failure(service_dependencies):
+    """Arquivo ausente no armazenamento: antes, a falha nunca era registrada."""
+    service, repo, _, _, storage, _, _, event_bus = service_dependencies
+    transcription = Transcription(media_id=uuid4(), provider="whisper")
+    repo.get_by_id.return_value = transcription
+    storage.download_to = AsyncMock(return_value=False)
+
+    with pytest.raises(Exception):
+        await service.execute_transcription(
+            transcription_id=transcription.id, media_id=transcription.media_id, file_path="sumiu.mp3",
+            storage_provider="local", transcription_provider="whisper", language="pt", final_attempt=True,
+        )
+
+    assert transcription.status == TranscriptionStatus.FAILED
+    assert any(isinstance(c.args[0], TranscriptionFailed) for c in event_bus.publish.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_the_media_is_staged_on_disk_not_read_into_memory(service_dependencies):
+    service, repo, _, _, storage, recognizer, _, _ = service_dependencies
+    transcription = Transcription(media_id=uuid4(), provider="whisper")
+    repo.get_by_id.return_value = transcription
+    seen = {}
+
+    async def transcribe(path, language=None):
+        import os
+
+        seen["exists"], seen["suffix"] = os.path.exists(path), os.path.splitext(path)[1]
+        return {"text": "ok"}
+
+    recognizer.transcribe.side_effect = transcribe
+    await service.execute_transcription(
+        transcription_id=transcription.id, media_id=transcription.media_id, file_path="u/aula.mp4",
+        storage_provider="local", transcription_provider="whisper", language="pt",
+    )
+
+    storage.download_to.assert_awaited_once()
+    storage.retrieve.assert_not_called()  # nada de 500 MB na memória
+    assert seen == {"exists": True, "suffix": ".mp4"}
