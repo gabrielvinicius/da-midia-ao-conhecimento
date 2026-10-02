@@ -47,6 +47,16 @@ export const SentimentResultPanel = ({ mediaId, mediaStatus }: SentimentResultPa
       );
     }
 
+    // Sem tom geral nem trechos classificados: o fator foi desligado
+    // (ANALYSIS_FACTORS) ou falhou. Não é o mesmo que "Neutro".
+    if (!analysis.overall_sentiment && !(analysis.sentiment_items?.length ?? 0)) {
+      return (
+        <div className="rounded-2xl border border-[#f2eadf] bg-[#fdfbf6] p-4 text-center text-xs text-muted-foreground">
+          O tom não foi analisado nesta mídia.
+        </div>
+      );
+    }
+
     const label = String(analysis.overall_sentiment || "NEUTRAL").toUpperCase();
     const config = sentimentConfig[label] || sentimentConfig.NEUTRAL;
     const chunks = analysis.sentiment_items?.length ?? 0;
