@@ -256,3 +256,41 @@ async def test_appendix_follows_the_recording_order():
 
     appendix = analysis.summary.split("Apêndice", 1)[1]
     assert appendix.index("### Derivadas") < appendix.index("### Integrais")
+
+
+def test_tone_is_predominant_only_with_a_clear_majority():
+    from src.text_analysis.application.pipeline.steps import describe_tone
+    from src.text_analysis.domain import SentimentLabel as L
+
+    assert describe_tone([L.NEGATIVE, L.NEGATIVE, L.NEGATIVE, L.NEUTRAL]) == "negativo (3 de 4 trechos)"
+    assert describe_tone([L.POSITIVE, L.NEGATIVE, L.NEUTRAL]) == "misto (3 trechos)"
+    assert describe_tone([]) is None
+
+
+@pytest.mark.asyncio
+async def test_topics_and_the_whole_material_carry_their_tone():
+    from src.text_analysis.domain import SentimentLabel as L
+    from src.text_analysis.domain.entities.sentiment import Sentiment
+
+    text_gen = _text_gen()
+    analysis = _weighted_analysis()
+    labels = [L.NEUTRAL, L.NEGATIVE, L.NEUTRAL, L.NEGATIVE]
+    analysis.sentiments = [
+        Sentiment(chunk_id=c.id, label=label, score=0.9, text=c.text) for c, label in zip(analysis.chunks, labels)
+    ]
+
+    await SynthesisStep(text_gen, language="pt").process(analysis)
+
+    prompt = text_gen.summarize_topic.call_args.args[1]
+    assert "Derivadas (taxa): 20% do conteúdo, a partir de 00:00; tom: neutro (2 de 2 trechos)" in prompt
+    assert "Integrais (área): 80% do conteúdo, a partir de 10:00; tom: negativo (2 de 2 trechos)" in prompt
+    assert "<tom_geral>\nmisto (4 trechos)\n</tom_geral>" in prompt
+    assert "sem atribuir emoções" in prompt
+
+
+@pytest.mark.asyncio
+async def test_without_sentiment_the_prompt_has_no_tone():
+    text_gen = _text_gen()
+    await SynthesisStep(text_gen, language="pt").process(_weighted_analysis())
+    prompt = text_gen.summarize_topic.call_args.args[1]
+    assert "<tom_geral>" not in prompt and "; tom:" not in prompt

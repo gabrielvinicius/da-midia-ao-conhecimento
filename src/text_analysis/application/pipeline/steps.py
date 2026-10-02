@@ -277,6 +277,32 @@ def response_token_cap(words: int) -> int:
     return int(words * TOKENS_PER_WORD) + TOKEN_MARGIN
 
 
+_TONE_NAMES = {
+    SentimentLabel.POSITIVE: "positivo",
+    SentimentLabel.NEGATIVE: "negativo",
+    SentimentLabel.NEUTRAL: "neutro",
+}
+# Parcela mínima de trechos com o mesmo rótulo para o tom ser "predominante".
+TONE_MAJORITY = 0.6
+
+
+def describe_tone(labels: list) -> Optional[str]:
+    """Tom de um conjunto de trechos, como o modelo de sentimento o classificou."""
+    if not labels:
+        return None
+    counts = {label: labels.count(label) for label in _TONE_NAMES}
+    label, count = max(counts.items(), key=lambda item: item[1])
+    if count / len(labels) < TONE_MAJORITY:
+        return f"misto ({len(labels)} trechos)"
+    return f"{_TONE_NAMES[label]} ({count} de {len(labels)} trechos)"
+
+
+def _chunk_tones(analysis: Analysis) -> dict:
+    """Rótulo de sentimento de cada trecho, pela posição em analysis.chunks."""
+    by_id = {s.chunk_id: SentimentLabel.normalize(getattr(s.label, "value", s.label)) for s in analysis.sentiments or []}
+    return {i: by_id[c.id] for i, c in enumerate(analysis.chunks or []) if c.id in by_id}
+
+
 def topic_overview(analysis: Analysis) -> tuple[list[str], bool]:
     """Linhas dos temas para o prompt, na ordem em que aparecem, com a parcela
     do conteúdo de cada um e, em gravações, o momento em que começa.
@@ -297,13 +323,16 @@ def topic_overview(analysis: Analysis) -> tuple[list[str], bool]:
     if not total or not all(members(t) for t in main_topics):
         return [f"- {t.title or 'Tema'}: {keywords(t)}" for t in main_topics], False
 
+    tones = _chunk_tones(analysis)
     lines = []
     for topic in sorted(main_topics, key=lambda t: min(members(t))):
         indices = members(topic)
         share = round(100 * sum(len(chunks[i].text) for i in indices) / total)
         starts = [chunks[i].start for i in indices if chunks[i].start is not None]
         where = f", a partir de {format_timestamp(min(starts))}" if starts else ""
-        lines.append(f"- {topic.title or 'Tema'} ({keywords(topic)}): {max(share, 1)}% do conteúdo{where}")
+        tone = describe_tone([tones[i] for i in indices if i in tones])
+        tone = f"; tom: {tone}" if tone else ""
+        lines.append(f"- {topic.title or 'Tema'} ({keywords(topic)}): {max(share, 1)}% do conteúdo{where}{tone}")
     return lines, True
 
 
@@ -450,7 +479,9 @@ class SynthesisStep(AnalysisStep):
             "3. As descrições visuais (quando houver) mostram o que aparecia na tela em alguns momentos; "
             "use-as apenas para complementar o que foi dito, sem supor o que não está descrito.\n"
             "4. Transcrições automáticas podem ter erros; se um trecho estiver confuso, não preencha a lacuna.\n"
-            f"5. Escreva em {_language_name(self.language)}.\n"
+            "5. O tom (quando houver) foi classificado automaticamente por trecho. Mencione-o só se for "
+            "positivo ou negativo de forma predominante, e sem atribuir emoções ou intenções que não foram ditas.\n"
+            f"6. Escreva em {_language_name(self.language)}.\n"
             "<<<END_SYSTEM>>>"
         )
 
@@ -492,6 +523,9 @@ class SynthesisStep(AnalysisStep):
         topic_lines, weighted = topic_overview(analysis)
         if topic_lines:
             parts.append("<temas_identificados>\n" + "\n".join(topic_lines) + "\n</temas_identificados>")
+        overall_tone = describe_tone(list(_chunk_tones(analysis).values()))
+        if overall_tone:
+            parts.append("<tom_geral>\n" + overall_tone + "\n</tom_geral>")
         visual = analysis.diagnostics.get("visual_context") or []
         if visual:
             parts.append("<descricoes_visuais>\n" + "\n".join(visual) + "\n</descricoes_visuais>")
