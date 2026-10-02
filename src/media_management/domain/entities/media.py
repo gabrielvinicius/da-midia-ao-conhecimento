@@ -107,20 +107,6 @@ class Media(BaseEntity):
         self.error_message = error_message
         self.updated_at = datetime.datetime.now(datetime.timezone.utc)
 
-    def override_status(self, new_status: MediaStatus, reason: str | None = None) -> None:
-        """Estado definido pelo administrador (correção manual).
-
-        Mantém as mesmas regras das transições normais: uma falha sempre
-        traz o motivo, e os demais estados não carregam erro antigo.
-        """
-        new_status = MediaStatus(getattr(new_status, "value", new_status))
-        if new_status == MediaStatus.FAILED:
-            self.mark_as_failed(reason or "Estado alterado pelo administrador")
-            return
-        self.status = new_status
-        self.error_message = None
-        self.updated_at = datetime.datetime.now(datetime.timezone.utc)
-
     @property
     def file_size(self) -> int:
         return self.file_size_bytes

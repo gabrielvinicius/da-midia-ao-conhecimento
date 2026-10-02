@@ -13,10 +13,10 @@ from src.text_analysis.application.pipeline.steps import (
     KnowledgeIndexingStep,
     ReleaseMemoryStep,
     SentimentStep,
-    SynthesisStep,
     TopicModelingStep,
     TopicTitleStep,
 )
+from src.text_analysis.application.pipeline.synthesis import SynthesisStep
 
 
 @dataclass

@@ -8,7 +8,6 @@ from src.shared.application.ports import ProcessingStatsPort
 from dataclasses import dataclass
 from uuid import UUID
 
-from src.admin.application.ports import MediaAdminPort, UserAdminPort
 from src.media_management.application.dtos import (
     ListMediaQuery,
 )
@@ -22,7 +21,7 @@ from ..dtos import (
     GetUserActivityQuery,
 )
 from .admin_audit_service import AdminAuditService
-from .admin_media_service import AdminMediaService
+from .admin_media_service import AdminMediaService, BulkReprocessResult
 from .admin_read_service import AdminReadService
 from .admin_user_service import AdminUserService
 
@@ -35,8 +34,6 @@ class AdminService:
     audit_service: AdminAuditService
     admin_user_service: AdminUserService
     admin_media_service: AdminMediaService
-    user_adapter: UserAdminPort
-    media_adapter: MediaAdminPort
     processing_stats: Optional[ProcessingStatsPort] = None
 
     # --- Stats & monitoring -------------------------------------------------
@@ -103,5 +100,5 @@ class AdminService:
             admin_user=admin_user
         )
 
-    async def bulk_reprocess_failed_media(self, admin_user: User) -> int:
-        return await self.admin_media_service.bulk_reprocess_failed_media(admin_user)
+    async def bulk_reprocess_failed_media(self, admin_user: User, limit: int) -> BulkReprocessResult:
+        return await self.admin_media_service.bulk_reprocess_failed_media(admin_user, limit)

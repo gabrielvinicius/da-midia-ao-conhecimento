@@ -5,7 +5,7 @@ from .resources import ReleasablePort
 from .sentiment import SentimentServicePort
 from .text_generation import TextGenerationPort, TextGenerationUnavailableError
 from .topic_modeling import TopicModelingPort
-from .vector_search import VectorSearchPort
+from .vector_search import VectorIndexPort, VectorSearchPort
 from .transcription_port import TranscriptionQueryPort
 
 __all__ = [
@@ -19,5 +19,6 @@ __all__ = [
     "ReleasablePort",
     "ChunkingServicePort",
     "TranscriptionQueryPort",
+    "VectorIndexPort",
     "VectorSearchPort",
 ]

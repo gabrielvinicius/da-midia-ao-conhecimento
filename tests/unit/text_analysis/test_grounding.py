@@ -2,7 +2,8 @@
 import numpy as np
 import pytest
 
-from src.text_analysis.application.pipeline.steps import APPENDIX_MARKER, GroundingCheckStep
+from src.text_analysis.application.pipeline.steps import GroundingCheckStep
+from src.text_analysis.application.pipeline.synthesis import APPENDIX_MARKER
 from src.text_analysis.domain import Analysis, Document, TextChunk
 from src.text_analysis.domain.grounding import assess_grounding, split_sentences
 

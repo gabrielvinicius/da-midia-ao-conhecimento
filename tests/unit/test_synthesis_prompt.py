@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.text_analysis.application.pipeline.steps import SynthesisStep
+from src.text_analysis.application.pipeline.synthesis import SynthesisStep
 from src.text_analysis.application.ports import TextGenerationUnavailableError
 from src.text_analysis.domain import Analysis, Document, TextChunk, Topic
 
@@ -104,7 +104,7 @@ async def test_appendix_shows_when_each_excerpt_happens_and_what_was_on_screen()
 
 
 def test_summary_size_follows_the_source():
-    from src.text_analysis.application.pipeline.steps import summary_target_words
+    from src.text_analysis.domain.content_profile import summary_target_words
 
     assert summary_target_words(200) == 120  # mínimo
     assert summary_target_words(3000) == 360  # ~12%
@@ -206,7 +206,7 @@ def _weighted_analysis(with_times=True):
 
 
 def test_topics_go_in_order_of_appearance_with_share_and_start():
-    from src.text_analysis.application.pipeline.steps import topic_overview
+    from src.text_analysis.application.pipeline.synthesis import topic_overview
 
     lines, weighted = topic_overview(_weighted_analysis())
 
@@ -232,7 +232,7 @@ async def test_prompt_asks_for_proportional_sections_with_their_start():
 
 
 def test_documents_get_shares_but_no_times():
-    from src.text_analysis.application.pipeline.steps import topic_overview
+    from src.text_analysis.application.pipeline.synthesis import topic_overview
 
     lines, weighted = topic_overview(_weighted_analysis(with_times=False))
 
@@ -240,7 +240,7 @@ def test_documents_get_shares_but_no_times():
 
 
 def test_old_topics_without_chunks_keep_the_plain_list():
-    from src.text_analysis.application.pipeline.steps import topic_overview
+    from src.text_analysis.application.pipeline.synthesis import topic_overview
 
     analysis = _analysis("Texto.")  # temas sem chunk_indices, como em análises antigas
     lines, weighted = topic_overview(analysis)
@@ -259,7 +259,7 @@ async def test_appendix_follows_the_recording_order():
 
 
 def test_tone_is_predominant_only_with_a_clear_majority():
-    from src.text_analysis.application.pipeline.steps import describe_tone
+    from src.text_analysis.application.pipeline.synthesis import describe_tone
     from src.text_analysis.domain import SentimentLabel as L
 
     assert describe_tone([L.NEGATIVE, L.NEGATIVE, L.NEGATIVE, L.NEUTRAL]) == "negativo (3 de 4 trechos)"

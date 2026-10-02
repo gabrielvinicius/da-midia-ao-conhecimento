@@ -1,10 +1,12 @@
 """Assinaturas de eventos dos workers (camada de montagem)."""
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import structlog
 
+from src.media_processing.application.ports import AnalysisRequestPort
+from src.shared.application.event_bus import SupportsEventBus
 from src.media_management.infrastructure.dependencies.builders import (
     build_media_event_handlers,
 )
@@ -36,10 +38,14 @@ class MediaWorkerApp:
     conhece adaptadores de outros módulos (mídias, notificações, armazenamento).
     """
 
-    def __init__(self, event_bus=None, analysis_requester=None):
+    def __init__(
+        self,
+        event_bus: Optional[SupportsEventBus] = None,
+        analysis_requester: Optional[AnalysisRequestPort] = None,
+    ):
         self.event_bus = event_bus or get_event_bus()
         # O pedido de análise segue pelo nome da tarefa, sem importar text_analysis.
-        self.analysis_requester = analysis_requester or CeleryAnalysisRequester()
+        self.analysis_requester: AnalysisRequestPort = analysis_requester or CeleryAnalysisRequester()
         self._subscribers_bound = False
 
     def ensure_subscribers(self):

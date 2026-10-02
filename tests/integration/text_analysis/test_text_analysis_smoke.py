@@ -89,8 +89,8 @@ from src.text_analysis.application.pipeline.steps import (
     ChunkingStep,
     SentimentStep,
     TopicModelingStep,
-    SynthesisStep,
 )
+from src.text_analysis.application.pipeline.synthesis import SynthesisStep
 
 @pytest.mark.integration
 @pytest.mark.anyio

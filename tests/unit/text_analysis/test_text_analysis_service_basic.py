@@ -63,8 +63,8 @@ from src.text_analysis.application.pipeline.steps import (
     ChunkingStep,
     SentimentStep,
     TopicModelingStep,
-    SynthesisStep,
 )
+from src.text_analysis.application.pipeline.synthesis import SynthesisStep
 
 @pytest.mark.anyio
 async def test_analyze_text_service_saves_and_returns_dto():

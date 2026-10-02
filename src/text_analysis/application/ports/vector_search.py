@@ -23,3 +23,17 @@ class VectorSearchPort(Protocol):
     ) -> Sequence[Tuple[IndexedChunk, float]]:
         """Devolve pares (trecho, distância de cosseno), do mais próximo ao mais distante."""
         ...
+
+
+class VectorIndexPort(Protocol):
+    """Gravação dos trechos e vetores de uma mídia para a busca semântica."""
+
+    async def save_chunks(
+        self,
+        media_id: UUID,
+        chunks: list[dict],
+        replace: bool = True,
+        user_id: Optional[UUID] = None,
+    ) -> Any:
+        """Grava os trechos (texto, vetor e metadados); com ``replace``, apaga os anteriores da mídia."""
+        ...

@@ -246,19 +246,18 @@ async def deactivate_user(
     return await service.deactivate_user(user_id=user_id, admin_user=current_admin)
 
 
-@router.post("/media/bulk-reprocess", summary="Bulk reprocess all failed media")
+@router.post("/media/bulk-reprocess", summary="Reprocess a batch of failed media")
 async def bulk_reprocess_failed_media(
     service: AdminService = Depends(get_admin_service),
     current_admin: User = Depends(get_current_admin_user),
+    limit: int = Query(50, ge=1, le=200, description="Máximo de mídias neste pedido"),
 ):
-    """Reprocess all failed media items in bulk."""
-    reprocessed_count = await service.bulk_reprocess_failed_media(
-        admin_user=current_admin
-    )
+    """Reprocessa até ``limit`` mídias com falha, das mais antigas para as mais
+    novas; ``more_pending`` indica que há outras para um próximo pedido."""
+    result = await service.bulk_reprocess_failed_media(admin_user=current_admin, limit=limit)
     return {
-        "message": (
-            f"Bulk reprocessing initiated for {reprocessed_count} media items"
-        ),
-        "reprocessed_count": reprocessed_count,
+        "reprocessed_count": result.reprocessed,
+        "failed_count": result.failed,
+        "more_pending": result.more_pending,
     }
 

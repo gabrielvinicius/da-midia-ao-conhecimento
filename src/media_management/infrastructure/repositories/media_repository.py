@@ -144,6 +144,17 @@ class MediaRepository:
         result = await self.db.execute(stmt)
         return [self._mapper.to_domain(entity) for entity in result.scalars().all()]
 
+    async def list_ids_by_status(self, status: MediaStatus, limit: int) -> List[UUID]:
+        """Ids das mídias no estado, das mais antigas para as mais novas."""
+        stmt = (
+            select(MediaEntity.id)
+            .where(MediaEntity.status == status)
+            .order_by(MediaEntity.created_at, MediaEntity.id)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
     async def count_by_status(self, status: MediaStatus, since=None) -> int:
         """Mídias no estado; com ``since``, só as que mudaram desde então."""
         stmt = (
