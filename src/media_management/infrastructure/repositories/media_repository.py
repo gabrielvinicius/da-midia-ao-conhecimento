@@ -144,6 +144,10 @@ class MediaRepository:
             status=status,
         )
 
+    async def list_ids_by_user(self, user_id: UUID) -> List[UUID]:
+        result = await self.db.execute(select(MediaEntity.id).where(MediaEntity.user_id == user_id))
+        return list(result.scalars().all())
+
     async def count_all(self) -> int:
         await self._ensure_clean()
         result = await self.db.execute(select(func.count()).select_from(MediaEntity))

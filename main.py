@@ -36,6 +36,9 @@ from src.user_management.bootstrap import (
 from src.admin.bootstrap import (
     build_admin_module,
 )
+from src.user_management.infrastructure.dependencies.data_erasers import (
+    build_user_data_erasers,
+)
 from src.notifications.bootstrap import (
     build_notifications_module,
 )
@@ -62,9 +65,6 @@ from src.shared.infrastructure.exceptions.exception_handlers import (
 from src.shared.infrastructure.messaging.event_bus_factory import get_event_bus
 from src.shared.infrastructure.middleware.correlation_middleware import (
     CorrelationIdMiddleware,
-)
-from src.shared.infrastructure.middleware.error_middleware import (
-    unified_error_middleware,
 )
 from src.shared.infrastructure.middleware.performance_middleware import (
     register_performance_middleware,
@@ -219,7 +219,11 @@ async def lifespan(app: FastAPI):
         storage_service_factory=storage_factory,
         event_bus=event_bus,
     )
-    user_management_module = build_user_management_components(session=session)
+    # Excluir um usuário apaga antes as mídias, os avisos e as avaliações dele.
+    user_management_module = build_user_management_components(
+        session=session,
+        data_erasers=build_user_data_erasers(session, media_module.media_service),
+    )
     
     notifications_module = build_notifications_module(session=session)
 
@@ -346,8 +350,6 @@ def create_app() -> FastAPI:
     # Correlation ID middleware (First to run)
     app.add_middleware(CorrelationIdMiddleware)
 
-    # Error middleware
-    app.middleware("http")(unified_error_middleware)
 
     # Instrumentação OpenTelemetry
     FastAPIInstrumentor.instrument_app(app)

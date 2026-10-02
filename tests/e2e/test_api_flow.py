@@ -599,3 +599,43 @@ def test_s3_storage_keeps_files_in_the_bucket(client):
     assert client.delete(f"/media/{media['id']}", headers=me).status_code == 204
     keys = [o["Key"] for o in s3.list_objects_v2(Bucket=storage_settings.s3_bucket).get("Contents", [])]
     assert not any(media["id"] in key for key in keys)
+
+
+def test_deleting_a_user_removes_their_media_and_notifications(client):
+    """Excluir quem já tinha enviado algo dava 500: as chaves estrangeiras das
+    mídias e dos avisos barravam a exclusão, e a resposta expunha o erro do banco."""
+    import asyncio
+
+    from sqlalchemy import text as sql
+
+    from src.notifications.domain import Notification, NotificationType
+    from src.notifications.infrastructure.repositories.notification_repository import (
+        NotificationRepository,
+    )
+    from src.shared.infrastructure.database.db import AsyncSessionLocal, engine_sync
+
+    admin_email, admin_password = os.environ.get("DEFAULT_ADMIN_EMAIL"), os.environ.get("DEFAULT_ADMIN_PASSWORD")
+    if not (admin_email and admin_password):
+        pytest.skip("sem administrador padrão")
+    me = _account(client, "lia")
+    user_id = client.get("/auth/me", headers=me).json()["id"]
+    media_id = client.post(
+        "/media/", headers=me, files={"file": ("ata.txt", "Ata da reunião.".encode(), "text/plain")}
+    ).json()["id"]
+
+    async def notify():
+        async with AsyncSessionLocal() as session:
+            await NotificationRepository(db=session).save(
+                Notification(user_id=uuid.UUID(user_id), type=NotificationType.WEBSOCKET, content="Pronto")
+            )
+
+    asyncio.run(notify())
+    admin_token = client.post("/auth/token", data={"username": admin_email, "password": admin_password}).json()["access_token"]
+
+    r = client.delete(f"/admin/users/{user_id}", headers={"Authorization": f"Bearer {admin_token}"})
+    assert r.status_code == 204, r.text
+
+    with engine_sync.connect() as conn:
+        for table, column, value in (("users", "id", user_id), ("media", "id", media_id), ("notifications", "user_id", user_id)):
+            count = conn.execute(sql(f"SELECT count(*) FROM {table} WHERE {column} = :v"), {"v": value}).scalar()
+            assert count == 0, table

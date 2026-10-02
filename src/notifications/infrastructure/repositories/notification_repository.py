@@ -2,7 +2,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 from src.notifications.domain import Notification
 from src.notifications.domain.entities.notification import NotificationStatus
@@ -49,6 +49,13 @@ class NotificationRepository:
             .where(NotificationModel.user_id == UUID(user_id))
             .where(NotificationModel.opened_at.is_(None))
             .values(opened_at=now, status=NotificationStatus.READ, updated_at=now)
+        )
+        await uow_commit(self.db)
+        return result.rowcount or 0
+
+    async def delete_by_user(self, user_id: UUID) -> int:
+        result = await self.db.execute(
+            delete(NotificationModel).where(NotificationModel.user_id == user_id)
         )
         await uow_commit(self.db)
         return result.rowcount or 0

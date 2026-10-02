@@ -38,6 +38,18 @@ class TokenProviderPort(Protocol):
     def verify_refresh_token(self, token: str) -> dict | None: ...
 
 
+class UserDataEraserPort(Protocol):
+    """Apaga o que um módulo guarda de um usuário (mídias, avisos, avaliações).
+
+    Cada módulo implementa a sua; este módulo só conhece a lista. Deve ser
+    idempotente: uma exclusão interrompida pode ser repetida.
+    """
+
+    name: str
+
+    async def erase(self, user_id: UUID) -> None: ...
+
+
 class PermissionServicePort(Protocol):
     def require_admin(self, admin_user: User) -> None: ...
     def validate_admin_operation(self, admin_user: User, target_user_id: UUID) -> None: ...
@@ -64,4 +76,5 @@ __all__ = [
     "PasswordHasherPort",
     "TokenProviderPort",
     "PermissionServicePort",
+    "UserDataEraserPort",
 ]

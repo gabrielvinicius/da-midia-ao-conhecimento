@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 from uuid import UUID
 
 from src.user_management.application.ports import (
     PasswordHasherPort,
     TokenProviderPort,
     UserRepositoryPort,
+    UserDataEraserPort,
 )
 from src.user_management.config.settings import UserSettings, user_settings
 from src.user_management.domain.errors import (
@@ -34,13 +35,15 @@ class UserService:
         user_read_service: UserReadService,
         password_hasher: PasswordHasherPort,
         token_provider: TokenProviderPort,
-        settings: Optional[UserSettings] = None
+        settings: Optional[UserSettings] = None,
+        data_erasers: Sequence[UserDataEraserPort] = (),
     ) -> None:
         self.user_repository = user_repository
         self.user_read_service = user_read_service
         self.password_hasher = password_hasher
         self.token_provider = token_provider
         self.settings = settings or user_settings
+        self.data_erasers = list(data_erasers)
 
     async def create_user(self, command: CreateUserCommand) -> User:
         await self._ensure_email_available(command.email)
@@ -101,7 +104,17 @@ class UserService:
         return await self.user_repository.save(user)
 
     async def delete_user(self, command: DeleteUserCommand) -> None:
+        """Apaga o que cada módulo guarda do usuário e depois a conta.
+
+        Antes, só a conta era apagada: as chaves estrangeiras das mídias e dos
+        avisos barravam a exclusão (erro 500) de quem já tinha enviado algo.
+        Cada módulo apaga os próprios dados (as mídias levam arquivos,
+        transcrições e análises); se algo falhar, a conta fica e a exclusão
+        pode ser repetida.
+        """
         await self._get_or_raise(command.user_id)
+        for eraser in self.data_erasers:
+            await eraser.erase(command.user_id)
         if not await self.user_repository.delete(command.user_id):
             raise ValueError("Usuário não pôde ser removido")
 

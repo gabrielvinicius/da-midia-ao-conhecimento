@@ -4,8 +4,12 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from typing import Sequence
+
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.user_management.application.ports import UserDataEraserPort
 
 from src.user_management.api.dependencies import (
     get_auth_queries,
@@ -42,6 +46,7 @@ class UserManagementModule:
 
 def build_user_management_components(
     session: AsyncSession,
+    data_erasers: Sequence[UserDataEraserPort] = (),
 ) -> UserManagementModule:
     """Compose the user management module with all its dependencies."""
     user_repo = UserRepository(db=session)
@@ -54,6 +59,7 @@ def build_user_management_components(
         password_hasher=get_password_hasher(),
         token_provider=get_token_provider(),
         settings=user_settings,
+        data_erasers=data_erasers,
     )
 
     auth_service = AuthService(user_service=user_service, settings=user_settings)

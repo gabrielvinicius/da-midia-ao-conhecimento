@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
+from src.media_processing.domain.transcript_confidence import transcript_confidence
 from src.shared.domain.base_entity import BaseEntity
 
 
@@ -26,7 +27,7 @@ class Transcription(BaseEntity):
     text: str
     segments: list[Dict[str, Any]]
     speaker_labels: list[Dict[str, Any]]
-    confidence_score: float
+    confidence_score: Optional[float]
     provider: str
     status: TranscriptionStatus
     created_at: datetime.datetime
@@ -51,7 +52,7 @@ class Transcription(BaseEntity):
         text: str = "",
         segments: Optional[list[Dict[str, Any]]] = None,
         speaker_labels: Optional[list[Dict[str, Any]]] = None,
-        confidence_score: float = 0.0,
+        confidence_score: Optional[float] = None,
         provider: str = "default",
         status: TranscriptionStatus = TranscriptionStatus.PENDING,
         created_at: Optional[datetime.datetime] = None,
@@ -91,9 +92,10 @@ class Transcription(BaseEntity):
         self.segments = result.get("segments", [])
         self.speaker_labels = result.get("speaker_labels", self.speaker_labels)
         self.language = result.get("language", self.language)
-        self.confidence_score = result.get("confidence_score") or result.get(
-            "confidence", 0.0
-        )
+        self.confidence_score = result.get("confidence_score")
+        if self.confidence_score is None:
+            # Sem segmentos com confiança (texto, OCR): fica vazio, não 0.
+            self.confidence_score = transcript_confidence(self.segments)
         self.updated_at = datetime.datetime.now(datetime.timezone.utc)
         self.processed_at = self.updated_at
         self.result = result or self.result
