@@ -50,7 +50,6 @@ from src.shared.domain.events import (
 )
 
 # metrics_collector disabled (psutil dep)
-from src.shared.infrastructure.caching.cache import cache
 from src.shared.infrastructure.database.db import (
     AsyncSessionLocal,
     DbSessionScopeMiddleware,
@@ -265,7 +264,7 @@ async def lifespan(app: FastAPI):
             )
             notifications_bridge = None
 
-    resources = ApplicationResources(cache=cache, event_bus=event_bus)
+    resources = ApplicationResources(event_bus=event_bus)
 
     # O primeiro administrador só é criado quando as duas variáveis são
     # definidas. Não há valor padrão: uma senha fixa no código-fonte público
@@ -472,32 +471,6 @@ async def root():
     }
 
 
-# Health Check Endpoint
-@app.get("/health")
-async def health_check():
-    """Endpoint para verificação de saúde da aplicação."""
-    try:
-        from sqlalchemy import text
-        async with AsyncSessionLocal() as session:
-            await session.execute(text("SELECT 1"))
-
-        try:
-            await cache.get("health_check")
-            cache_status = "connected"
-        except Exception:
-            cache_status = "disconnected"
-
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "cache": cache_status,
-        }
-    except Exception:
-        return {
-            "status": "unhealthy",
-            "database": "disconnected",
-            "cache": "unknown",
-        }
 
 
 @app.get("/metrics")

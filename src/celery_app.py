@@ -18,6 +18,16 @@ def _default_backend() -> str | None:
     return os.getenv("CELERY_RESULT_BACKEND", os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/1"))
 
 
+# Folga além do prazo máximo de processamento antes de o Redis reentregar.
+VISIBILITY_MARGIN_SECONDS = 3600
+
+
+def visibility_timeout_seconds() -> int:
+    from src.media_processing.config.settings import processing_settings
+
+    return int(processing_settings.stall_maximum_hours * 3600) + VISIBILITY_MARGIN_SECONDS
+
+
 def create_celery() -> Celery:
     app = Celery(
         "video_summarizer",
@@ -38,6 +48,13 @@ def create_celery() -> Celery:
             os.getenv("CELERY_WORKER_PREFETCH_MULTIPLIER", "1")
         ),
     )
+
+    # Com acks_late, o Redis entrega de novo toda mensagem não confirmada
+    # depois do visibility_timeout (1 hora por padrão), inclusive a que está
+    # reservada enquanto outra roda. Uma análise longa seria reprocessada na
+    # GPU. O limite passa a cobrir o prazo máximo de processamento.
+    app.conf.broker_transport_options = {"visibility_timeout": visibility_timeout_seconds()}
+    app.conf.result_backend_transport_options = {"visibility_timeout": visibility_timeout_seconds()}
 
     # Verificação periódica de mídias paradas. Roda no worker leve, iniciado
     # com --beat (docker-compose.yml): o pesado pode estar preso na tarefa.

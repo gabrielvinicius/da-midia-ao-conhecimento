@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -10,29 +10,32 @@ from src.shared.infrastructure.observability.logging.logging_config import get_l
 
 logger = get_logger("validation")
 
-def _safe_validation_payload(exc: RequestValidationError) -> Dict[str, Any]:
-    return {
-        "errors": exc.errors(),
-        "body": exc.body if isinstance(exc.body, (dict, list, str, int, float)) else None,
-    }
+
+def safe_errors(exc: RequestValidationError) -> List[Dict[str, Any]]:
+    """Onde e por que a validação falhou, sem o valor recebido.
+
+    O log gravava o corpo da requisição e o campo "input" de cada erro: um
+    cadastro com e-mail inválido deixava a senha em texto puro nos logs.
+    """
+    return [
+        {"loc": list(error.get("loc", ())), "type": error.get("type"), "msg": error.get("msg")}
+        for error in exc.errors()
+    ]
 
 
 def register_validation_middleware(app: FastAPI) -> None:
-    """Registra handlers de validação com log estruturado.
-
-    O FastAPI já devolve 422 automaticamente, mas sem padronizar logging/telemetria.
-    Aqui centralizamos o log para facilitar troubleshooting (sem acoplar domínio).
-    """
+    """Respostas 422 e log de validação sem dados enviados pelo usuário."""
 
     @app.exception_handler(RequestValidationError)
     async def request_validation_error_handler(  # type: ignore[override]
         request: Request,
         exc: RequestValidationError,
     ) -> JSONResponse:
+        errors = safe_errors(exc)
         logger.warning(
             "http.request.validation_failed",
             path=request.url.path,
             method=request.method,
-            **_safe_validation_payload(exc),
+            errors=errors,
         )
-        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+        return JSONResponse(status_code=422, content={"detail": errors})

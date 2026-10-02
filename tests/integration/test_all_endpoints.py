@@ -24,11 +24,17 @@ async def test_root_endpoint(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_health_check_endpoint(client: AsyncClient):
-    """Test the health check endpoint."""
+async def test_health_check_endpoint(client: AsyncClient, monkeypatch):
+    """A rota /health da aplicação é a que verifica banco e Redis."""
+    from src.shared.infrastructure.observability.health import health_check as health
+
+    async def ok():
+        return True
+
+    monkeypatch.setattr(health, "CHECKS", {"database": ok, "redis": ok})
     response = await client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
+    assert response.json() == {"status": "healthy", "database": "connected", "redis": "connected"}
 
 
 @pytest.mark.asyncio

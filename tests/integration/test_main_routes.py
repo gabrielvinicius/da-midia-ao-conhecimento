@@ -19,14 +19,22 @@ async def test_root_endpoint():
 
 
 @pytest.mark.asyncio
-async def test_health_check_endpoint():
+async def test_health_check_reports_a_failing_dependency_as_503(monkeypatch):
+    from src.shared.infrastructure.observability.health import health_check as health
+
+    async def ok():
+        return True
+
+    async def down():
+        return False
+
+    monkeypatch.setattr(health, "CHECKS", {"database": ok, "redis": down})
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/health")
 
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["status"] == "healthy"
+    assert response.status_code == 503
+    assert response.json() == {"status": "unhealthy", "database": "connected", "redis": "disconnected"}
 
 
 @pytest.mark.asyncio
