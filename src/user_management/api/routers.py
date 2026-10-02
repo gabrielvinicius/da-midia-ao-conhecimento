@@ -92,10 +92,9 @@ async def login_for_access_token(
         )
     except InvalidCredentialsError as e:
         await throttle.register_failure(form_data.username, client_ip)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
-    except ValueError as e:
-        # Catch-all for other value errors, but domain exceptions should cover logic
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e) or "Credenciais inválidas"
+        )
 
     await throttle.register_success(form_data.username)
 
@@ -132,13 +131,12 @@ async def refresh_token(
     if not refresh_cookie:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token ausente")
 
-    payload = auth_service.user_service.token_provider.verify_refresh_token(refresh_cookie)  # type: ignore[attr-defined]
-    if not payload or not payload.get("sub"):
+    try:
+        tokens = await auth_service.refresh(refresh_cookie)
+    except InvalidCredentialsError:
+        response.delete_cookie("refresh_token", path="/")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido")
-
-    user_id = payload["sub"]
-    new_access = auth_service.user_service.token_provider.create_access_token(user_id)
-    new_refresh = auth_service.user_service.token_provider.create_refresh_token(user_id)  # type: ignore[attr-defined]
+    new_access, new_refresh = tokens["access_token"], tokens["refresh_token"]
 
     cookie_secure = settings.cookie_secure
     cookie_samesite = settings.cookie_samesite

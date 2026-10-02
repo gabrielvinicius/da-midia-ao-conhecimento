@@ -480,3 +480,28 @@ def test_existing_users_can_be_updated(client):
     r = client.put(f"/admin/users/{user_id}", headers=admin, json={"role": "ADMIN"})
     assert r.status_code == 200, r.text
     assert r.json()["role"] == "ADMIN"
+
+
+def test_deactivated_user_loses_access(client):
+    """Desativar uma conta no painel não bloqueava nada: o login, o token já
+    emitido e a renovação continuavam funcionando."""
+    admin_email, admin_password = os.environ.get("DEFAULT_ADMIN_EMAIL"), os.environ.get("DEFAULT_ADMIN_PASSWORD")
+    if not (admin_email and admin_password):
+        pytest.skip("sem administrador padrão")
+    email = f"rui-{uuid.uuid4().hex[:8]}@teste.com"
+    assert client.post("/auth/register", json={"email": email, "password": "Senha123"}).status_code == 201
+    login = client.post("/auth/token", data={"username": email, "password": "Senha123"})
+    me = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    refresh_cookie = login.cookies["refresh_token"]
+    user_id = client.get("/auth/me", headers=me).json()["id"]
+
+    admin_token = client.post("/auth/token", data={"username": admin_email, "password": admin_password}).json()["access_token"]
+    admin = {"Authorization": f"Bearer {admin_token}"}
+    r = client.post(f"/admin/users/{user_id}/deactivate", headers=admin)
+    assert r.status_code == 200, r.text
+
+    assert client.get("/auth/me", headers=me).status_code == 401
+    client.cookies.set("refresh_token", refresh_cookie)
+    assert client.post("/auth/refresh").status_code == 401
+    r = client.post("/auth/token", data={"username": email, "password": "Senha123"})
+    assert r.status_code == 401 and "desativada" in r.json()["detail"]

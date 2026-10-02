@@ -170,12 +170,11 @@ class UserService:
             password, user.password_hash
         ):
             raise InvalidCredentialsError()
+        if not user.is_active:
+            # A senha confere; dizer que a conta está desativada não expõe nada.
+            raise InvalidCredentialsError("Conta desativada")
         access_token = self.token_provider.create_access_token(user.id)
-        refresh_token = (
-            self.token_provider.create_refresh_token(user.id)
-            if hasattr(self.token_provider, "create_refresh_token")
-            else None
-        )
+        refresh_token = self.token_provider.create_refresh_token(user.id)
         return {
             "token": access_token,
             "access_token": access_token,

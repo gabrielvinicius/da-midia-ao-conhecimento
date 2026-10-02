@@ -98,7 +98,9 @@ async def get_current_user(
         raise credentials_exception
 
     user = await queries.get_user_by_id(GetUserQuery(user_id=user_id).user_id)
-    if user is None:
+    # Conta excluída ou desativada perde o acesso já na próxima requisição,
+    # mesmo com um token ainda dentro da validade.
+    if user is None or not user.is_active:
         raise credentials_exception
     return user
 
@@ -127,7 +129,9 @@ async def get_current_user_from_query(
         raise credentials_exception
 
     user = await queries.get_user_by_id(GetUserQuery(user_id=user_id).user_id)
-    if user is None:
+    # Conta excluída ou desativada perde o acesso já na próxima requisição,
+    # mesmo com um token ainda dentro da validade.
+    if user is None or not user.is_active:
         raise credentials_exception
     return user
 
@@ -166,7 +170,7 @@ async def get_current_user_websocket(
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Token inválido")
 
     user = await queries.get_user_by_id(GetUserQuery(user_id=user_id).user_id)
-    if not user:
+    if not user or not user.is_active:
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Usuário não encontrado")
     return user
 
