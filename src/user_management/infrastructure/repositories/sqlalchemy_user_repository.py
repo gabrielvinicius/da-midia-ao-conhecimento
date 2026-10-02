@@ -29,7 +29,9 @@ class UserRepository:
         return model.to_domain() if model else None
 
     async def find_by_email(self, email: str) -> Optional[User]:
-        result = await self.db.execute(select(UserModel).where(UserModel.email == email))
+        # Comparação sem maiúsculas: contas antigas podem ter sido gravadas
+        # com o e-mail como digitado.
+        result = await self.db.execute(select(UserModel).where(func.lower(UserModel.email) == email.strip().lower()))
         model = result.scalar_one_or_none()
         return model.to_domain() if model else None
 

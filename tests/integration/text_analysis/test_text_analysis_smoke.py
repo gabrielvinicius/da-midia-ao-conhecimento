@@ -78,7 +78,7 @@ class AsyncInMemoryRepo(InMemoryAnalysisRepository):
         return super().get(analysis_id)
 
     async def get_by_media_id(self, media_id: str):
-        return super().get_by_media_id(media_id)
+        return await super().get_by_media_id(media_id)
 
     async def list_topics(self, analysis_id: str):
         return super().list_topics(analysis_id)

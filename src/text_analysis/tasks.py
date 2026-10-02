@@ -17,6 +17,7 @@ from src.shared.infrastructure.observability.logging.logging_config import get_l
 from src.shared.infrastructure.database.db import AsyncSessionLocal
 from src.shared.events.integration_events import TASK_TEXT_ANALYSIS_ANALYZE
 from src.shared.infrastructure.messaging.process_bus import process_event_bus
+from src.shared.infrastructure.tasks.retry import TRANSIENT_ERRORS, is_transient
 from src.shared.domain.value_objects.identifiers import parse_id, parse_media_id
 from src.text_analysis.application.dtos import AnalyzeTextCommand
 from src.text_analysis.application.services.text_analysis_service import TextAnalysisService
@@ -69,6 +70,7 @@ async def _async_task_body(
             transcription_id=transcription_uuid,
             user_id=user_uuid,
             language=language,
+            correlation_id=payload.get("correlation_id"),
         )
         result = await service.analyze_text_content(command)
         success = True
@@ -149,7 +151,9 @@ def _task_body_with_retry_context(
             try:
                 result = await _async_task_body(payload, op_name, service)
             except Exception as exc:
-                if final_attempt:
+                # Erro que não passa sozinho (defeito, dado inválido) não é
+                # repetido: esta já é a última tentativa.
+                if final_attempt or not is_transient(exc):
                     try:
                         await _notify_user(
                             session=session,
@@ -180,7 +184,7 @@ def _task_body_with_retry_context(
 @shared_task(
     bind=True,
     name=TASK_TEXT_ANALYSIS_ANALYZE,
-    autoretry_for=(Exception,),
+    autoretry_for=TRANSIENT_ERRORS,
     retry_backoff=True,
     max_retries=DEFAULT_MAX_RETRIES,
 )

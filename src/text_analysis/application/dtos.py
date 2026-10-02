@@ -23,6 +23,10 @@ class AnalyzeTextCommand(BaseModel):
         None,
         description="ID of the transcription, if applicable.",
     )
+    correlation_id: Optional[str] = Field(
+        None,
+        description="Identificador da requisição de envio, para seguir a mídia nos logs e eventos.",
+    )
     language: Optional[str] = Field(
         None,
         description="Language of the text content.",

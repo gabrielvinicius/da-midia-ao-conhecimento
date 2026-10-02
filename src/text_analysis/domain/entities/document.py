@@ -35,6 +35,8 @@ class Analysis:
     # usados pelos temas, pela indexação e pela verificação de fidelidade.
     # Transitório: não é gravado com a análise.
     chunk_embeddings: list = field(default_factory=list, repr=False)
+    # Identificador da requisição de envio (logs e eventos). Transitório.
+    correlation_id: Optional[str] = field(default=None, repr=False)
 
     @classmethod
     def new(

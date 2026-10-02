@@ -19,10 +19,9 @@ class NotificationService:
         self.repo = notification_repo
 
     async def get_user_notifications(self, query: GetUserNotificationsQuery) -> List[Notification]:
-        notifications = await self.repo.list_by_user(str(query.user_id), limit=query.limit)
-        if not query.include_read:
-            notifications = [n for n in notifications if not n.opened_at]
-        return notifications
+        return await self.repo.list_by_user(
+            str(query.user_id), limit=query.limit, unread_only=not query.include_read
+        )
 
     async def mark_notification_as_read(self, command: MarkNotificationAsReadCommand) -> bool:
         """Marca como lido; False se o aviso não existe ou é de outro usuário."""

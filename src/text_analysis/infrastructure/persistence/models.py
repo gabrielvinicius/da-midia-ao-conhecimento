@@ -17,7 +17,8 @@ class AnalysisModel(Base):
     # Como as transcrições e os trechos indexados, a análise referencia a
     # mídia: a exclusão é feita pela aplicação (MediaDataEraserPort), e a
     # chave estrangeira garante que nada fique órfão.
-    media_id = Column(Uuid(as_uuid=True), ForeignKey("media.id"), nullable=True, index=True)
+    # Uma análise por mídia: uma nova tentativa grava sobre a anterior.
+    media_id = Column(Uuid(as_uuid=True), ForeignKey("media.id"), nullable=True, index=True, unique=True)
     user_id = Column(Uuid(as_uuid=True), nullable=True, index=True)
     transcription_id = Column(Uuid(as_uuid=True), nullable=True, index=True)
 

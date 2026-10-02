@@ -3,6 +3,7 @@ from __future__ import annotations
 import mimetypes
 import os
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 from uuid import UUID
@@ -18,7 +19,9 @@ from src.media_processing.application.ports import (
     TranscriptionRepositoryPort,
 )
 from src.media_processing.domain import Transcription, TranscriptionStatus
-from src.shared.domain.errors import ResourceNotFoundError
+from src.media_processing.domain.errors import NoTextFoundError, UnsupportedFileTypeError
+from src.shared.application.ports import ProcessingStatsPort
+from src.shared.domain.errors import DomainError, ResourceNotFoundError
 from src.shared.domain.events import (
     MediaProcessingCompleted,
     MediaProcessingFailed,
@@ -42,6 +45,7 @@ class TextExtractionService:
         event_bus: SupportsEventBus | None = None,
         metrics: Optional[MetricsPort] = None,
         logger: Optional[Any] = None,
+        stats_recorder: ProcessingStatsPort | None = None,
     ):
         self._repo = repository
         self._task_scheduler = task_scheduler
@@ -51,6 +55,7 @@ class TextExtractionService:
         self._event_bus = event_bus
         self._metrics = metrics
         self._logger = logger or structlog.get_logger(__name__)
+        self._stats = stats_recorder
 
     async def request_text_extraction(
         self, command: RequestTextExtractionCommand
@@ -104,9 +109,13 @@ class TextExtractionService:
             )
 
         transcription = await self._repo.get_by_media_id(media_id)
-        if transcription:
-            transcription.mark_as_processing()
-            await self._repo.save(transcription)
+        if transcription is None:
+            # O registro é criado ao agendar; sem ele, a mídia foi excluída
+            # durante a espera na fila e não há onde guardar o texto.
+            logger.warning("text_extraction.record_missing", media_id=str(media_id))
+            return
+        transcription.mark_as_processing()
+        await self._repo.save(transcription)
 
         # Retrieve content
         content = await self._storage.retrieve(file_path)
@@ -126,18 +135,24 @@ class TextExtractionService:
             "user_id": str(owner) if owner else None,
             "filename": filename or getattr(transcription, "filename", None),
         }
+        started = time.perf_counter()
+        provider_used = "text_extraction"
         try:
             extracted_text, provider_used = await self._extract(tmp_path, mime_type, suffix)
-            if transcription:
-                transcription.mark_as_extracted(extracted_text, provider_used)
-                await self._repo.save(transcription)
-                await self._announce_extracted(
-                    media_id, transcription, extracted_text, provider_used, context, correlation_id
-                )
-        except Exception as exc:  # registra a falha e devolve à fila para nova tentativa
-            await self._record_failure(
-                media_id, transcription, exc, final_attempt, context, correlation_id
+            if not extracted_text.strip():
+                raise NoTextFoundError()
+            await self._record_duration(time.perf_counter() - started, len(content), provider_used, "success")
+            transcription.mark_as_extracted(extracted_text, provider_used)
+            await self._repo.save(transcription)
+            await self._announce_extracted(
+                media_id, transcription, extracted_text, provider_used, context, correlation_id
             )
+        except Exception as exc:
+            await self._record_duration(time.perf_counter() - started, len(content), provider_used, "failed")
+            # Tipo não suportado ou arquivo sem texto não mudam com outra
+            # tentativa: a falha já é a definitiva.
+            final = final_attempt or isinstance(exc, DomainError)
+            await self._record_failure(media_id, transcription, exc, final, context, correlation_id)
             raise
         finally:
             if os.path.exists(tmp_path):
@@ -155,7 +170,16 @@ class TextExtractionService:
             if len(text.strip()) < 50:
                 return await self._ocr_provider.extract(path), "ocr_pdf"
             return text, "pdf_native"
-        return "", "fallback"
+        raise UnsupportedFileTypeError(suffix)
+
+    async def _record_duration(self, seconds: float, size: int, provider: str, status: str) -> None:
+        """Tempo da extração, como o da transcrição: base das medições e estimativas."""
+        if not self._stats:
+            return
+        try:
+            await self._stats.log_stat("text_extraction", seconds, size, None, provider, status)
+        except Exception as exc:  # estatística nunca derruba a extração
+            logger.warning("text_extraction.stats_record_failed", error=str(exc))
 
     async def _announce_extracted(
         self, media_id, transcription, text, provider_used, context, correlation_id
@@ -189,12 +213,11 @@ class TextExtractionService:
     async def _record_failure(
         self, media_id, transcription, exc, final_attempt, context, correlation_id
     ) -> None:
-        if transcription:
-            if final_attempt:
-                transcription.mark_as_failed(str(exc))
-            else:
-                transcription.record_processing_error(str(exc))
-            await self._repo.save(transcription)
+        if final_attempt:
+            transcription.mark_as_failed(str(exc))
+        else:
+            transcription.record_processing_error(str(exc))
+        await self._repo.save(transcription)
         if self._event_bus and final_attempt:
             await self._event_bus.publish(
                 MediaProcessingFailed(

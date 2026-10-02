@@ -22,11 +22,18 @@ class PasslibPasswordHasher(PasswordHasherPort):
             deprecated="auto",
         )
 
+    # O bcrypt só considera os primeiros 72 bytes. O corte fica aqui, igual
+    # no cadastro, na troca e na verificação; antes, o serviço cortava 72
+    # caracteres só no cadastro, e senhas com acentos passavam do limite.
+    @staticmethod
+    def _bounded(password: str) -> bytes:
+        return password.encode("utf-8")[:72]
+
     def hash(self, password: str) -> str:
-        return self._ctx.hash(password)
+        return self._ctx.hash(self._bounded(password))
 
     def verify(self, password: str, hashed: str) -> bool:
-        return self._ctx.verify(password, hashed)
+        return self._ctx.verify(self._bounded(password), hashed)
 
 
 class JwtTokenProvider(TokenProviderPort):

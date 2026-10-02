@@ -31,6 +31,10 @@ class TemporarilyUnavailableError(DomainError):
     """Uma dependência falhou; nada ficou pela metade e a operação pode ser repetida (503)."""
 
 
+class AuthenticationError(DomainError):
+    """Credenciais ou sessão inválidas (401)."""
+
+
 class ValidationError(DomainError):
     def __init__(self, field: str, value: str, message: str):
         super().__init__(f"Invalid value '{value}' for field '{field}': {message}")

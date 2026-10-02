@@ -29,14 +29,16 @@ class NotificationRepository:
         await uow_commit(self.db)
         return merged.to_domain()
 
-    async def list_by_user(self, user_id: str, limit: int = 50) -> List[Notification]:
-        """Avisos mais recentes do usuário, do mais novo para o mais antigo."""
-        result = await self.db.execute(
-            select(NotificationModel)
-            .where(NotificationModel.user_id == UUID(user_id))
-            .order_by(NotificationModel.created_at.desc())
-            .limit(limit)
-        )
+    async def list_by_user(self, user_id: str, limit: int = 50, unread_only: bool = False) -> List[Notification]:
+        """Avisos mais recentes do usuário, do mais novo para o mais antigo.
+
+        O filtro de não lidos fica na consulta: filtrado depois do limite, um
+        aviso não lido mais antigo que os ``limit`` últimos sumia da lista.
+        """
+        stmt = select(NotificationModel).where(NotificationModel.user_id == UUID(user_id))
+        if unread_only:
+            stmt = stmt.where(NotificationModel.opened_at.is_(None))
+        result = await self.db.execute(stmt.order_by(NotificationModel.created_at.desc()).limit(limit))
         return [model.to_domain() for model in result.scalars().all()]
 
     async def mark_all_as_read(self, user_id: str) -> int:

@@ -2,7 +2,7 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from src.admin.application.dtos import (
     GetMediaProcessingStatsQuery,
@@ -79,19 +79,11 @@ async def update_user(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Updates a user's role. Requires admin privileges."""
-    try:
-        return await service.update_user_role(
-            user_id=user_id,
-            new_role=update_data.role,
-            admin_user=current_admin,
-        )
-    except (ValueError, PermissionError) as e:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if isinstance(e, ValueError)
-            else status.HTTP_403_FORBIDDEN
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+    return await service.update_user_role(
+        user_id=user_id,
+        new_role=update_data.role,
+        admin_user=current_admin,
+    )
 
 
 @router.delete(
@@ -105,18 +97,10 @@ async def delete_user(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Deletes a user from the system. Requires admin privileges."""
-    try:
-        await service.delete_user(
-            user_id=user_id,
-            admin_user=current_admin,
-        )
-    except (ValueError, PermissionError) as e:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if isinstance(e, ValueError)
-            else status.HTTP_403_FORBIDDEN
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+    await service.delete_user(
+        user_id=user_id,
+        admin_user=current_admin,
+    )
 
 
 
@@ -167,18 +151,10 @@ async def delete_media(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Deletes a media item and its associated files from storage."""
-    try:
-        await service.delete_media(
-            media_id=media_id,
-            admin_user=current_admin,
-        )
-    except (ValueError, PermissionError) as e:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if isinstance(e, ValueError)
-            else status.HTTP_403_FORBIDDEN
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+    await service.delete_media(
+        media_id=media_id,
+        admin_user=current_admin,
+    )
 
 
 @router.post(
@@ -192,19 +168,11 @@ async def reprocess_media(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Triggers reprocessing for a media item that previously failed."""
-    try:
-        await service.reprocess_media(
-            media_id=media_id,
-            admin_user=current_admin,
-        )
-        return {"message": "Reprocessing initiated."}
-    except (ValueError, PermissionError) as e:
-        status_code = (
-            status.HTTP_400_BAD_REQUEST
-            if isinstance(e, ValueError)
-            else status.HTTP_403_FORBIDDEN
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+    await service.reprocess_media(
+        media_id=media_id,
+        admin_user=current_admin,
+    )
+    return {"message": "Reprocessing initiated."}
 
 
 # New enhanced admin routes using SOLID refactored services
@@ -245,12 +213,9 @@ async def get_user_activity(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Get activity statistics for a specific user."""
-    try:
-        return await service.get_user_activity(
-            query=GetUserActivityQuery(user_id=user_id, admin_user_id=current_admin.id)
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return await service.get_user_activity(
+        query=GetUserActivityQuery(user_id=user_id, admin_user_id=current_admin.id)
+    )
 
 
 @router.post(
@@ -264,15 +229,7 @@ async def activate_user(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Activate a user account."""
-    try:
-        return await service.activate_user(user_id=user_id, admin_user=current_admin)
-    except (ValueError, PermissionError) as e:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if isinstance(e, ValueError)
-            else status.HTTP_403_FORBIDDEN
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+    return await service.activate_user(user_id=user_id, admin_user=current_admin)
 
 
 @router.post(
@@ -286,15 +243,7 @@ async def deactivate_user(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Deactivate a user account."""
-    try:
-        return await service.deactivate_user(user_id=user_id, admin_user=current_admin)
-    except (ValueError, PermissionError) as e:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if isinstance(e, ValueError)
-            else status.HTTP_403_FORBIDDEN
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+    return await service.deactivate_user(user_id=user_id, admin_user=current_admin)
 
 
 @router.post("/media/bulk-reprocess", summary="Bulk reprocess all failed media")
@@ -303,16 +252,13 @@ async def bulk_reprocess_failed_media(
     current_admin: User = Depends(get_current_admin_user),
 ):
     """Reprocess all failed media items in bulk."""
-    try:
-        reprocessed_count = await service.bulk_reprocess_failed_media(
-            admin_user=current_admin
-        )
-        return {
-            "message": (
-                f"Bulk reprocessing initiated for {reprocessed_count} media items"
-            ),
-            "reprocessed_count": reprocessed_count,
-        }
-    except PermissionError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    reprocessed_count = await service.bulk_reprocess_failed_media(
+        admin_user=current_admin
+    )
+    return {
+        "message": (
+            f"Bulk reprocessing initiated for {reprocessed_count} media items"
+        ),
+        "reprocessed_count": reprocessed_count,
+    }
 

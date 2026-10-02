@@ -116,6 +116,7 @@ def build_text_extraction_service(
         event_bus=event_bus,
         metrics=PrometheusTranscriptionMetrics(),
         logger=StructuredTranscriptionLogger(),
+        stats_recorder=_stats_recorder(session),
     )
 
 

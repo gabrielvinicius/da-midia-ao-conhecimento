@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 
 from src.shared.domain.errors import (
     AccessDeniedError,
+    AuthenticationError,
     ConflictError,
     DomainError,
     NotFoundError,
@@ -17,6 +18,7 @@ logger = get_logger("api.errors")
 _STATUS = (
     (NotFoundError, status.HTTP_404_NOT_FOUND, "NOT_FOUND"),
     (AccessDeniedError, status.HTTP_403_FORBIDDEN, "ACCESS_DENIED"),
+    (AuthenticationError, status.HTTP_401_UNAUTHORIZED, "UNAUTHENTICATED"),
     (ConflictError, status.HTTP_409_CONFLICT, "CONFLICT"),
     (TemporarilyUnavailableError, status.HTTP_503_SERVICE_UNAVAILABLE, "UNAVAILABLE"),
     (ValidationError, 422, "VALIDATION_ERROR"),

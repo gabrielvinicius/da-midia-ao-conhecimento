@@ -140,10 +140,18 @@ class MediaWorkerApp:
         try:
             self.analysis_requester.request_analysis(payload)
         except Exception as exc:
-            logger.warning(
-                "text_analysis.enqueue_failed",
-                media_id=str(event.media_id),
-                error=str(exc),
+            # Antes, só um aviso no log: a mídia ficava "concluída" sem análise,
+            # e nada a recuperava. Agora ela falha de forma visível e pode ser
+            # reprocessada pelo usuário.
+            logger.error("text_analysis.enqueue_failed", media_id=str(event.media_id), error=str(exc))
+            await self.event_bus.publish(
+                MediaProcessingFailed(
+                    media_id=str(event.media_id),
+                    stage="text_analysis",
+                    error_message="Não foi possível agendar a análise do texto. Tente reprocessar a mídia.",
+                    user_id=payload["user_id"],
+                    correlation_id=payload["correlation_id"],
+                )
             )
 
     async def _on_media_processing_started(self, event: MediaProcessingStarted) -> None:

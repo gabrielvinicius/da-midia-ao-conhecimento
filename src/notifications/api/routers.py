@@ -25,11 +25,12 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 @router.get("/", summary="Avisos mais recentes do usuário")
 async def list_my_notifications(
     limit: int = Query(30, ge=1, le=100),
+    unread: bool = Query(False, description="Só os avisos ainda não lidos."),
     service: NotificationService = Depends(get_notification_service),
     current_user: User = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     notifications = await service.get_user_notifications(
-        GetUserNotificationsQuery(user_id=current_user.id, limit=limit)
+        GetUserNotificationsQuery(user_id=current_user.id, limit=limit, include_read=not unread)
     )
     # Mesmo formato da mensagem do WebSocket: a interface trata os dois igual.
     return [realtime_message(n)["payload"] for n in notifications]

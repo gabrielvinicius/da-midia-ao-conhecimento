@@ -11,7 +11,7 @@ from src.media_management.application.dtos import DeleteMediaCommand
 from src.media_management.application.policies import MediaAccessPolicy
 from src.media_management.application.ports import EventBusPort, MediaRepositoryPort
 from src.media_management.domain import Media
-from src.shared.domain.errors import NotFoundError
+from src.shared.domain.errors import AccessDeniedError, NotFoundError
 from src.shared.domain.events import MediaDeleted
 from src.shared.domain.roles import UserRole
 
@@ -47,7 +47,7 @@ class DeleteMedia:
         if not media:
             raise NotFoundError(f"Mídia {command.media_id} não encontrada")
         if user_id is None and user_role != UserRole.ADMIN:
-            raise PermissionError("User identifier is required for non-admin operations")
+            raise AccessDeniedError("Usuário não identificado")
         self._access.ensure_can_access(media, user_id, user_role)
 
         success = False

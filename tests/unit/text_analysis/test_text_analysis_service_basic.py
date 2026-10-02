@@ -54,6 +54,9 @@ class InMemoryRepo:
     async def get(self, analysis_id):
         return self.saved.get(analysis_id)
 
+    async def get_by_media_id(self, media_id):
+        return next((a for a in self.saved.values() if str(a.media_id) == str(media_id)), None)
+
 
 from src.text_analysis.application.pipeline.base import AnalysisPipeline
 from src.text_analysis.application.pipeline.steps import (

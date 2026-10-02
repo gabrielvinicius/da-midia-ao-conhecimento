@@ -21,7 +21,6 @@ from src.user_management.application.services.login_throttle import LoginThrottl
 from src.user_management.application.services.user_service import UserService
 from src.user_management.domain.errors import (
     InvalidCredentialsError,
-    UserAlreadyExistsError,
 )
 from src.user_management.domain import User, UserRole
 
@@ -42,21 +41,10 @@ async def register(
     user_data: UserCreate,
     user_service: UserService = Depends(get_user_service),
 ):
-    logger.info("auth.register.received", email=user_data.email)
-    try:
-        command = CreateUserCommand(
-            email=user_data.email,
-            password=user_data.password,
-            role=UserRole.USER,
-        )
-        result = await user_service.register_user(command)
-        return UserResponse(**result["user"])
-    except UserAlreadyExistsError as e:
-        logger.warning("auth.register.conflict", email=user_data.email, error=str(e))
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-    except ValueError as e:
-        logger.warning("auth.register.validation_error", email=user_data.email, error=str(e))
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    # Conflito (409) e dados inválidos (400) saem pelos tratadores globais.
+    command = CreateUserCommand(email=user_data.email, password=user_data.password, role=UserRole.USER)
+    result = await user_service.register_user(command)
+    return UserResponse(**result["user"])
 
 
 def _client_ip(request: Request) -> Optional[str]:
@@ -174,14 +162,7 @@ async def change_my_password(
     user_service: UserService = Depends(get_user_service),
 ) -> Response:
     """Troca a senha do usuário logado, exigindo a senha atual."""
-    try:
-        await user_service.change_password(
-            current_user.id, payload.old_password, payload.new_password
-        )
-    except InvalidCredentialsError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Senha atual incorreta")
-    except ValueError as exc:  # regras de força da senha
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    await user_service.change_password(current_user.id, payload.old_password, payload.new_password)
     logger.info("auth.password_changed", user_id=str(current_user.id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

@@ -15,6 +15,7 @@ from fastapi import (
 from fastapi.responses import Response
 
 from src.media_management.application.errors import InvalidRangeError
+from src.shared.domain.errors import NotFoundError
 from src.media_management.application.dtos import (
     CreateMediaCommand,
     DeleteMediaCommand,
@@ -130,22 +131,11 @@ async def get_media_by_id(
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
 ):
-    try:
-        query = GetMediaQuery(media_id=media_id)
-        media = await service.get_media(query)
-
-        if not media:
-            raise ValueError("Mídia não encontrada")
-
-        if media.user_id != current_user.id and current_user.role != UserRole.ADMIN:
-            raise PermissionError("Não autorizado")
-
-        return MediaResponse.from_domain(media)
-    except (ValueError, PermissionError):
-        raise HTTPException(
-            status_code=404,
-            detail="Media not found or not authorized",
-        )
+    media = await service.get_media(GetMediaQuery(media_id=media_id))
+    # Mídia de outro usuário: 404, sem revelar que ela existe.
+    if not media or (media.user_id != current_user.id and current_user.role != UserRole.ADMIN):
+        raise NotFoundError("Mídia não encontrada")
+    return MediaResponse.from_domain(media)
 
 
 @router.delete(
@@ -158,16 +148,10 @@ async def delete_media(
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
 ):
-    try:
-        command = DeleteMediaCommand(media_id=media_id)
-        await service.delete_media(
-            command,
-            user_id=current_user.id,
-            user_role=current_user.role,
-        )
-    except PermissionError:
-        # Mídia de outro usuário: 404, sem revelar que ela existe.
-        raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")
+    # Mídia de outro usuário: a política de acesso responde 404.
+    await service.delete_media(
+        DeleteMediaCommand(media_id=media_id), user_id=current_user.id, user_role=current_user.role
+    )
 
 
 @router.get("/{media_id}/stream", summary="Stream media bytes for playback")
@@ -194,10 +178,7 @@ async def stream_media(
             headers=stream_dto.headers,
             status_code=stream_dto.status_code,
         )
-    except PermissionError:
-        # Mídia de outro usuário: 404, sem revelar que ela existe.
-        raise HTTPException(status_code=404, detail="Mídia não encontrada")
-    except InvalidRangeError as exc:
+    except InvalidRangeError as exc:  # 416 é próprio do streaming
         raise HTTPException(status_code=416, detail=str(exc))
 
 
@@ -212,25 +193,11 @@ async def reprocess_media(
     service: MediaService = Depends(get_media_service),
 ):
     """Reprocess a media item (transcription, summarization, sentiment)."""
-    try:
-        command = ReprocessMediaCommand(media_id=media_id)
-        await service.reprocess_media(
-            command,
-            user_id=current_user.id,
-            user_role=current_user.role,
-        )
-
-        response_data = {
-            "media_id": str(media_id),
-            "status": "processing",
-            "message": "Media reprocessing initiated"
-        }
-
-        return create_success_response(
-            data=response_data,
-            message="Media reprocessing started successfully"
-        )
-
-    except PermissionError:
-        # Mídia de outro usuário: 404, sem revelar que ela existe.
-        raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")
+    # Mídia de outro usuário: a política de acesso responde 404.
+    await service.reprocess_media(
+        ReprocessMediaCommand(media_id=media_id), user_id=current_user.id, user_role=current_user.role
+    )
+    return create_success_response(
+        data={"media_id": str(media_id), "status": "processing", "message": "Media reprocessing initiated"},
+        message="Media reprocessing started successfully",
+    )

@@ -23,9 +23,11 @@ from pathlib import Path
 
 TASK_LABELS = {
     "transcription": "Transcrição",
+    "text_extraction": "Extração de texto (documentos)",
     "visual_description": "Descrição dos quadros",
     "text_analysis": "Análise completa",
     "analysis.chunking": "Divisão em trechos",
+    "analysis.chunk_embedding": "Vetores dos trechos",
     "analysis.sentiment": "Sentimento",
     "analysis.topic_modeling": "Temas",
     "analysis.topic_titles": "Títulos dos temas",

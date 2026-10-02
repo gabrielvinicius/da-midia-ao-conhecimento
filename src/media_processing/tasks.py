@@ -12,6 +12,7 @@ from src.media_processing.infrastructure.dependencies.builders import (
     build_transcription_service,
 )
 from src.media_processing.worker import MediaWorkerApp
+from src.shared.domain.errors import DomainError
 from src.media_processing.infrastructure.dependencies.providers import get_event_bus
 from src.shared.events.integration_events import (
     TASK_MEDIA_SWEEP_STALLED,
@@ -53,6 +54,8 @@ async def _run_with_session(coro_factory):
     bind=True,
     name=TASK_MEDIA_TEXT_EXTRACTION,
     autoretry_for=(Exception,),
+    # Tipo não suportado ou arquivo sem texto: falha definitiva, sem repetir.
+    dont_autoretry_for=(DomainError,),
     retry_backoff=True,
     max_retries=5
 )

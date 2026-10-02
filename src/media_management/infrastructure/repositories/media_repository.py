@@ -144,12 +144,15 @@ class MediaRepository:
         result = await self.db.execute(stmt)
         return [self._mapper.to_domain(entity) for entity in result.scalars().all()]
 
-    async def count_by_status(self, status: MediaStatus) -> int:
+    async def count_by_status(self, status: MediaStatus, since=None) -> int:
+        """Mídias no estado; com ``since``, só as que mudaram desde então."""
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
             .where(MediaEntity.status == status)
         )
+        if since is not None:
+            stmt = stmt.where(MediaEntity.updated_at >= since)
         result = await self.db.execute(stmt)
         return result.scalar_one()
 

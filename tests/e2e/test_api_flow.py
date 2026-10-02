@@ -541,6 +541,12 @@ def test_notifications_survive_a_closed_page(client):
     assert client.post(f"/notifications/{first}/read", headers=alice).status_code == 204
     read = {n["id"]: n["read"] for n in client.get("/notifications/", headers=alice).json()}
     assert read[first] is True and list(read.values()).count(False) == 1
+    # O filtro de não lidos vem antes do limite: o único não lido aparece
+    # mesmo pedindo um só aviso (antes, a lista filtrava depois do limite).
+    asyncio.run(store("Aviso mais novo"))
+    client.post(f"/notifications/{client.get('/notifications/?limit=1', headers=alice).json()[0]['id']}/read", headers=alice)
+    [unread] = client.get("/notifications/?unread=true&limit=1", headers=alice).json()
+    assert unread["content"] == "Análise concluída"
 
     assert client.post("/notifications/read-all", headers=alice).status_code == 204
     assert all(n["read"] for n in client.get("/notifications/", headers=alice).json())

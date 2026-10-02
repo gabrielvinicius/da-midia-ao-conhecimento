@@ -4,6 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 from src.media_management.domain import Media
+from src.shared.domain.errors import NotFoundError
 from src.shared.domain.roles import UserRole
 
 
@@ -34,8 +35,9 @@ class MediaAccessPolicy:
         user_id: UUID,
         user_role: Optional[UserRole] = None,
     ) -> None:
-        """Raise PermissionError when the user lacks access to the media."""
+        """Mídia de outro usuário é tratada como inexistente (404): a resposta
+        não revela que ela existe."""
         if not self.can_access(media, user_id, user_role):
-            raise PermissionError("Usuário não está autorizado a acessar esta mídia")
+            raise NotFoundError("Mídia não encontrada")
 
     # Additional helpers can be added here when needed.

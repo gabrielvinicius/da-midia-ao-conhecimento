@@ -25,10 +25,17 @@ logger = structlog.get_logger(__name__)
 FAST_LANE_MAX_BYTES = 50 * 1024 * 1024
 
 
+# Uma queda curta do Redis não deve perder a tarefa: o envio tenta de novo
+# por alguns segundos antes de desistir (e o chamador tratar a falha).
+SEND_RETRY_POLICY = {"max_retries": 4, "interval_start": 1, "interval_step": 2, "interval_max": 5}
+
+
 def _send(task_name: str, kwargs: dict, queue: str):
     from src.celery_app import celery
 
-    return celery.send_task(task_name, kwargs=kwargs, queue=queue)
+    return celery.send_task(
+        task_name, kwargs=kwargs, queue=queue, retry=True, retry_policy=SEND_RETRY_POLICY
+    )
 
 
 class CeleryTextTaskScheduler:

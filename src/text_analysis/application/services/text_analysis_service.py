@@ -157,6 +157,13 @@ class TextAnalysisService:
             transcription_id=transcription_id,
             user_id=command.user_id,
         )
+        analysis.correlation_id = command.correlation_id
+        # Uma análise por mídia: uma nova tentativa grava sobre a anterior
+        # (e as gravações parciais dela), em vez de criar outra.
+        if media_id:
+            existing = await self.repository.get_by_media_id(str(media_id))
+            if existing is not None:
+                analysis.id = existing.id
         analysis.diagnostics.update(media_info)
         # Idioma detectado na transcrição: palavras vazias e sentimento
         # seguem o idioma da gravação (o resumo continua em português).
@@ -220,7 +227,7 @@ class TextAnalysisService:
                 analysis_id=str(analysis.id),
                 media_id=str(analysis.media_id) if analysis.media_id else None,
                 overall_sentiment=analysis.overall_sentiment.value,
-                correlation_id=getattr(analysis, "correlation_id", None)
+                correlation_id=analysis.correlation_id
             ))
 
         if analysis.summary:
@@ -229,7 +236,7 @@ class TextAnalysisService:
                 analysis_id=str(analysis.id),
                 media_id=str(analysis.media_id) if analysis.media_id else None,
                 summary=analysis.summary,
-                correlation_id=getattr(analysis, "correlation_id", None)
+                correlation_id=analysis.correlation_id
             ))
 
         if analysis.topics:
@@ -238,7 +245,7 @@ class TextAnalysisService:
                 analysis_id=str(analysis.id),
                 media_id=str(analysis.media_id) if analysis.media_id else None,
                 topics=analysis.topics,
-                correlation_id=getattr(analysis, "correlation_id", None)
+                correlation_id=analysis.correlation_id
             ))
 
     async def get_analysis(self, query: GetAnalysisQuery) -> Dict[str, Any]:

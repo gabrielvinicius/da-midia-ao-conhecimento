@@ -134,14 +134,8 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         except ValueError:
             return None
 
-        # Pode haver mais de uma análise da mesma mídia (reprocessamentos antigos).
-        # Order by created_at DESC to get the latest one
-        stmt = (
-            select(AnalysisModel)
-            .where(AnalysisModel.media_id == media_uuid)
-            .order_by(AnalysisModel.created_at.desc())
-            .limit(1)
-        )
+        # Uma análise por mídia (índice único em media_id).
+        stmt = select(AnalysisModel).where(AnalysisModel.media_id == media_uuid)
         result = await self.session.execute(stmt)
         record = result.scalar_one_or_none()
         

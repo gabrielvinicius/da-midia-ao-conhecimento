@@ -5,6 +5,7 @@ from uuid import UUID
 
 import structlog
 
+from src.shared.domain.errors import NotFoundError
 from src.admin.application.ports import AdminMediaRepositoryPort
 from src.admin.application.ports import AdminAuditPort
 from src.admin.application.ports import MediaAdminPort
@@ -91,7 +92,7 @@ class AdminMediaService:
     async def delete_media(self, media_id: UUID, admin_user: User) -> None:
         media = await self.media_repository.get_by_id(media_id)
         if not media:
-            raise ValueError(f"Mídia com id {media_id} não foi encontrada")
+            raise NotFoundError("Mídia não encontrada")
 
         self.permission_service.require_admin(admin_user)
 
@@ -108,7 +109,7 @@ class AdminMediaService:
     async def reprocess_media(self, media_id: UUID, admin_user: User) -> None:
         media = await self.media_repository.get_by_id(media_id)
         if not media:
-            raise ValueError(f"Mídia com id {media_id} não foi encontrada")
+            raise NotFoundError("Mídia não encontrada")
 
         self.permission_service.require_admin(admin_user)
 
@@ -155,7 +156,7 @@ class AdminMediaService:
     ) -> None:
         media = await self.media_repository.get_by_id(media_id)
         if not media:
-            raise ValueError(f"Media with id {media_id} not found")
+            raise NotFoundError("Mídia não encontrada")
 
         self.permission_service.require_admin(admin_user)
 

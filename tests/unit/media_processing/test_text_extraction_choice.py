@@ -53,6 +53,10 @@ async def test_scanned_pdf_falls_back_to_ocr():
 
 
 @pytest.mark.asyncio
-async def test_unknown_type_yields_nothing():
+async def test_unknown_type_is_a_clear_failure():
+    """Antes devolvia texto vazio como sucesso, e a mídia ficava sem análise."""
+    from src.media_processing.domain.errors import UnsupportedFileTypeError
+
     service, _, _ = _service()
-    assert await service._extract("a.bin", "application/octet-stream", ".bin") == ("", "fallback")
+    with pytest.raises(UnsupportedFileTypeError, match=".bin"):
+        await service._extract("a.bin", "application/octet-stream", ".bin")
