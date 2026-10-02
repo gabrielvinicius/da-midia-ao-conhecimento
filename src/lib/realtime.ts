@@ -20,4 +20,7 @@ export const refreshForNotification = (
   queryClient.invalidateQueries({ queryKey: ['text-analysis', mediaId] });
   queryClient.invalidateQueries({ queryKey: ['media-list'] });
   queryClient.invalidateQueries({ queryKey: ['media-stats'] });
+  // Painel do administrador: a lista de todas as mídias e as contagens.
+  queryClient.invalidateQueries({ queryKey: ['admin-all-media'] });
+  queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
 };

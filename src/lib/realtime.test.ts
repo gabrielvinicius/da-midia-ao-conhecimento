@@ -18,6 +18,8 @@ describe('refreshForNotification', () => {
         ['transcription', 'm1'],
         ['text-analysis', 'm1'],
         ['media-list'],
+        ['admin-all-media'],
+        ['admin-stats'],
       ]),
     );
   });

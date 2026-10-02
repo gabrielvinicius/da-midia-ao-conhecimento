@@ -8,7 +8,6 @@ import {
   getTranscriptionById,
   getTextAnalysisByMediaId,
   getCurrentUser,
-  getSystemStats,
   getAllUsers,
   getAllMediaAdmin,
   getMediaStats,

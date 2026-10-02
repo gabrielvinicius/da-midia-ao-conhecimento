@@ -1,4 +1,6 @@
 import { Bell } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/Button";
 import {
   DropdownMenu,
@@ -8,18 +10,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
-// DropdownMenuHeader seems to be missing from the standard shadcn dropdown or custom, 
-// using DropdownMenuLabel as fallback or checking file
 import { useWebSocket } from "@/contexts/WebSocketContext";
-import { formatDistanceToNow } from 'date-fns';
 
 export const NotificationBell = () => {
-  const { notifications, unreadCount, markAllAsRead } = useWebSocket();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useWebSocket();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" className="relative">
+        <Button
+          variant="outline"
+          size="icon"
+          className="relative"
+          aria-label={unreadCount > 0 ? `Avisos (${unreadCount} não lidos)` : "Avisos"}
+        >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <span className="absolute top-0 right-0 flex h-2 w-2">
@@ -31,36 +35,34 @@ export const NotificationBell = () => {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
         <div className="flex justify-between items-center p-4">
-          <DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
+          <DropdownMenuLabel className="p-0">Avisos</DropdownMenuLabel>
           {unreadCount > 0 && (
             <Button variant="link" size="sm" onClick={markAllAsRead} className="p-0 h-auto text-[10px]">
-              Mark all as read
+              Marcar todos como lidos
             </Button>
           )}
         </div>
         <DropdownMenuSeparator />
         <div className="max-h-96 overflow-y-auto">
-          {
-            notifications.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">No notifications yet.</p>
-            ) : (
-              notifications.map((notification) => (
-                <DropdownMenuItem key={notification.id} className="flex items-start gap-2">
-                  {!notification.read && (
-                    <span className="flex h-2 w-2 translate-y-1 rounded-full bg-sky-500" />
-                  )}
-                  <div className={`flex-1 space-y-1 ${notification.read ? 'text-muted-foreground' : ''}`}>
-                    <p className="text-sm font-medium leading-tight">
-                      {notification.content}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                    </p>
-                  </div>
-                </DropdownMenuItem>
-              ))
-            )
-          }
+          {notifications.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">Nenhum aviso ainda.</p>
+          ) : (
+            notifications.map((notification) => (
+              <DropdownMenuItem
+                key={notification.id}
+                className="flex items-start gap-2"
+                onSelect={() => !notification.read && markAsRead(notification.id)}
+              >
+                {!notification.read && <span className="flex h-2 w-2 translate-y-1 rounded-full bg-sky-500" />}
+                <div className={`flex-1 space-y-1 ${notification.read ? "text-muted-foreground" : ""}`}>
+                  <p className="text-sm font-medium leading-tight">{notification.content}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true, locale: ptBR })}
+                  </p>
+                </div>
+              </DropdownMenuItem>
+            ))
+          )}
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

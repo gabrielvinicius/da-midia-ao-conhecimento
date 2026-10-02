@@ -53,14 +53,7 @@ export const useCreateMediaCommand = () => {
       setProgress(0);
     },
     onSuccess: (data) => {
-      const filename = data.filename || 'arquivo';
-      const pipeline = data.processing_pipeline?.join(' → ');
-
-      const successMsg = pipeline
-        ? `Arquivo "${filename}" enviado. Pipeline: ${pipeline}`
-        : `Arquivo "${filename}" enviado.`;
-
-      toast.success(successMsg);
+      toast.success(`Arquivo "${data.filename || 'arquivo'}" enviado. Você será avisado quando o processamento terminar.`);
       setProgress(100);
       
       // Invalidar queries relacionadas

@@ -55,12 +55,8 @@ export interface Media {
   error_message?: string | null;
   language?: string | null;
   duration?: number | null;
-  processing_pipeline?: string[];
   storage_provider?: string | null;
   transcription_provider?: string | null;
-  summarization_provider?: string | null;
-  sentiment_provider?: string | null;
-  topic_modeling_provider?: string | null;
 }
 
 // Legacy Video interface for backward compatibility
@@ -105,19 +101,11 @@ export interface Notification {
   user_id: string;
   type: string;
   content: string;
-  status: string;
   priority: string;
+  status: string;
   created_at: string;
-  sent_at: string | null;
-  error_message: string | null;
-  read?: boolean;
-  delivered_at?: string | null;
-  opened_at?: string | null;
-  template_name?: string | null;
+  read: boolean;
   variables?: Record<string, unknown>;
-  retries?: number;
-  max_retries?: number;
-  updated_at?: string | null;
 }
 
 export interface Paginated<T> {
@@ -171,16 +159,6 @@ export interface TextAnalysisResponse {
 }
 
 // Admin types
-export interface SystemStats {
-  total_users: number;
-  total_media: number;
-  total_transcriptions: number;
-  total_summaries: number;
-  active_tasks: number;
-  system_uptime: string;
-  database_status: string;
-  redis_status: string;
-}
 
 export interface UserResponse {
   id: string;

@@ -123,7 +123,7 @@ const MediaDetailPage = () => {
               </Badge>
               <Badge className={getStatusToken(media.status).badge}>{getStatusToken(media.status).label}</Badge>
               
-              <ProcessingTrace media={media} analysis={textAnalysis} />
+              <ProcessingTrace media={media} analysis={textAnalysis} transcriptionStatus={transcriptionData?.status} />
             </div>
           </div>
           <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground">

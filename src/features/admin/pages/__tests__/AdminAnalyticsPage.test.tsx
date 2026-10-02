@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
-import { AdminAnalyticsPage, formatSeconds, taskLabel } from "../AdminAnalyticsPage";
+import { AdminAnalyticsPage } from "../AdminAnalyticsPage";
+import { formatSeconds, taskLabel } from "@/lib/processingLabels";
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { role: "ADMIN" } }) }));
 

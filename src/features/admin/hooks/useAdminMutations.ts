@@ -73,8 +73,7 @@ export const useReprocessMedia = () => {
     mutationFn: (mediaId: string) => reprocessMedia(mediaId),
     onSuccess: (data) => {
       toast.success(data.message || 'Reprocessamento iniciado.');
-      // No need to invalidate queries here. The WebSocket update will refresh the UI.
-      // We can, however, invalidate to get the initial PENDING state faster if needed.
+      // Os avisos do processamento (lib/realtime) atualizam a lista depois.
       queryClient.invalidateQueries({ queryKey: ['admin-all-media'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
     },

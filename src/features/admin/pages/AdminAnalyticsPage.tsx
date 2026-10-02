@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { KpiCard } from "../components/AnalyticsWidgets";
 import { useMediaProcessingStats, useProcessingTimes } from "../hooks/useAdminQueries";
 import type { ProcessingTimeItem } from "../api";
+import { formatSeconds, taskLabel } from "@/lib/processingLabels";
 
 const periodOptions: { label: string; value?: number }[] = [
   { label: "Últimos 7 dias", value: 7 },
@@ -14,31 +15,6 @@ const periodOptions: { label: string; value?: number }[] = [
   { label: "Todo o período", value: undefined },
 ];
 
-const TASK_LABELS: Record<string, string> = {
-  transcription: "Transcrição",
-  visual_description: "Descrição dos quadros",
-  text_analysis: "Análise completa",
-  "analysis.chunking": "Divisão em trechos",
-  "analysis.sentiment": "Sentimento",
-  "analysis.topic_modeling": "Temas",
-  "analysis.topic_titles": "Títulos dos temas",
-  "analysis.knowledge_indexing": "Indexação semântica",
-  // Execuções anteriores, quando a descrição dos quadros fazia parte da análise.
-  "analysis.visual_insight": "Descrição dos quadros (análise)",
-  "analysis.release_memory": "Liberação de memória da GPU",
-  "analysis.synthesis": "Resumo final",
-  "analysis.grounding_check": "Verificação de fidelidade",
-};
-
-export const taskLabel = (task: string) => TASK_LABELS[task] ?? task;
-
-export const formatSeconds = (value: number | null | undefined): string => {
-  if (value === null || value === undefined) return "—";
-  if (value < 60) return `${value.toFixed(1)} s`;
-  const minutes = Math.floor(value / 60);
-  const seconds = Math.round(value % 60);
-  return `${minutes} min ${seconds} s`;
-};
 
 const formatFactor = (value: number | null | undefined): string =>
   value === null || value === undefined ? "—" : `${value.toFixed(2)}×`;

@@ -6,7 +6,6 @@ import {
   User,
   Transcription,
   TextAnalysisResponse,
-  SystemStats,
   UserResponse,
   Paginated,
   PaginatedMedia,
@@ -170,10 +169,6 @@ export const getProviders = async (): Promise<ProvidersResponse> => {
 // ADMIN QUERIES
 // =============================================================================
 
-export const getSystemStats = async (): Promise<SystemStats> => {
-  const response = await api.get<SystemStats>('/admin/stats');
-  return response.data;
-};
 
 export const getAllUsers = async (): Promise<Paginated<UserResponse>> => {
   const response = await api.get<Paginated<UserResponse>>('/admin/users');
