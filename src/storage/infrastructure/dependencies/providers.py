@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import structlog
 
@@ -80,70 +80,14 @@ class StorageClientAdapter(FileStoragePort):
             )
         return data
 
-    def download_file_sync(self, file_path: str) -> bytes:
-        """Synchronous version of download_file for use in Celery tasks."""
-        import asyncio
-        import concurrent.futures
-
-        def run_async_download():
-            async def async_download():
-                normalized_path = str(Path(file_path))
-                return await self.service.retrieve_file(normalized_path)
-
-            # Create a new event loop for this thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                return loop.run_until_complete(async_download())
-            finally:
-                loop.close()
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(run_async_download)
-            result = future.result()
-
-        if result is None:
-            normalized_path = str(Path(file_path))
-            raise FileNotFoundError(
-                (
-                    f"File '{normalized_path}' not found in storage provider "
-                    f"'{self.provider_name}'"
-                )
-            )
-        return result
-
     async def delete(self, file_path: str) -> bool:
         return await self.service.delete_file(file_path)
 
     async def delete_folder(self, folder_path: str) -> bool:
         return await self.service.delete_folder(folder_path)
 
-    def delete_sync(self, file_path: str) -> bool:
-        """Synchronous version of delete."""
-        import asyncio
-        import concurrent.futures
-
-        def run_async():
-            return asyncio.run(self.service.delete_file(file_path))
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(run_async)
-            return future.result()
-
     async def exists(self, file_path: str) -> bool:
         return await self.service.file_exists(file_path)
-
-    def exists_sync(self, file_path: str) -> bool:
-        """Synchronous version of exists."""
-        import asyncio
-        import concurrent.futures
-
-        def run_async():
-            return asyncio.run(self.service.file_exists(file_path))
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(run_async)
-            return future.result()
 
     async def list_files(self, prefix: str = "") -> List[str]:
         """Lists all files in the storage system matching the prefix."""

@@ -12,19 +12,14 @@ from src.admin.application.ports import MediaAdminPort, UserAdminPort
 from src.media_management.application.dtos import (
     ListMediaQuery,
 )
-from src.user_management.application.dtos import GetUserQuery, ListUsersQuery
+from src.user_management.application.dtos import ListUsersQuery
 from src.user_management.domain import User
 
 from ..dtos import (
-    BulkReprocessFailedMediaCommand,
-    DeleteMediaCommand,
-    DeleteUserCommand,
     GetMediaProcessingStatsQuery,
     GetSystemHealthQuery,
     GetSystemStatsQuery,
     GetUserActivityQuery,
-    ReprocessMediaCommand,
-    UpdateUserRoleCommand,
 )
 from .admin_audit_service import AdminAuditService
 from .admin_media_service import AdminMediaService

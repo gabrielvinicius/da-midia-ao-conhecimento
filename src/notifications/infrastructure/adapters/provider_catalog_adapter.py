@@ -2,9 +2,6 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from src.notifications.infrastructure.adapters.redis_notification_delivery_adapter import (
-    RedisNotificationDeliveryAdapter,
-)
 from src.shared.application.ports import PipelineProviderCatalogPort
 from src.shared.application.provider_catalog import ProviderOption
 

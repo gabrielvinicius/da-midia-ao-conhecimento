@@ -1,6 +1,5 @@
 """Porta para serviços de Text-to-Speech (Síntese de Voz)."""
 from abc import ABC, abstractmethod
-from typing import Optional
 
 class TTSProviderPort(ABC):
     """Interface abstrata para geração de áudio a partir de texto."""

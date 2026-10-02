@@ -1,7 +1,6 @@
 """Registry for admin facade adapters."""
 from __future__ import annotations
 
-from src.admin.application.services.admin_user_service import AdminUserService
 from src.admin.infrastructure.adapters.media_management_adapter import (
     MediaManagementAdapter,
 )

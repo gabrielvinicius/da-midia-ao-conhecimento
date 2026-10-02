@@ -15,9 +15,6 @@ from src.notifications.application.services.pipeline_notification_service import
 from src.notifications.infrastructure.adapters.notification_delivery_adapter import (
     WebSocketNotificationDeliveryAdapter,
 )
-from src.notifications.infrastructure.adapters.redis_notification_delivery_adapter import (
-    RedisNotificationDeliveryAdapter,
-)
 from src.notifications.infrastructure.dependencies.builders import (
     build_notification_service,
     build_pipeline_notification_service,
@@ -45,11 +42,6 @@ def build_notifications_module(
     )
 
 
-def bootstrap_task_service(session) -> NotificationService:
-    """Serviço para as tarefas do worker: entrega pelo Redis."""
-    return build_notification_service(session, delivery=RedisNotificationDeliveryAdapter())
-
-
 def bootstrap_pipeline_notification_service(session) -> PipelineNotificationService:
     return build_pipeline_notification_service(session)
 
@@ -61,7 +53,6 @@ def bind_notifications_module(app: FastAPI, module: NotificationsModule) -> None
 __all__ = [
     "NotificationsModule",
     "build_notifications_module",
-    "bootstrap_task_service",
     "bootstrap_pipeline_notification_service",
     "bind_notifications_module",
 ]

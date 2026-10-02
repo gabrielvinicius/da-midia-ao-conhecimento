@@ -1,6 +1,5 @@
 import os
 from contextlib import asynccontextmanager
-from types import SimpleNamespace
 
 from fastapi import (
     Depends,
@@ -16,7 +15,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from src.media_processing.application.event_handlers import MediaProcessingEventHandlers
 from src.shared.api.monitoring_router import router as monitoring_router
 from src.shared.api.providers_router import router as providers_router
 from src.shared.application.lifecycle import (

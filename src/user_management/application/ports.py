@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
-from src.user_management.domain import User, UserRole
+from src.user_management.domain import User
 
 
 class UserRepositoryPort(Protocol):

@@ -183,7 +183,7 @@ class AsyncQueueBrokerPublisher:
             pass
 
 class InMemoryEventBus:
-    """Simple asynchronous event bus used during Stage A scaffolding and tests."""
+    """Barramento síncrono simples, usado em testes."""
 
     def __init__(self) -> None:
         self._subscriptions: DefaultDict[

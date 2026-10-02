@@ -1,10 +1,10 @@
-# Repository Guidelines (Level 7.0 Precursor - Sovereign Knowledge Base)
+# Repository Guidelines
 
 ## Project Structure & Module Organization
 Backend code lives in `src/`, grouped by bounded contexts such as `media_management`, `media_processing`, `text_analysis`, `storage`, and `admin`. The system operates as a **Modular Monolith** with **Clean Architecture** and **DDD**.
 
 - `media_processing`: Orchestrates the Multimodal pipeline (Whisper for audio, Moondream 2 for vision). Celery tasks are in the module-root `tasks.py`.
-- `text_analysis`: Granular pipeline (Chunking -> Sentiment -> Topics -> Visual Integration -> Summary). Uses Llama 3 for synthesis.
+- `text_analysis`: Granular pipeline (Chunking -> Sentiment -> Topics -> Indexing -> Topic titles -> Summary -> Grounding check). Synthesis via Ollama (Qwen3.5-9B, Gemma 4 as reserve). Frame descriptions arrive ready from `media_processing`.
 - `storage`: High-level ports for swappable backends (Local/S3/MinIO). Includes `StorageMaintenanceService` for cleanup.
 - `shared`: Common domain events, infrastructure middleware, and the `pgvector` semantic indexing bridge.
 
@@ -26,9 +26,9 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 - `tests`: Directories like `tests/unit/auth` are removed. Unit tests reside within context folders (e.g., `tests/unit/user_management`).
 
 ## Intelligence & Autonomy Features
-- **Multimodal Vision**: Uses Moondream 2 to describe keyframes. Agent should ensure the `VisualAnalysisPort` is used for visual context.
+- **Multimodal Vision**: Moondream 2 describes keyframes in `media_processing`, right after transcription, through `VisualAnalysisPort`.
 - **Human-in-the-loop (HITL)**: Supports rating and editing AI outputs. Updates to summaries must preserve versioning for future fine-tuning.
-- **Hardware Awareness**: `HardwareAdvisor` monitors GPU/RAM pressure. Pipelines should be "adaptive" (e.g., smaller chunks if VRAM is low).
+- **Hardware Awareness**: `HardwareAdvisor` reports GPU/RAM pressure (whole-GPU readings via `nvidia-smi`) for the admin panel and processing deadlines.
 - **JSONB Upcasting**: Persistence uses JSONB for metadata to support zero-downtime schema evolution.
 
 ## Build, Test, and Development Commands

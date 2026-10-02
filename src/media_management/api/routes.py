@@ -1,6 +1,5 @@
 # src/media_management/api/routers.py
-import re
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
 from fastapi import (

@@ -2,7 +2,6 @@ import pytest
 
 from uuid import uuid4
 
-from src.media_processing.application.dtos import RequestTranscriptionCommand
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )

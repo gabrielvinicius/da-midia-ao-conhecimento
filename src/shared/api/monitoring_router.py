@@ -11,7 +11,7 @@ async def ping() -> dict:
 
 @router.get("/system-status")
 async def get_system_status():
-    """Level 6.0: Real-time hardware health and pressure advisor."""
+    """Saúde do hardware em tempo real (CPU, memória e GPU) para o painel."""
     advisor = HardwareAdvisor()
     stats = advisor.get_current_stats()
     strategy = advisor.recommend_strategy()

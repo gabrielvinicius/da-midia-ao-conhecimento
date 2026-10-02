@@ -5,15 +5,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.admin.application.dtos import (
-    BulkReprocessFailedMediaCommand,
-    DeleteMediaCommand,
-    DeleteUserCommand,
     GetMediaProcessingStatsQuery,
     GetSystemHealthQuery,
     GetSystemStatsQuery,
     GetUserActivityQuery,
-    ReprocessMediaCommand,
-    UpdateUserRoleCommand,
 )
 from src.admin.application.services.admin_service import AdminService
 from src.media_management.api.schemas import MediaResponse
@@ -92,9 +87,6 @@ async def update_user(
             new_role=update_data.role,
             admin_user=current_admin,
         )
-    except MediaDataErasureError as e:
-        # Nada foi apagado pela metade sem aviso: a operação pode ser repetida.
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except (ValueError, PermissionError) as e:
         status_code = (
             status.HTTP_404_NOT_FOUND
@@ -182,6 +174,9 @@ async def delete_media(
             media_id=media_id,
             admin_user=current_admin,
         )
+    except MediaDataErasureError as e:
+        # Nada foi apagado pela metade sem aviso: a operação pode ser repetida.
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except (ValueError, PermissionError) as e:
         status_code = (
             status.HTTP_404_NOT_FOUND

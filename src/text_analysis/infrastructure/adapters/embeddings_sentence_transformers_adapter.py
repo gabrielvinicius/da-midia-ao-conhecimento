@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from typing import Optional
 
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.shared.infrastructure.config.settings import settings

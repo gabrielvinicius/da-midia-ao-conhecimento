@@ -10,7 +10,6 @@ import structlog
 from src.media_processing.transcription.infrastructure.dependencies import (
     register_speech_recognition,
 )
-from transformers import pipeline
 
 logger = structlog.get_logger(__name__)
 

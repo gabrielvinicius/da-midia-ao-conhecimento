@@ -46,14 +46,14 @@ class BERTopicAdapter(TopicModelingPort):
         use_transformer_representation: bool = False,
         transformer_model_name: str | None = None,
         embedding_model_name: str | None = None,
-        embedding_model_inst: Any | None = None,  # NEW: Injected Instance
+        embedding_model_inst: Any | None = None,  # modelo de vetores já carregado (reaproveitado)
         device: str | None = None,
     ) -> None:
         self.model_name = model_name
         self.use_transformer_representation = use_transformer_representation
         self.transformer_model_name = transformer_model_name
         self.embedding_model_name = embedding_model_name
-        self.embedding_model_inst = embedding_model_inst # NEW
+        self.embedding_model_inst = embedding_model_inst
         self.device = device or settings.resolved_device
         self._embedding_model = None
         self._representation_models = None
@@ -70,9 +70,8 @@ class BERTopicAdapter(TopicModelingPort):
                     "KeyBERT": KeyBERTInspired()
                 }
 
-                # ... (Transformer logic omitted for brevity, assumes existing) ...
+                # Opcional (desligado por padrão): títulos dos temas por um modelo de linguagem.
                 if self.use_transformer_representation:
-                    # Re-implementing the LLM loading part briefly to ensure context consistency in replacement
                     try:
                         from transformers import pipeline
                         device_idx = -1 if self.device == "cpu" else 0
@@ -174,7 +173,7 @@ class BERTopicAdapter(TopicModelingPort):
                 def _run_fit():
                     return topic_model.fit_transform(docs, np_embeddings)
 
-                topics, probs = await asyncio.to_thread(_run_fit)
+                topics, _probs = await asyncio.to_thread(_run_fit)
                 
                 # O resto do código usa 'topic_model' em vez de self._model
                 info = topic_model.get_topic_info()
@@ -215,13 +214,6 @@ class BERTopicAdapter(TopicModelingPort):
                     members = [i for i, t in enumerate(topics) if t == topic_id]
                     snippets = representative_snippets(chunks, members, np_embeddings)
                     
-                    # Cálculo de diagnósticos seguro
-                    topic_probs = []
-                    if probs is not None:
-                        if hasattr(probs, "tolist"):
-                             # probs pode ser lista de listas ou lista simples dependendo do HDBSCAN
-                             pass 
-
                     topics_out.append(
                         Topic(
                             id=int(topic_id),
@@ -229,7 +221,7 @@ class BERTopicAdapter(TopicModelingPort):
                             snippets=snippets,
                             title=title.strip(),
                             size=len(members),
-                            diagnostics={"score": 1.0} # Simplificado
+                            diagnostics={"score": 1.0},
                         )
                     )
                 diagnostics = {

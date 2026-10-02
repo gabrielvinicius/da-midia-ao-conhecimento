@@ -458,3 +458,25 @@ def test_semantic_search_only_returns_the_owners_chunks(client):
 
     time.sleep(0.2)
     assert asyncio.run(index_and_search()) == ["trecho de iara"]
+
+
+def test_existing_users_can_be_updated(client):
+    """Troca de senha e mudança de perfil gravam um usuário que já existe."""
+    email = f"lia-{uuid.uuid4().hex[:8]}@teste.com"
+    assert client.post("/auth/register", json={"email": email, "password": "Senha123"}).status_code == 201
+    token = client.post("/auth/token", data={"username": email, "password": "Senha123"}).json()["access_token"]
+    me = {"Authorization": f"Bearer {token}"}
+
+    r = client.put("/auth/me/password", headers=me, json={"old_password": "Senha123", "new_password": "Nova12345"})
+    assert r.status_code == 204, r.text
+    assert client.post("/auth/token", data={"username": email, "password": "Nova12345"}).status_code == 200
+
+    admin_email, admin_password = os.environ.get("DEFAULT_ADMIN_EMAIL"), os.environ.get("DEFAULT_ADMIN_PASSWORD")
+    if not (admin_email and admin_password):
+        return
+    admin_token = client.post("/auth/token", data={"username": admin_email, "password": admin_password}).json()["access_token"]
+    admin = {"Authorization": f"Bearer {admin_token}"}
+    user_id = client.get("/auth/me", headers=me).json()["id"]
+    r = client.put(f"/admin/users/{user_id}", headers=admin, json={"role": "ADMIN"})
+    assert r.status_code == 200, r.text
+    assert r.json()["role"] == "ADMIN"

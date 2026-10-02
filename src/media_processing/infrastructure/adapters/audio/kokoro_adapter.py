@@ -4,11 +4,8 @@ from __future__ import annotations
 import asyncio
 import io
 import structlog
-import os
-from typing import Optional
 
 from src.media_processing.application.ports.tts_port import TTSProviderPort
-from src.shared.infrastructure.config.settings import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -28,7 +25,7 @@ class KokoroTTSAdapter(TTSProviderPort):
         if not self._initialized:
             try:
                 from kokoro_onnx import Kokoro
-                import soundfile as sf
+                import soundfile as sf  # noqa: F401 (dependência exigida pelo Kokoro)
                 
                 # Em um cenário real, garantiríamos o download do modelo .onnx e voices.json
                 # Aqui assumimos que eles estão no cache ou no diretório de assets

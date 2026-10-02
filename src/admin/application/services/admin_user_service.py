@@ -1,6 +1,6 @@
 """Admin-specific user management service."""
 
-from typing import List, Optional, Any
+from typing import Any
 from uuid import UUID
 
 import structlog

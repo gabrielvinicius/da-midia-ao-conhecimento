@@ -7,7 +7,7 @@ FastAPI's app.dependency_overrides mechanism.
 """
 from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, Query, WebSocket, WebSocketException, status
+from fastapi import Depends, HTTPException, Query, WebSocketException, status
 from jose import JWTError, ExpiredSignatureError, jwt
 
 from src.user_management.application.auth_queries import UserReadService

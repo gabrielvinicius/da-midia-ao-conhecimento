@@ -112,7 +112,7 @@ class TextAnalysisService:
             except Exception as exc:
                 logger.warning("text_analysis.fetch_text_failed", media_id=str(media_id), error=str(exc))
 
-        # Level 7.0: Fetch media metadata for multimodal pipeline
+        # Dados da mídia (tipo, arquivo) usados pelas etapas da análise.
         media_info = {}
         if media_id and self.transcription_queries:
             try:
@@ -123,9 +123,7 @@ class TextAnalysisService:
         start = time.perf_counter()
         success = False
         try:
-            # 2. Level 6.0: Predictive Observability
-            # ...
-            # 3. Create Analysis Aggregate
+            # Agregado da análise, com os trechos e horários da transcrição.
             document = Document.from_payload(text_content or "", segments)
             analysis = Analysis.new(
                 document,

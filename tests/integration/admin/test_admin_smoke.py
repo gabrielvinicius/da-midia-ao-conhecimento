@@ -5,7 +5,6 @@ from src.admin.application.services.admin_read_service import AdminReadService
 from src.admin.application.services.admin_service import AdminService
 from src.admin.application.services.admin_user_service import AdminUserService
 from src.admin.application.services.admin_media_service import AdminMediaService
-from src.admin.application.services.admin_audit_service import AdminAuditService
 from src.admin.application.ports import (
     AdminMediaRepositoryPort,
     AdminUserRepositoryPort,

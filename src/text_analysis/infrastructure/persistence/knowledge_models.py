@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from sqlalchemy import Column, ForeignKey, String, Text, Uuid, JSON
+from sqlalchemy import Column, ForeignKey, Text, Uuid, JSON
 from pgvector.sqlalchemy import Vector
 from src.shared.infrastructure.database.db import Base
 

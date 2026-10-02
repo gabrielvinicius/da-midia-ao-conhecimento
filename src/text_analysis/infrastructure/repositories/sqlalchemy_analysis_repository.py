@@ -26,7 +26,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
 
     async def save(self, analysis: Analysis) -> str:
         payload = {
-            "schema_version": self.CURRENT_SCHEMA_VERSION, # Versioning for Level 6.0
+            "schema_version": self.CURRENT_SCHEMA_VERSION,  # permite migrar análises antigas na leitura
             "analysis_id": str(analysis.id),
             "document_id": str(analysis.document.id),
             "overall_sentiment": (
@@ -80,7 +80,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
             return None
         payload = record.payload or {}
         
-        # Level 6.0: Automated Schema Evolution on Read
+        # Análises gravadas em versões anteriores do formato são convertidas na leitura.
         version = payload.get("schema_version", 1)
         if version < self.CURRENT_SCHEMA_VERSION:
             payload = self._upcast_payload(payload, from_version=version)
@@ -130,7 +130,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         except ValueError:
             return None
 
-        # Level 7.1 Fix: Handle multiple analysis results (legacy dupes)
+        # Pode haver mais de uma análise da mesma mídia (reprocessamentos antigos).
         # Order by created_at DESC to get the latest one
         stmt = (
             select(AnalysisModel)
@@ -145,7 +145,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
             return None
         payload = record.payload or {}
         
-        # Level 6.0: Automated Schema Evolution on Read
+        # Análises gravadas em versões anteriores do formato são convertidas na leitura.
         version = payload.get("schema_version", 1)
         if version < self.CURRENT_SCHEMA_VERSION:
             payload = self._upcast_payload(payload, from_version=version)

@@ -1,4 +1,3 @@
-import sys
 from unittest.mock import MagicMock
 
 from src.text_analysis.bootstrap import _update_registry_availability

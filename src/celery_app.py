@@ -68,7 +68,6 @@ def create_celery() -> Celery:
             "src.media_management",
             "src.media_processing",
             "src.text_analysis",
-            "src.notifications",
         ]
     )
 

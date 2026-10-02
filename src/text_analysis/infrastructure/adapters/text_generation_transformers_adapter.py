@@ -51,9 +51,6 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
 
         if not self._initialized:
             try:  # Lazy load
-                # Map 'cpu' or device ID
-                device_idx = -1 if self.device == "cpu" else 0
-                
                 # Determine task based on model type
                 task = "text-generation" if self._is_instruct else "summarization"
 

@@ -16,6 +16,7 @@ from .infrastructure.dependencies.builders import (
     build_text_analysis_service,
 )
 from .infrastructure.dependencies.registry import needs_health_refresh, update_health_timestamp
+from src.shared.infrastructure.config.settings import settings
 from src.shared.infrastructure.observability.metrics.prometheus_metrics import SharedPrometheusMetrics
 
 try:
@@ -97,7 +98,9 @@ def _update_registry_availability() -> None:
     if httpx:
         try:  # pragma: no cover - ambiente externo
             with httpx.Client(timeout=1.5) as client:
-                resp = client.get("http://localhost:11434/api/tags")
+                # O endereço vem das configurações: no Docker, o Ollama é
+                # outro contêiner, e localhost o daria sempre como fora do ar.
+                resp = client.get(f"{settings.ollama_host.rstrip('/')}/api/tags")
                 resp.raise_for_status()
                 ollama_ok = True
         except Exception:

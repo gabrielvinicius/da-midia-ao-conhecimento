@@ -11,35 +11,24 @@ import asyncio
 import time
 from typing import Any, Dict, Optional
 
-try:
-    from celery import shared_task
-except Exception:  # pragma: no cover - celery optional
-    shared_task = None
+from celery import shared_task
 
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.shared.infrastructure.database.db import AsyncSessionLocal
-from src.shared.infrastructure.messaging.event_bus_factory import (
-    get_event_bus as build_event_bus,
-)
+from src.shared.events.integration_events import TASK_TEXT_ANALYSIS_ANALYZE
+from src.shared.infrastructure.messaging.process_bus import process_event_bus
 from src.text_analysis.application.dtos import AnalyzeTextCommand
 from src.text_analysis.application.services.text_analysis_service import TextAnalysisService
 from src.text_analysis.infrastructure.dependencies.providers import get_event_bus
 from src.text_analysis.infrastructure.dependencies.builders import build_text_analysis_service
 
-TASK_TEXT_ANALYSIS_ANALYZE = "text_analysis.analyze"
-TASK_TEXT_ANALYSIS_SUMMARIZE = "text_analysis.summarize"
-TASK_TEXT_ANALYSIS_SENTIMENT = "text_analysis.sentiment"
-TASK_TEXT_ANALYSIS_TOPIC_MODELING = "text_analysis.topic_modeling"
-
 DEFAULT_MAX_RETRIES = 3
 
 logger = get_logger(__name__)
 
-EVENT_BUS = build_event_bus()
-
-
 def _ensure_event_bus(bus=None):
-    return get_event_bus(bus or EVENT_BUS)
+    """Barramento deste processo de worker (ver process_bus), salvo quando informado."""
+    return get_event_bus(bus or process_event_bus())
 
 
 async def _build_service(*, session, event_bus) -> TextAnalysisService:
@@ -192,107 +181,21 @@ def _task_body_with_retry_context(
     return asyncio.run(_run())
 
 
-if shared_task:
-
-    @shared_task(
-        bind=True,
-        name=TASK_TEXT_ANALYSIS_ANALYZE,
-        autoretry_for=(Exception,),
-        retry_backoff=True,
-        max_retries=DEFAULT_MAX_RETRIES,
+@shared_task(
+    bind=True,
+    name=TASK_TEXT_ANALYSIS_ANALYZE,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=DEFAULT_MAX_RETRIES,
+)
+def analyze_task(self, event_bus=None, **kwargs) -> Dict[str, Any]:
+    final_attempt = (self.request.retries or 0) >= (self.max_retries or 0)
+    return _task_body_with_retry_context(
+        kwargs,
+        op_name="analyze_task",
+        event_bus=event_bus,
+        final_attempt=final_attempt,
     )
-    def analyze_task(self, event_bus=None, **kwargs) -> Dict[str, Any]:
-        final_attempt = (self.request.retries or 0) >= (self.max_retries or 0)
-        return _task_body_with_retry_context(
-            kwargs,
-            op_name="analyze_task",
-            event_bus=event_bus,
-            final_attempt=final_attempt,
-        )
-
-    @shared_task(
-        bind=True,
-        name=TASK_TEXT_ANALYSIS_SUMMARIZE,
-        autoretry_for=(Exception,),
-        retry_backoff=True,
-        max_retries=DEFAULT_MAX_RETRIES,
-    )
-    def summarize_task(self, event_bus=None, **kwargs) -> Dict[str, Any]:
-        final_attempt = (self.request.retries or 0) >= (self.max_retries or 0)
-        return _task_body_with_retry_context(
-            kwargs,
-            op_name="summarization",
-            event_bus=event_bus,
-            final_attempt=final_attempt,
-        )
-
-    @shared_task(
-        bind=True,
-        name=TASK_TEXT_ANALYSIS_SENTIMENT,
-        autoretry_for=(Exception,),
-        retry_backoff=True,
-        max_retries=DEFAULT_MAX_RETRIES,
-    )
-    def sentiment_task(self, event_bus=None, **kwargs) -> Dict[str, Any]:
-        final_attempt = (self.request.retries or 0) >= (self.max_retries or 0)
-        return _task_body_with_retry_context(
-            kwargs,
-            op_name="sentiment",
-            event_bus=event_bus,
-            final_attempt=final_attempt,
-        )
-
-    @shared_task(
-        bind=True,
-        name=TASK_TEXT_ANALYSIS_TOPIC_MODELING,
-        autoretry_for=(Exception,),
-        retry_backoff=True,
-        max_retries=DEFAULT_MAX_RETRIES,
-    )
-    def topic_modeling_task(self, event_bus=None, **kwargs) -> Dict[str, Any]:
-        final_attempt = (self.request.retries or 0) >= (self.max_retries or 0)
-        return _task_body_with_retry_context(
-            kwargs,
-            op_name="topic_modeling",
-            event_bus=event_bus,
-            final_attempt=final_attempt,
-        )
-
-else:
-    # Fallback for environments without Celery
-    def analyze_task(**kwargs) -> Dict[str, Any]:
-        return _task_body_with_retry_context(
-            kwargs,
-            op_name="analyze_task",
-            final_attempt=True,
-        )
-
-    def summarize_task(**kwargs) -> Dict[str, Any]:
-        return _task_body_with_retry_context(
-            kwargs,
-            op_name="summarization",
-            final_attempt=True,
-        )
-
-    def sentiment_task(**kwargs) -> Dict[str, Any]:
-        return _task_body_with_retry_context(
-            kwargs,
-            op_name="sentiment",
-            final_attempt=True,
-        )
-
-    def topic_modeling_task(**kwargs) -> Dict[str, Any]:
-        return _task_body_with_retry_context(
-            kwargs,
-            op_name="topic_modeling",
-            final_attempt=True,
-        )
 
 
-__all__ = [
-    "analyze_task",
-    "summarize_task",
-    "sentiment_task",
-    "topic_modeling_task",
-]
-
+__all__ = ["analyze_task"]

@@ -7,7 +7,6 @@ from src.text_analysis.infrastructure.dependencies.registry import (
     SENTIMENT_PROVIDERS,
     TOPIC_PROVIDERS,
 )
-from src.text_analysis.infrastructure.dependencies.registry import ProviderEntry
 
 
 class TextAnalysisProvidersCatalogAdapter(PipelineProviderCatalogPort):

@@ -51,9 +51,10 @@ jobs:
           grep -vE '^torch==' requirements.txt > requirements-ci.txt
           pip install -r requirements-ci.txt ruff import-linter==2.15
 
-      # Erros que quebram em execução: sintaxe e nomes indefinidos.
-      - name: Lint (critical errors)
-        run: ruff check src tests --select E9,F63,F7,F82
+      # Erros que quebram em execução (sintaxe, nomes indefinidos) e código
+      # morto (imports e variáveis sem uso, definições repetidas).
+      - name: Lint
+        run: ruff check src tests main.py --select E9,F63,F7,F82,F401,F811,F841
 
       # Regras de dependência entre camadas e módulos (arquivo .importlinter).
       - name: Architecture (import contracts)

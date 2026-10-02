@@ -126,7 +126,7 @@ def get_event_bus(event_bus: SupportsEventBus | None = None) -> SupportsEventBus
     if event_bus is None:
         raise RuntimeError(
             "TextAnalysis event bus não fornecido. Passe via bootstrap/tasks ou "
-            "configure o worker para inicializar EVENT_BUS antes de executar as tasks."
+            "use o barramento do processo (process_event_bus) nas tasks."
         )
     return event_bus
 

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime
-from sqlalchemy import Column, DateTime, ForeignKey, String, Uuid, func
+from sqlalchemy import Column, DateTime, String, Uuid, func
 from sqlalchemy.dialects.postgresql import JSONB
 
 from src.shared.infrastructure.database.db import Base

@@ -9,9 +9,6 @@ from src.text_analysis.domain import TextChunk
 @pytest.mark.asyncio
 async def test_tfidf_normalizes_language_codes(monkeypatch):
     # stub deps
-    import numpy as np
-    from sklearn.cluster import KMeans
-    from sklearn.feature_extraction.text import TfidfVectorizer
 
     adapter = TFIDFTopicModelingAdapter(n_topics=1, max_features=10)
 

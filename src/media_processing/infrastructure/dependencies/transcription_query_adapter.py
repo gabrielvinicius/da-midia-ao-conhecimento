@@ -23,7 +23,6 @@ class TranscriptionQueryAdapter(TranscriptionQueryPort):
         self._media_repo = media_repo
 
     async def get_text_source(self, media_id: UUID) -> Optional[TextSourceData]:
-        # ... exists ...
         transcription = await self._repo.get_by_media_id(media_id)
         if not transcription:
             return None

@@ -37,7 +37,6 @@ class AuthService:
         return result
 
     # Sync methods removed or deprecated as UserService is async-only
-    # def authenticate_user_sync(self, email: str, password: str) -> dict[str, Any]: ...
 
     async def create_user(self, email: str, password: str, role: str = "user"):
         from ..dtos import CreateUserCommand
@@ -109,5 +108,4 @@ class AuthService:
         return await self.user_service.user_read_service.get_user_by_email(email)
 
     async def list_users(self) -> list[User]:
-        from ..dtos import ListUsersQuery
         return await self.user_service.user_read_service.list_all()

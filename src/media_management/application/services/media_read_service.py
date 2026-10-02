@@ -3,7 +3,7 @@
 Provides read-only access to Media statistics and data.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from src.media_management.application.ports import MediaRepositoryPort

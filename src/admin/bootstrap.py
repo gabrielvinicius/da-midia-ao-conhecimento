@@ -22,9 +22,6 @@ from src.admin.infrastructure.adapters.user_management_adapter import (
     UserManagementAdapter,
 )
 from src.admin.infrastructure.adapters.user_read_adapter import UserReadAdapter
-from src.admin.infrastructure.adapters.user_repository_adapter import (
-    UserRepositoryAdapter,
-)
 from src.admin.infrastructure.dependencies.providers import (
     get_media_admin_adapter,
     get_media_read_adapter,
@@ -40,9 +37,6 @@ from src.user_management.application.auth_queries import UserReadService
 from src.user_management.application.services.user_service import UserService
 from src.user_management.application.services.permission_service import (
     UserPermissionService,
-)
-from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import (
-    UserRepository,
 )
 
 

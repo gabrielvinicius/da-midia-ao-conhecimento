@@ -5,7 +5,6 @@ import asyncio
 import io
 import torch
 import structlog
-from typing import List, Optional
 from PIL import Image
 
 from src.media_processing.application.ports import VisualAnalysisPort
@@ -30,7 +29,7 @@ class Qwen2VLAdapter(VisualAnalysisPort):
         if not self._initialized:
             try:
                 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor, BitsAndBytesConfig
-                from qwen_vl_utils import process_vision_info
+                from qwen_vl_utils import process_vision_info  # noqa: F401 (exigido pelo modelo)
                 
                 logger.info(
                     "qwen2_vl.loading_model", 

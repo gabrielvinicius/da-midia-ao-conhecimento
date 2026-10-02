@@ -10,7 +10,6 @@ from datetime import timedelta
 from jose import JWTError, jwt
 
 from src.shared.domain.time.clock import utcnow
-from src.user_management.config.settings import user_settings
 
 
 class PasslibPasswordHasher(PasswordHasherPort):

@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
-from sqlalchemy import Column, ForeignKey, String, Integer, Text, Uuid, DateTime
+from sqlalchemy import Column, String, Integer, Text, Uuid, DateTime
 from src.shared.infrastructure.database.db import Base
 
 class FeedbackModel(Base):
