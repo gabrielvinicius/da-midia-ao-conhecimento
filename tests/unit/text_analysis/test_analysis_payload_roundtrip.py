@@ -67,3 +67,19 @@ def test_old_analyses_without_chunks_still_show_the_text():
     a.chunks = []
     items = analysis_to_dto(a).sentiment_items
     assert items[0].text == "A derivada mede a variação."
+
+
+@pytest.mark.asyncio
+async def test_topics_keep_id_size_and_chunks_after_save_and_load():
+    """A leitura convertia o id do tema em texto e descartava o tamanho."""
+    from src.text_analysis.domain import Topic
+
+    session = _CapturingSession()
+    repo = SqlAlchemyAnalysisRepository(session)
+    analysis = _analysis()
+    analysis.topics = [Topic(id=3, title="Derivadas", keywords=["taxa"], size=2, chunk_indices=[0, 1])]
+    await repo.save(analysis)
+
+    topic = repo._payload_to_analysis(session.added.payload).topics[0]
+
+    assert (topic.id, topic.size, topic.chunk_indices) == (3, 2, [0, 1])

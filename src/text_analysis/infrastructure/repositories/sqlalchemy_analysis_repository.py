@@ -240,12 +240,14 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         for raw in payload.get("topics") or []:
             topics.append(
                 Topic(
-                    id=str(raw.get("id", "")),
+                    id=_topic_id(raw.get("id", "")),
                     title=raw.get("title"),
                     keywords=list(raw.get("keywords", []) or []),
                     snippets=list(raw.get("snippets", []) or []),
                     summary=raw.get("summary"),
                     diagnostics=raw.get("diagnostics") or {},
+                    size=int(raw.get("size") or 0),
+                    chunk_indices=[int(i) for i in raw.get("chunk_indices") or []],
                 )
             )
         analysis.topics = topics
@@ -278,3 +280,11 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
 
 __all__ = ["SqlAlchemyAnalysisRepository"]
 
+
+def _topic_id(value):
+    """O id do tema volta como número: como texto, "-1" (ruído) deixava de ser
+    reconhecido nas comparações com -1."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return value

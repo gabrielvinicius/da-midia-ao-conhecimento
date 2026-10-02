@@ -277,6 +277,36 @@ def response_token_cap(words: int) -> int:
     return int(words * TOKENS_PER_WORD) + TOKEN_MARGIN
 
 
+def topic_overview(analysis: Analysis) -> tuple[list[str], bool]:
+    """Linhas dos temas para o prompt, na ordem em que aparecem, com a parcela
+    do conteúdo de cada um e, em gravações, o momento em que começa.
+
+    Devolve as linhas e se os pesos estão disponíveis (temas de análises
+    antigas não guardavam os trechos de cada tema).
+    """
+    main_topics = [t for t in analysis.topics if t.id != -1]
+    chunks = analysis.chunks or []
+    total = sum(len(c.text) for c in chunks)
+
+    def members(topic) -> list[int]:
+        return [i for i in (topic.chunk_indices or []) if 0 <= i < len(chunks)]
+
+    def keywords(topic) -> str:
+        return ", ".join((topic.keywords or [])[:6])
+
+    if not total or not all(members(t) for t in main_topics):
+        return [f"- {t.title or 'Tema'}: {keywords(t)}" for t in main_topics], False
+
+    lines = []
+    for topic in sorted(main_topics, key=lambda t: min(members(t))):
+        indices = members(topic)
+        share = round(100 * sum(len(chunks[i].text) for i in indices) / total)
+        starts = [chunks[i].start for i in indices if chunks[i].start is not None]
+        where = f", a partir de {format_timestamp(min(starts))}" if starts else ""
+        lines.append(f"- {topic.title or 'Tema'} ({keywords(topic)}): {max(share, 1)}% do conteúdo{where}")
+    return lines, True
+
+
 class SynthesisStep(AnalysisStep):
     """Resumo final da mídia.
 
@@ -444,7 +474,6 @@ class SynthesisStep(AnalysisStep):
         self, analysis: Analysis, partials: Optional[list] = None, target_words: Optional[int] = None
     ) -> str:
         """Prompt final: transcrição inteira ou resumos parciais em ordem."""
-        main_topics = [t for t in analysis.topics if t.id != -1]
         parts: list[str] = []
         if partials is None:
             transcript = (analysis.document.text or "").strip()
@@ -460,9 +489,9 @@ class SynthesisStep(AnalysisStep):
                 "<resumos_parciais>\nResumos de partes consecutivas do material, em ordem:\n"
                 + "\n".join(sections) + "\n</resumos_parciais>"
             )
-        if main_topics:
-            overview = "\n".join(f"- {t.title or 'Tema'}: {', '.join((t.keywords or [])[:6])}" for t in main_topics)
-            parts.append("<temas_identificados>\n" + overview + "\n</temas_identificados>")
+        topic_lines, weighted = topic_overview(analysis)
+        if topic_lines:
+            parts.append("<temas_identificados>\n" + "\n".join(topic_lines) + "\n</temas_identificados>")
         visual = analysis.diagnostics.get("visual_context") or []
         if visual:
             parts.append("<descricoes_visuais>\n" + "\n".join(visual) + "\n</descricoes_visuais>")
@@ -477,12 +506,21 @@ class SynthesisStep(AnalysisStep):
                 "[Lista com até 3 itens.]\n\n"
             )
         else:
+            timed = weighted and not self._is_document(analysis)
+            heading = "## [Título de cada assunto principal, na ordem em que aparecem"
+            heading += " (momento em que começa, como na lista de temas)]\n" if timed else "]\n"
+            weights = (
+                "Os temas identificados estão na ordem em que aparecem, com a parcela do "
+                "conteúdo de cada um: dê a cada assunto espaço proporcional a essa parcela.\n"
+                if weighted else ""
+            )
             response_format = (
-                f"Formato da resposta (Markdown), com cerca de {target} palavras no total:\n"
+                weights
+                + f"Formato da resposta (Markdown), com cerca de {target} palavras no total:\n"
                 "# [Título específico que descreva o conteúdo]\n"
                 "[Um parágrafo de visão geral.]\n\n"
-                "## [Título de cada assunto principal, na ordem em que aparecem]\n"
-                "[Parágrafos que integrem conceitos, exemplos e dados citados.]\n\n"
+                + heading
+                + "[Parágrafos que integrem conceitos, exemplos e dados citados.]\n\n"
                 "## Pontos-chave\n"
                 "[Lista com 3 a 7 itens.]\n\n"
             )
@@ -518,7 +556,9 @@ class SynthesisStep(AnalysisStep):
         com o momento da gravação, e o que foi descrito da tela."""
         starts = {chunk.text: chunk.start for chunk in analysis.chunks}
         parts = []
-        for t in analysis.topics:
+        # Na ordem em que os temas aparecem, como as seções do resumo.
+        ordered = sorted(analysis.topics, key=lambda t: min(t.chunk_indices) if t.chunk_indices else 0)
+        for t in ordered:
             if t.id == -1:
                 continue
             lines = []

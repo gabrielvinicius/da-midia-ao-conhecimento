@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -14,6 +14,9 @@ class Topic:
     snippets: list[str] | None = None
     size: int = 0
     title: Optional[str] = None
+    #: Posições (em analysis.chunks) dos trechos do tema: dão o peso do tema
+    #: e onde ele aparece na gravação.
+    chunk_indices: list[int] = field(default_factory=list)
 
 
 __all__ = ["Topic"]

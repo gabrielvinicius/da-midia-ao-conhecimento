@@ -187,3 +187,72 @@ def test_blocks_have_similar_sizes():
     sizes = [len(b["text"]) for b in blocks]
     assert len(blocks) == 4
     assert max(sizes) - min(sizes) <= 2000  # e não 36 mil + 2 mil
+
+
+def _weighted_analysis(with_times=True):
+    texts = ["a" * 100, "b" * 300, "c" * 100, "d" * 500]
+    chunks = [
+        TextChunk(id=str(i), text=t, start=(i * 600.0 if with_times else None), end=(i * 600.0 + 599 if with_times else None))
+        for i, t in enumerate(texts)
+    ]
+    analysis = Analysis.new(Document.from_payload(" ".join(texts), []))
+    analysis.chunks = chunks
+    # O tema maior aparece depois: a lista precisa seguir a gravação, não o tamanho.
+    analysis.topics = [
+        Topic(id=0, title="Integrais", keywords=["área"], size=2, chunk_indices=[1, 3]),
+        Topic(id=1, title="Derivadas", keywords=["taxa"], size=2, chunk_indices=[0, 2]),
+    ]
+    return analysis
+
+
+def test_topics_go_in_order_of_appearance_with_share_and_start():
+    from src.text_analysis.application.pipeline.steps import topic_overview
+
+    lines, weighted = topic_overview(_weighted_analysis())
+
+    assert weighted
+    assert lines == [
+        "- Derivadas (taxa): 20% do conteúdo, a partir de 00:00",
+        "- Integrais (área): 80% do conteúdo, a partir de 10:00",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_prompt_asks_for_proportional_sections_with_their_start():
+    text_gen = _text_gen()
+    analysis = _weighted_analysis()
+    analysis.document = Document.from_payload("palavra " * 3000, [])  # formato completo
+
+    await SynthesisStep(text_gen, language="pt", max_full_transcript_chars=100000).process(analysis)
+
+    prompt = text_gen.summarize_topic.call_args.args[1]
+    assert "80% do conteúdo, a partir de 10:00" in prompt
+    assert "espaço proporcional a essa parcela" in prompt
+    assert "momento em que começa" in prompt
+
+
+def test_documents_get_shares_but_no_times():
+    from src.text_analysis.application.pipeline.steps import topic_overview
+
+    lines, weighted = topic_overview(_weighted_analysis(with_times=False))
+
+    assert weighted and lines[0] == "- Derivadas (taxa): 20% do conteúdo"
+
+
+def test_old_topics_without_chunks_keep_the_plain_list():
+    from src.text_analysis.application.pipeline.steps import topic_overview
+
+    analysis = _analysis("Texto.")  # temas sem chunk_indices, como em análises antigas
+    lines, weighted = topic_overview(analysis)
+
+    assert not weighted
+    assert lines == ["- Topic A: key1, key2", "- Topic B: key3"]
+
+
+@pytest.mark.asyncio
+async def test_appendix_follows_the_recording_order():
+    analysis = _weighted_analysis()
+    await SynthesisStep(_text_gen(), language="pt").process(analysis)
+
+    appendix = analysis.summary.split("Apêndice", 1)[1]
+    assert appendix.index("### Derivadas") < appendix.index("### Integrais")

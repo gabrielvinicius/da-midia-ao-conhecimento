@@ -221,6 +221,7 @@ class BERTopicAdapter(TopicModelingPort):
                             snippets=snippets,
                             title=title.strip(),
                             size=len(members),
+                            chunk_indices=members,
                             diagnostics={"score": 1.0},
                         )
                     )
@@ -283,6 +284,7 @@ class BERTopicAdapter(TopicModelingPort):
             snippets=[chunk.text for chunk in chunks[:3]],
             title=" e ".join(common[:2]).capitalize() if common else "Geral",
             size=len(chunks),
+            chunk_indices=list(range(len(chunks))),
             diagnostics={"method": "fallback"},
         )
         return [topic], {"method": "fallback"}
