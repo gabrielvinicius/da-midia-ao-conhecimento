@@ -115,7 +115,13 @@ def build_analysis_config(**overrides):
     from src.shared.infrastructure.config.settings import settings
     from src.text_analysis.application.config import AnalysisConfig
 
-    return AnalysisConfig(**{"llm_model": settings.llm_model, **overrides})
+    from src.text_analysis.application.config import OPTIONAL_FACTORS
+
+    factors = {f.strip().lower() for f in settings.analysis_factors.split(",") if f.strip()}
+    unknown = factors - OPTIONAL_FACTORS
+    if unknown:
+        raise ValueError(f"ANALYSIS_FACTORS desconhecidos: {sorted(unknown)}; use {sorted(OPTIONAL_FACTORS)}")
+    return AnalysisConfig(**{"llm_model": settings.llm_model, "factors": frozenset(factors), **overrides})
 
 
 def runtime_diagnostics() -> dict:

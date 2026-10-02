@@ -47,8 +47,11 @@ class Settings(BaseSettings):
     # cache de contexto do Ollama ocupe GBs a mais da GPU de 12 GB.
     llm_context_tokens: int = 16384
     llm_timeout_seconds: int = 900
-    # Descrição de quadros de vídeo: "moondream" (padrão) ou "ollama"
-    # (usa o modelo multimodal definido em visual_ollama_model).
+    # Fatores opcionais da análise, separados por vírgula: sentiment, topics
+    # (temas e seus títulos) e grounding (verificação de fidelidade).
+    analysis_factors: str = "sentiment,topics,grounding"
+    # Descrição de quadros de vídeo: "moondream" (padrão), "ollama" (usa o
+    # modelo multimodal definido em visual_ollama_model) ou "none" (desligada).
     visual_provider: str = "moondream"
     visual_ollama_model: str = "qwen3.5:9b"
 

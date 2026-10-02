@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+# Fatores opcionais da análise. Trechos, vetores, indexação e resumo sempre
+# rodam: são a base da busca e da página da mídia.
+OPTIONAL_FACTORS = frozenset({"sentiment", "topics", "grounding"})
 
 
 @dataclass(slots=True)
@@ -26,3 +30,6 @@ class AnalysisConfig:
     # Similaridade mínima (cosseno, multilingual-e5) entre uma frase do resumo
     # e algum trecho da transcrição para a frase contar como apoiada.
     grounding_threshold: float = 0.80
+    # Fatores ligados (ANALYSIS_FACTORS); desligar um tira o modelo dele da
+    # análise sem alterar as demais etapas.
+    factors: frozenset = field(default_factory=lambda: OPTIONAL_FACTORS)

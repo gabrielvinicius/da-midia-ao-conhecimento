@@ -67,6 +67,8 @@ def _visual_describer(stats=None):
     from src.media_processing.infrastructure.dependencies.providers import get_visual_analyzer
     from src.shared.infrastructure.config.settings import settings
 
+    if settings.visual_provider.strip().lower() == "none":
+        return None  # VISUAL_PROVIDER=none: os vídeos seguem só com a fala
     try:
         analyzer = get_visual_analyzer(settings.visual_provider)
     except Exception as exc:  # sem provedor de visão, os vídeos seguem só com a fala

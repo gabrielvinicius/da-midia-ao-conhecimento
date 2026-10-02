@@ -100,8 +100,28 @@ class SentimentStep(AnalysisStep):
         return analysis
 
 
+class ChunkEmbeddingStep(AnalysisStep):
+    """Calcula os vetores dos trechos uma vez, para os temas, a busca e a fidelidade."""
+
+    def __init__(self, embedding_service: EmbeddingServicePort):
+        self.embedding_service = embedding_service
+
+    @property
+    def name(self) -> str:
+        return "chunk_embedding"
+
+    async def process(self, analysis: Analysis) -> Analysis:
+        if not analysis.chunks:
+            return analysis
+        embeddings = await _maybe_await(
+            self.embedding_service.embed([chunk.text for chunk in analysis.chunks])
+        )
+        analysis.chunk_embeddings = [e.tolist() if hasattr(e, "tolist") else list(e) for e in embeddings]
+        return analysis
+
+
 class TopicModelingStep(AnalysisStep):
-    """Calcula os vetores dos trechos (uma vez, para todo o pipeline) e os temas."""
+    """Agrupa os trechos em temas, reaproveitando os vetores já calculados."""
 
     def __init__(self, topic_modeling: TopicModelingPort, embedding_service: EmbeddingServicePort, language: str):
         self.topic_modeling = topic_modeling
@@ -115,10 +135,9 @@ class TopicModelingStep(AnalysisStep):
     async def process(self, analysis: Analysis) -> Analysis:
         if not analysis.chunks:
             return analysis
-        embeddings = await _maybe_await(
-            self.embedding_service.embed([chunk.text for chunk in analysis.chunks])
-        )
-        analysis.chunk_embeddings = [e.tolist() if hasattr(e, "tolist") else list(e) for e in embeddings]
+        if len(analysis.chunk_embeddings or []) != len(analysis.chunks):
+            await ChunkEmbeddingStep(self.embedding_service).process(analysis)
+        embeddings = analysis.chunk_embeddings
 
         topics, diagnostics = await self.topic_modeling.model_topics(
             analysis.chunks, embeddings, _analysis_language(analysis, self.language)
