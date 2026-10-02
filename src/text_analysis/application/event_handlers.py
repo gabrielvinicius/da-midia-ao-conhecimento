@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from typing import Awaitable, Callable
-from uuid import UUID
 
 from src.shared.domain.events import TextContentReady
+
+from src.shared.domain.value_objects.identifiers import parse_id, parse_media_id
 
 from .dtos import AnalyzeTextCommand
 from .ports import TranscriptionQueryPort
@@ -19,23 +20,16 @@ def build_text_content_ready_handler(
         if not event.text:
             return
 
-        metadata = event.metadata or {}
-
-        media_id = UUID(event.media_id) if event.media_id else None
-        transcription_id = (
-            UUID(event.transcription_id) if event.transcription_id else None
-        )
-        user_id = UUID(event.user_id) if getattr(event, "user_id", None) else None
-
-        # We can run one analysis task that does everything, or split them.
-        # The Service orchestrates everything now.
+        media_id = parse_media_id(event.media_id)
+        transcription_id = parse_id(event.transcription_id)
+        user_id = parse_id(event.user_id)
 
         command = AnalyzeTextCommand(
             media_id=media_id,
             document_id=transcription_id or media_id,  # fallback
             text_content=event.text,
             transcription_id=transcription_id,
-            language=metadata.get("language"),
+            language=event.language,
             user_id=user_id,
         )
 

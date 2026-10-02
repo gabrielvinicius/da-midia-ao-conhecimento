@@ -44,6 +44,7 @@ def create_celery() -> Celery:
     from src.media_processing.config.settings import processing_settings
     from src.media_management.config.settings import media_settings
     from src.shared.events.integration_events import (
+        QUEUE_MAINTENANCE,
         TASK_MEDIA_RECOVER_UNSTARTED,
         TASK_MEDIA_SWEEP_STALLED,
     )
@@ -52,12 +53,12 @@ def create_celery() -> Celery:
         "sweep-stalled-processing": {
             "task": TASK_MEDIA_SWEEP_STALLED,
             "schedule": float(processing_settings.stall_check_interval_seconds),
-            "options": {"queue": "celery"},
+            "options": {"queue": QUEUE_MAINTENANCE},
         },
         "recover-unstarted-media": {
             "task": TASK_MEDIA_RECOVER_UNSTARTED,
             "schedule": float(media_settings.unstarted_check_interval_seconds),
-            "options": {"queue": "celery"},
+            "options": {"queue": QUEUE_MAINTENANCE},
         },
     }
 

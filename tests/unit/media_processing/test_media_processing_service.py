@@ -28,9 +28,7 @@ def _uploaded(media_type):
 async def test_handle_media_uploaded_dispatches_requests():
     handler = _handler()
 
-    await handler.handle_media_uploaded(
-        _uploaded(None), context={"file_path": "/path/to/file", "storage_provider": "local"}
-    )
+    await handler.handle_media_uploaded(_uploaded(None))
 
     handler._transcription_service.request_transcription_generation.assert_awaited()
     handler._text_extraction_service.request_text_extraction.assert_not_awaited()

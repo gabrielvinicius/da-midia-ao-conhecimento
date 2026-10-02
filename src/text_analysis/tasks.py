@@ -17,6 +17,7 @@ from src.shared.infrastructure.observability.logging.logging_config import get_l
 from src.shared.infrastructure.database.db import AsyncSessionLocal
 from src.shared.events.integration_events import TASK_TEXT_ANALYSIS_ANALYZE
 from src.shared.infrastructure.messaging.process_bus import process_event_bus
+from src.shared.domain.value_objects.identifiers import parse_id, parse_media_id
 from src.text_analysis.application.dtos import AnalyzeTextCommand
 from src.text_analysis.application.services.text_analysis_service import TextAnalysisService
 from src.text_analysis.infrastructure.dependencies.providers import get_event_bus
@@ -55,14 +56,9 @@ async def _async_task_body(
         text = payload.get("text") or payload.get("text_content") or ""
         language: Optional[str] = payload.get("language")
 
-        from uuid import UUID
-
-        media_uuid = UUID(str(media_id)) if media_id else None
-        transcription_uuid = UUID(str(transcription_id)) if transcription_id else None
-        user_uuid = UUID(str(user_id)) if user_id else None
-
-        if media_uuid is None:
-            raise ValueError("media_id é obrigatório para análise de texto")
+        media_uuid = parse_media_id(media_id)
+        transcription_uuid = parse_id(transcription_id)
+        user_uuid = parse_id(user_id)
 
         document_id = transcription_uuid or media_uuid
 

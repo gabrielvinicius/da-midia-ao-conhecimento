@@ -41,3 +41,17 @@ def test_events_are_only_created_by_their_publisher():
             if owners[name] != module:
                 violations.append(f"{path.relative_to(SRC)} cria {name} (publicado por {owners[name]})")
     assert violations == []
+
+
+def test_events_carry_typed_fields_not_free_dictionaries():
+    """Um dicionário livre ("metadata") escondia o contrato: quem reagia ao
+    evento precisava adivinhar as chaves, e uma chave renomeada falhava calada."""
+    import dataclasses
+
+    offenders = [
+        f"{name}.{f.name}"
+        for name in _published_events()
+        for f in dataclasses.fields(getattr(integration_events, name))
+        if f.type in ("Dict[str, Any]", "dict") or f.name == "metadata"
+    ]
+    assert offenders == []

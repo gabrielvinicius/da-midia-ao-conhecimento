@@ -158,7 +158,7 @@ services:
     container_name: video_summarizer_worker_heavy
     entrypoint: /app/docker/worker-entrypoint.sh
     # Processa filas pesadas: Vídeo, Transcrição e Análise de Texto
-    command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=1 -Q transcription_fast_lane,transcription_queue,text_analysis_fast_lane,text_analysis_queue
+    command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=1 -Q transcription_fast_lane,transcription_queue,text_analysis_queue
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }

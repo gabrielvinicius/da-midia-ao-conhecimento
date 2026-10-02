@@ -1,7 +1,7 @@
 """Event handlers for the media_processing module."""
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Optional
 from uuid import UUID
 
 import structlog
@@ -12,7 +12,12 @@ from src.media_processing.application.services.text_extraction_service import (
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
+from src.media_processing.application.dtos import (
+    RequestTextExtractionCommand,
+    RequestTranscriptionCommand,
+)
 from src.shared.domain.events import MediaUploaded
+from src.shared.domain.value_objects.identifiers import parse_id, parse_media_id
 
 TEXT_MEDIA_TYPE = "text"
 
@@ -35,25 +40,18 @@ class MediaProcessingEventHandlers:
             component="media_processing.event_handlers"
         )
 
-    async def handle_media_uploaded(
-        self,
-        event: MediaUploaded,
-        *,
-        context: Optional[dict[str, Any]] = None,
-    ) -> None:
+    async def handle_media_uploaded(self, event: MediaUploaded) -> None:
         """Trigger downstream processing whenever a media upload completes."""
-        context = context or {}
         try:
-            media_id = UUID(event.media_id)
-            media_type_value = event.media_type or context.get("media_type")
-            media_type = self._resolve_media_type(media_type_value)
+            media_id = parse_media_id(event.media_id)
+            media_type = self._resolve_media_type(event.media_type)
 
             # Documentos e imagens seguem para extração de texto (com OCR);
             # áudio e vídeo, para a transcrição, que lê o arquivo original.
             if media_type == TEXT_MEDIA_TYPE:
-                await self._delegate_text_extraction(event, context, media_id)
+                await self._delegate_text_extraction(event, media_id)
             else:
-                await self._delegate_transcription(event, context, media_id)
+                await self._delegate_transcription(event, media_id)
 
         except Exception as exc:  # pragma: no cover - defensive catch
             self._logger.error(
@@ -64,30 +62,15 @@ class MediaProcessingEventHandlers:
             )
             return
 
-    async def _delegate_text_extraction(self, event, context, media_id):
-        storage_provider = (
-            event.storage_provider or context.get("storage_provider") or "local"
-        )
-        file_path = getattr(event, "file_path", None) or context.get("file_path")
-        user_uuid = None
+    async def _delegate_text_extraction(self, event: MediaUploaded, media_id: UUID) -> None:
         try:
-            user_uuid = UUID(event.user_id) if event.user_id else None
-        except Exception:
-            user_uuid = None
-
-        try:
-            from src.media_processing.application.dtos import (
-                RequestTextExtractionCommand,
-            )
             command = RequestTextExtractionCommand(
                 media_id=media_id,
-                file_path=file_path,
-                storage_provider=storage_provider,
-                user_id=user_uuid,
-                filename=getattr(event, "filename", None),
-                triggered_by=getattr(event, "triggered_by", None),
-                actor_id=getattr(event, "actor_id", None) or context.get("actor_id"),
-                correlation_id=getattr(event, "correlation_id", None),
+                file_path=event.file_path,
+                storage_provider=event.storage_provider or "local",
+                user_id=parse_id(event.user_id),
+                filename=event.filename,
+                correlation_id=event.correlation_id,
             )
             await self._text_extraction_service.request_text_extraction(command)
             self._logger.debug(
@@ -101,55 +84,21 @@ class MediaProcessingEventHandlers:
                 error=str(exc),
             )
 
-    async def _delegate_transcription(self, event, context, media_id):
-        storage_provider = (
-            event.storage_provider or context.get("storage_provider") or "local"
-        )
-        # Validate providers
-        transcription_provider = (
-            event.transcription_provider
-            or context.get("transcription_provider")
-            or context.get("provider")
-            or "default"
-        )
-        summarization_provider = (
-            event.summarization_provider or context.get("summarization_provider")
-        )
-        sentiment_provider = (
-            event.sentiment_provider or context.get("sentiment_provider")
-        )
-        topic_provider = (
-            event.topic_modeling_provider or context.get("topic_modeling_provider")
-        )
-
-        file_path = getattr(event, "file_path", None) or context.get("file_path")
-        user_uuid = None
+    async def _delegate_transcription(self, event: MediaUploaded, media_id: UUID) -> None:
         try:
-            user_uuid = UUID(event.user_id) if event.user_id else None
-        except Exception:
-            user_uuid = None
-
-        try:
-            from src.media_processing.application.dtos import (
-                RequestTranscriptionCommand,
-            )
             command = RequestTranscriptionCommand(
                 media_id=media_id,
-                file_path=file_path,
-                storage_provider=storage_provider,
-                transcription_provider=transcription_provider,
-                language=event.language or context.get("language") or "auto",
-                file_size_bytes=(
-                    event.file_size_bytes or context.get("file_size_bytes") or 0
-                ),
-                summarization_provider=summarization_provider,
-                sentiment_provider=sentiment_provider,
-                topic_modeling_provider=topic_provider,
-                user_id=user_uuid,
-                filename=getattr(event, "filename", None),
-                triggered_by=getattr(event, "triggered_by", None),
-                actor_id=getattr(event, "actor_id", None) or context.get("actor_id"),
-                correlation_id=getattr(event, "correlation_id", None),
+                file_path=event.file_path,
+                storage_provider=event.storage_provider or "local",
+                transcription_provider=event.transcription_provider or "default",
+                language=event.language or "auto",
+                file_size_bytes=event.file_size_bytes or 0,
+                summarization_provider=event.summarization_provider,
+                sentiment_provider=event.sentiment_provider,
+                topic_modeling_provider=event.topic_modeling_provider,
+                user_id=parse_id(event.user_id),
+                filename=event.filename,
+                correlation_id=event.correlation_id,
             )
             await self._transcription_service.request_transcription_generation(command)
             self._logger.debug(
@@ -177,3 +126,4 @@ class MediaProcessingEventHandlers:
 
     def _validate_provider(self, name: str | None) -> str | None:
         return name
+

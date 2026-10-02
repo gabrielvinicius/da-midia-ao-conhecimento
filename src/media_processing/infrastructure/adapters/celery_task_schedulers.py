@@ -12,6 +12,9 @@ from uuid import UUID
 import structlog
 
 from src.shared.events.integration_events import (
+    QUEUE_TEXT_ANALYSIS,
+    QUEUE_TRANSCRIPTION,
+    QUEUE_TRANSCRIPTION_FAST,
     TASK_MEDIA_TEXT_EXTRACTION,
     TASK_MEDIA_TRANSCRIPTION,
     TASK_TEXT_ANALYSIS_ANALYZE,
@@ -42,7 +45,7 @@ class CeleryTextTaskScheduler:
         actor_id: str | None = None,
         correlation_id: str | None = None,
     ) -> Any:
-        queue = "text_analysis_queue"
+        queue = QUEUE_TEXT_ANALYSIS
         task = _send(
             TASK_MEDIA_TEXT_EXTRACTION,
             {
@@ -87,9 +90,9 @@ class CeleryTranscriptionTaskScheduler:
         actor_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
     ) -> Any:
-        queue = "transcription_queue"
+        queue = QUEUE_TRANSCRIPTION
         if file_size_bytes and file_size_bytes < FAST_LANE_MAX_BYTES:
-            queue = "transcription_fast_lane"
+            queue = QUEUE_TRANSCRIPTION_FAST
 
         task = _send(
             TASK_MEDIA_TRANSCRIPTION,
@@ -125,7 +128,7 @@ class CeleryAnalysisRequester:
     """Pede a análise do texto ao módulo text_analysis, pelo nome da tarefa."""
 
     def request_analysis(self, payload: dict) -> None:
-        _send(TASK_TEXT_ANALYSIS_ANALYZE, payload, "text_analysis_queue")
+        _send(TASK_TEXT_ANALYSIS_ANALYZE, payload, QUEUE_TEXT_ANALYSIS)
 
 
 __all__ = [

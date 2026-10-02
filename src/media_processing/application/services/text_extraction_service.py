@@ -100,12 +100,6 @@ class TextExtractionService:
                     media_id=str(media_id),
                     stage="text_extraction",
                     correlation_id=correlation_id,
-                    metadata={
-                        "storage_provider": storage_provider,
-                        "file_path": file_path,
-                        "user_id": user_id,
-                        "filename": filename,
-                    },
                 )
             )
 
@@ -127,10 +121,9 @@ class TextExtractionService:
             tmp.write(content)
             tmp_path = tmp.name
 
+        owner = user_id or getattr(transcription, "user_id", None)
         context = {
-            "storage_provider": storage_provider,
-            "file_path": file_path,
-            "user_id": user_id or getattr(transcription, "user_id", None),
+            "user_id": str(owner) if owner else None,
             "filename": filename or getattr(transcription, "filename", None),
         }
         try:
@@ -175,7 +168,7 @@ class TextExtractionService:
                 stage="text_extraction",
                 result_id=str(transcription.id),
                 correlation_id=correlation_id,
-                metadata={"provider": provider_used, **context},
+                provider=provider_used,
             )
         )
         # Como na transcrição de áudio: o módulo de mídias conclui a
@@ -186,11 +179,9 @@ class TextExtractionService:
                 transcription_id=str(transcription.id),
                 text=text,
                 user_id=context["user_id"],
-                metadata={
-                    "provider": provider_used,
-                    "filename": context["filename"],
-                    "language": transcription.language,
-                },
+                provider=provider_used,
+                filename=context["filename"],
+                language=transcription.language,
                 correlation_id=correlation_id,
             )
         )
@@ -210,8 +201,8 @@ class TextExtractionService:
                     media_id=str(media_id),
                     stage="text_extraction",
                     error_message=str(exc),
+                    user_id=context["user_id"],
                     correlation_id=correlation_id,
-                    metadata=context,
                 )
             )
 

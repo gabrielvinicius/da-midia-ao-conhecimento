@@ -133,11 +133,7 @@ class MediaWorkerApp:
             "user_id": getattr(event, "user_id", None),
             "filename": getattr(event, "filename", None),
             "text_content": getattr(event, "text", None),
-            "language": (
-                (event.metadata or {}).get("language")
-                if isinstance(getattr(event, "metadata", None), dict)
-                else None
-            ),
+            "language": event.language,
             "correlation_id": getattr(event, "correlation_id", None),
         }
 
@@ -160,9 +156,7 @@ class MediaWorkerApp:
             handlers = self._build_media_handlers(session)
             await handlers.handle_media_processing_failed(event)
 
-            user_id = None
-            if isinstance(getattr(event, "metadata", None), dict):
-                user_id = event.metadata.get("user_id")
+            user_id = event.user_id
             if user_id:
                 service = bootstrap_pipeline_notification_service(session)
                 await service.notify(

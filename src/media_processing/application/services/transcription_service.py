@@ -92,12 +92,6 @@ class TranscriptionService:
                     media_id=str(media_id),
                     stage="transcription",
                     correlation_id=correlation_id,
-                    metadata={
-                        "storage_provider": storage_provider,
-                        "transcription_provider": transcription_provider,
-                        "language": language,
-                        "file_path": file_path,
-                    },
                 )
             )
 
@@ -140,11 +134,6 @@ class TranscriptionService:
 
             # Em vídeos, descreve alguns quadros com o arquivo já em mãos.
             visual_context = await self._describe_frames(result, content, file_path, transcription)
-
-            # Inject downstream provider preferences into result metadata for the event
-            result["summarization_provider"] = summarization_provider
-            result["sentiment_provider"] = sentiment_provider
-            result["topic_modeling_provider"] = topic_modeling_provider
 
             await self.process_transcription_result(
                 transcription_id,
@@ -384,46 +373,33 @@ class TranscriptionService:
             error_message, original_status,
         )
 
-        if self._event_bus:
-            if success:
-                metadata = {
-                    "provider": provider,
-                    "confidence": transcription.confidence_score,
-                    "correlation_id": correlation_id,
-                    "summarization_provider": result_data.get(
-                        "summarization_provider"
-                    ),
-                    "sentiment_provider": result_data.get("sentiment_provider"),
-                    "topic_modeling_provider": result_data.get(
-                        "topic_modeling_provider"
-                    ),
-                    "language": transcription.language,
-                }
-                await self._event_bus.publish(
-                    TranscriptionCompleted(
-                        media_id=str(media_id),
-                        transcription_id=str(transcription_id),
-                        user_id=str(transcription.user_id) if transcription.user_id else None,
-                        text=transcription.text,
-                        metadata=metadata,
-                        correlation_id=correlation_id,
-                    )
+        if not self._event_bus:
+            return
+        if success:
+            await self._event_bus.publish(
+                TranscriptionCompleted(
+                    media_id=str(media_id),
+                    transcription_id=str(transcription_id),
+                    user_id=str(transcription.user_id) if transcription.user_id else None,
+                    text=transcription.text,
+                    provider=provider,
+                    language=transcription.language,
+                    confidence=transcription.confidence_score,
+                    filename=transcription.filename,
+                    correlation_id=correlation_id,
                 )
-            elif final_attempt:
-                metadata = {
-                    "provider": provider,
-                    "correlation_id": correlation_id,
-                }
-                await self._event_bus.publish(
-                    TranscriptionFailed(
-                        media_id=media_id,
-                        transcription_id=transcription_id,
-                        user_id=transcription.user_id,
-                        error_message=error_message,
-                        metadata=metadata,
-                        correlation_id=correlation_id,
-                    )
+            )
+        elif final_attempt:
+            await self._event_bus.publish(
+                TranscriptionFailed(
+                    media_id=str(media_id),
+                    transcription_id=str(transcription_id),
+                    user_id=str(transcription.user_id) if transcription.user_id else None,
+                    error_message=error_message,
+                    provider=provider,
+                    correlation_id=correlation_id,
                 )
+            )
 
     async def _record_result_observability(
         self,

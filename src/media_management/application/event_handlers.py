@@ -1,7 +1,6 @@
 """Reações do módulo de mídias aos eventos do processamento."""
 from __future__ import annotations
 
-import uuid
 from typing import Optional
 
 import structlog
@@ -15,14 +14,16 @@ from src.shared.domain.events import (
     TranscriptionCompleted,
     TranscriptionFailed,
 )
+from src.shared.domain.errors import ValidationError
+from src.shared.domain.value_objects.identifiers import MediaId, parse_media_id
 
 logger = structlog.get_logger(__name__)
 
 
-def _media_uuid(event) -> Optional[uuid.UUID]:
+def _media_uuid(event) -> Optional[MediaId]:
     try:
-        return uuid.UUID(str(event.media_id))
-    except Exception:
+        return parse_media_id(event.media_id)
+    except ValidationError:
         logger.error("media_management.invalid_media_id", media_id=getattr(event, "media_id", None))
         return None
 
@@ -43,15 +44,15 @@ class MediaEventHandlers:
             media = await self._media.record_text_ready(media_id)
             if media is None or not self._event_bus:
                 return
-            metadata = event.metadata if isinstance(event.metadata, dict) else {}
             await self._event_bus.publish(
                 TextContentReady(
                     media_id=str(media_id),
                     transcription_id=str(event.transcription_id),
                     text=event.text,
                     user_id=event.user_id,
-                    filename=metadata.get("filename"),
-                    metadata=event.metadata,
+                    filename=event.filename,
+                    language=event.language,
+                    correlation_id=event.correlation_id,
                 )
             )
             logger.info("media_management.text_content_ready_published", media_id=str(media_id))
