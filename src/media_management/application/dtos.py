@@ -21,6 +21,9 @@ class CreateMediaCommand(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(
         None, description="Metadados adicionais enviados pelo cliente."
     )
+    correlation_id: Optional[str] = Field(
+        None, description="Identificador da requisição, levado até as tarefas da fila."
+    )
 
 
 class DeleteMediaCommand(BaseModel):

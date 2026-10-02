@@ -10,5 +10,12 @@ else
   echo "[entrypoint] HF_TOKEN not set, skipping login."
 fi
 
+# Métricas dos processos filhos do Celery (prometheus_client multiprocesso):
+# a pasta começa vazia a cada partida do worker.
+if [ -n "$PROMETHEUS_MULTIPROC_DIR" ]; then
+  rm -rf "$PROMETHEUS_MULTIPROC_DIR"
+  mkdir -p "$PROMETHEUS_MULTIPROC_DIR"
+fi
+
 echo "[entrypoint] Starting worker process..."
 exec "$@"

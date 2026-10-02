@@ -64,40 +64,6 @@ class SubscriptionManager:
 # --- From event_publisher.py ---
 EventListener = Callable[[DomainEvent], Awaitable[None]]
 
-class EventPublisher:
-    """Lightweight publisher that directly forwards events to a listener."""
-
-    def __init__(self) -> None:
-        self._listener: Optional[EventListener] = None
-        self._running: bool = False
-
-    async def publish(self, event: DomainEvent) -> None:
-        """Forward the event to the registered listener."""
-        if not self._running or self._listener is None:
-            raise RuntimeError(
-                "EventPublisher não está em execução. "
-                "Garanta que event_bus.start(listener) foi chamado no bootstrap."
-            )
-        await self._listener(event)
-
-    async def start(self, listener: EventListener) -> None:
-        """Activate the publisher with the given listener callback."""
-        self._listener = listener
-        self._running = True
-
-    async def stop(self) -> None:
-        """Deactivate the publisher and drop the listener reference."""
-        self._listener = None
-        self._running = False
-
-    async def emit(self, event: DomainEvent) -> None:
-        """Helper used in tests to simulate inbound events."""
-        await self.publish(event)
-
-    @property
-    def is_running(self) -> bool:
-        return self._running
-
 # --- From async_queue_publisher.py ---
 class AsyncQueueBrokerPublisher:
     """Publishes events via an internal asyncio.Queue processed by a worker task."""
@@ -328,7 +294,6 @@ def create_inmemory_event_bus() -> EventBus:
 
 __all__ = [
     "EventListener",
-    "EventPublisher",
     "AsyncQueueBrokerPublisher",
     "EventHandler",
     "SubscriptionManager",

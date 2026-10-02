@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 from fastapi import (
     Depends,
     FastAPI,
-    Response,
     WebSocket,
     WebSocketDisconnect,
     WebSocketException,
@@ -13,7 +12,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # OpenTelemetry Imports
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from src.shared.api.monitoring_router import router as monitoring_router
 from src.shared.api.providers_router import router as providers_router
@@ -74,6 +72,7 @@ from src.shared.infrastructure.middleware.validation_middleware import (
 from src.shared.infrastructure.observability.health.health_check import (
     router as health_router,
 )
+from src.shared.infrastructure.observability.metrics.exposition import start_metrics_server
 from src.shared.infrastructure.observability.logging.logging_config import (
     configure_logging,
     get_logger,
@@ -142,7 +141,7 @@ async def lifespan(app: FastAPI):
 
     lightweight_mode = os.getenv("LIGHTWEIGHT_BOOTSTRAP", "0") == "1"
 
-    configure_logging("video-summarizer-api", level="INFO", debug_mode=True)
+    configure_logging("video-summarizer-api")
     logger = get_logger("main")
 
     if not lightweight_mode:
@@ -152,6 +151,8 @@ async def lifespan(app: FastAPI):
 
     # Configurar tracing
     configure_tracer("video-summarizer-api")
+    # Métricas numa porta interna, fora da API pública (METRICS_PORT).
+    start_metrics_server()
 
     logger.info("Iniciando aplicação", component="lifespan")
     logger.info("Criando tabelas do banco de dados", component="database")
@@ -472,8 +473,3 @@ async def root():
 
 
 
-
-@app.get("/metrics")
-async def metrics() -> Response:
-    data = generate_latest()
-    return Response(content=data, media_type=CONTENT_TYPE_LATEST)

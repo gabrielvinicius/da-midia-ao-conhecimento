@@ -17,7 +17,7 @@ def pytest_configure(config):
     os.environ.setdefault("LIGHTWEIGHT_BOOTSTRAP", "1")
     try:
         from src.shared.infrastructure.observability.logging.logging_config import configure_logging
-        configure_logging("test", level="DEBUG", debug_mode=True)
+        configure_logging("test", level="DEBUG", log_format="console")
     except ImportError:
         pass
 

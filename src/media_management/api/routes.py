@@ -25,6 +25,7 @@ from src.media_management.application.dtos import (
     ReprocessMediaCommand,
 )
 from src.media_management.application.services.media_service import MediaService
+from src.shared.infrastructure.middleware.correlation_middleware import correlation_id_of
 from src.shared.application.schemas import (
     BaseResponseSchema,
     create_success_response,
@@ -49,6 +50,7 @@ router = APIRouter(
     summary="Upload a new media file"
 )
 async def create_media(
+    request: Request,
     file: UploadFile = File(...),
     storage_provider: Optional[str] = Query("local"),
     transcription_provider: Optional[str] = Query(None),
@@ -61,6 +63,7 @@ async def create_media(
         filename=file.filename,
         storage_provider=storage_provider,
         transcription_provider=transcription_provider,
+        correlation_id=correlation_id_of(request),
     )
     # Erros de validação viram 400 nos tratadores globais; o resto, 500 sem
     # expor a mensagem interna.

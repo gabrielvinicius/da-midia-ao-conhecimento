@@ -38,10 +38,10 @@ async def test_health_check_reports_a_failing_dependency_as_503(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_metrics_endpoint():
+async def test_metrics_are_not_served_by_the_public_api():
+    """As métricas ficam na porta interna (METRICS_PORT), não na API."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/metrics")
 
-    assert response.status_code == 200
-    assert "python_info" in response.text
+    assert response.status_code == 404

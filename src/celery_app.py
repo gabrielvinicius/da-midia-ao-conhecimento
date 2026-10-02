@@ -8,7 +8,14 @@ from __future__ import annotations
 import os
 
 from celery import Celery
-from celery.signals import worker_process_init, worker_ready
+from celery.signals import (
+    setup_logging,
+    task_postrun,
+    task_prerun,
+    worker_process_init,
+    worker_process_shutdown,
+    worker_ready,
+)
 
 def _default_broker() -> str:
     return os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
@@ -92,6 +99,34 @@ def create_celery() -> Celery:
     return app
 
 
+@setup_logging.connect(weak=False)
+def _configure_worker_logging(**_kwargs) -> None:
+    """Workers usam o mesmo log estruturado da API (o Celery não o sobrescreve)."""
+    from src.shared.infrastructure.observability.logging.logging_config import configure_logging
+
+    configure_logging("video-summarizer-worker")
+
+
+@task_prerun.connect(weak=False)
+def _bind_task_context(task_id=None, task=None, kwargs=None, **_extra) -> None:
+    """Cada linha de log da tarefa leva o correlation_id da requisição de origem."""
+    import structlog
+
+    structlog.contextvars.clear_contextvars()
+    context = {"task_id": task_id, "task_name": getattr(task, "name", None)}
+    for key in ("correlation_id", "media_id"):
+        if (kwargs or {}).get(key):
+            context[key] = str(kwargs[key])
+    structlog.contextvars.bind_contextvars(**context)
+
+
+@task_postrun.connect(weak=False)
+def _clear_task_context(**_kwargs) -> None:
+    import structlog
+
+    structlog.contextvars.clear_contextvars()
+
+
 @worker_process_init.connect(weak=False)
 def _init_worker_tracing(**_kwargs) -> None:
     """Ativa o tracing em cada processo do worker (após o fork)."""
@@ -112,6 +147,21 @@ def _start_gpu_stats(**_kwargs) -> None:
     from src.shared.infrastructure.monitoring.gpu_stats import start_publisher
 
     start_publisher()
+
+
+@worker_ready.connect(weak=False)
+def _start_worker_metrics(**_kwargs) -> None:
+    """O processo principal serve as métricas somadas dos processos filhos."""
+    from src.shared.infrastructure.observability.metrics.exposition import start_metrics_server
+
+    start_metrics_server()
+
+
+@worker_process_shutdown.connect(weak=False)
+def _forget_worker_process_metrics(pid=None, **_kwargs) -> None:
+    from src.shared.infrastructure.observability.metrics.exposition import mark_process_dead
+
+    mark_process_dead(pid or os.getpid())
 
 
 # Celery CLI entry point: "celery -A src.celery_app:celery worker"

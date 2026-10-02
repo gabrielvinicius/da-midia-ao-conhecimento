@@ -105,7 +105,7 @@ class UploadMedia:
             language="auto",
         )
         saved = await self._media.save(media)
-        await self.side_effect_publisher.publish(saved, upload_metadata)
+        await self.side_effect_publisher.publish(saved, upload_metadata, command.correlation_id)
         logger.info("media_management.create_media.completed", media_id=str(saved.id), user_id=str(saved.user_id))
         return saved
 

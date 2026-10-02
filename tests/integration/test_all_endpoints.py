@@ -38,13 +38,6 @@ async def test_health_check_endpoint(client: AsyncClient, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_metrics_endpoint(client: AsyncClient):
-    """Test the metrics endpoint."""
-    response = await client.get("/metrics")
-    assert response.status_code == 200
-
-
-@pytest.mark.asyncio
 async def test_register_user(client: AsyncClient):
     """Test user registration."""
     response = await client.post(
