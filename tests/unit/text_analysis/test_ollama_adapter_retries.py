@@ -145,3 +145,24 @@ async def test_ollama_release_unloads_models(monkeypatch):
         ("generate", {"model": "qwen3.5:9b", "keep_alive": 0}),
         ("generate", {"model": "gemma4:e4b", "keep_alive": 0}),
     ]
+
+
+@pytest.mark.asyncio
+async def test_response_cap_and_prompt_size_reach_ollama(monkeypatch):
+    sent = {}
+
+    class Client(DummyAsyncClient):
+        async def post(self, url, json=None, **_):
+            sent.update(json or {})
+            return DummyResponse(True, {"message": {"content": "ok"}, "prompt_eval_count": 16000})
+
+    import src.text_analysis.infrastructure.adapters.text_generation_ollama_adapter as mod
+
+    monkeypatch.setattr(mod.httpx, "AsyncClient", lambda *a, **k: Client([]))
+    adapter = OllamaTextGenerationAdapter(model="m", context_tokens=16384)
+
+    await adapter.summarize_topic("t", "texto", [], "pt", max_tokens=400)
+
+    assert sent["options"]["num_predict"] == 400
+    assert adapter.last_prompt_tokens == 16000
+    assert adapter.last_prompt_truncated is True  # 16000 >= 97% de 16384

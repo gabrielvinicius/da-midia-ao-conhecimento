@@ -49,6 +49,8 @@ class Llama3TransformersTextGenerationAdapter(TextGenerationPort):
         content: str,
         keywords: list[str],
         language: str,
+        *,
+        max_tokens: Optional[int] = None,
     ) -> str:
         self._m_attempts.labels(model=self.model_name).inc()
         if not self._available:
@@ -97,7 +99,7 @@ class Llama3TransformersTextGenerationAdapter(TextGenerationPort):
         def _generate_sync():
             return self._pipe(
                 prompt,
-                max_new_tokens=self.max_new_tokens,
+                max_new_tokens=max_tokens or self.max_new_tokens,
                 temperature=self.temperature,
                 do_sample=self.temperature > 0,
             )

@@ -21,6 +21,8 @@ logger = get_logger(__name__)
 
 SYSTEM_START = "<<<SYSTEM>>>"
 SYSTEM_END = "<<<END_SYSTEM>>>"
+# Fração da janela a partir da qual o prompt é tratado como possivelmente cortado.
+TRUNCATION_RATIO = 0.97
 DEFAULT_SYSTEM_PROMPT = "Você é um assistente que resume conteúdos com fidelidade, sem inventar fatos."
 
 
@@ -99,8 +101,12 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
         content: str,
         keywords: list[str],
         language: str,
+        *,
+        max_tokens: Optional[int] = None,
     ) -> str:
         self.last_used_reserve = False
+        self.last_prompt_tokens = None
+        self.last_prompt_truncated = False
         self._m_attempts.labels(model=self.config.model).inc()
         # tenta reativar se estava indisponível e o cooldown já passou
         if not self._available and self._last_failure_ts:
@@ -123,7 +129,7 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
             for model in models:
                 for attempt in range(self._retries + 1):
                     try:
-                        text = await self._chat(client, model, messages)
+                        text = await self._chat(client, model, messages, max_tokens)
                         self._available = True
                         self.last_model_used = model
                         self.last_used_reserve = model != self.config.model
@@ -146,7 +152,12 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
             f"Nenhum modelo de linguagem respondeu ({', '.join(models)}): {last_exc}"
         )
 
-    async def _chat(self, client: httpx.AsyncClient, model: str, messages: list[dict]) -> str:
+    async def _chat(
+        self, client: httpx.AsyncClient, model: str, messages: list[dict], max_tokens: Optional[int] = None
+    ) -> str:
+        options: dict = {"num_ctx": self.config.context_tokens, "temperature": self.config.temperature}
+        if max_tokens:
+            options["num_predict"] = max_tokens
         resp = await client.post(
             f"{self.config.host}/api/chat",
             json={
@@ -155,19 +166,32 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
                 "stream": False,
                 "think": False,
                 "keep_alive": self.config.keep_alive,
-                "options": {
-                    "num_ctx": self.config.context_tokens,
-                    "temperature": self.config.temperature,
-                },
+                "options": options,
             },
         )
         resp.raise_for_status()
         data = resp.json()
+        self._check_prompt_size(model, data.get("prompt_eval_count"))
         text = (data.get("message") or {}).get("content") or data.get("response") or ""
         text = text.strip()
         if not text:
             raise ValueError("resposta vazia do Ollama")
         return text
+
+    def _check_prompt_size(self, model: str, prompt_tokens: Optional[int]) -> None:
+        """O Ollama corta, sem erro, o prompt que não cabe na janela (num_ctx).
+        Um prompt que ocupa a janela quase inteira provavelmente foi cortado."""
+        if not isinstance(prompt_tokens, int):
+            return
+        self.last_prompt_tokens = prompt_tokens
+        if prompt_tokens >= self.config.context_tokens * TRUNCATION_RATIO:
+            self.last_prompt_truncated = True
+            logger.warning(
+                "ollama.prompt_may_be_truncated",
+                model=model,
+                prompt_tokens=prompt_tokens,
+                context_tokens=self.config.context_tokens,
+            )
 
     @staticmethod
     def _wrap_raw_content(

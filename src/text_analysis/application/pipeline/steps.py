@@ -12,6 +12,7 @@ numa placa de 12 GB não cabem todos juntos.
 from __future__ import annotations
 
 import inspect
+import math
 import re
 from typing import Any, Optional, Sequence
 
@@ -255,16 +256,43 @@ def _language_name(language: str) -> str:
     return _LANGUAGE_NAMES.get((language or "pt").lower(), language or "português do Brasil")
 
 
+# Tamanho do resumo, proporcional à transcrição: cerca de 12% das palavras,
+# entre 120 e 900. Abaixo de 200 palavras, formato curto (sem seções): um
+# resumo com título, seções e pontos-chave ficava do tamanho de uma fala curta.
+SUMMARY_RATIO = 0.12
+SUMMARY_MIN_WORDS = 120
+SUMMARY_MAX_WORDS = 900
+SHORT_SUMMARY_WORDS = 200
+# Teto da resposta em tokens: no Qwen, o português gasta ~1,8 token por
+# palavra; a margem cobre títulos e marcação.
+TOKENS_PER_WORD = 2.2
+TOKEN_MARGIN = 150
+
+
+def summary_target_words(source_words: int) -> int:
+    return max(SUMMARY_MIN_WORDS, min(SUMMARY_MAX_WORDS, round(source_words * SUMMARY_RATIO)))
+
+
+def response_token_cap(words: int) -> int:
+    return int(words * TOKENS_PER_WORD) + TOKEN_MARGIN
+
+
 class SynthesisStep(AnalysisStep):
     """Resumo final da mídia.
 
     - Transcrição de até ``max_full_transcript_chars``: vai inteira ao modelo.
     - Maior que isso (gravações longas): a transcrição inteira é dividida em
       blocos consecutivos; cada bloco é resumido e os resumos parciais são
-      unidos numa segunda chamada. Antes, gravações longas eram resumidas a
-      partir de cinco trechos por tema, e o que o BERTopic classificava como
-      ruído ficava de fora.
+      unidos numa segunda chamada.
+    - O tamanho pedido acompanha o tamanho do material (``summary_target_words``),
+      e a resposta tem teto de tokens.
     - Se nenhum modelo responder: resumo simplificado com os temas.
+
+    Os limites vêm de medições com o tokenizador do Qwen (~3,5 caracteres por
+    token em português falado): 36 mil caracteres com temas e quadros somam
+    ~11,2 mil tokens, o que deixa espaço para a resposta na janela de 16.384.
+    Os blocos usam o mesmo limite; com 20 mil, cada um ocupava só 35% da janela
+    e uma aula de duas horas pedia sete chamadas em vez de quatro.
     """
 
     def __init__(
@@ -272,7 +300,7 @@ class SynthesisStep(AnalysisStep):
         text_generation: TextGenerationPort,
         language: str,
         max_full_transcript_chars: int = 36000,
-        block_chars: int = 20000,
+        block_chars: int = 36000,
     ):
         self.text_generation = text_generation
         self.language = language
@@ -288,44 +316,84 @@ class SynthesisStep(AnalysisStep):
         if not analysis.topics and not transcript:
             return analysis
 
-        used_reserve = False
+        target = summary_target_words(len(transcript.split()))
+        analysis.diagnostics["synthesis_target_words"] = target
+        self._used_reserve = False
+        self._prompt_tokens: list[int] = []
+        self._truncated = False
         try:
             if len(transcript) <= self.max_full_transcript_chars:
                 analysis.diagnostics["synthesis_input"] = "full_transcript"
-                prompt = self.build_prompt(analysis)
+                prompt = self.build_prompt(analysis, target_words=target)
             else:
                 blocks = self.split_blocks(analysis)
                 analysis.diagnostics["synthesis_input"] = "sections"
                 analysis.diagnostics["synthesis_sections"] = len(blocks)
                 partials = []
                 for index, block in enumerate(blocks, start=1):
-                    partials.append(await self._generate(self.build_section_prompt(block, index, len(blocks))))
-                    used_reserve = used_reserve or self.text_generation.last_used_reserve
-                prompt = self.build_prompt(analysis, partials=list(zip(blocks, partials)))
-            master_summary = await self._generate(prompt)
-            used_reserve = used_reserve or self.text_generation.last_used_reserve
-            analysis.diagnostics["summary_source"] = "reserve" if used_reserve else "llm"
+                    items = self.items_for(block["text"])
+                    partials.append(
+                        await self._generate(
+                            self.build_section_prompt(block, index, len(blocks), analysis, items),
+                            max_tokens=response_token_cap(items * 30),
+                        )
+                    )
+                prompt = self.build_prompt(analysis, partials=list(zip(blocks, partials)), target_words=target)
+            master_summary = await self._generate(prompt, max_tokens=response_token_cap(target))
+            analysis.diagnostics["summary_source"] = "reserve" if self._used_reserve else "llm"
             analysis.summary = self._with_appendix(master_summary, analysis)
         except Exception as exc:  # inclui TextGenerationUnavailableError
             logger.error("synthesis.failed", error=str(exc))
             analysis.diagnostics["summary_source"] = "simplified"
             analysis.summary = self._with_appendix(self._simplified_summary(analysis), analysis)
+        if self._prompt_tokens:
+            analysis.diagnostics["synthesis_prompt_tokens"] = max(self._prompt_tokens)
+        if self._truncated:
+            analysis.diagnostics["synthesis_prompt_truncated"] = True
         return analysis
 
-    async def _generate(self, prompt: str) -> str:
-        return await self.text_generation.summarize_topic("Resumo da mídia", prompt, [], self.language)
+    async def _generate(self, prompt: str, max_tokens: Optional[int] = None) -> str:
+        text = await self.text_generation.summarize_topic(
+            "Resumo da mídia", prompt, [], self.language, max_tokens=max_tokens
+        )
+        self._used_reserve = self._used_reserve or self.text_generation.last_used_reserve is True
+        tokens = getattr(self.text_generation, "last_prompt_tokens", None)
+        if isinstance(tokens, int):
+            self._prompt_tokens.append(tokens)
+        self._truncated = self._truncated or getattr(self.text_generation, "last_prompt_truncated", False) is True
+        return text
+
+    @staticmethod
+    def items_for(text: str) -> int:
+        """Itens do resumo de um bloco: um a cada ~2.500 caracteres, entre 5 e 15."""
+        return max(5, min(15, len(text) // 2500))
+
+    @staticmethod
+    def _is_document(analysis: Analysis) -> bool:
+        """Sem horário em nenhum trecho, o material é um documento (PDF, OCR)."""
+        return not any(getattr(c, "start", None) is not None for c in analysis.chunks or [])
 
     def split_blocks(self, analysis: Analysis) -> list[dict]:
-        """Blocos consecutivos de até ``block_chars``, com início e fim na gravação."""
-        pieces = [(c.text, c.start, c.end) for c in analysis.chunks] or [
-            (analysis.document.text[i:i + 2000], None, None)
-            for i in range(0, len(analysis.document.text), 2000)
-        ]
+        """Blocos consecutivos de até ``block_chars``.
+
+        Gravação: junta os trechos, com início e fim na gravação. Documento: os
+        trechos de documentos se sobrepõem (para a busca), então o texto é
+        dividido direto, por frases, sem repetir nada.
+        """
+        if self._is_document(analysis):
+            sentences = [s for s in re.split(r"(?<=[.!?])\s+", analysis.document.text or "") if s.strip()]
+            pieces = [(s, None, None) for s in sentences]
+        else:
+            pieces = [(c.text, c.start, c.end) for c in analysis.chunks]
+        # Blocos de tamanho parecido: com o limite puro, 110 mil caracteres
+        # davam três blocos cheios e um de 2 mil, resumido com o mesmo peso.
+        total = sum(len(p[0]) + 1 for p in pieces)
+        target = total / max(1, math.ceil(total / self.block_chars))
         blocks: list[dict] = []
         current: list[tuple] = []
         size = 0
         for piece in pieces:
-            if current and size + len(piece[0]) > self.block_chars:
+            if current and (size >= target or size + len(piece[0]) > self.block_chars):
                 blocks.append(self._block(current))
                 current, size = [], 0
             current.append(piece)
@@ -356,20 +424,25 @@ class SynthesisStep(AnalysisStep):
             "<<<END_SYSTEM>>>"
         )
 
-    def build_section_prompt(self, block: dict, index: int, total: int) -> str:
+    def build_section_prompt(
+        self, block: dict, index: int, total: int, analysis: Optional[Analysis] = None, items: int = 8
+    ) -> str:
+        kind = "um documento" if analysis is not None and self._is_document(analysis) else "uma transcrição"
         span = ""
         if block.get("start") is not None and block.get("end") is not None:
             span = f", de {format_timestamp(block['start'])} a {format_timestamp(block['end'])}"
         return (
             self._system() + "\n"
-            f"Este é o trecho {index} de {total} de uma transcrição{span}. "
-            "Resuma somente este trecho, em uma lista de 5 a 10 itens, com os conceitos, "
+            f"Este é o trecho {index} de {total} de {kind}{span}. "
+            f"Resuma somente este trecho, em uma lista de até {items} itens, com os conceitos, "
             "exemplos, dados e conclusões que ele contém, na ordem em que aparecem. "
-            "Não tire conclusões sobre o restante da gravação.\n\n"
+            "Não tire conclusões sobre o restante do material.\n\n"
             "<trecho>\n" + block["text"] + "\n</trecho>"
         )
 
-    def build_prompt(self, analysis: Analysis, partials: Optional[list] = None) -> str:
+    def build_prompt(
+        self, analysis: Analysis, partials: Optional[list] = None, target_words: Optional[int] = None
+    ) -> str:
         """Prompt final: transcrição inteira ou resumos parciais em ordem."""
         main_topics = [t for t in analysis.topics if t.id != -1]
         parts: list[str] = []
@@ -384,7 +457,7 @@ class SynthesisStep(AnalysisStep):
                     span = f" ({format_timestamp(block['start'])}–{format_timestamp(block['end'])})"
                 sections.append(f"<parte n='{i}'{span}>\n{text}\n</parte>")
             parts.append(
-                "<resumos_parciais>\nResumos de partes consecutivas da gravação, em ordem:\n"
+                "<resumos_parciais>\nResumos de partes consecutivas do material, em ordem:\n"
                 + "\n".join(sections) + "\n</resumos_parciais>"
             )
         if main_topics:
@@ -394,17 +467,30 @@ class SynthesisStep(AnalysisStep):
         if visual:
             parts.append("<descricoes_visuais>\n" + "\n".join(visual) + "\n</descricoes_visuais>")
 
+        target = target_words or SUMMARY_MAX_WORDS
+        if target <= SHORT_SUMMARY_WORDS:
+            response_format = (
+                f"Formato da resposta (Markdown), com cerca de {target} palavras no total:\n"
+                "# [Título específico que descreva o conteúdo]\n"
+                "[Um ou dois parágrafos com o essencial.]\n\n"
+                "## Pontos-chave\n"
+                "[Lista com até 3 itens.]\n\n"
+            )
+        else:
+            response_format = (
+                f"Formato da resposta (Markdown), com cerca de {target} palavras no total:\n"
+                "# [Título específico que descreva o conteúdo]\n"
+                "[Um parágrafo de visão geral.]\n\n"
+                "## [Título de cada assunto principal, na ordem em que aparecem]\n"
+                "[Parágrafos que integrem conceitos, exemplos e dados citados.]\n\n"
+                "## Pontos-chave\n"
+                "[Lista com 3 a 7 itens.]\n\n"
+            )
         instructions = (
             "Resuma o material abaixo.\n\n"
             "--- MATERIAL ---\n" + "\n\n".join(parts) + "\n--- FIM DO MATERIAL ---\n\n"
-            "Formato da resposta (Markdown):\n"
-            "# [Título específico que descreva o conteúdo]\n"
-            "[Um parágrafo de visão geral, com 3 a 5 frases.]\n\n"
-            "## [Título de cada assunto principal, na ordem em que aparecem]\n"
-            "[Um a três parágrafos por assunto, integrando conceitos, exemplos e dados citados.]\n\n"
-            "## Pontos-chave\n"
-            "[Lista com 3 a 7 itens.]\n\n"
-            "Não comente estas instruções na resposta."
+            + response_format
+            + "Não comente estas instruções na resposta."
         )
         return self._system() + "\n" + instructions
 

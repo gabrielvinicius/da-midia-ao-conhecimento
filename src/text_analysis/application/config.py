@@ -26,7 +26,7 @@ class AnalysisConfig:
     # dentro da janela de 16k do Ollama); acima, a síntese resume blocos de
     # synthesis_block_chars e une os resumos parciais.
     max_full_transcript_chars: int = 36000
-    synthesis_block_chars: int = 20000
+    synthesis_block_chars: int = 36000
     # Similaridade mínima (cosseno, multilingual-e5) entre uma frase do resumo
     # e algum trecho da transcrição para a frase contar como apoiada.
     grounding_threshold: float = 0.80

@@ -40,6 +40,8 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
         content: str,
         keywords: list[str],
         language: str,
+        *,
+        max_tokens: Optional[int] = None,
     ) -> str:
         self._m_attempts.labels(model=self.model_name).inc()
         if not self._available:
@@ -48,7 +50,7 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
 
         try:
             if self._is_instruct:
-                summary = self._generate_chat(title_hint, content, keywords)
+                summary = self._generate_chat(title_hint, content, keywords, max_tokens)
             else:
                 summary = self._generate_summary(title_hint, content, keywords)
         except Exception as exc:  # pragma: no cover - runtime path
@@ -129,14 +131,16 @@ class TransformersTextGenerationAdapter(TextGenerationPort):
             {"role": "user", "content": user_content},
         ]
 
-    def _generate_chat(self, title_hint: Optional[str], content: str, keywords: list[str]) -> str:  # pragma: no cover - runtime path
+    def _generate_chat(
+        self, title_hint: Optional[str], content: str, keywords: list[str], max_tokens: Optional[int] = None
+    ) -> str:  # pragma: no cover - runtime path
         import torch
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         outputs = self._pipe(
             self._chat_messages(title_hint, content, keywords),
-            max_new_tokens=3000,
+            max_new_tokens=max_tokens or 3000,
             do_sample=True,
             temperature=0.35,
             top_p=0.82,

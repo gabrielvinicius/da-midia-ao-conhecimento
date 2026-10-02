@@ -101,3 +101,89 @@ async def test_appendix_shows_when_each_excerpt_happens_and_what_was_on_screen()
     assert "> [12:34] Evidence 1" in analysis.summary
     assert "### O que aparecia na tela" in analysis.summary
     assert "- [12:40] slide with the chain rule" in analysis.summary
+
+
+def test_summary_size_follows_the_source():
+    from src.text_analysis.application.pipeline.steps import summary_target_words
+
+    assert summary_target_words(200) == 120  # mínimo
+    assert summary_target_words(3000) == 360  # ~12%
+    assert summary_target_words(20000) == 900  # máximo
+
+
+@pytest.mark.asyncio
+async def test_short_material_gets_a_short_summary_with_a_response_cap():
+    text_gen = _text_gen()
+    analysis = _analysis("Uma fala curta sobre derivadas. " * 20)  # ~100 palavras
+
+    await SynthesisStep(text_gen, language="pt").process(analysis)
+
+    prompt = text_gen.summarize_topic.call_args.args[1]
+    assert "cerca de 120 palavras" in prompt
+    assert "## [Título de cada assunto principal" not in prompt  # formato curto
+    assert text_gen.summarize_topic.call_args.kwargs["max_tokens"] == int(120 * 2.2) + 150
+    assert analysis.diagnostics["synthesis_target_words"] == 120
+
+
+@pytest.mark.asyncio
+async def test_long_material_gets_sections_and_a_larger_target():
+    text_gen = _text_gen()
+    analysis = _analysis("Palavra " * 5000)
+
+    await SynthesisStep(text_gen, language="pt", max_full_transcript_chars=100000).process(analysis)
+
+    prompt = text_gen.summarize_topic.call_args.args[1]
+    assert "cerca de 600 palavras" in prompt
+    assert "## [Título de cada assunto principal" in prompt
+
+
+@pytest.mark.asyncio
+async def test_documents_are_split_without_repeating_overlapping_chunks():
+    """Os trechos de documentos se sobrepõem (para a busca); juntar os trechos
+    repetia ~14% do texto no resumo de documentos longos."""
+    sentences = [f"Frase {i} do regimento." for i in range(60)]
+    text = " ".join(sentences)
+    overlapping = [TextChunk(id=str(i), text=" ".join(sentences[i:i + 3])) for i in range(0, 60, 2)]
+    text_gen = _text_gen()
+    text_gen.summarize_topic.side_effect = ["- parte"] * 10 + ["# Resumo"]
+    analysis = _analysis(text, overlapping)
+
+    step = SynthesisStep(text_gen, language="pt", max_full_transcript_chars=500, block_chars=500)
+    await step.process(analysis)
+
+    sections = [c.args[1] for c in text_gen.summarize_topic.call_args_list][:-1]
+    joined = "".join(s.split("<trecho>\n", 1)[1] for s in sections)
+    for sentence in sentences:
+        assert joined.count(sentence + " ") + joined.count(sentence + "\n") == 1
+    assert "de um documento" in sections[0]
+
+
+@pytest.mark.asyncio
+async def test_block_size_sets_how_many_items_each_part_gets():
+    assert SynthesisStep.items_for("x" * 1000) == 5
+    assert SynthesisStep.items_for("x" * 36000) == 14
+    assert SynthesisStep.items_for("x" * 100000) == 15
+
+
+@pytest.mark.asyncio
+async def test_possible_truncation_is_recorded():
+    text_gen = _text_gen()
+    text_gen.last_prompt_tokens = 16000
+    text_gen.last_prompt_truncated = True
+    analysis = _analysis("Texto.")
+
+    await SynthesisStep(text_gen, language="pt").process(analysis)
+
+    assert analysis.diagnostics["synthesis_prompt_tokens"] == 16000
+    assert analysis.diagnostics["synthesis_prompt_truncated"] is True
+
+
+def test_blocks_have_similar_sizes():
+    chunks = [TextChunk(id=str(i), text="y" * 999, start=i * 30.0, end=i * 30.0 + 30) for i in range(110)]
+    analysis = _analysis(" ".join(c.text for c in chunks), chunks)
+
+    blocks = SynthesisStep(_text_gen(), language="pt").split_blocks(analysis)
+
+    sizes = [len(b["text"]) for b in blocks]
+    assert len(blocks) == 4
+    assert max(sizes) - min(sizes) <= 2000  # e não 36 mil + 2 mil

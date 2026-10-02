@@ -19,6 +19,10 @@ class TextGenerationUnavailableError(RuntimeError):
 class TextGenerationPort(ABC):
     #: True quando a última resposta veio do modelo reserva, e não do principal.
     last_used_reserve: bool = False
+    #: Tokens do último prompt, quando o adaptador sabe contar (None se não).
+    last_prompt_tokens: Optional[int] = None
+    #: True se o último prompt pode ter sido cortado por exceder a janela.
+    last_prompt_truncated: bool = False
 
     @abstractmethod
     async def summarize_topic(
@@ -27,8 +31,10 @@ class TextGenerationPort(ABC):
         content: str,
         keywords: list[str],
         language: str,
+        *,
+        max_tokens: Optional[int] = None,
     ) -> str:
-        """Gera texto em Markdown.
+        """Gera texto em Markdown; ``max_tokens`` limita o tamanho da resposta.
 
         Raises:
             TextGenerationUnavailableError: se nenhum modelo respondeu.
