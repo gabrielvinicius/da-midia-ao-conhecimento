@@ -1,13 +1,13 @@
 """SQLAlchemy entity definition for media records."""
 
 import uuid
-from datetime import datetime
 
 from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, Uuid
-from sqlalchemy import Enum as SqlEnum
 
 from src.media_management.domain.enums import MediaStatus, MediaType
+from src.shared.domain.time.clock import utcnow
 from src.shared.infrastructure.database.db import Base
+from src.shared.infrastructure.database.types import enum_column
 
 
 class MediaEntity(Base):
@@ -25,15 +25,16 @@ class MediaEntity(Base):
     file_size = Column(BigInteger, nullable=True)
     mime_type = Column(String, nullable=True)
     duration = Column(Integer, nullable=True)
-    media_type = Column(SqlEnum(MediaType), nullable=False)
+    media_type = Column(enum_column(MediaType), nullable=False)
     status = Column(
-        SqlEnum(MediaStatus),
+        enum_column(MediaStatus),
         default=MediaStatus.UPLOADED,
         nullable=False,
         index=True,
     )
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, nullable=True)
+    # Com fuso (UTC), como nas demais tabelas.
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, nullable=True)
     error_message = Column(String, nullable=True)
 
     storage_provider = Column(String, nullable=False)

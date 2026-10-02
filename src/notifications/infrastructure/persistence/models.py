@@ -7,7 +7,6 @@ from sqlalchemy import (
     JSON,
     Column,
     DateTime,
-    Enum,
     ForeignKey,
     Integer,
     String,
@@ -22,6 +21,7 @@ from src.notifications.domain import (
     NotificationType,
 )
 from src.shared.infrastructure.database.db import Base
+from src.shared.infrastructure.database.types import enum_column
 
 
 class NotificationModel(Base):
@@ -34,15 +34,15 @@ class NotificationModel(Base):
         nullable=False,
         index=True,
     )
-    type = Column(Enum(NotificationType), nullable=False)
+    type = Column(enum_column(NotificationType), nullable=False)
     content = Column(Text, nullable=False)
     priority = Column(
-        Enum(NotificationPriority),
+        enum_column(NotificationPriority),
         nullable=False,
         default=NotificationPriority.NORMAL,
     )
     status = Column(
-        Enum(NotificationStatus),
+        enum_column(NotificationStatus),
         nullable=False,
         default=NotificationStatus.PENDING,
         index=True,

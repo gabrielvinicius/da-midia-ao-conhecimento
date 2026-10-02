@@ -1,11 +1,11 @@
 """Query services that aggregate cross-module admin information."""
 
-from datetime import datetime
 from typing import Any, Dict
 from uuid import UUID
 
 from src.admin.application.ports import AdminMediaReadPort, AdminUserReadPort
 from src.media_management.domain.enums import MediaStatus
+from src.shared.domain.time.clock import utcnow
 from src.user_management.application.dtos import GetUserQuery
 
 
@@ -134,7 +134,7 @@ class AdminReadService:
             "failed_media": total_failed,
             "processing_media": total_processing,
             "issues": issues,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utcnow().isoformat(),
         }
 
 # Backward compatibility

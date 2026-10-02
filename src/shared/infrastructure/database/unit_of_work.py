@@ -19,11 +19,21 @@ def in_unit_of_work(session) -> bool:
 
 
 async def commit(session) -> None:
-    """Confirma, ou só envia ao banco se houver uma unidade de trabalho aberta."""
+    """Confirma, ou só envia ao banco se houver uma unidade de trabalho aberta.
+
+    Fora de uma unidade de trabalho, uma confirmação que falha é desfeita na
+    hora: a transação abortada não fica na sessão para quebrar a próxima
+    consulta. Antes, os repositórios faziam rollback antes de cada leitura
+    ("garante conexão livre") para contornar isso.
+    """
     if in_unit_of_work(session):
         await session.flush()
-    else:
+        return
+    try:
         await session.commit()
+    except BaseException:
+        await session.rollback()
+        raise
 
 
 async def rollback(session) -> None:

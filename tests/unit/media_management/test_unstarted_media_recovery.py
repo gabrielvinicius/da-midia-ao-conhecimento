@@ -26,8 +26,7 @@ def _media(minutes_ago):
         storage_provider="local",
         original_file_path="u/2026/10/m/aula.mp4",
     )
-    # Como no banco: UTC sem fuso.
-    media.created_at = (NOW - datetime.timedelta(minutes=minutes_ago)).replace(tzinfo=None)
+    media.created_at = NOW - datetime.timedelta(minutes=minutes_ago)
     return media
 
 

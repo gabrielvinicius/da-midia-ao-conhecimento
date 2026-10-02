@@ -5,6 +5,7 @@ from uuid import UUID
 import structlog
 
 from src.admin.application.ports import AdminAuditPort
+from src.shared.domain.time.clock import utcnow
 from src.user_management.domain import User
 
 logger = structlog.get_logger(__name__)
@@ -30,7 +31,7 @@ class AdminAuditService(AdminAuditPort):
             "target_type": target_type,
             "target_id": target_id,
             "details": details or {},
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utcnow().isoformat(),
         }
         self.audit_entries.append(audit_entry)
         logger.info("admin.audit.logged", **audit_entry)

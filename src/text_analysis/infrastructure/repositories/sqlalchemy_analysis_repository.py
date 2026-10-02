@@ -57,8 +57,8 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         serializable_payload = to_json_serializable(payload)
 
         record = AnalysisModel(
-            id=str(analysis.id),
-            document_id=str(analysis.document.id),
+            id=uuid.UUID(str(analysis.id)),
+            document_id=uuid.UUID(str(analysis.document.id)),
             media_id=analysis.media_id,
             user_id=analysis.user_id,
             transcription_id=analysis.transcription_id,
@@ -73,7 +73,10 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         return str(analysis.id)
 
     async def get(self, analysis_id: str) -> Optional[Analysis]:
-        stmt = select(AnalysisModel).where(AnalysisModel.id == analysis_id)
+        key = _uuid_or_none(analysis_id)
+        if key is None:
+            return None
+        stmt = select(AnalysisModel).where(AnalysisModel.id == key)
         result = await self.session.execute(stmt)
         record = result.scalar_one_or_none()
         if not record:
@@ -104,9 +107,10 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
 
     async def update_summary(self, analysis_id: str, new_summary: str) -> bool:
         """Updates the summary with a human-corrected version."""
-        stmt = select(AnalysisModel).where(AnalysisModel.id == analysis_id)
-        result = await self.session.execute(stmt)
-        record = result.scalar_one_or_none()
+        key = _uuid_or_none(analysis_id)
+        if key is None:
+            return False
+        record = (await self.session.execute(select(AnalysisModel).where(AnalysisModel.id == key))).scalar_one_or_none()
         if not record:
             return False
             
@@ -288,3 +292,10 @@ def _topic_id(value):
         return int(value)
     except (TypeError, ValueError):
         return value
+
+
+def _uuid_or_none(value) -> Optional[uuid.UUID]:
+    try:
+        return uuid.UUID(str(value))
+    except (TypeError, ValueError):
+        return None

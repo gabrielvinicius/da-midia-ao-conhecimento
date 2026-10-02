@@ -2,21 +2,20 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
 import structlog
-from datetime import datetime, timezone
 from sqlalchemy import func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.domain import Media
 from src.media_management.domain.enums import MediaStatus, MediaType
+from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
 
 from ..mappers import MediaMapper
 from ..persistence.models import MediaEntity
-from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
-from src.shared.infrastructure.database.unit_of_work import rollback as uow_rollback
 
 logger = structlog.get_logger(__name__)
 
@@ -29,7 +28,6 @@ class MediaRepository:
         self._mapper = mapper or MediaMapper()
 
     async def get_by_id(self, media_id: UUID) -> Optional[Media]:
-        await uow_rollback(self.db)  # garante conexão livre
         result = await self.db.execute(
             select(MediaEntity).where(MediaEntity.id == media_id)
         )
@@ -42,7 +40,6 @@ class MediaRepository:
         entity = self._mapper.to_entity(media)
         self.db.add(entity)
         await uow_commit(self.db)
-        await self.db.refresh(entity)
         persisted = self._mapper.to_domain(entity)
         return self._mapper.merge_transient_data(persisted, media)
 
@@ -50,7 +47,6 @@ class MediaRepository:
         entity = self._mapper.to_entity(media)
         merged = await self.db.merge(entity)
         await uow_commit(self.db)
-        await self.db.refresh(merged)
         persisted = self._mapper.to_domain(merged)
         return self._mapper.merge_transient_data(persisted, media)
 
@@ -66,26 +62,6 @@ class MediaRepository:
             await self.db.delete(entity)
             await uow_commit(self.db)
 
-    async def update_status(
-        self,
-        media_id: UUID,
-        status: MediaStatus,
-        *,
-        error_message: Optional[str] = None,
-    ) -> Media:
-        await uow_rollback(self.db)  # garante conexão livre
-        result = await self.db.execute(
-            select(MediaEntity).where(MediaEntity.id == media_id)
-        )
-        entity = result.scalar_one()
-        entity.status = status
-        entity.error_message = error_message
-        entity.updated_at = datetime.utcnow()
-        await uow_commit(self.db)
-        await self.db.refresh(entity)
-        aggregate = self._mapper.to_domain(entity)
-        updated = aggregate.update(error_message=error_message)
-        return updated
 
     async def list_paginated(
         self,
@@ -97,7 +73,6 @@ class MediaRepository:
         search: Optional[str] = None,
         order: str = "desc",
     ) -> List[Media]:
-        await self._ensure_clean()
         stmt = select(MediaEntity)
         if user_id is not None:
             stmt = stmt.where(MediaEntity.user_id == user_id)
@@ -136,7 +111,6 @@ class MediaRepository:
         user_id: Optional[UUID] = None,
         status: Optional[MediaStatus] = None,
     ) -> List[Media]:
-        await self._ensure_clean()
         return await self.list_paginated(
             page=1,
             limit=10_000,
@@ -149,7 +123,6 @@ class MediaRepository:
         return list(result.scalars().all())
 
     async def count_all(self) -> int:
-        await self._ensure_clean()
         result = await self.db.execute(select(func.count()).select_from(MediaEntity))
         return result.scalar_one()
 
@@ -158,22 +131,20 @@ class MediaRepository:
     ) -> List[Media]:
         """Mídias enviadas ou em processamento, criadas antes de created_before,
         em páginas ordenadas por (created_at, id); after é a última da página anterior."""
-        await self._ensure_clean()
         stmt = select(MediaEntity).where(
             MediaEntity.status.in_([MediaStatus.UPLOADED, MediaStatus.PROCESSING]),
-            MediaEntity.created_at < _naive_utc(created_before),
+            MediaEntity.created_at < created_before,
         )
         if after is not None:
             stmt = stmt.where(
                 tuple_(MediaEntity.created_at, MediaEntity.id)
-                > tuple_(_naive_utc(after.created_at), after.id)
+                > tuple_(after.created_at, after.id)
             )
         stmt = stmt.order_by(MediaEntity.created_at, MediaEntity.id).limit(limit)
         result = await self.db.execute(stmt)
         return [self._mapper.to_domain(entity) for entity in result.scalars().all()]
 
     async def count_by_status(self, status: MediaStatus) -> int:
-        await self._ensure_clean()
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
@@ -183,7 +154,6 @@ class MediaRepository:
         return result.scalar_one()
 
     async def count_by_user(self, user_id: UUID) -> int:
-        await self._ensure_clean()
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
@@ -193,7 +163,6 @@ class MediaRepository:
         return result.scalar_one()
 
     async def count_by_user_and_status(self, user_id: UUID, status: MediaStatus) -> int:
-        await self._ensure_clean()
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
@@ -204,7 +173,6 @@ class MediaRepository:
         return result.scalar_one()
 
     async def count_by_type(self, media_type: MediaType) -> int:
-        await self._ensure_clean()
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
@@ -214,7 +182,6 @@ class MediaRepository:
         return result.scalar_one()
 
     async def count_by_user_and_type(self, user_id: UUID, media_type: MediaType) -> int:
-        await self._ensure_clean()
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
@@ -226,7 +193,6 @@ class MediaRepository:
 
     async def get_existing_paths(self, paths: List[str]) -> set[str]:
         """Check which of the provided paths exist in the database."""
-        await self._ensure_clean()
         if not paths:
             return set()
         
@@ -237,22 +203,3 @@ class MediaRepository:
         )
         result = await self.db.execute(stmt)
         return set(result.scalars().all())
-
-    async def _ensure_clean(self) -> None:
-        """Rolls back any pending transaction to avoid asyncpg state errors."""
-        try:
-            await uow_rollback(self.db)
-        except Exception as exc:
-            # Best-effort cleanup; leave session as-is if rollback fails
-            logger.warning(
-                "media_repository.rollback_failed",
-                error=str(exc),
-                message="Failed to rollback pending transaction (best-effort cleanup)",
-            )
-
-
-def _naive_utc(moment: datetime) -> datetime:
-    # O banco grava em UTC sem fuso.
-    if moment.tzinfo is None:
-        return moment
-    return moment.astimezone(timezone.utc).replace(tzinfo=None)

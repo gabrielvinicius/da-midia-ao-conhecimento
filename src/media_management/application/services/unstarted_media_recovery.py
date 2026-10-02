@@ -78,7 +78,7 @@ class UnstartedMediaRecovery:
         for media in waiting:
             if media.id in started:
                 continue  # o monitor de prazos do processamento cuida dela
-            age = (now - _aware(media.created_at)).total_seconds()
+            age = (now - media.created_at).total_seconds()
             if age >= self._give_up:
                 await self._give_up_on(media)
                 result.failed.append(str(media.id))
@@ -103,9 +103,3 @@ class UnstartedMediaRecovery:
             )
         )
 
-
-def _aware(moment: datetime.datetime) -> datetime.datetime:
-    # O banco grava em UTC sem fuso.
-    if moment.tzinfo is None:
-        return moment.replace(tzinfo=datetime.timezone.utc)
-    return moment

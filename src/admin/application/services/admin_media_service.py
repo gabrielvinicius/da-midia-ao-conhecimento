@@ -146,31 +146,6 @@ class AdminMediaService:
     async def get_media_by_status(self, status: MediaStatus) -> List[Media]:
         return await self.media_repository.list_by_status(status)
 
-    async def get_media_processing_queue_info(self) -> dict:
-        processing_media = await self.media_repository.list_by_status(
-            MediaStatus.PROCESSING
-        )
-        failed_media = await self.media_repository.list_by_status(MediaStatus.FAILED)
-        uploaded_media = await self.media_repository.list_by_status(
-            MediaStatus.UPLOADED
-        )
-
-        return {
-            "processing_count": len(processing_media),
-            "failed_count": len(failed_media),
-            "queued_count": len(uploaded_media),
-            "oldest_processing": (
-                min(media.created_at for media in processing_media)
-                if processing_media
-                else None
-            ),
-            "oldest_failed": (
-                min(media.created_at for media in failed_media)
-                if failed_media
-                else None
-            ),
-        }
-
     async def force_media_status(
         self,
         media_id: UUID,

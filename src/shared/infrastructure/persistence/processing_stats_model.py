@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, BigInteger
+from sqlalchemy import BigInteger, Column, DateTime, Float, Integer, String
+
+from src.shared.domain.time.clock import utcnow
 from src.shared.infrastructure.database.db import Base
+
 
 class ProcessingStatModel(Base):
     """
@@ -24,7 +26,7 @@ class ProcessingStatModel(Base):
     # Metadados
     model_name = Column(String, nullable=True) # ex: "whisper-large", "ffmpeg"
     status = Column(String, default="success")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=utcnow, index=True)
 
     def to_dict(self):
         return {

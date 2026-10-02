@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Text, Uuid, DateTime
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, Uuid
 from src.shared.infrastructure.database.db import Base
 
 class FeedbackModel(Base):
@@ -11,7 +11,12 @@ class FeedbackModel(Base):
     __tablename__ = "analysis_feedback"
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    analysis_id = Column(String, nullable=False, index=True)
+    analysis_id = Column(
+        Uuid(as_uuid=True),
+        ForeignKey("text_analysis_results.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     user_id = Column(Uuid(as_uuid=True), nullable=False, index=True)
     
     # 1 to 5 stars or -1/1 for thumbs

@@ -13,14 +13,14 @@ class FeedbackRepository:
 
     async def save_feedback(
         self, 
-        analysis_id: str, 
+        analysis_id: str | UUID, 
         user_id: UUID, 
         score: int, 
         comment: str | None = None,
         aspect: str = "overall"
     ) -> FeedbackModel:
         record = FeedbackModel(
-            analysis_id=analysis_id,
+            analysis_id=UUID(str(analysis_id)),
             user_id=user_id,
             score=score,
             comment=comment,
@@ -29,10 +29,6 @@ class FeedbackRepository:
         self.session.add(record)
         await uow_commit(self.session)
         return record
-
-    async def get_stats_for_analysis(self, analysis_id: str):
-        # Future: aggregation logic for average scores
-        pass
 
     async def delete_by_user(self, user_id: UUID) -> int:
         result = await self.session.execute(delete(FeedbackModel).where(FeedbackModel.user_id == user_id))

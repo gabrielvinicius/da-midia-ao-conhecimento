@@ -149,8 +149,9 @@ async def test_video_description_time_is_recorded():
     assert stats.log_stat.await_args.args[3] == 60.0  # duração da gravação
 
 
-def test_typed_fields_round_trip_through_the_json_column():
-    """Duração e descrições são atributos da entidade; o JSON é detalhe de persistência."""
+def test_typed_fields_round_trip_through_their_columns():
+    """Duração e descrições têm colunas próprias; a saída bruta do Whisper, que
+    repetia texto e segmentos, não é mais gravada."""
     from src.media_processing.infrastructure.persistence.models import TranscriptionModel
 
     t = Transcription(media_id=uuid4(), provider="whisper")
@@ -162,4 +163,4 @@ def test_typed_fields_round_trip_through_the_json_column():
 
     assert back.media_duration_seconds == 600.0  # não se perde ao concluir
     assert back.visual_context == ["[05:00] slide"]
-    assert "visual_context" not in (back.result or {})
+    assert not hasattr(TranscriptionModel, "result")

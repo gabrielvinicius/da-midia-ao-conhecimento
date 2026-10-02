@@ -9,7 +9,6 @@ from src.notifications.domain.entities.notification import NotificationStatus
 from src.notifications.infrastructure.persistence.models import NotificationModel
 from src.shared.domain.time.clock import utcnow
 from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
-from src.shared.infrastructure.database.unit_of_work import rollback as uow_rollback
 
 
 class NotificationRepository:
@@ -26,10 +25,8 @@ class NotificationRepository:
 
     async def save(self, notification: Notification) -> Notification:
         """Insere ou atualiza (merge)."""
-        await uow_rollback(self.db)  # libera conexão
         merged = await self.db.merge(NotificationModel.from_domain(notification))
         await uow_commit(self.db)
-        await self.db.refresh(merged)
         return merged.to_domain()
 
     async def list_by_user(self, user_id: str, limit: int = 50) -> List[Notification]:

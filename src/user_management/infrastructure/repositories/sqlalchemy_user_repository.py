@@ -22,7 +22,6 @@ class UserRepository:
         """
         model = await self.db.merge(UserModel.from_domain(user))
         await uow_commit(self.db)
-        await self.db.refresh(model)
         return model.to_domain()
 
     async def find_by_id(self, user_id: UUID) -> Optional[User]:

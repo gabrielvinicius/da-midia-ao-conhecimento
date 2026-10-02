@@ -319,7 +319,7 @@ def test_deleting_analyzed_media_leaves_nothing_behind(client):
         "knowledge_chunks": "media_id = :id",
         "analysis_feedback": "analysis_id IN (SELECT id FROM text_analysis_results WHERE media_id = :id) OR analysis_id = :aid",
     }
-    analysis_id = f"analysis-{_uuid.uuid4().hex[:8]}"
+    analysis_id = str(_uuid.uuid4())
 
     def counts():
         with engine_sync.connect() as conn:
@@ -338,7 +338,7 @@ def test_deleting_analyzed_media_leaves_nothing_behind(client):
         user_id = conn.execute(text("SELECT user_id FROM media WHERE id = :id"), {"id": media_id}).scalar()
         conn.execute(
             text("INSERT INTO text_analysis_results (id, document_id, media_id, user_id, payload) "
-                 "VALUES (:aid, 'doc', :id, :uid, '{}'::jsonb)"),
+                 "VALUES (:aid, :aid, :id, :uid, '{}'::jsonb)"),
             {"aid": analysis_id, "id": media_id, "uid": user_id},
         )
         conn.execute(
@@ -399,8 +399,8 @@ def test_failed_deletion_keeps_everything(client, monkeypatch):
     with engine_sync.begin() as conn:
         conn.execute(
             text("INSERT INTO text_analysis_results (id, document_id, media_id, payload) "
-                 "VALUES (:aid, 'doc', :id, '{}'::jsonb)"),
-            {"aid": f"analysis-{_uuid.uuid4().hex[:8]}", "id": media_id},
+                 "VALUES (:aid, :aid, :id, '{}'::jsonb)"),
+            {"aid": str(_uuid.uuid4()), "id": media_id},
         )
 
     async def broken_remove_folder(self, folder_path):

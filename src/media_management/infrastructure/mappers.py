@@ -1,21 +1,13 @@
 """Mappers for converting between Media Entities and domain Media."""
 
 from src.media_management.domain import Media
-from src.media_management.infrastructure.persistence.models import MediaEntity
 from src.media_management.domain.enums import MediaStatus, MediaType
-import datetime
+from src.media_management.infrastructure.persistence.models import MediaEntity
 
 
 class MediaMapper:
     """Maps MediaEntity <-> Media."""
 
-    @staticmethod
-    def _naive(dt: datetime.datetime | None) -> datetime.datetime | None:
-        if dt is None:
-            return None
-        if dt.tzinfo:
-            return dt.replace(tzinfo=None)
-        return dt
 
     def to_domain(self, entity: MediaEntity) -> Media:
         return Media(
@@ -44,8 +36,8 @@ class MediaMapper:
             media_type=media.media_type,
             storage_provider=media.storage_provider,
             status=media.status,
-            created_at=self._naive(media.created_at),
-            updated_at=self._naive(media.updated_at),
+            created_at=media.created_at,
+            updated_at=media.updated_at,
             error_message=media.error_message,
             transcription_provider=media.transcription_provider,
             language=media.language,

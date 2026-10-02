@@ -121,27 +121,6 @@ class Media(BaseEntity):
         self.error_message = None
         self.updated_at = datetime.datetime.now(datetime.timezone.utc)
 
-    def update(
-        self,
-        filename: Optional[str] = None,
-        file_size: Optional[int] = None,
-        mime_type: Optional[str] = None,
-        duration: Optional[int] = None,
-        created_at: Optional[datetime.datetime] = None,
-    ) -> Media:
-        if filename:
-            self.filename = filename
-        if file_size is not None:
-            self.file_size_bytes = file_size
-        if mime_type is not None:
-            self.mime_type = mime_type
-        if duration is not None:
-            self.duration = duration
-        if created_at:
-            self.created_at = created_at
-        self.updated_at = datetime.datetime.now(datetime.timezone.utc)
-        return self
-
     @property
     def file_size(self) -> int:
         return self.file_size_bytes

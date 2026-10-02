@@ -35,7 +35,6 @@ class Transcription(BaseEntity):
     error_message: Optional[str]
     speaker_aliases: Dict[str, str]
     processed_at: Optional[datetime.datetime]
-    result: Optional[Dict[str, Any]]
     # Duração da gravação, lida ao iniciar: define o prazo do processamento.
     media_duration_seconds: Optional[float]
     # Descrições de quadros do vídeo ("[mm:ss] texto"), feitas após a transcrição.
@@ -59,7 +58,6 @@ class Transcription(BaseEntity):
         updated_at: Optional[datetime.datetime] = None,
         error_message: Optional[str] = None,
         speaker_aliases: Optional[Dict[str, str]] = None,
-        result: Optional[Dict[str, Any]] = None,
         processed_at: Optional[datetime.datetime] = None,
         id: Optional[UUID] = None,
         media_duration_seconds: Optional[float] = None,
@@ -82,7 +80,6 @@ class Transcription(BaseEntity):
         self.error_message = error_message
         self.speaker_aliases = speaker_aliases or {}
         self.processed_at: Optional[datetime.datetime] = processed_at
-        self.result = result
         self.media_duration_seconds = media_duration_seconds
         self.visual_context = list(visual_context or [])
 
@@ -98,7 +95,6 @@ class Transcription(BaseEntity):
             self.confidence_score = transcript_confidence(self.segments)
         self.updated_at = datetime.datetime.now(datetime.timezone.utc)
         self.processed_at = self.updated_at
-        self.result = result or self.result
 
     def mark_as_extracted(self, text: str, provider: str) -> None:
         """Texto extraído de um documento ou imagem (sem horários)."""

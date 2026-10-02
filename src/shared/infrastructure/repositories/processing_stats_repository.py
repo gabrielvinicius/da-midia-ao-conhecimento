@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from statistics import mean, median
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.shared.infrastructure.persistence.processing_stats_model import ProcessingStatModel
+from src.shared.domain.time.clock import utcnow
 from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
 from src.shared.infrastructure.database.unit_of_work import rollback as uow_rollback
+from src.shared.infrastructure.persistence.processing_stats_model import (
+    ProcessingStatModel,
+)
+
 
 class ProcessingStatsRepository:
     def __init__(self, session: AsyncSession):
@@ -49,7 +53,7 @@ class ProcessingStatsRepository:
         """
         stmt = select(ProcessingStatModel)
         if days:
-            since = datetime.utcnow() - timedelta(days=days)
+            since = utcnow() - timedelta(days=days)
             stmt = stmt.where(ProcessingStatModel.created_at >= since)
         rows = (await self.session.execute(stmt)).scalars().all()
         return summarize_rows(rows)
