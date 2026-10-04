@@ -59,7 +59,7 @@ class TranscriptionModel(Base):
             user_id=self.user_id,
             filename=self.filename,
             correlation_id=self.correlation_id,
-            content=self.content,
+            text=self.content or "",
             language=self.language,
             confidence_score=self.confidence_score,
             speaker_labels=self.speaker_labels,

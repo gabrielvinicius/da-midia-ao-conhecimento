@@ -9,6 +9,8 @@ from src.media_management.application.use_cases import MediaLifecycle
 from src.media_management.domain import Media
 from src.media_management.domain.enums import MediaStatus, MediaType
 from src.shared.domain.events import (
+    AnalysisCompleted,
+    AnalysisFailed,
     MediaProcessingFailed,
     MediaProcessingStarted,
     TranscriptionFailed,
@@ -43,12 +45,37 @@ async def test_started_completed_and_failed_transitions_are_saved():
     assert media.status == MediaStatus.PROCESSING
 
     await lifecycle.record_text_ready(media.id)
-    assert media.status == MediaStatus.COMPLETED
+    assert media.status == MediaStatus.ANALYZING
 
     await lifecycle.record_processing_failed(media.id, None)
     assert media.status == MediaStatus.FAILED
     assert media.error_message == "Erro desconhecido"
     assert repo.update.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_the_media_is_completed_only_when_the_analysis_ends():
+    media = _media()
+    lifecycle, _ = _lifecycle(media)
+
+    await lifecycle.record_text_ready(media.id)
+    await lifecycle.record_analysis_completed(media.id)
+
+    assert media.status == MediaStatus.COMPLETED and media.error_message is None
+
+
+@pytest.mark.asyncio
+async def test_a_late_event_does_not_undo_the_current_state():
+    media = _media()
+    lifecycle, repo = _lifecycle(media)
+    await lifecycle.record_processing_failed(media.id, "prazo vencido")
+    repo.update.reset_mock()
+
+    # A transcrição termina depois de a mídia ter sido dada como parada.
+    assert await lifecycle.record_text_ready(media.id) is None
+
+    assert media.status == MediaStatus.FAILED and media.error_message == "prazo vencido"
+    repo.update.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -61,7 +88,9 @@ async def test_missing_media_is_ignored():
 
 def _handlers():
     service = MagicMock()
-    for name in ("record_processing_started", "record_text_ready", "record_processing_failed"):
+    for name in (
+        "record_processing_started", "record_text_ready", "record_analysis_completed", "record_processing_failed"
+    ):
         setattr(service, name, AsyncMock())
     return MediaEventHandlers(service, AsyncMock(), retry_delays=(0, 0, 0)), service
 
@@ -98,3 +127,18 @@ async def test_a_failing_update_does_not_break_the_event_bus():
 
     # O erro é registrado; o barramento segue para os próximos eventos.
     await handlers.handle_media_processing_started(MediaProcessingStarted(media_id=str(uuid4())))
+
+
+@pytest.mark.asyncio
+async def test_analysis_events_finish_or_fail_the_media():
+    handlers, service = _handlers()
+    media_id = uuid4()
+
+    await handlers.handle_analysis_completed(AnalysisCompleted(media_id=str(media_id)))
+    await handlers.handle_analysis_failed(AnalysisFailed(media_id=str(media_id), error_message="CUDA out of memory"))
+
+    service.record_analysis_completed.assert_awaited_once_with(media_id)
+    # O erro técnico fica no log; a mídia mostra o que fazer.
+    assert service.record_processing_failed.await_args.args == (
+        media_id, "A análise do conteúdo falhou. Tente reprocessar a mídia."
+    )

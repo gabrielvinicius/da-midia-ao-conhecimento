@@ -61,6 +61,14 @@ class RecoverableMediaPort(Protocol):
     async def update(self, media: Media): ...
 
 
+class AnalyzingMediaPort(Protocol):
+    async def list_analyzing_since_before(self, updated_before: datetime.datetime, limit: int) -> List[Media]:
+        """Mídias em análise desde antes do instante dado, das mais antigas para as mais novas."""
+        ...
+
+    async def update(self, media: Media): ...
+
+
 class ProcessingRecordsPort(Protocol):
     """Diz quais mídias já ganharam registro no processamento (transcrição ou extração)."""
 

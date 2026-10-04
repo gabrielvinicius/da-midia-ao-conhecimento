@@ -13,12 +13,5 @@ class UserRole(str, Enum):
     ADMIN = "ADMIN"
     USER = "USER"
 
-    @classmethod
-    def normalize(cls, value: str) -> "UserRole":
-        try:
-            return cls(value.upper())
-        except Exception:
-            return cls.USER
-
 
 __all__ = ["UserRole"]

@@ -173,6 +173,7 @@ def test_stalled_media_is_marked_failed_and_can_be_retried(client):
 
     from sqlalchemy import text
 
+    from src.media_management.worker import bind_media_subscribers
     from src.media_processing.worker import MediaWorkerApp
     from src.media_processing.infrastructure.dependencies.builders import (
         build_stalled_processing_monitor,
@@ -214,6 +215,7 @@ def test_stalled_media_is_marked_failed_and_can_be_retried(client):
     async def sweep():
         bus = get_event_bus()
         MediaWorkerApp(event_bus=bus).ensure_subscribers()  # como no worker
+        bind_media_subscribers(bus)
         async with AsyncSessionLocal() as session:
             return await build_stalled_processing_monitor(session, bus).sweep()
 
@@ -234,6 +236,7 @@ def test_upload_without_processing_record_is_requeued_then_failed(client):
 
     from sqlalchemy import text
 
+    from src.media_management.worker import bind_media_subscribers
     from src.media_processing.worker import MediaWorkerApp
     from src.media_management.infrastructure.dependencies.recovery import build_unstarted_media_recovery
     from src.shared.infrastructure.database.db import AsyncSessionLocal, engine_sync
@@ -274,6 +277,7 @@ def test_upload_without_processing_record_is_requeued_then_failed(client):
     async def recover():
         bus = get_event_bus()
         MediaWorkerApp(event_bus=bus).ensure_subscribers()  # como no worker
+        bind_media_subscribers(bus)
         async with AsyncSessionLocal() as session:
             return await build_unstarted_media_recovery(session, bus).sweep()
 
@@ -291,6 +295,58 @@ def test_upload_without_processing_record_is_requeued_then_failed(client):
     assert media["status"].lower() == "failed"
     assert "não chegou a começar" in media["error_message"]
     assert client.post(f"/media/{media_id}/reprocess", headers=alice).status_code == 200
+
+
+def test_a_failed_or_stuck_analysis_can_be_reprocessed(client):
+    """A mídia ficava "concluída" sem resumo quando a análise falhava, e o
+    reprocessamento (só para mídias com falha) era recusado."""
+    import asyncio
+
+    from sqlalchemy import text
+
+    from src.media_management.infrastructure.dependencies.recovery import build_unfinished_analysis_recovery
+    from src.media_management.worker import bind_media_subscribers
+    from src.shared.domain.events import AnalysisFailed
+    from src.shared.infrastructure.database.db import AsyncSessionLocal, engine_sync
+    from src.shared.infrastructure.messaging.event_bus_factory import get_event_bus
+
+    alice = _account(client, "gilda")
+
+    def analyzing_media(hours_ago=0):
+        r = client.post(
+            "/media/", headers=alice,
+            files={"file": ("resumo.txt", "A integral mede a área sob a curva.".encode(), "text/plain")},
+        )
+        assert r.status_code == 201, r.text
+        media_id = r.json()["id"]
+        with engine_sync.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE media SET status = 'ANALYZING', "
+                    "updated_at = (now() at time zone 'utc') - make_interval(hours => :h) WHERE id = :id"
+                ),
+                {"id": media_id, "h": hours_ago},
+            )
+        return media_id
+
+    async def fail_analysis(media_id):
+        bus = get_event_bus()
+        bind_media_subscribers(bus)
+        await bus.publish(AnalysisFailed(media_id=media_id, error_message="CUDA out of memory"))
+
+    async def sweep():
+        async with AsyncSessionLocal() as session:
+            return await build_unfinished_analysis_recovery(session, get_event_bus()).sweep()
+
+    failed = analyzing_media()
+    asyncio.run(fail_analysis(failed))
+    stuck = analyzing_media(hours_ago=4)
+    assert stuck in asyncio.run(sweep())
+
+    for media_id, reason in ((failed, "análise do conteúdo falhou"), (stuck, "não terminou no prazo")):
+        media = client.get(f"/media/{media_id}", headers=alice).json()
+        assert media["status"].lower() == "failed" and reason in media["error_message"]
+        assert client.post(f"/media/{media_id}/reprocess", headers=alice).status_code == 200
 
 
 def test_deleting_analyzed_media_leaves_nothing_behind(client):

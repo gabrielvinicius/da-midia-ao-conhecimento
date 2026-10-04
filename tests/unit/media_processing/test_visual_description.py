@@ -136,6 +136,20 @@ async def test_video_descriptions_are_stored_with_the_transcription():
 
 
 @pytest.mark.asyncio
+async def test_a_repeated_delivery_of_a_finished_job_does_nothing():
+    """A fila pode entregar a tarefa de novo; refazer a transcrição na GPU e
+    anunciá-la outra vez faria a mídia e a análise andarem para trás."""
+    visual = AsyncMock()
+    service, transcription, _ = _service(visual)
+    transcription.mark_as_processing()
+    transcription.mark_as_completed({"text": "pronto"})
+
+    assert await _run(service, transcription, "u/2026/10/m/aula.mp4") == {}
+    visual.describe_recording.assert_not_awaited()
+    assert transcription.text == "pronto"
+
+
+@pytest.mark.asyncio
 async def test_audio_is_not_sent_to_the_vision_model():
     vision, extractor, stats = _FakeVision(), _FakeExtractor(), AsyncMock()
     describer = VisualDescriptionService(vision, extractor, stats=stats)
@@ -163,6 +177,7 @@ def test_typed_fields_round_trip_through_their_columns():
 
     t = Transcription(media_id=uuid4(), provider="whisper")
     t.record_media_duration(600)
+    t.mark_as_processing()
     t.mark_as_completed({"text": "a derivada", "segments": [{"start": 0, "end": 590}]})
     t.attach_visual_context(["[05:00] slide"])
 

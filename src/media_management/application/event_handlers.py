@@ -18,6 +18,8 @@ from src.media_management.application.ports import EventBusPort
 from src.media_management.application.services.media_service import MediaService
 from src.shared.domain.errors import ValidationError
 from src.shared.domain.events import (
+    AnalysisCompleted,
+    AnalysisFailed,
     MediaFailed,
     MediaProcessingFailed,
     MediaProcessingStarted,
@@ -33,6 +35,8 @@ T = TypeVar("T")
 
 RETRY_DELAYS_SECONDS = (0.5, 1.0, 2.0)
 TEXT_NOT_RECORDED = "Não foi possível registrar o texto extraído. Tente reprocessar a mídia."
+# O erro técnico da análise fica no log; a mídia mostra o que fazer.
+ANALYSIS_FAILED = "A análise do conteúdo falhou. Tente reprocessar a mídia."
 
 
 def _media_uuid(event) -> Optional[MediaId]:
@@ -57,7 +61,7 @@ class MediaEventHandlers:
         self._retry_delays = tuple(retry_delays)
 
     async def handle_transcription_completed(self, event: TranscriptionCompleted) -> None:
-        """Conclui a mídia e avisa que o texto está pronto para a análise."""
+        """Texto pronto: a mídia passa a "em análise" e o texto segue para a análise."""
         media_id = _media_uuid(event)
         if media_id is None:
             return
@@ -81,6 +85,29 @@ class MediaEventHandlers:
         )
         logger.info("media_management.text_content_ready_published", media_id=str(media_id))
 
+    async def handle_analysis_completed(self, event: AnalysisCompleted) -> None:
+        """Fim do pipeline: a mídia fica concluída (mesmo com etapas opcionais falhas)."""
+        if not event.media_id:  # análise de texto avulso (/analyze), sem mídia
+            return
+        media_id = _media_uuid(event)
+        if media_id is None:
+            return
+        try:
+            await self._persist(lambda: self._media.record_analysis_completed(media_id), "completed", media_id)
+        except Exception as exc:  # a análise está gravada; o prazo da análise marcará a mídia
+            logger.error("media_management.completion_not_recorded", media_id=str(media_id), error=str(exc))
+
+    async def handle_analysis_failed(self, event: AnalysisFailed) -> None:
+        """A análise falhou de vez: a mídia falha e pode ser reprocessada.
+
+        Antes, a mídia continuava "concluída" sem resumo e o reprocessamento,
+        que só vale para mídias com falha, era recusado.
+        """
+        if not event.media_id:
+            return
+        logger.warning("media_management.analysis_failed", media_id=event.media_id, error=event.error_message)
+        await self._fail(event, ANALYSIS_FAILED)
+
     async def handle_transcription_failed(self, event: TranscriptionFailed) -> None:
         await self._fail(event)
 
@@ -96,13 +123,14 @@ class MediaEventHandlers:
         except Exception as exc:  # só o rótulo "em processamento": o resultado ainda chega
             logger.error("media_management.processing_started_not_recorded", media_id=str(media_id), error=str(exc))
 
-    async def _fail(self, event) -> None:
+    async def _fail(self, event, message: Optional[str] = None) -> None:
         media_id = _media_uuid(event)
         if media_id is None:
             return
+        reason = message or event.error_message
         try:
             await self._persist(
-                lambda: self._media.record_processing_failed(media_id, event.error_message), "failed", media_id
+                lambda: self._media.record_processing_failed(media_id, reason), "failed", media_id
             )
         except Exception as exc:  # o prazo de processamento ainda marcará a falha
             logger.error("media_management.failure_not_recorded", media_id=str(media_id), error=str(exc))

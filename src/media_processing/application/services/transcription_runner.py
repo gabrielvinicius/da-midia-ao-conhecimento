@@ -25,7 +25,7 @@ from src.media_processing.application.services.processing_job import (
     announce_started,
     staged_file,
 )
-from src.media_processing.domain import Transcription
+from src.media_processing.domain import InvalidTranscriptionTransitionError, Transcription
 from src.shared.application.event_bus import SupportsEventBus
 from src.shared.application.ports import ProcessingStatsPort
 from src.shared.domain.errors import ResourceNotFoundError
@@ -78,6 +78,10 @@ class TranscriptionRunner:
         transcription = await self._repo.get_by_id(transcription_id)
         if not transcription:
             raise ResourceNotFoundError("Transcription", str(transcription_id))
+        if transcription.is_finished:
+            # Tarefa entregue de novo (fila) ou repetida: não refaz o trabalho na GPU.
+            logger.warning("transcription.already_finished", transcription_id=str(transcription_id))
+            return {}
         await announce_started(self._event_bus, media_id, "transcription", correlation_id)
         transcription.mark_as_processing()
         await self._repo.save(transcription)
@@ -127,14 +131,12 @@ class TranscriptionRunner:
             return
 
         original_status = transcription.status
-        if success:
-            transcription.mark_as_completed(result_data)
-            if visual_context:
-                transcription.attach_visual_context(visual_context)
-        elif final_attempt:
-            transcription.mark_as_failed(error_message or "Erro desconhecido")
-        else:
-            transcription.record_processing_error(error_message or "Erro durante tentativa de processamento")
+        try:
+            self._apply_result(transcription, result_data, success, error_message, final_attempt, visual_context)
+        except InvalidTranscriptionTransitionError as exc:
+            # Ex.: o prazo venceu e a transcrição já foi dada como falha.
+            logger.warning("transcription.stale_result_ignored", transcription_id=str(transcription_id), reason=str(exc))
+            return
         await self._repo.save(transcription)
 
         await self._record_result_observability(
@@ -143,6 +145,17 @@ class TranscriptionRunner:
         await self._announce_result(
             transcription, media_id, provider, success, error_message, final_attempt, correlation_id
         )
+
+    @staticmethod
+    def _apply_result(transcription, result_data, success, error_message, final_attempt, visual_context) -> None:
+        if success:
+            transcription.mark_as_completed(result_data)
+            if visual_context:
+                transcription.attach_visual_context(visual_context)
+        elif final_attempt:
+            transcription.mark_as_failed(error_message or "Erro desconhecido")
+        else:
+            transcription.record_processing_error(error_message or "Erro durante tentativa de processamento")
 
     async def _announce_result(
         self, transcription, media_id, provider, success, error_message, final_attempt, correlation_id

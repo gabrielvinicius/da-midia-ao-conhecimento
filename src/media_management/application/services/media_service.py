@@ -112,6 +112,9 @@ class MediaService:
     async def record_text_ready(self, media_id: uuid.UUID) -> Optional[Media]:
         return await self.lifecycle.record_text_ready(media_id)
 
+    async def record_analysis_completed(self, media_id: uuid.UUID) -> Optional[Media]:
+        return await self.lifecycle.record_analysis_completed(media_id)
+
     async def record_processing_failed(
         self, media_id: uuid.UUID, error_message: Optional[str]
     ) -> Optional[Media]:

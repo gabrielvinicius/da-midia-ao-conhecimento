@@ -1,4 +1,4 @@
-"""Estados da mídia conduzidos pelos eventos do processamento."""
+"""Estados da mídia conduzidos pelos eventos do processamento e da análise."""
 from __future__ import annotations
 
 import uuid
@@ -7,7 +7,7 @@ from typing import Callable, Optional
 import structlog
 
 from src.media_management.application.ports import MediaRepositoryPort
-from src.media_management.domain import Media
+from src.media_management.domain import InvalidMediaTransitionError, Media
 
 logger = structlog.get_logger(__name__)
 
@@ -20,6 +20,9 @@ class MediaLifecycle:
         return await self._transition(media_id, lambda media: media.mark_as_processing())
 
     async def record_text_ready(self, media_id: uuid.UUID) -> Optional[Media]:
+        return await self._transition(media_id, lambda media: media.mark_text_ready())
+
+    async def record_analysis_completed(self, media_id: uuid.UUID) -> Optional[Media]:
         return await self._transition(media_id, lambda media: media.mark_as_completed())
 
     async def record_processing_failed(
@@ -30,11 +33,19 @@ class MediaLifecycle:
         )
 
     async def _transition(self, media_id: uuid.UUID, change: Callable[[Media], None]) -> Optional[Media]:
-        """Carrega a mídia, aplica a regra da entidade e grava. None se não existir."""
+        """Carrega a mídia, aplica a regra da entidade e grava.
+
+        None se a mídia não existir ou se o evento chegou fora de ordem (a
+        entidade recusa a mudança): um evento atrasado não desfaz o estado atual.
+        """
         media = await self._media.get_by_id(media_id)
         if not media:
             logger.error("media_management.media_not_found", media_id=str(media_id))
             return None
-        change(media)
+        try:
+            change(media)
+        except InvalidMediaTransitionError as exc:
+            logger.warning("media_management.stale_event_ignored", media_id=str(media_id), reason=str(exc))
+            return None
         await self._media.update(media)
         return media

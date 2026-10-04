@@ -17,7 +17,7 @@ from src.media_processing.application.ports import (
     TranscriptionRepositoryPort,
 )
 from src.media_processing.application.services.processing_job import announce_started, staged_file
-from src.media_processing.domain import Transcription, TranscriptionStatus
+from src.media_processing.domain import InvalidTranscriptionTransitionError, Transcription, TranscriptionStatus
 from src.media_processing.domain.errors import NoTextFoundError, UnsupportedFileTypeError
 from src.shared.application.ports import ProcessingStatsPort
 from src.shared.domain.errors import DomainError
@@ -103,6 +103,9 @@ class TextExtractionService:
             # durante a espera na fila e não há onde guardar o texto.
             logger.warning("text_extraction.record_missing", media_id=str(media_id))
             return
+        if transcription.is_finished:
+            logger.warning("text_extraction.already_finished", media_id=str(media_id))
+            return
         await announce_started(self._event_bus, media_id, "text_extraction", correlation_id)
         transcription.mark_as_processing()
         await self._repo.save(transcription)
@@ -130,7 +133,11 @@ class TextExtractionService:
             await self._record_failure(media_id, transcription, exc, final, context, correlation_id)
             raise
         await self._record_duration(time.perf_counter() - started, size, provider_used, "success")
-        transcription.mark_as_extracted(extracted_text, provider_used)
+        try:
+            transcription.mark_as_extracted(extracted_text, provider_used)
+        except InvalidTranscriptionTransitionError as exc:  # prazo vencido no meio da extração
+            logger.warning("text_extraction.stale_result_ignored", media_id=str(media_id), reason=str(exc))
+            return
         await self._repo.save(transcription)
         await self._announce_extracted(media_id, transcription, extracted_text, provider_used, context, correlation_id)
 
@@ -189,10 +196,14 @@ class TextExtractionService:
     async def _record_failure(
         self, media_id, transcription, exc, final_attempt, context, correlation_id
     ) -> None:
-        if final_attempt:
-            transcription.mark_as_failed(str(exc))
-        else:
-            transcription.record_processing_error(str(exc))
+        try:
+            if final_attempt:
+                transcription.mark_as_failed(str(exc))
+            else:
+                transcription.record_processing_error(str(exc))
+        except InvalidTranscriptionTransitionError as stale:  # já dada como falha pelo prazo
+            logger.warning("text_extraction.stale_failure_ignored", media_id=str(media_id), reason=str(stale))
+            return
         await self._repo.save(transcription)
         if self._event_bus and final_attempt:
             await self._event_bus.publish(

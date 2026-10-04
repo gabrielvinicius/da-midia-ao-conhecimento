@@ -47,3 +47,15 @@ def test_bcrypt_limit_is_applied_in_bytes_everywhere():
 def test_user_errors_follow_the_shared_hierarchy():
     assert issubclass(UserAlreadyExistsError, ConflictError)
     assert issubclass(UserNotFoundError, NotFoundError)
+
+
+def test_creating_a_user_follows_the_same_rules_as_changing_it():
+    """Um perfil inválido virava USER sem aviso na criação e era recusado na alteração."""
+    from src.user_management.domain import User
+    from src.user_management.domain.errors import InvalidUserDataError
+
+    with pytest.raises(InvalidUserDataError):
+        User.create(email="ana@ifba.edu.br", password_hash="h", role="SUPERUSER")
+    with pytest.raises(InvalidUserDataError):
+        User.create(email="sem-arroba", password_hash="h")
+    assert User.create(email=" Ana@IFBA.edu.br ", password_hash="h", role="admin").email == "ana@ifba.edu.br"

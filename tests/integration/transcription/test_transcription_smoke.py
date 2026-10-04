@@ -88,13 +88,14 @@ async def test_transcription_smoke():
 
     media_id = uuid4()
     transcription_id = uuid4()
-    # seed pending transcription
+    # seed a transcription being processed
     await repo.save(
         Transcription(
             id=transcription_id,
             media_id=media_id,
             text="",
             provider="dummy",
+            status=TranscriptionStatus.PROCESSING,
         )
     )
 

@@ -20,9 +20,11 @@ def test_no_segment_confidence_means_unknown_not_zero():
 def test_completed_transcription_gets_its_confidence():
     """O campo ficava sempre em 0: o Whisper só dá confiança por segmento."""
     t = Transcription(media_id=__import__("uuid").uuid4())
+    t.mark_as_processing()
     t.mark_as_completed({"text": "oi", "segments": [{"start": 0.0, "end": 2.0, "text": "oi", "confidence": math.log(0.8)}]})
     assert t.confidence_score == 0.8
 
     doc = Transcription(media_id=__import__("uuid").uuid4())
+    doc.mark_as_processing()
     doc.mark_as_completed({"text": "documento", "segments": []})
     assert doc.confidence_score is None

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from src.shared.domain.errors import NotFoundError
 from src.admin.application.ports import AdminMediaReadPort, AdminUserReadPort
-from src.media_management.domain.enums import MediaStatus
+from src.media_management.domain.enums import IN_PROGRESS_STATUSES, MediaStatus
 from src.shared.domain.time.clock import utcnow
 from src.user_management.application.dtos import GetUserQuery
 
@@ -29,14 +29,21 @@ class AdminReadService:
         self.failed_alert = failed_alert
         self.queue_alert = queue_alert
 
+    async def _count_in_progress(self) -> int:
+        """Em processamento ou em análise: as duas etapas ocupam os workers."""
+        return sum([await self._media_read_service.count_by_status(s) for s in IN_PROGRESS_STATUSES])
+
+    async def _count_user_in_progress(self, user_id: UUID) -> int:
+        return sum(
+            [await self._media_read_service.count_by_user_and_status(user_id, s) for s in IN_PROGRESS_STATUSES]
+        )
+
     async def get_global_stats(self) -> Dict[str, Any]:
         """Aggregate high level statistics from multiple bounded contexts."""
         total_users = await self._user_read_service.count_all()
         active_users = await self._user_read_service.count_active()
         total_media = await self._media_read_service.count_all()
-        processing_media = await self._media_read_service.count_by_status(
-            MediaStatus.PROCESSING
-        )
+        processing_media = await self._count_in_progress()
         failed_media = await self._media_read_service.count_by_status(
             MediaStatus.FAILED
         )
@@ -65,9 +72,7 @@ class AdminReadService:
             raise NotFoundError("Usuário não encontrado")
 
         total_media = await self._media_read_service.count_by_user(user.id)
-        processing_media = await self._media_read_service.count_by_user_and_status(
-            user.id, MediaStatus.PROCESSING
-        )
+        processing_media = await self._count_user_in_progress(user.id)
         failed_media = await self._media_read_service.count_by_user_and_status(
             user.id, MediaStatus.FAILED
         )
@@ -89,9 +94,7 @@ class AdminReadService:
         """Return detailed information about media processing throughput."""
         total = await self._media_read_service.count_all()
         uploaded = await self._media_read_service.count_by_status(MediaStatus.UPLOADED)
-        processing = await self._media_read_service.count_by_status(
-            MediaStatus.PROCESSING
-        )
+        processing = await self._count_in_progress()
         failed = await self._media_read_service.count_by_status(MediaStatus.FAILED)
         completed = await self._media_read_service.count_by_status(
             MediaStatus.COMPLETED
@@ -121,7 +124,7 @@ class AdminReadService:
         """
         since = utcnow() - timedelta(hours=self.failure_window_hours)
         recent_failures = await self._media_read_service.count_by_status(MediaStatus.FAILED, since=since)
-        processing = await self._media_read_service.count_by_status(MediaStatus.PROCESSING)
+        processing = await self._count_in_progress()
         waiting = await self._media_read_service.count_by_status(MediaStatus.UPLOADED)
 
         issues = []

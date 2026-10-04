@@ -47,6 +47,10 @@ class MediaSettings(BaseSettings):
     unstarted_check_interval_seconds: int = 300
     unstarted_grace_minutes: float = 10
     unstarted_give_up_minutes: float = 60
+    # Mídia "em análise" há mais que isto: o worker da análise morreu sem
+    # anunciar a falha (UnfinishedAnalysisRecovery). A análise de uma aula de
+    # duas horas leva minutos; o limite só pega o que parou de vez.
+    analysis_give_up_minutes: float = 180
 
     model_config = SettingsConfigDict(
         env_prefix="MEDIA_",

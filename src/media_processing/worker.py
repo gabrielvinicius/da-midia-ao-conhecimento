@@ -7,19 +7,13 @@ import structlog
 
 from src.media_processing.application.ports import AnalysisRequestPort
 from src.shared.application.event_bus import SupportsEventBus
-from src.media_management.infrastructure.dependencies.builders import (
-    build_media_event_handlers,
-)
 from src.media_processing.infrastructure.adapters.celery_task_schedulers import (
     CeleryAnalysisRequester,
 )
 from src.shared.domain.events import (
     MediaProcessingFailed,
-    MediaProcessingStarted,
     MediaUploaded,
     TextContentReady,
-    TranscriptionCompleted,
-    TranscriptionFailed,
 )
 from src.shared.infrastructure.database.db import AsyncSessionLocal
 from src.shared.infrastructure.messaging.event_bus_factory import get_event_bus
@@ -29,13 +23,12 @@ logger = structlog.get_logger(__name__)
 
 
 class MediaWorkerApp:
-    """Montagem do worker: liga os eventos do processamento aos módulos que reagem.
+    """Montagem do processamento no worker: começa a transcrição de uma mídia
+    anunciada e pede a análise quando o texto fica pronto.
 
-    Os avisos ao usuário não ficam aqui: o módulo de avisos assina os mesmos
-    eventos (notifications/worker.py).
-
-    Fica na raiz do módulo (camada de montagem), e não em application/, porque
-    conhece adaptadores de outros módulos (mídias, notificações, armazenamento).
+    O estado da mídia e os avisos não ficam aqui: os módulos de mídias e de
+    avisos assinam os mesmos eventos (media_management/worker.py e
+    notifications/worker.py).
     """
 
     def __init__(
@@ -55,11 +48,7 @@ class MediaWorkerApp:
 
         # Mídia anunciada no worker (recuperação de envios que não começaram).
         self.event_bus.subscribe(MediaUploaded, self._on_media_uploaded)
-        self.event_bus.subscribe(TranscriptionCompleted, self._on_transcription_completed)
-        self.event_bus.subscribe(TranscriptionFailed, self._on_transcription_failed)
         self.event_bus.subscribe(TextContentReady, self._on_text_content_ready)
-        self.event_bus.subscribe(MediaProcessingStarted, self._on_media_processing_started)
-        self.event_bus.subscribe(MediaProcessingFailed, self._on_media_processing_failed)
 
         self._subscribers_bound = True
         logger.info("media_processing.worker.subscribers_bound")
@@ -78,23 +67,11 @@ class MediaWorkerApp:
             )
             await handlers.handle_media_uploaded(event)
 
-    async def _on_transcription_completed(self, event: TranscriptionCompleted) -> None:
-        async with AsyncSessionLocal() as session:
-            handlers = self._build_media_handlers(session)
-            await handlers.handle_transcription_completed(event)
-
-    async def _on_transcription_failed(self, event: TranscriptionFailed) -> None:
-        async with AsyncSessionLocal() as session:
-            handlers = self._build_media_handlers(session)
-            await handlers.handle_transcription_failed(event)
-
     async def _on_text_content_ready(self, event: TextContentReady) -> None:
         if not getattr(event, "text", None):
             return
 
-        # A mídia já foi concluída ao receber TranscriptionCompleted (antes,
-        # era gravada de novo aqui).
-        # Trigger Text Analysis Task
+        # A mídia já passou a "em análise" ao receber TranscriptionCompleted.
         payload: Dict[str, Any] = {
             "media_id": str(event.media_id),
             "transcription_id": (
@@ -112,8 +89,8 @@ class MediaWorkerApp:
         try:
             self.analysis_requester.request_analysis(payload)
         except Exception as exc:
-            # Antes, só um aviso no log: a mídia ficava "concluída" sem análise,
-            # e nada a recuperava. Agora ela falha de forma visível e pode ser
+            # Antes, só um aviso no log: a mídia ficava sem análise e nada a
+            # recuperava. Agora ela falha de forma visível e pode ser
             # reprocessada pelo usuário.
             logger.error("text_analysis.enqueue_failed", media_id=str(event.media_id), error=str(exc))
             await self.event_bus.publish(
@@ -125,20 +102,3 @@ class MediaWorkerApp:
                     correlation_id=payload["correlation_id"],
                 )
             )
-
-    async def _on_media_processing_started(self, event: MediaProcessingStarted) -> None:
-        async with AsyncSessionLocal() as session:
-            handlers = self._build_media_handlers(session)
-            await handlers.handle_media_processing_started(event)
-
-    async def _on_media_processing_failed(self, event: MediaProcessingFailed) -> None:
-        async with AsyncSessionLocal() as session:
-            handlers = self._build_media_handlers(session)
-            await handlers.handle_media_processing_failed(event)
-
-    def _build_media_handlers(self, session):
-        return build_media_event_handlers(
-            session=session,
-            storage_factory=StorageServiceFactory(),
-            event_bus=self.event_bus,
-        )

@@ -1,9 +1,13 @@
-"""Montagem da recuperação de mídias que não começaram a ser processadas."""
+"""Montagem das recuperações de mídias paradas: antes do processamento
+começar e depois do texto pronto (análise que não terminou)."""
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.application.ports import EventBusPort
+from src.media_management.application.services.unfinished_analysis_recovery import (
+    UnfinishedAnalysisRecovery,
+)
 from src.media_management.application.services.unstarted_media_recovery import (
     UnstartedMediaRecovery,
 )
@@ -29,4 +33,16 @@ def build_unstarted_media_recovery(
     )
 
 
-__all__ = ["build_unstarted_media_recovery"]
+
+
+def build_unfinished_analysis_recovery(
+    session: AsyncSession, event_bus: EventBusPort
+) -> UnfinishedAnalysisRecovery:
+    return UnfinishedAnalysisRecovery(
+        media=MediaRepository(db=session),
+        event_bus=event_bus,
+        give_up_seconds=media_settings.analysis_give_up_minutes * 60,
+    )
+
+
+__all__ = ["build_unfinished_analysis_recovery", "build_unstarted_media_recovery"]
