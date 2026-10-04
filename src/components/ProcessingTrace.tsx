@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Media, MediaStatus, TextAnalysisResponse } from "@/types";
+import { Media, TextAnalysisResponse, isInProgress } from "@/types";
 import { cn } from "@/lib/utils";
 import { formatSeconds, taskLabel } from "@/lib/processingLabels";
 import { mediaPipelineSteps } from "@/features/media/lib/pipelineSteps";
@@ -41,7 +41,7 @@ export const ProcessingTrace = ({ media, analysis, transcriptionStatus }: Props)
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-muted-foreground hover:text-primary">
-          <Cpu className={cn("h-3.5 w-3.5", media.status === MediaStatus.PROCESSING && "text-amber-500 animate-pulse")} />
+          <Cpu className={cn("h-3.5 w-3.5", isInProgress(media.status) && "text-amber-500 animate-pulse")} />
           <span className="text-[10px] uppercase tracking-wider font-bold">Detalhes do processamento</span>
         </Button>
       </DialogTrigger>

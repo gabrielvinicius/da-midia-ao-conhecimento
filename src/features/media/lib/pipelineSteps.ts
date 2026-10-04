@@ -6,11 +6,11 @@ export type PipelineStep = { key: string; label: string; status: string };
 /**
  * Estado de cada etapa mostrado na página da mídia.
  *
- * A mídia fica "concluída" quando o texto fica pronto, antes da análise. As
+ * Com o texto pronto, a mídia fica "analisando" até a análise terminar. As
  * etapas da análise seguem o que o backend registrou para cada uma
- * (diagnostics.steps: "ok" ou "failed: ..."); sem registro, a análise está a
- * caminho. Antes, elas herdavam o estado da mídia e apareciam como concluídas
- * enquanto ainda rodavam.
+ * (diagnostics.steps: "ok" ou "failed: ..."). Sem registro: a caminho,
+ * enquanto a mídia é analisada; não executada (fator desligado), depois que
+ * a análise terminou.
  */
 export function mediaPipelineSteps(
   media: Pick<Media, "status" | "media_type">,
@@ -23,7 +23,8 @@ export function mediaPipelineSteps(
     if (outcome === "ok") return MediaStatus.COMPLETED;
     if (outcome?.startsWith("failed")) return MediaStatus.FAILED;
     if (media.status === MediaStatus.FAILED) return MediaStatus.FAILED;
-    if (media.status === MediaStatus.COMPLETED) return MediaStatus.PROCESSING;
+    if (media.status === MediaStatus.ANALYZING) return MediaStatus.PROCESSING;
+    if (media.status === MediaStatus.COMPLETED) return "SKIPPED";
     return MediaStatus.PENDING;
   };
   const isText = media.media_type === MediaType.TEXT;

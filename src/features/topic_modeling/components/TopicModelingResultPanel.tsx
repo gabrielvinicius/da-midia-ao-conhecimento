@@ -2,7 +2,7 @@ import { useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
-import { MediaStatus, TextAnalysisTopic } from "@/types";
+import { MediaStatus, TextAnalysisTopic, isInProgress } from "@/types";
 import { Brain, Clock3, Loader2, Sparkles, Languages, ListOrdered } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -63,7 +63,7 @@ export const TopicModelingResultPanel = ({ mediaId, mediaStatus }: TopicModeling
     if (mediaStatus === MediaStatus.FAILED) {
       return <Badge variant="destructive">Falhou</Badge>;
     }
-    if (!analysis && mediaStatus === MediaStatus.PROCESSING) {
+    if (!analysis && isInProgress(mediaStatus)) {
       return <Badge variant="secondary">Processando</Badge>;
     }
     if (analysis) {
@@ -91,7 +91,7 @@ export const TopicModelingResultPanel = ({ mediaId, mediaStatus }: TopicModeling
       return (
         <p className="text-muted-foreground text-center text-xs flex items-center justify-center gap-2">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          {mediaStatus === MediaStatus.PROCESSING
+          {isInProgress(mediaStatus)
             ? "Modelagem em andamento... aguarde alguns instantes."
             : "Tópicos ainda não disponíveis."}
         </p>

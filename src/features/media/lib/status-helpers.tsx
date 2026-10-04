@@ -32,6 +32,13 @@ export const getStatusToken = (status?: string | null): { label: string; badge: 
         badge: "bg-amber-500/10 text-amber-600", 
         icon: <Loader2 className="h-4 w-4 animate-spin text-amber-500" /> 
       };
+    case MediaStatus.ANALYZING:
+    case "ANALYZING":
+      return {
+        label: "Analisando",
+        badge: "bg-violet-500/10 text-violet-600",
+        icon: <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
+      };
     case MediaStatus.FAILED:
     case TranscriptionStatus.FAILED:
     case "FAILED":

@@ -8,7 +8,7 @@ const statusOf = (steps: ReturnType<typeof mediaPipelineSteps>) =>
 describe("mediaPipelineSteps", () => {
   it("com o texto pronto e a análise rodando, as etapas da análise não aparecem concluídas", () => {
     const steps = statusOf(
-      mediaPipelineSteps({ status: MediaStatus.COMPLETED, media_type: MediaType.VIDEO }, TranscriptionStatus.COMPLETED, null),
+      mediaPipelineSteps({ status: MediaStatus.ANALYZING, media_type: MediaType.VIDEO }, TranscriptionStatus.COMPLETED, null),
     );
     expect(steps).toMatchObject({ upload: MediaStatus.COMPLETED, transcription: TranscriptionStatus.COMPLETED, topics: MediaStatus.PROCESSING, summary: MediaStatus.PROCESSING });
   });
@@ -16,9 +16,17 @@ describe("mediaPipelineSteps", () => {
   it("segue o resultado de cada etapa registrado pela análise", () => {
     const analysis = { diagnostics: { steps: { topic_modeling: "ok", sentiment: "failed: sem GPU" } } };
     const steps = statusOf(
-      mediaPipelineSteps({ status: MediaStatus.COMPLETED, media_type: MediaType.AUDIO }, TranscriptionStatus.COMPLETED, analysis),
+      mediaPipelineSteps({ status: MediaStatus.ANALYZING, media_type: MediaType.AUDIO }, TranscriptionStatus.COMPLETED, analysis),
     );
     expect(steps).toMatchObject({ topics: MediaStatus.COMPLETED, sentiment: MediaStatus.FAILED, summary: MediaStatus.PROCESSING });
+  });
+
+  it("com a análise concluída, etapa sem registro foi desligada, não está a caminho", () => {
+    const analysis = { diagnostics: { steps: { synthesis: "ok" } } };
+    const steps = statusOf(
+      mediaPipelineSteps({ status: MediaStatus.COMPLETED, media_type: MediaType.AUDIO }, TranscriptionStatus.COMPLETED, analysis),
+    );
+    expect(steps).toMatchObject({ summary: MediaStatus.COMPLETED, sentiment: "SKIPPED" });
   });
 
   it("mídia que falhou mostra a falha", () => {

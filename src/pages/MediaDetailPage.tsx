@@ -14,7 +14,7 @@ import { MagicSurface } from "@/components/ui/MagicSurface";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { MediaStatus, MediaType } from "@/types";
+import { MediaStatus, MediaType, isInProgress } from "@/types";
 import { MediaPlayer } from "@/features/media/components/MediaPlayer";
 import { useTranscription } from "@/features/transcription/hooks/useTranscription";
 import { TranscriptionPanel } from "@/features/transcription/components/TranscriptionPanel";
@@ -208,7 +208,7 @@ const MediaDetailPage = () => {
           {/* Predictive Insight */}
           <PredictiveInsight 
             mediaId={id} 
-            isEnabled={media.status === MediaStatus.UPLOADED || media.status === MediaStatus.PROCESSING} 
+            isEnabled={media.status === MediaStatus.UPLOADED || isInProgress(media.status)} 
           />
 
           {/* Topics Index */}

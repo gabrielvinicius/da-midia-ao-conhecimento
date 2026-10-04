@@ -35,10 +35,15 @@ export enum MediaType {
 export enum MediaStatus {
   UPLOADED = "uploaded",
   PENDING = "pending", // Deprecated: Backend uses UPLOADED
-  PROCESSING = "processing",
-  COMPLETED = "completed",
+  PROCESSING = "processing", // transcrição ou extração do texto
+  ANALYZING = "analyzing", // texto pronto, análise em andamento
+  COMPLETED = "completed", // análise concluída
   FAILED = "failed",
 }
+
+/** Mídia com trabalho em andamento: transcrição/extração ou análise. */
+export const isInProgress = (status?: MediaStatus | string | null): boolean =>
+  status === MediaStatus.PROCESSING || status === MediaStatus.ANALYZING;
 
 // Aligned with Backend DTO (MediaResponse)
 export interface Media {

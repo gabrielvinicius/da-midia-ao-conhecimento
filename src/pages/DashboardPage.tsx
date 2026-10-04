@@ -13,7 +13,7 @@ import { PaginationState } from "@tanstack/react-table";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { useAuth } from "../contexts/AuthContext";
-import { UserRole, MediaType, MediaStatus } from "@/types";
+import { UserRole, MediaType, MediaStatus, isInProgress } from "@/types";
 import {
   Upload,
   BarChart3,
@@ -97,7 +97,7 @@ const DashboardPage = () => {
         videos: media.filter(m => m.media_type === MediaType.VIDEO).length, // ausência de breakdown por tipo; mantém parcial
         audios: media.filter(m => m.media_type === MediaType.AUDIO).length,
         texts: media.filter(m => m.media_type === MediaType.TEXT).length,
-        processing: byStatus.PROCESSING ?? 0,
+        processing: (byStatus.PROCESSING ?? 0) + (byStatus.ANALYZING ?? 0),
         completed: byStatus.COMPLETED ?? 0,
         failed: byStatus.FAILED ?? 0,
       };
@@ -107,7 +107,7 @@ const DashboardPage = () => {
       videos: media.filter(m => m.media_type === MediaType.VIDEO).length,
       audios: media.filter(m => m.media_type === MediaType.AUDIO).length,
       texts: media.filter(m => m.media_type === MediaType.TEXT).length,
-      processing: media.filter(m => m.status === MediaStatus.PROCESSING).length,
+      processing: media.filter(m => isInProgress(m.status)).length,
       completed: media.filter(m => m.status === MediaStatus.COMPLETED).length,
       failed: media.filter(m => m.status === MediaStatus.FAILED).length,
     };

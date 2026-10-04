@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Download, Info, Sparkles, ThumbsUp, ThumbsDown, Edit3, Save, X } from "lucide-react";
-import { MediaStatus, TextAnalysisResponse } from "@/types";
+import { MediaStatus, TextAnalysisResponse, isInProgress } from "@/types";
 import { cn } from "@/lib/utils";
 
 const SUMMARY_PROVIDER_META: Record<string, { label: string; description: string }> = {
@@ -216,7 +216,7 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
       if (mediaStatus === MediaStatus.FAILED) {
         return <p className="text-destructive">Falha no processamento da mídia.</p>;
       }
-      if (mediaStatus === MediaStatus.PROCESSING) {
+      if (isInProgress(mediaStatus)) {
         return (
           <div className="space-y-2 text-sm text-muted-foreground">
             <p className="font-medium text-slate-900">Gerando resumo inteligente...</p>
