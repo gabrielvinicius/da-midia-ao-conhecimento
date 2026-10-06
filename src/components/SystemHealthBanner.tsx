@@ -1,6 +1,6 @@
 import React from 'react';
-import { useSystemStatusQuery } from '@/hooks/useQueries';
-import { AlertCircle, Zap, ShieldCheck } from 'lucide-react';
+import { useSystemStatusQuery } from '@/features/monitoring/api';
+import { AlertCircle, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const SystemHealthBanner = () => {
@@ -11,19 +11,19 @@ export const SystemHealthBanner = () => {
   const pressureConfig = {
     moderate: {
       label: "Carga Moderada",
-      message: "O sistema está processando vários arquivos. O tempo de resposta pode ser levemente superior.",
+      message: "Há processamentos em andamento; os próximos podem demorar um pouco mais.",
       icon: <Zap className="h-4 w-4" />,
       colors: "bg-blue-50 text-blue-700 border-blue-100"
     },
     high: {
-      label: "Alta Carga",
-      message: "Servidor operando em capacidade máxima. Ativando modo de processamento otimizado.",
+      label: "Alta carga",
+      message: "Memória da GPU ou processador quase no limite; novos processamentos esperam na fila.",
       icon: <Zap className="h-4 w-4 animate-pulse" />,
       colors: "bg-amber-50 text-amber-700 border-amber-100"
     },
     critical: {
-      label: "Capacidade Crítica",
-      message: "Novos processamentos podem ser enfileirados por tempo indeterminado.",
+      label: "Capacidade crítica",
+      message: "Memória da GPU esgotada; o processamento atual pode falhar e ser repetido.",
       icon: <AlertCircle className="h-4 w-4" />,
       colors: "bg-red-50 text-red-700 border-red-100"
     }
@@ -42,8 +42,8 @@ export const SystemHealthBanner = () => {
         <span className="hidden md:inline opacity-80">{config.message}</span>
       </div>
       <div className="flex items-center gap-4 font-mono text-[10px]">
-        <span>CPU: {status.cpu_usage.toFixed(0)}%</span>
-        {status.gpu_vram_usage !== null && (
+        {status.cpu_usage != null && <span>CPU: {status.cpu_usage.toFixed(0)}%</span>}
+        {status.gpu_vram_usage != null && (
           <span>GPU: {(status.gpu_vram_usage * 100).toFixed(0)}%</span>
         )}
       </div>

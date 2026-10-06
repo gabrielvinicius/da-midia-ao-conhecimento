@@ -1,14 +1,16 @@
-import { useState } from 'react'; // Add useState
+import { GroundingNotice, type GroundingReport } from "./GroundingNotice";
+import { useState } from 'react';
 import { saveAs } from 'file-saver';
-import { useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
-import api from '@/lib/api'; // Import api for feedback calls
+import { useTextAnalysisByMediaIdQuery } from "../hooks/useAnalysisQuery";
+import { correctSummary, submitAnalysisFeedback } from "../api";
+import { apiErrorMessage } from '@/lib/errors';
 import { toast } from 'react-toastify';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Download, Info, Sparkles, ThumbsUp, ThumbsDown, Edit3, Save, X } from "lucide-react";
-import { MediaStatus, TextAnalysisResponse } from "@/types";
+import { MediaStatus, TextAnalysisResponse, isInProgress } from "@/types";
 import { cn } from "@/lib/utils";
 
 const SUMMARY_PROVIDER_META: Record<string, { label: string; description: string }> = {
@@ -51,14 +53,8 @@ const buildSummaryText = (analysis: TextAnalysisResponse): string => {
   if (analysis.summary) {
     return analysis.summary;
   }
+  // Sem resumo geral: os trechos representativos dos temas.
   const topics = analysis.topics || [];
-  const summaries = topics
-    .map((t) => (t.summary_md || t.summary || "").trim())
-    .filter(Boolean);
-  if (summaries.length > 0) {
-    return summaries.join("\n\n");
-  }
-  // Fallback: usar snippets representativos quando não há summary_md
   const snippets = topics
     .flatMap((t) => t.representative_snippets || [])
     .map((s) => String(s || "").trim())
@@ -132,6 +128,23 @@ const renderInlineMarkdown = (text: string) => {
   });
 };
 
+// De onde veio o resumo (registrado pelo backend em diagnostics.summary_source).
+export const summarySourceLabel = (source?: unknown): string | null => {
+  switch (source) {
+    case "llm":
+      return "Gerado pelo modelo principal";
+    case "reserve":
+      return "Gerado pelo modelo reserva";
+    // "fallback" é de análises antigas: os dois modelos falharam.
+    case "fallback":
+    case "simplified":
+    case "error":
+      return "Resumo simplificado: o modelo de linguagem não respondeu";
+    default:
+      return null;
+  }
+};
+
 export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
   const { data: analysis, isLoading, isError, refetch } = useTextAnalysisByMediaIdQuery(mediaId);
   const [isEditing, setIsEditing] = useState(false);
@@ -145,23 +158,23 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
   const handleFeedback = async (score: number) => {
     if (!analysis) return;
     try {
-      await api.post(`/text-analysis/${analysis.analysis_id}/feedback?score=${score}`);
+      await submitAnalysisFeedback(analysis.analysis_id, score);
       setFeedbackGiven(score);
       toast.success("Obrigado pelo feedback!");
     } catch (err) {
-      toast.error("Falha ao registrar feedback.");
+      toast.error(apiErrorMessage(err, "Falha ao registrar a avaliação."));
     }
   };
 
   const handleSaveCorrection = async () => {
     if (!analysis) return;
     try {
-      await api.put(`/text-analysis/${analysis.analysis_id}/summary?new_summary=${encodeURIComponent(editedText)}`);
+      await correctSummary(analysis.analysis_id, editedText);
       toast.success("Resumo atualizado!");
       setIsEditing(false);
       refetch();
     } catch (err) {
-      toast.error("Falha ao salvar correção.");
+      toast.error(apiErrorMessage(err, "Falha ao salvar a correção."));
     }
   };
 
@@ -197,7 +210,7 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
       if (mediaStatus === MediaStatus.FAILED) {
         return <p className="text-destructive">Falha no processamento da mídia.</p>;
       }
-      if (mediaStatus === MediaStatus.PROCESSING) {
+      if (isInProgress(mediaStatus)) {
         return (
           <div className="space-y-2 text-sm text-muted-foreground">
             <p className="font-medium text-slate-900">Gerando resumo inteligente...</p>
@@ -290,9 +303,9 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">Insights</p>
-            <CardTitle className="text-2xl">Resumo inteligente</CardTitle>
+            <CardTitle className="text-2xl">Resumo</CardTitle>
             <CardDescription className="space-y-1">
-              <span>Resumo interpretativo exclusivo.</span>
+              <span>Gerado a partir da transcrição e, em vídeos, do que aparece na tela.</span>
               {providerInfo?.description && (
                 <span className="flex items-center gap-1 text-xs">
                   <Info className="h-3 w-3" /> {providerInfo.description}
@@ -319,15 +332,18 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
               {providerInfo?.label ?? provider}
             </Badge>
           )}
-          {analysis && (
+          {analysis && summarySourceLabel(analysis.diagnostics?.summary_source) && (
             <Badge variant="secondary" className="rounded-full border border-[#f2eadf] bg-[#fdfbf6] text-slate-800">
-              {MediaStatus.COMPLETED}
+              {summarySourceLabel(analysis.diagnostics?.summary_source)}
             </Badge>
           )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4 text-slate-900">
         {renderContent()}
+        {analysis && !analysis.diagnostics?.original_ai_summary && (
+          <GroundingNotice report={analysis.diagnostics?.grounding as GroundingReport | undefined} />
+        )}
       </CardContent>
     </Card>
   );

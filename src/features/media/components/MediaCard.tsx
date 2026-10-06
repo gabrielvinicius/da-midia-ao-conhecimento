@@ -1,15 +1,14 @@
 import type { MouseEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Media, MediaStatus, MediaType } from "@/types";
-import { FileText, CheckCircle, XCircle, Loader2, Clock, Video, Music, FileImage, MoreVertical, Eye, RotateCcw, Trash2 } from "lucide-react";
+import { FileText, Video, Music, MoreVertical, Eye, RotateCcw, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useDeleteUserMediaCommand, useReprocessMediaCommand } from "@/hooks/useCommands";
+import { useDeleteMediaMutation, useReprocessMediaMutation } from "../hooks/useMediaMutations";
 import { useQueryClient } from "@tanstack/react-query";
-import { getMediaById } from "@/api/queries";
+import { getMedia } from "../api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,13 +44,13 @@ const mediaTypeConfig: Record<MediaType, { icon: ReactNode; label: string; color
 
 export const MediaCard = ({ media }: MediaCardProps) => {
   const queryClient = useQueryClient();
-  const { mutate: reprocess, isPending: isReprocessing } = useReprocessMediaCommand();
-  const { mutate: deleteMedia, isPending: isDeleting } = useDeleteUserMediaCommand();
+  const { mutate: reprocess, isPending: isReprocessing } = useReprocessMediaMutation();
+  const { mutate: deleteMedia, isPending: isDeleting } = useDeleteMediaMutation();
   
   const handlePrefetch = () => {
     queryClient.prefetchQuery({
       queryKey: ['media', media.id],
-      queryFn: () => getMediaById(media.id),
+      queryFn: () => getMedia(media.id),
       staleTime: 30000,
     });
   };
@@ -64,7 +63,7 @@ export const MediaCard = ({ media }: MediaCardProps) => {
   const handleReprocess = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    reprocess({ mediaId: media.id });
+    reprocess(media.id);
   };
 
   return (
@@ -125,7 +124,7 @@ export const MediaCard = ({ media }: MediaCardProps) => {
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-red-600 hover:bg-red-700"
-                  onClick={() => deleteMedia({ mediaId: media.id })}
+                  onClick={() => deleteMedia(media.id)}
                 >
                   {isDeleting ? 'Excluindo...' : 'Excluir'}
                 </AlertDialogAction>
@@ -139,18 +138,26 @@ export const MediaCard = ({ media }: MediaCardProps) => {
         <div className="flex items-center justify-between mb-4">
           <MediaStatusBadge status={media.status} />
           
+          {/* Só mídias que falharam podem ser reprocessadas (regra da API).
+              Botão sempre visível e com texto: em telas de toque não há "hover". */}
           {media.status === MediaStatus.FAILED && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleReprocess}
               disabled={isReprocessing}
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
             >
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw className={`mr-2 h-4 w-4 ${isReprocessing ? "animate-spin" : ""}`} />
+              {isReprocessing ? "Enviando..." : "Tentar novamente"}
             </Button>
           )}
         </div>
+
+        {media.status === MediaStatus.FAILED && media.error_message && (
+          <p className="text-xs text-red-700 line-clamp-2" title={media.error_message}>
+            {media.error_message}
+          </p>
+        )}
 
         <div className="mt-4 pt-3 border-t">
           <Link to={`/media/${media.id}`} className="block">

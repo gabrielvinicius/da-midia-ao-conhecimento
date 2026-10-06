@@ -6,14 +6,15 @@ import { saveAs } from 'file-saver';
 
 import { SummaryPanel } from './SummaryPanel';
 import { render } from '@/test/test-utils';
-import { useTextAnalysisByMediaIdQuery } from '@/hooks/useQueries';
+import type { TextAnalysisResponse } from '@/types';
+import { useTextAnalysisByMediaIdQuery } from '@/features/summarization/hooks/useAnalysisQuery';
 
 // Mock the file-saver library
 vi.mock('file-saver', () => ({
   saveAs: vi.fn(),
 }));
 
-vi.mock('@/hooks/useQueries', () => ({
+vi.mock('@/features/summarization/hooks/useAnalysisQuery', () => ({
   useTextAnalysisByMediaIdQuery: vi.fn(),
 }));
 
@@ -30,10 +31,8 @@ describe('SummaryPanel Component', () => {
           topic_id: 1,
           title: 'Tópico 1',
           keywords: ['a', 'b'],
-          summary_md: 'This is the summary text.',
-          representative_snippets: [],
+          representative_snippets: ['This is the summary text.'],
           size: 1,
-          diagnostics: {},
         },
       ],
       diagnostics: {},
@@ -41,7 +40,7 @@ describe('SummaryPanel Component', () => {
       transcription_id: null,
       provider: 'test',
       user_id: 'user123',
-    } as any;
+    } as unknown as TextAnalysisResponse;
 
     // Arrange: Mock the hook to return a completed summary
     (useTextAnalysisByMediaIdQuery as vi.Mock).mockReturnValue({

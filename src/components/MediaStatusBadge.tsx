@@ -29,6 +29,12 @@ const statusConfig: Record<MediaStatus, { label: string; color: string; bgColor:
     bgColor: "bg-blue-100 border-blue-200",
     icon: <Loader2 className="h-3 w-3 animate-spin" />
   },
+  [MediaStatus.ANALYZING]: {
+    label: "Analisando",
+    color: "text-violet-600",
+    bgColor: "bg-violet-100 border-violet-200",
+    icon: <Loader2 className="h-3 w-3 animate-spin" />
+  },
   [MediaStatus.COMPLETED]: {
     label: "Concluído",
     color: "text-emerald-600",

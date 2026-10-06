@@ -1,33 +1,29 @@
-import { rest } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { render, screen, waitFor } from './test-utils';
 import DashboardPage from '@/pages/DashboardPage';
 
 const server = setupServer(
-  rest.get('/api/media/', (_req, res, ctx) => {
-    return res(
-      ctx.json({
-        items: [
-          { id: '1', filename: 'video.mp4', media_type: 'video', status: 'COMPLETED', created_at: new Date().toISOString(), size: 100, content_type: 'video/mp4' },
-        ],
-        total: 1,
-        page: 1,
-        pages: 1,
-        limit: 12,
-      })
-    );
+  http.get('/api/media/', () => {
+    return HttpResponse.json({
+      items: [
+        { id: '1', filename: 'video.mp4', media_type: 'video', status: 'COMPLETED', created_at: new Date().toISOString(), size: 100, content_type: 'video/mp4' },
+      ],
+      total: 1,
+      page: 1,
+      pages: 1,
+      limit: 12,
+    });
   }),
-  rest.get('/api/media/stats', (_req, res, ctx) => {
-    return res(
-      ctx.json({
-        total: 1,
-        by_status: { COMPLETED: 1, PROCESSING: 0, FAILED: 0, PENDING: 0, UPLOADED: 0 },
-        by_type: { video: 1, audio: 0, text: 0 },
-      })
-    );
+  http.get('/api/media/stats', () => {
+    return HttpResponse.json({
+      total: 1,
+      by_status: { COMPLETED: 1, PROCESSING: 0, FAILED: 0, PENDING: 0, UPLOADED: 0 },
+      by_type: { video: 1, audio: 0, text: 0 },
+    });
   }),
-  rest.get('/api/auth/me', (_req, res, ctx) => {
-    return res(ctx.json({ id: 'user', email: 'user@test.com', role: 'USER' }));
+  http.get('/api/auth/me', () => {
+    return HttpResponse.json({ id: 'user', email: 'user@test.com', role: 'USER' });
   })
 );
 
@@ -42,9 +38,39 @@ describe('DashboardPage', () => {
     expect(screen.getByText(/Painel pessoal/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText(/video\.mp4/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/video\.mp4/i).length).toBeGreaterThan(0);
     });
 
     expect(screen.getByText(/Total monitorado/i)).toBeInTheDocument();
+  });
+
+  it('counts types from the API, not from the current page', async () => {
+    // As chaves da API são minúsculas ("video"); o painel lia "VIDEO" e caía
+    // na contagem da página atual.
+    server.use(
+      http.get('/api/media/stats', () =>
+        HttpResponse.json({ total: 7, by_status: { completed: 7 }, by_type: { video: 5, audio: 2, text: 0 } }),
+      ),
+    );
+    render(<DashboardPage />);
+    const video = await screen.findByText('Vídeo');
+    await waitFor(() => expect(video.closest('div')?.parentElement?.textContent).toContain('5'));
+  });
+
+  it('computes the rates over all media, not over the filtered list', async () => {
+    // As contagens vêm de /media/stats (todas as mídias); antes, a taxa dividia
+    // pelo total da lista filtrada e passava de 100%.
+    server.use(
+      http.get('/api/media/stats', () =>
+        HttpResponse.json({ total: 10, by_status: { completed: 5 }, by_type: { video: 10 } }),
+      ),
+    );
+    render(<DashboardPage />);
+    const card = (await screen.findByText(/Taxa de conclusão/i)).closest('div')?.parentElement;
+    // O número é animado (NumberTicker, 1,2 s): espera o valor final e confere
+    // que ele fica ali, e não sobe até 500% como no cálculo antigo.
+    await waitFor(() => expect(card?.textContent).toContain('Taxa de conclusão50%'), { timeout: 3000 });
+    await new Promise((resolve) => setTimeout(resolve, 1300));
+    expect(card?.textContent).toContain('Taxa de conclusão50%');
   });
 });

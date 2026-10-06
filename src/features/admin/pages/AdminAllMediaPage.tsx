@@ -1,14 +1,13 @@
 import * as React from "react";
 import { ColumnDef, PaginationState } from "@tanstack/react-table";
-import { MoreHorizontal, RefreshCw, Recycle, Brush, Trash2, CheckCircle, Loader2, ShieldCheck } from "lucide-react";
+import { MoreHorizontal, RefreshCw, Recycle, Trash2, CheckCircle, Loader2, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 import { Media, MediaStatus } from "@/types";
-import { useAllMedia } from "../hooks/useAdminQueries";
-import { useDeleteMedia, useReprocessMedia, useBulkReprocessMedia, useCleanupOrphanedFiles } from "../hooks/useAdminMutations";
+import { useAllMedia, useSystemStats } from "../hooks/useAdminQueries";
+import { useDeleteMedia, useReprocessMedia, useBulkReprocessMedia } from "../hooks/useAdminMutations";
 import { DataTable } from "@/components/ui/DataTable";
-import { Badge } from "@/components/ui/Badge";
 import { MediaStatusBadge } from "@/components/MediaStatusBadge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import ErrorState from "@/components/ui/ErrorState";
@@ -127,7 +126,6 @@ export const AdminAllMediaPage = () => {
   const [search, setSearch] = React.useState('');
 
   const { mutate: bulkReprocess, isPending: isBulkReprocessing } = useBulkReprocessMedia();
-  const { mutate: cleanupOrphans, isPending: isCleaning } = useCleanupOrphanedFiles();
 
   const { data, isLoading, isError, refetch } = useAllMedia({
     page: pageIndex + 1, // API is 1-indexed
@@ -139,7 +137,8 @@ export const AdminAllMediaPage = () => {
   const items = data?.items ?? defaultData;
   const totalItems = data?.total ?? 0;
   const totalPages = data?.pages ?? Math.max(1, Math.ceil(totalItems / pageSize));
-  const metrics = (data as any)?.metrics ?? {};
+  // Contagens de todo o sistema (a listagem traz só a página atual).
+  const { data: stats } = useSystemStats();
 
   const pagination = React.useMemo(
     () => ({ pageIndex, pageSize }),
@@ -168,10 +167,6 @@ export const AdminAllMediaPage = () => {
             <Recycle className="mr-2 h-4 w-4" />
             {isBulkReprocessing ? 'Iniciando...' : 'Reprocessar falhas'}
           </Button>
-          <Button variant="outline" onClick={() => cleanupOrphans()} disabled={isCleaning}>
-            <Brush className="mr-2 h-4 w-4" />
-            {isCleaning ? 'Limpando...' : 'Limpar órfãos'}
-          </Button>
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mb-6">
@@ -191,7 +186,7 @@ export const AdminAllMediaPage = () => {
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-sky-600">
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-2xl font-semibold">{metrics?.processing ?? 0}</span>
+            <span className="text-2xl font-semibold">{stats?.processing_media ?? 0}</span>
           </CardContent>
         </Card>
         <Card className="border border-[#ede4d5] bg-white">
@@ -201,7 +196,7 @@ export const AdminAllMediaPage = () => {
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-emerald-600">
             <CheckCircle className="h-4 w-4" />
-            <span className="text-2xl font-semibold">{metrics?.completed ?? 0}</span>
+            <span className="text-2xl font-semibold">{stats?.completed_media ?? 0}</span>
           </CardContent>
         </Card>
         <Card className="border border-[#ede4d5] bg-white">
@@ -211,7 +206,7 @@ export const AdminAllMediaPage = () => {
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-red-600">
             <ShieldCheck className="h-4 w-4" />
-            <span className="text-2xl font-semibold">{metrics?.failed ?? 0}</span>
+            <span className="text-2xl font-semibold">{stats?.failed_media ?? 0}</span>
           </CardContent>
         </Card>
       </div>

@@ -35,10 +35,15 @@ export enum MediaType {
 export enum MediaStatus {
   UPLOADED = "uploaded",
   PENDING = "pending", // Deprecated: Backend uses UPLOADED
-  PROCESSING = "processing",
-  COMPLETED = "completed",
+  PROCESSING = "processing", // transcrição ou extração do texto
+  ANALYZING = "analyzing", // texto pronto, análise em andamento
+  COMPLETED = "completed", // análise concluída
   FAILED = "failed",
 }
+
+/** Mídia com trabalho em andamento: transcrição/extração ou análise. */
+export const isInProgress = (status?: MediaStatus | string | null): boolean =>
+  status === MediaStatus.PROCESSING || status === MediaStatus.ANALYZING;
 
 // Aligned with Backend DTO (MediaResponse)
 export interface Media {
@@ -55,18 +60,8 @@ export interface Media {
   error_message?: string | null;
   language?: string | null;
   duration?: number | null;
-  processing_pipeline?: string[];
   storage_provider?: string | null;
   transcription_provider?: string | null;
-  summarization_provider?: string | null;
-  sentiment_provider?: string | null;
-  topic_modeling_provider?: string | null;
-}
-
-// Legacy Video interface for backward compatibility
-export interface Video extends Media {
-  title?: string;
-  duration?: number;
 }
 
 export enum TranscriptionStatus {
@@ -105,19 +100,11 @@ export interface Notification {
   user_id: string;
   type: string;
   content: string;
-  status: string;
   priority: string;
+  status: string;
   created_at: string;
-  sent_at: string | null;
-  error_message: string | null;
-  read?: boolean;
-  delivered_at?: string | null;
-  opened_at?: string | null;
-  template_name?: string | null;
+  read: boolean;
   variables?: Record<string, unknown>;
-  retries?: number;
-  max_retries?: number;
-  updated_at?: string | null;
 }
 
 export interface Paginated<T> {
@@ -128,15 +115,12 @@ export interface Paginated<T> {
   limit: number;
 }
 
-// Alias legado para compatibilidade (preferir Paginated<T>)
-export type PaginatedResponse<T> = Paginated<T>;
-
 // Paginação simplificada (API /media)
 export type PaginatedMedia = Paginated<Media>;
 
 // --- Text Analysis (unificado) ---
 
-export interface TextAnalysisSentimentItem {
+interface TextAnalysisSentimentItem {
   chunk_id: string;
   label: string;
   score: number;
@@ -149,11 +133,8 @@ export interface TextAnalysisTopic {
   topic_id: number;
   title?: string | null;
   keywords: string[];
-  summary?: string | null;
-  summary_md?: string | null;
   representative_snippets: string[];
   size: number;
-  diagnostics: Record<string, any>;
 }
 
 export interface TextAnalysisResponse {
@@ -162,35 +143,10 @@ export interface TextAnalysisResponse {
   overall_sentiment: string;
   sentiment_items: TextAnalysisSentimentItem[];
   topics: TextAnalysisTopic[];
-  diagnostics: Record<string, any>;
+  diagnostics: Record<string, unknown>;
   media_id?: string | null;
   transcription_id?: string | null;
   provider?: string | null;
   user_id?: string | null;
   summary?: string | null;
-}
-
-// Admin types
-export interface SystemStats {
-  total_users: number;
-  total_media: number;
-  total_transcriptions: number;
-  total_summaries: number;
-  active_tasks: number;
-  system_uptime: string;
-  database_status: string;
-  redis_status: string;
-}
-
-export interface UserResponse {
-  id: string;
-  email: string;
-  role: UserRole;
-  is_active: boolean;
-  created_at?: string;
-}
-
-export interface UserUpdateRequest {
-  role?: UserRole;
-  is_active?: boolean;
 }

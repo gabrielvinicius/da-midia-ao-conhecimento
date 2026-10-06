@@ -1,10 +1,9 @@
-import { useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
+import { useTextAnalysisByMediaIdQuery } from "@/features/summarization/hooks/useAnalysisQuery";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
-import { MediaStatus, TextAnalysisTopic } from "@/types";
+import { MediaStatus, TextAnalysisTopic, isInProgress } from "@/types";
 import { Brain, Clock3, Loader2, Sparkles, Languages, ListOrdered } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface TopicModelingResultPanelProps {
   mediaId: string;
@@ -63,7 +62,7 @@ export const TopicModelingResultPanel = ({ mediaId, mediaStatus }: TopicModeling
     if (mediaStatus === MediaStatus.FAILED) {
       return <Badge variant="destructive">Falhou</Badge>;
     }
-    if (!analysis && mediaStatus === MediaStatus.PROCESSING) {
+    if (!analysis && isInProgress(mediaStatus)) {
       return <Badge variant="secondary">Processando</Badge>;
     }
     if (analysis) {
@@ -91,7 +90,7 @@ export const TopicModelingResultPanel = ({ mediaId, mediaStatus }: TopicModeling
       return (
         <p className="text-muted-foreground text-center text-xs flex items-center justify-center gap-2">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          {mediaStatus === MediaStatus.PROCESSING
+          {isInProgress(mediaStatus)
             ? "Modelagem em andamento... aguarde alguns instantes."
             : "Tópicos ainda não disponíveis."}
         </p>
@@ -132,25 +131,9 @@ export const TopicModelingResultPanel = ({ mediaId, mediaStatus }: TopicModeling
               className="rounded-2xl border border-[#f2eadf] bg-[#fdfbf6] p-3 shadow-sm"
             >
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{topic.title || `Tópico ${index + 1}`}</p>
-              {topic.summary_md ? (
-                <div className="mt-2 text-slate-900">
-                   {topic.summary_md.split('\n').map((line, i) => {
-                     const tl = line.trim();
-                     if (tl.startsWith('- ') || tl.startsWith('* ')) return (
-                       <div key={i} className="flex gap-2 ml-1 text-xs">
-                         <span className="text-slate-400 mt-1.5 h-1 w-1 rounded-full bg-slate-400 shrink-0" />
-                         <span>{tl.substring(2)}</span>
-                       </div>
-                     );
-                     return <p key={i} className={cn("mt-1", tl.startsWith('#') ? "font-bold" : "font-medium")}>{line}</p>;
-                   })}
-                </div>
-              ) : (
-                <p className="mt-2 text-muted-foreground italic">
-                  {topic.keywords?.length
-                    ? `Principais termos: ${topic.keywords.slice(0, 5).join(", ")}`
-                    : "Sem resumo disponível."}
-                </p>
+              {/* Um trecho representativo do tema; os termos ficam nas etiquetas abaixo. */}
+              {topic.representative_snippets?.[0] && (
+                <p className="mt-2 text-xs text-slate-700 line-clamp-3">“{topic.representative_snippets[0]}”</p>
               )}
               {topic.keywords?.length > 0 && (
                 <div className="mt-3 pt-2 border-t border-slate-200/50 flex flex-wrap gap-1.5">
@@ -167,6 +150,11 @@ export const TopicModelingResultPanel = ({ mediaId, mediaStatus }: TopicModeling
       );
     }
 
+    // Etapas registradas sem a de temas: o fator foi desligado (ANALYSIS_FACTORS).
+    const steps = analysis.diagnostics?.steps as Record<string, string> | undefined;
+    if (steps && !("topic_modeling" in steps)) {
+      return <p className="text-muted-foreground text-center text-xs">Os temas não foram analisados nesta mídia.</p>;
+    }
     return <p className="text-muted-foreground text-center text-xs">Nenhum tópico detectado.</p>;
   };
 

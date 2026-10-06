@@ -10,6 +10,8 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: "./src/setupTests.ts",
+    // tests/e2e é do Playwright (precisa do sistema rodando): npm run test:e2e
+    exclude: ["**/node_modules/**", "**/dist/**", "tests/e2e/**"],
   },
   resolve: {
     alias: {

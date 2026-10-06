@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { login, register, changePassword, getMe } from '../api';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiErrorMessage } from '@/lib/errors';
 import { UserCredentials, UserRegistration, ChangePasswordPayload } from '@/types';
 
 export const useLogin = () => {
@@ -12,7 +13,7 @@ export const useLogin = () => {
 
   return useMutation({
     mutationFn: (credentials: UserCredentials) => login(credentials),
-    onSuccess: async (data) => {
+    onSuccess: async () => {
       try {
         // Buscar dados do usuário
         const user = await getMe();
@@ -27,10 +28,8 @@ export const useLogin = () => {
         toast.error('Erro ao carregar dados do usuário');
       }
     },
-    onError: (error: any) => {
-      console.error('Login failed:', error);
-      const message = error?.response?.data?.detail || error?.message || 'Credenciais inválidas';
-      toast.error(message);
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, 'Não foi possível entrar. Tente novamente.'));
     },
   });
 };
@@ -41,11 +40,12 @@ export const useRegister = () => {
   return useMutation({
     mutationFn: (userData: UserRegistration) => register(userData),
     onSuccess: () => {
-      toast.success('Registration successful! Please log in.');
+      toast.success('Cadastro realizado. Entre com o seu e-mail e senha.');
       navigate('/login');
     },
     onError: (error) => {
-      console.error('Registration failed:', error);
+      // 409: e-mail já cadastrado; 400/422: dados inválidos.
+      toast.error(apiErrorMessage(error, 'Não foi possível concluir o cadastro.'));
     },
   });
 };
@@ -56,12 +56,12 @@ export const useChangePassword = () => {
   return useMutation({
     mutationFn: (payload: ChangePasswordPayload) => changePassword(payload),
     onSuccess: () => {
-      toast.success('Password changed successfully. Please log in again.');
+      toast.success('Senha alterada. Entre novamente com a nova senha.');
       // For security, log the user out after a password change.
       logout();
     },
     onError: (error) => {
-      console.error('Failed to change password:', error);
+      toast.error(apiErrorMessage(error, 'Não foi possível alterar a senha.'));
     },
   });
 };

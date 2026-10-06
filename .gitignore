@@ -19396,3 +19396,7 @@ cython_debug/
 /frontend/dist/
 /frontend/node_modules/
 /node_modules/
+
+# Playwright
+test-results/
+playwright-report/

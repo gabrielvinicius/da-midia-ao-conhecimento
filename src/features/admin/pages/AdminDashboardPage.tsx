@@ -5,7 +5,6 @@ import { useSystemStats, useSystemHealth, useMediaProcessingStats } from "../hoo
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import ErrorState from "@/components/ui/ErrorState";
-import { percentFormatter } from "../components/AnalyticsWidgets";
 
 export const AdminDashboardPage = () => {
   const { data: stats, isLoading, isError: isStatsError, refetch: refetchStats } = useSystemStats();
@@ -92,14 +91,14 @@ export const AdminDashboardPage = () => {
               <div className="space-y-4 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <span className={`h-2 w-2 rounded-full ${health.status === 'healthy' ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                  <span className="font-medium capitalize text-slate-900">{health.status}</span>
+                  <span className="font-medium text-slate-900">{health.status === "healthy" ? "Tudo funcionando" : "Com alertas"}</span>
                   <span className="text-xs text-muted-foreground">Atualizado {new Date(health.timestamp).toLocaleString("pt-BR")}</span>
                 </div>
                 <div className="text-muted-foreground">
                   Usuários ativos: {health.active_users}/{health.total_users}
                 </div>
                 <div className="text-muted-foreground">
-                  Processando: {health.processing_media} · Falhas: {health.failed_media}
+                  Na fila: {health.waiting_media} · Processando: {health.processing_media} · Falhas nas últimas {health.failure_window_hours} h: {health.failed_media}
                 </div>
                 {health.issues && health.issues.length > 0 ? (
                   <ul className="list-disc space-y-1 pl-4 text-amber-600">

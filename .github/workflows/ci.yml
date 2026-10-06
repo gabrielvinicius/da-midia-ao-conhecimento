@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Testes de componentes (Vitest).
+      - name: Unit and component tests
+        run: npm run test:ci
+
+      - name: Build
+        run: npm run build
+
+      # Fumaça de ponta a ponta (Playwright) no build, com a API simulada.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end smoke
+        run: npm run test:e2e

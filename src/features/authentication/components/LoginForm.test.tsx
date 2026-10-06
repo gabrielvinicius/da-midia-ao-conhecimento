@@ -20,8 +20,8 @@ describe('LoginForm Component', () => {
 
     // Arrange: Find form elements
     const emailInput = screen.getByLabelText(/email/i);
-    const passwordInput = screen.getByLabelText(/password/i);
-    const loginButton = screen.getByRole('button', { name: /login/i });
+    const passwordInput = screen.getByLabelText(/senha/i);
+    const loginButton = screen.getByRole('button', { name: /entrar/i });
 
     // Act: Simulate user input
     await user.type(emailInput, 'test@example.com');
@@ -45,13 +45,13 @@ describe('LoginForm Component', () => {
     const user = userEvent.setup();
     render(<LoginForm />);
 
-    const loginButton = screen.getByRole('button', { name: /login/i });
+    const loginButton = screen.getByRole('button', { name: /entrar/i });
 
     // Act: Submit form with empty fields
     await user.click(loginButton);
 
     // Assert: Check for validation messages
-    expect(await screen.findByText(/invalid email address/i)).toBeInTheDocument();
-    expect(await screen.findByText(/password is required/i)).toBeInTheDocument();
+    expect(await screen.findByText(/email inválido/i)).toBeInTheDocument();
+    expect(await screen.findByText(/senha é obrigatória/i)).toBeInTheDocument();
   });
 });

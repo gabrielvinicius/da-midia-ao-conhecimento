@@ -1,68 +1,44 @@
-import React from 'react';
-import { useAnalysisEstimationQuery } from '@/hooks/useQueries';
+import { useAnalysisEstimationQuery } from '@/features/media/hooks/useMediaQueries';
 import { Card, CardContent } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { BrainCircuit, Clock, Gauge, AlertTriangle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Clock } from 'lucide-react';
 
 interface PredictiveInsightProps {
   mediaId: string;
   isEnabled: boolean;
 }
 
+export const formatEstimate = (seconds: number): string => {
+  if (seconds < 90) return 'menos de 2 minutos';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 90) return `cerca de ${minutes} minutos`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return `cerca de ${hours} h${rest ? ` ${rest} min` : ''}`;
+};
+
+/**
+ * Previsão de quanto o processamento leva, a partir da velocidade real desta
+ * instalação. Só aparece quando há base para estimar: um número inventado
+ * seria pior do que nenhum.
+ */
 export const PredictiveInsight = ({ mediaId, isEnabled }: PredictiveInsightProps) => {
-  const { data: est, isLoading } = useAnalysisEstimationQuery(mediaId, isEnabled);
+  const { data: est } = useAnalysisEstimationQuery(mediaId, isEnabled);
 
-  if (!isEnabled || isLoading || !est) return null;
-
-  const riskColors = {
-    safe: "text-emerald-500 bg-emerald-50 border-emerald-100",
-    warning: "text-amber-500 bg-amber-50 border-amber-100",
-    dangerous: "text-rose-500 bg-rose-50 border-rose-100",
-    terminal: "text-red-700 bg-red-100 border-red-200",
-  };
+  if (!isEnabled || !est?.estimated_seconds) return null;
 
   return (
-    <Card className="border-[#ede4d5] bg-[#fdfbf6] shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-2 duration-500">
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-            <BrainCircuit className="h-4 w-4 text-purple-500" />
-            Observabilidade Preditiva
-          </div>
-          <Badge className={cn("text-[10px] uppercase font-bold", riskColors[est.risk])}>
-            Risco: {est.risk}
-          </Badge>
+    <Card className="border-[#ede4d5] bg-[#fdfbf6] shadow-sm">
+      <CardContent className="flex items-start gap-3 p-4">
+        <Clock className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-slate-900">
+            Processamento estimado em {formatEstimate(est.estimated_seconds)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {est.includes_analysis ? 'Transcrição e análise' : 'Transcrição'}, pela velocidade dos processamentos
+            anteriores nesta instalação.
+          </p>
         </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-white border border-slate-100 shadow-sm">
-              <Clock className="h-4 w-4 text-sky-500" />
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Tempo Est.</p>
-              <p className="text-sm font-bold text-slate-900">~{est.estimated_seconds.toFixed(0)}s</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-white border border-slate-100 shadow-sm">
-              <Gauge className="h-4 w-4 text-amber-500" />
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase">VRAM Est.</p>
-              <p className="text-sm font-bold text-slate-900">{est.vram_gb.toFixed(1)} GB</p>
-            </div>
-          </div>
-        </div>
-
-        {est.risk !== 'safe' && (
-          <div className="mt-3 flex gap-2 p-2 rounded-lg bg-white/50 border border-slate-200/50 text-[11px] text-slate-600 leading-tight">
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-            <span>{est.recommendation}</span>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
