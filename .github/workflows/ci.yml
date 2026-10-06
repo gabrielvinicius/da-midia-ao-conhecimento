@@ -49,7 +49,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install "$(grep -E '^torch==' requirements.txt)" --index-url https://download.pytorch.org/whl/cpu
           grep -vE '^torch==' requirements.txt > requirements-ci.txt
-          pip install -r requirements-ci.txt ruff import-linter==2.15 "moto[s3,server]>=5"
+          pip install -r requirements-ci.txt -r requirements-dev.txt
 
       # Erros que quebram em execução (sintaxe, nomes indefinidos) e código
       # morto (imports e variáveis sem uso, definições repetidas).

@@ -3,7 +3,7 @@
 # /dev/dri (!reset exige Docker Compose 2.24 ou mais recente).
 services:
   ollama:
-    image: ollama/ollama:rocm
+    image: ollama/ollama:0.35.1-rocm
     deploy: !reset {}
     devices:
       - "/dev/kfd:/dev/kfd"

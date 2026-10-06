@@ -16,7 +16,7 @@ from src.user_management.infrastructure.repositories.fake_user_repository import
     FakeUserRepository,
 )
 from datetime import timedelta
-from jose import jwt
+import jwt
 from src.shared.domain.time.clock import utcnow
 
 

@@ -1,40 +1,49 @@
-# Video Summarizer: Global Knowledge Base (Level 7.0 Precursor)
+# Video Summarizer (backend)
 
-[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green.svg)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/React-18-blue.svg)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)](https://www.typescriptlang.org/)
-[![pgvector](https://img.shields.io/badge/pgvector-✓-blue.svg)](https://github.com/pgvector/pgvector)
+Plataforma que transcreve aulas gravadas e documentos, resume o conteúdo,
+identifica temas e tom, e permite buscar trechos pelo significado. Roda
+inteira numa única máquina, sem enviar dados para fora.
 
-**Video Summarizer** has evolved from a simple media processor into a **Sovereign Knowledge Base**. Operating at **Level 7.0 Precursor**, the system combines computer vision, speech recognition, and advanced NLP to transform raw media into a searchable, interactive, and self-improving intelligence asset.
+## Arquitetura
 
-## 💎 Level 7.0 Key Features
+Monólito modular em DDD hexagonal: cada módulo (`media_management`,
+`media_processing`, `text_analysis`, `notifications`, `user_management`,
+`storage`, `admin`) tem domínio, aplicação, infraestrutura e API, e as
+fronteiras são verificadas pelo `lint-imports` (`.importlinter`).
 
-- **Multimodal Video Intelligence**: The system doesn't just listen; it **sees**. Using **Moondream 2**, it extracts visual insights from video frames (e.g., describing charts, actions, or scenes) to enrich textual summaries.
-- **Global Semantic Search (Vector DB)**: Powered by **pgvector**, you can query your entire media library using natural language. Find "where we discussed server costs" across hundreds of videos instantly based on meaning, not just keywords.
-- **Human-in-the-loop Feedback**: A complete cycle of continuous learning. Users can evaluate AI outputs (👍/👎) and manually correct summaries. These corrections are versioned, creating a high-quality dataset for future fine-tuning.
-- **Full Text & Document Support**: Native extraction and OCR for PDF, DOCX, and images (PNG/JPG). Scanned documents are automatically routed to the OCR pipeline (Tesseract).
-- **Self-Healing & Predictive UI**: Real-time hardware pressure monitoring and automated recovery from AI failures (adaptive chunking).
+- **API** (FastAPI): recebe envios, consultas e revisões; nunca roda modelos.
+- **Workers** (Celery + Redis): o pesado (GPU, uma tarefa por vez) transcreve,
+  extrai texto e analisa; o leve roda as verificações periódicas.
+  A configuração fica em `src/celery_app.py`; a montagem de cada processo de
+  worker, em `src/worker_process.py`.
+- **Eventos**: dentro de cada processo, um barramento em memória liga os
+  módulos; entre processos, as tarefas seguem pela fila e os avisos ao
+  usuário pelo Redis. Varreduras periódicas recuperam o que se perder.
 
-## 🏗️ Architectural Excellence
+As regras do projeto estão em `AGENTS.md`.
 
-- **Pure Dependency Injection**: Dependencies are composed at the root (`main.py`) for absolute testability.
-- **Hexagonal Architecture**: Strict Port/Adapter separation ensures infrastructure (Postgres, S3, Llama 3) remains swappable.
-- **Granular Pipeline**: Analysis is broken into independent, resilient steps (Chunking -> Sentiment -> Topics -> Visual -> Summary).
+## Tecnologias
 
-## 🚀 Tech Stack
+- Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL 17 com pgvector
+- Celery 5 e Redis 8
+- faster-whisper (transcrição), Moondream 2 (quadros de vídeo), Ollama com
+  Qwen3.5 9B e Gemma 4 de reserva (resumo), sentence-transformers e BERTopic
+- Docker Compose, com variantes para GPU NVIDIA (CUDA 12.4), AMD (ROCm) e CPU
 
-- **Backend**: FastAPI, Celery, Redis, SQLAlchemy, pgvector.
-- **Frontend**: React 18, TanStack Query, TailwindCSS, Shadcn/UI.
-- **AI/ML**: Meta Llama 3 (8B), Moondream 2 (Vision), OpenAI Whisper, BERTopic.
-- **Infrastructure**: Docker (NVIDIA CUDA 13.0 / AMD ROCm 6.2), MinIO.
+## Dependências
 
-## 🧪 Quality Assurance
+- `requirements.txt`: execução (API e workers), com as versões testadas.
+- `requirements-dev.txt`: testes e verificações; não vão para a imagem.
 
-- **90+ Tests Passing**: Unit, Smoke, Integration, and Intelligence validation.
-- **Gold Standard (100%)**: Architectural purity across all modules.
+## Verificações (as mesmas da CI)
 
----
-Transforming media noise into structured organizational intelligence. 🚀💎
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+ruff check src tests main.py --select E9,F63,F7,F82,F401,F811,F841
+ruff check src --select C901 --config 'lint.mccabe.max-complexity=12'
+lint-imports
+pytest tests/unit tests/smoke tests/integration -q
+```
 
-
+Os testes de ponta a ponta (`tests/e2e`) precisam de PostgreSQL e Redis; veja
+o passo correspondente em `.github/workflows/ci.yml`.

@@ -1,75 +1,61 @@
-# Core & Web Framework
-fastapi>=0.115.0
-uvicorn[standard]>=0.34.0
-gunicorn>=23.0.0
-uvloop>=0.20.0; sys_platform != "win32"
-pydantic>=2.10.0
-pydantic-settings>=2.6.0
-python-dotenv>=1.0.1
-pydantic[email]
-python-multipart
+# Dependências de execução (API e workers). As de desenvolvimento ficam em
+# requirements-dev.txt.
+#
+# "~=" aceita só correções da versão testada (ex.: ~=2.13.5 vai até < 2.14);
+# os pacotes que só rodam com GPU, sem teste automatizado, têm teto na versão
+# principal. Antes, só havia mínimos (">="), e cada build instalava o que
+# fosse mais novo, inclusive versões principais com mudanças incompatíveis.
 
-# Database & ORM
-sqlalchemy>=2.0.36
-alembic>=1.15.0
-psycopg2-binary>=2.9.10
-asyncpg>=0.29.0
-pgvector>=0.3.6
+# API
+fastapi~=0.142.0
+uvicorn[standard]~=0.54.0
+pydantic[email]~=2.13.5
+pydantic-settings~=2.15.0
+python-dotenv~=1.2.3
+python-multipart~=0.0.32
+httpx~=0.28.1  # cliente do Ollama
 
-# Asynchronous Tasks & Messaging
-celery>=5.5.0
-redis>=5.2.0
+# Banco de dados
+sqlalchemy[asyncio]~=2.1.1
+alembic~=1.20.0
+asyncpg~=0.31.0
+psycopg2-binary~=2.9.13  # driver síncrono das migrações
+pgvector~=0.5.0
 
-# Caching & Performance
-aiofiles>=24.2.0
+# Fila
+celery~=5.6.3
+redis~=8.1.0
 
-# AI / Machine Learning
-# A variante do torch (CUDA, CPU ou ROCm) é escolhida no build da imagem pelo
-# argumento PYTORCH_INDEX_URL; aqui fica só a versão.
+# Segurança
+bcrypt~=5.0.0
+pyjwt~=2.15.1
+
+# Armazenamento e documentos
+boto3~=1.43.105
+pymupdf~=1.28.2
+python-docx~=1.2.0
+pytesseract~=0.3.13
+
+# Modelos de IA. O torch fica fixo: o Dockerfile e a CI o instalam do
+# índice da variante (CUDA 12.4, ROCm ou CPU).
 torch==2.5.1
-transformers>=4.46.0
-faster-whisper>=1.1.0
-ctranslate2>=3.24.0
-numpy>=2.1.0
-scikit-learn>=1.6.0
-bertopic>=0.15.0
-openai-whisper
-accelerate
+transformers>=4.46,<5
+sentence-transformers>=3.0,<6
+accelerate>=1.0,<2  # device_map do Moondream
+faster-whisper~=1.2.1
+ctranslate2~=4.8.2
+openai-whisper==20250625  # provedor opcional de transcrição
+numpy~=2.4.6
+scikit-learn~=1.9.1
+bertopic~=0.17.4
 
-# Authentication & Security
-passlib[bcrypt]==1.7.4
-# Bcrypt compat: passlib 1.7.4 requer atributo __about__ removido em bcrypt 4.x
-bcrypt>=3.2,<4.0
-python-jose[cryptography]>=3.4.0
-
-# AWS & S3 Storage
-boto3>=1.36.0
-
-# Media Processing
-av>=12.2.0
-resampy>=0.4.3
-pymupdf>=1.25.0
-python-docx>=1.1.2
-pytesseract>=0.3.13
-
-# Observability
-structlog>=25.1.0
-prometheus-client>=0.22.0
-psutil>=6.1.0
-
-# Testing & Tooling
-pytest>=9.0.1
-pytest-asyncio>=0.23.8
-httpx>=0.28.1
-
-# OpenTelemetry for Distributed Tracing
-opentelemetry-api>=1.28.0
-opentelemetry-sdk>=1.28.0
-opentelemetry-exporter-otlp-proto-http>=1.28.0
-opentelemetry-instrumentation-fastapi>=0.50b0
-opentelemetry-instrumentation-celery>=0.50b0
-opentelemetry-instrumentation-sqlalchemy>=0.50b0
-# Quantizacao 4-bit da descricao visual opcional (Qwen2-VL)
-bitsandbytes>=0.43.0
-# Embeddings (e5) e BERTopic
-sentence-transformers>=3.0.0
+# Observabilidade
+structlog~=26.1.0
+prometheus-client~=0.26.0
+psutil~=7.2.2
+opentelemetry-api~=1.45.0
+opentelemetry-sdk~=1.45.0
+opentelemetry-exporter-otlp-proto-http~=1.45.0
+opentelemetry-instrumentation-fastapi~=0.66b0
+opentelemetry-instrumentation-celery~=0.66b0
+opentelemetry-instrumentation-sqlalchemy~=0.66b0

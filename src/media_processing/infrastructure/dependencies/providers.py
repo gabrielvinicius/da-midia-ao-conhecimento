@@ -54,14 +54,6 @@ def _load_moondream():
     except ImportError:
         return None
 
-def _load_qwen2_vl():
-    try:
-        from src.media_processing.infrastructure.adapters.visual.qwen2_vl_adapter import (
-            Qwen2VLAdapter,
-        )
-        return Qwen2VLAdapter
-    except ImportError:
-        return None
 
 from src.media_processing.infrastructure.adapters.text import (
     ocr_provider_adapter,
@@ -101,21 +93,8 @@ def _register_visual_providers():
             "public": True,
             "description": "Modelo leve para descrição de imagens.",
         }
-    
-    # Qwen2-VL
-    cls_qwen = _load_qwen2_vl()
-    if cls_qwen:
-        _VISUAL_ANALYZERS["qwen2-vl"] = lambda: cls_qwen()
-        _VISUAL_META["qwen2-vl"] = {
-            "label": "Qwen2.5-VL (SOTA)",
-            "public": True,
-            "description": "Modelo Multimodal 7B SOTA (4-bit).",
-        }
-    
-    # Default
-    if "default" in _VISUAL_ANALYZERS:
-        _VISUAL_ANALYZERS["default"] = _VISUAL_ANALYZERS["qwen2-vl"]
-    elif "moondream" in _VISUAL_ANALYZERS:
+
+    if "moondream" in _VISUAL_ANALYZERS:
         _VISUAL_ANALYZERS["default"] = _VISUAL_ANALYZERS["moondream"]
 
 _register_visual_providers()

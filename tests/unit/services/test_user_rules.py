@@ -4,7 +4,7 @@ import pytest
 from src.user_management.application.dtos import CreateUserCommand
 from src.user_management.domain.rules import normalize_email
 from src.user_management.domain.errors import UserAlreadyExistsError
-from src.user_management.infrastructure.dependencies.providers import PasslibPasswordHasher
+from src.user_management.infrastructure.dependencies.providers import BcryptPasswordHasher
 from src.shared.domain.errors import ConflictError, NotFoundError
 from src.user_management.domain.errors import UserNotFoundError
 
@@ -27,7 +27,7 @@ async def test_the_same_email_with_other_case_is_a_conflict():
             return "r"
 
     repo = FakeUserRepository()
-    service = UserService(repo, UserReadService(repo), PasslibPasswordHasher(), Tokens())
+    service = UserService(repo, UserReadService(repo), BcryptPasswordHasher(), Tokens())
     await service.create_user(CreateUserCommand(email="Ana@x.com", password="Senha123"))
     with pytest.raises(UserAlreadyExistsError):
         await service.create_user(CreateUserCommand(email="ana@X.com", password="Senha123"))
@@ -36,12 +36,21 @@ async def test_the_same_email_with_other_case_is_a_conflict():
 
 
 def test_bcrypt_limit_is_applied_in_bytes_everywhere():
-    hasher = PasslibPasswordHasher()
+    hasher = BcryptPasswordHasher()
     # 40 letras acentuadas = 80 bytes: o bcrypt só vê os 72 primeiros.
     long_password = "á" * 40
     hashed = hasher.hash(long_password)
     assert hasher.verify(long_password, hashed)
     assert hasher.verify("á" * 36 + "outra coisa", hashed)  # mesmos 72 bytes
+
+
+def test_passwords_hashed_before_the_switch_from_passlib_still_work():
+    """Hashes gravados pelo passlib (bcrypt 3.2) continuam válidos."""
+    hasher = BcryptPasswordHasher()
+    assert hasher.verify("Senha-antiga-123", "$2b$12$rjLd3ZrEsyeQBuIladxscetIuXfSE8H1QoRxM4gVlcTSYxxqvbToC")
+    assert hasher.verify("ção" * 40, "$2b$12$bseh1/89YkkJez4R8SbGFu/Rdh44F8Hnlru48ycc3g5Hmg4JJ9fqe")
+    assert not hasher.verify("outra", "$2b$12$rjLd3ZrEsyeQBuIladxscetIuXfSE8H1QoRxM4gVlcTSYxxqvbToC")
+    assert not hasher.verify("qualquer", "não-é-um-hash")
 
 
 def test_user_errors_follow_the_shared_hierarchy():

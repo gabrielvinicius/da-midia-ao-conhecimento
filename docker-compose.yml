@@ -18,7 +18,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:latest
+    image: redis:8.8
     container_name: video_summarizer_redis
     networks:
       - backend-net
@@ -42,7 +42,7 @@ services:
       - backend-net
 
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    image: jaegertracing/all-in-one:1.76.0
     container_name: video_summarizer_jaeger
     environment:
       - COLLECTOR_OTLP_ENABLED=true
@@ -55,7 +55,7 @@ services:
 
   prometheus:
     # Coleta as métricas da API e dos workers pela porta interna 9100.
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.15.0
     container_name: video_summarizer_prometheus
     volumes:
       - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -68,7 +68,7 @@ services:
   ollama:
     # LLM local (Qwen3.5-9B por padrão). Os modelos são baixados pelo
     # serviço ollama-models na primeira inicialização.
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.35.1
     container_name: video_summarizer_ollama
     volumes:
       - ollama_models:/root/.ollama
@@ -101,7 +101,7 @@ services:
   ollama-models:
     # Roda uma vez a cada "up": baixa o modelo principal e o reserva, se ainda
     # não estiverem no volume ollama_models (downloads seguintes são rápidos).
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.35.1
     container_name: video_summarizer_ollama_models
     depends_on:
       ollama: { condition: service_healthy }

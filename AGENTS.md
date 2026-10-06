@@ -38,6 +38,7 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 - **API responses**: typed schemas; lists use `shared/api/schemas.PaginatedResponse`.
 - **Logs**: no personal data (e-mails masked with `shared/application/privacy.masked_email`, search text never logged); Prometheus labels never carry media or user ids.
 - **Text generation**: only through Ollama (`OllamaTextGenerationAdapter`, main and reserve model from settings). There is no Transformers path for the LLM.
+- **Dependencies**: runtime in `requirements.txt` with tested versions pinned by `~=` (GPU-only packages capped below the next major; `torch` fixed, installed from the variant's index); tests and linters in `requirements-dev.txt`, never in the image. Passwords use `bcrypt` directly and tokens use `PyJWT` (no passlib, no python-jose). Docker images use fixed tags, never `latest`.
 - **Configuration**: environment-specific values (CORS origins in `CORS_ORIGINS`, hosts, models) come from settings, never hard-coded lists.
 - **Hexagonal Integrity**: Business logic interacts with the world only through Ports (`application/ports.py`). Adapters stay in `infrastructure/`.
 - **Granular Pipeline**: Analysis is step-based. Partial results MUST be saved to allow resilience and adaptive retries.
