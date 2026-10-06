@@ -32,7 +32,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Índice do PyTorch: cu124 (GPU NVIDIA, padrão), cpu ou rocm6.2 (GPU AMD).
 # O torch é instalado primeiro, a partir desse índice; o restante das
-# dependências o reaproveita em vez de baixar outra variante.
+# dependências o reaproveita (a versão fixada vai como restrição: sem ela, o
+# pip o trocava por um torch mais novo do PyPI, de outra variante de CUDA).
 ARG PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu124
 
 COPY requirements.txt .
@@ -42,7 +43,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --user --no-warn-script-location \
     --index-url ${PYTORCH_INDEX_URL} "${TORCH_PIN}" && \
     grep -vE '^torch==' requirements.txt > /tmp/requirements-sem-torch.txt && \
-    pip install --user --no-warn-script-location -r /tmp/requirements-sem-torch.txt
+    echo "${TORCH_PIN}" > /tmp/torch-constraint.txt && \
+    pip install --user --no-warn-script-location \
+    -r /tmp/requirements-sem-torch.txt -c /tmp/torch-constraint.txt
 
 # --- Stage Final ---
 FROM base AS runtime
