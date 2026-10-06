@@ -9,7 +9,7 @@ export const useUpdateSpeakerAliases = () => {
     mutationFn: ({ transcriptionId, aliases }: { transcriptionId: string; aliases: Record<string, string> }) => 
       updateSpeakerAliases(transcriptionId, aliases),
     onSuccess: (data) => {
-      toast.success('Speaker names updated successfully.');
+      toast.success('Nomes dos falantes atualizados.');
       // Manually update the cache with the new data to avoid a refetch
       queryClient.setQueryData(['transcription', data.media_id], data);
     },

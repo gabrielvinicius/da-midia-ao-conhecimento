@@ -41,7 +41,7 @@ export const useRegister = () => {
   return useMutation({
     mutationFn: (userData: UserRegistration) => register(userData),
     onSuccess: () => {
-      toast.success('Registration successful! Please log in.');
+      toast.success('Cadastro realizado. Entre com o seu e-mail e senha.');
       navigate('/login');
     },
     onError: (error) => {
