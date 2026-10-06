@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from typing import Optional
 
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.shared.infrastructure.config.settings import settings
@@ -34,16 +33,26 @@ class SentenceTransformerEmbeddingAdapter(EmbeddingServicePort):
         """Expose the internal model instance, initializing if necessary."""
         return self._get_model()
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
+    def embed(self, texts: list[str], kind: str = "passage") -> list[list[float]]:
         model = self._get_model()
         if model:
             try:
-                return [list(vec) for vec in model.encode(texts)]
+                inputs = [self._with_prefix(text, kind) for text in texts]
+                vectors = model.encode(inputs, normalize_embeddings=True)
+                return [[float(v) for v in vec] for vec in vectors]
             except Exception as exc:  # pragma: no cover
                 logger.error("Embedding encode failed", error=str(exc))
         return [self._hash_vector(text) for text in texts]
 
-    def _hash_vector(self, text: str, dim: int = 10) -> list[float]:
+    def _with_prefix(self, text: str, kind: str) -> str:
+        """Modelos E5 foram treinados com os prefixos "query: " e "passage: "."""
+        if "e5" not in self.model_name.lower():
+            return text
+        prefix = "query: " if kind == "query" else "passage: "
+        return text if text.startswith(prefix) else prefix + text
+
+    def _hash_vector(self, text: str, dim: int = 384) -> list[float]:
+        # Mesmo tamanho da coluna knowledge_chunks.embedding, para não quebrar a gravação.
         values = [0.0] * dim
         for idx, ch in enumerate(text):
             values[idx % dim] += (ord(ch) % 31) / 100.0

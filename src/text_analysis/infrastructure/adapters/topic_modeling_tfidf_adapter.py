@@ -5,7 +5,7 @@ from __future__ import annotations
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.text_analysis.application.ports.topic_modeling import TopicModelingPort
 from src.text_analysis.domain import Topic, TextChunk
-from src.text_analysis.infrastructure.dependencies.registry import STOPWORDS_LANGS
+from src.text_analysis.infrastructure.adapters.stopwords import stop_words_for
 
 logger = get_logger(__name__)
 
@@ -35,10 +35,9 @@ class TFIDFTopicModelingAdapter(TopicModelingPort):
             return [], {}
 
         try:
-            lang = (language or "english").lower()
-            # normaliza códigos tipo pt-BR -> pt
-            lang_base = lang.split("-")[0]
-            stop_words = lang_base if lang_base in STOPWORDS_LANGS else None
+            # O scikit-learn só aceita "english" como nome de lista; para os
+            # demais idiomas passamos a lista explicitamente.
+            stop_words = stop_words_for(language)
             if stop_words is None and language:
                 logger.info("tfidf.stopwords.unsupported_language", language=language)
             vectorizer = TfidfVectorizer(max_features=self.max_features, stop_words=stop_words)
@@ -64,8 +63,8 @@ class TFIDFTopicModelingAdapter(TopicModelingPort):
                         title=f"Tópico {idx+1}",
                         keywords=keywords,
                         snippets=[c.text for c in topic_chunks],
-                        summary="; ".join(keywords[:3]) or "Não informado",
-                        diagnostics={"size": len(indices)},
+                        size=len(indices),
+                        chunk_indices=[int(i) for i in indices],
                     )
                 )
             diagnostics = {"method": "tfidf-kmeans", "k": k}

@@ -12,19 +12,7 @@ from src.admin.application.services.admin_read_service import AdminReadService
 from src.admin.application.services.admin_service import AdminService
 from src.admin.application.services.admin_user_service import AdminUserService
 from src.admin.infrastructure.adapters.media_read_adapter import MediaReadAdapter
-from src.admin.infrastructure.adapters.media_repository_adapter import (
-    MediaRepositoryAdapter,
-)
-from src.admin.infrastructure.adapters.media_management_adapter import (
-    MediaManagementAdapter,
-)
-from src.admin.infrastructure.adapters.user_management_adapter import (
-    UserManagementAdapter,
-)
 from src.admin.infrastructure.adapters.user_read_adapter import UserReadAdapter
-from src.admin.infrastructure.adapters.user_repository_adapter import (
-    UserRepositoryAdapter,
-)
 from src.admin.infrastructure.dependencies.providers import (
     get_media_admin_adapter,
     get_media_read_adapter,
@@ -32,16 +20,11 @@ from src.admin.infrastructure.dependencies.providers import (
     get_user_read_adapter,
 )
 from src.media_management.application.services.media_service import MediaService
-from src.media_management.infrastructure.repositories.media_repository import (
-    MediaRepository,
-)
+from src.media_management.infrastructure.dependencies.builders import build_media_read_service
 from src.user_management.application.auth_queries import UserReadService
 from src.user_management.application.services.user_service import UserService
 from src.user_management.application.services.permission_service import (
     UserPermissionService,
-)
-from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import (
-    UserRepository,
 )
 
 
@@ -54,6 +37,10 @@ class AdminModule:
     service: AdminService
 
 
+from src.shared.infrastructure.repositories.processing_stats_repository import (
+    ProcessingStatsRepository,
+)
+
 def build_admin_module(
     session: AsyncSession,
     auth_queries: UserReadService,
@@ -64,20 +51,17 @@ def build_admin_module(
     permission_service = UserPermissionService()
     audit_service = AdminAuditService()
 
-    media_repo = MediaRepository(db=session)
-    media_repo_adapter = MediaRepositoryAdapter(media_repo)
-
     # Read adapters via ports
-    media_read_adapter: MediaReadAdapter = get_media_read_adapter(media_repo)
+    media_read_adapter: MediaReadAdapter = get_media_read_adapter(build_media_read_service(session))
     user_read_adapter: UserReadAdapter = get_user_read_adapter(auth_queries)
     admin_queries = AdminReadService(
         user_read_port=user_read_adapter,
         media_read_port=media_read_adapter,
     )
 
-    # Wrap external services in Adapters
-    media_admin_adapter = MediaManagementAdapter(media_service_core)
-    user_admin_adapter = UserManagementAdapter(user_service_core, auth_queries)
+    # Os módulos de mídias e de usuários, vistos pelas portas do admin.
+    media_admin_adapter = get_media_admin_adapter(media_service_core, session)
+    user_admin_adapter = get_user_admin_adapter(user_service_core, auth_queries)
 
     # Services
     user_service = AdminUserService(
@@ -86,19 +70,9 @@ def build_admin_module(
         audit_service=audit_service,
     )
     admin_media_service = AdminMediaService(
-        media_repository=media_repo_adapter,
+        media=media_admin_adapter,
         permission_service=permission_service,
         audit_service=audit_service,
-        media_service=media_admin_adapter,
-    )
-
-    # Legacy adapters for routers (if still needed)
-    user_api_adapter = get_user_admin_adapter(
-        user_service=user_service_core,
-        auth_queries=auth_queries,
-    )
-    media_api_adapter = get_media_admin_adapter(
-        media_service=media_service_core,
     )
 
     service = AdminService(
@@ -106,8 +80,7 @@ def build_admin_module(
         audit_service=audit_service,
         admin_user_service=user_service,
         admin_media_service=admin_media_service,
-        user_adapter=user_api_adapter,
-        media_adapter=media_api_adapter,
+        processing_stats=ProcessingStatsRepository(session) if session is not None else None,
     )
 
     return AdminModule(

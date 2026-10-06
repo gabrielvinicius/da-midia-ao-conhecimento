@@ -10,8 +10,14 @@ from src.shared.infrastructure.config.settings import settings
 class OpenAIWhisperTranscriber(SpeechRecognizer):
     """Adapter para o modelo Whisper oficial (biblioteca openai-whisper)."""
 
-    def __init__(self, model_size: str = "base", device: str | None = None, **kwargs: Any) -> None:
-        self.model_size = model_size
+    # No openai-whisper, o large-v3-turbo se chama "turbo".
+    _ALIASES = {"large-v3-turbo": "turbo"}
+
+    def __init__(self, model_size: str | None = None, device: str | None = None, **kwargs: Any) -> None:
+        # Antes o padrão era "base", bem menos preciso que o modelo documentado.
+        requested = model_size or settings.whisper_model
+        self.model_size = self._ALIASES.get(requested, requested)
+        self.model_label = f"openai-whisper {self.model_size}"
         self.device = device or settings.resolved_device
         self.kwargs = kwargs
         self._model = None

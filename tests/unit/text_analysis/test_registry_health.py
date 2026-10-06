@@ -1,4 +1,3 @@
-import sys
 from unittest.mock import MagicMock
 
 from src.text_analysis.bootstrap import _update_registry_availability
@@ -33,6 +32,7 @@ def test_registry_marks_unavailable_when_imports_fail(monkeypatch):
 
     _update_registry_availability()
 
-    assert any(not e.available for e in registry.TEXT_GEN_PROVIDERS if e.name.startswith("hf:"))
+    # Ollama fora do ar: nenhum modelo de geração de texto disponível.
+    assert registry.TEXT_GEN_PROVIDERS and not any(e.available for e in registry.TEXT_GEN_PROVIDERS)
     assert any(not e.available for e in registry.TOPIC_PROVIDERS if e.name == "bertopic")
     assert any(not e.available for e in registry.TOPIC_PROVIDERS if e.name == "tfidf")

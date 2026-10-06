@@ -20,7 +20,7 @@ from src.media_management.application.services.media_read_service import (
 )
 from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.services.validators import MediaUploadValidator
-from src.media_management.domain import Media
+from src.media_management.domain import Media, MediaNotReprocessableError
 from src.media_management.infrastructure.metrics.prometheus_metrics import (
     PrometheusMediaMetrics,
 )
@@ -49,12 +49,13 @@ def service_components() -> Dict[str, object]:
     storage_uploader = MagicMock()
     storage_uploader.upload = AsyncMock()
     storage_downloader = MagicMock()
-    storage_downloader.download = AsyncMock()
+    storage_downloader.size = AsyncMock()
+    storage_downloader.read_range = AsyncMock()
     metadata_mapper = MagicMock()
     metadata_mapper.map = MagicMock()
     metrics_service = MagicMock(spec=PrometheusMediaMetrics)
     upload_validator = MagicMock(spec=MediaUploadValidator)
-    storage_maintenance = MagicMock()
+    storage_maintenance = AsyncMock()
     access_policy = MagicMock()
 
     service = MediaService(
@@ -67,8 +68,8 @@ def service_components() -> Dict[str, object]:
         event_bus=None,
         storage_maintenance=storage_maintenance,
         storage_downloader=storage_downloader,
+        access_policy=access_policy,
     )
-    service.access_policy = access_policy
 
     # Inject async storage_uploader stub
     async def _upload_stub(command, media_id, content_type):
@@ -87,6 +88,7 @@ def service_components() -> Dict[str, object]:
         "metrics_service": metrics_service,
         "validator": upload_validator,
         "access_policy": access_policy,
+        "storage_maintenance": storage_maintenance,
     }
 
 
@@ -95,25 +97,23 @@ async def test_upload_media_invokes_validator_and_handler(service_components):
     service: MediaService = service_components["service"]
     validator: MagicMock = service_components["validator"]
     validator.validate.return_value = None
-    service.side_effect_publisher = MagicMock()
-    service.side_effect_publisher.publish = AsyncMock(return_value={"id": "123"})
+    publisher = MagicMock()
+    publisher.publish = AsyncMock(return_value={"id": "123"})
+    service.upload.side_effect_publisher = publisher
 
     cmd = CreateMediaCommand(
         user_id=uuid4(),
-        file=b"bytes",
+        file_path="/tmp/upload.bin", file_size_bytes=5,
         filename="sample.mp4",
         storage_provider="local",
         transcription_provider="mock",
-        summarization_provider="mock",
-        sentiment_provider=None,
-        topic_modeling_provider=None,
         metadata={},
     )
 
     result = await service.create_media(cmd)
 
-    validator.validate.assert_called_once_with(b"bytes", "sample.mp4")
-    service.side_effect_publisher.publish.assert_awaited()
+    validator.validate.assert_called_once_with(5, "sample.mp4")
+    publisher.publish.assert_awaited()
     assert result.id
 
 
@@ -142,6 +142,9 @@ async def test_delete_media_checks_access_and_dispatches(service_components):
 
     access_policy.ensure_can_access.assert_called_once()
     media_repository.delete.assert_awaited_once()
+    service_components["storage_maintenance"].delete_file.assert_awaited_once_with(
+        "local", "media/demo.mp4"
+    )
     assert returned == media
 
 
@@ -159,6 +162,7 @@ async def test_reprocess_media_allows_admin_without_user_id(service_components):
         media_type=MediaType.AUDIO,
         storage_provider="local",
     )
+    media.mark_as_failed("Ollama indisponível")
     media_repository.get_by_id.return_value = media
 
     returned = await service.reprocess_media(
@@ -168,6 +172,44 @@ async def test_reprocess_media_allows_admin_without_user_id(service_components):
     )
 
     assert returned == media
+    assert media.status == MediaStatus.PROCESSING
+    assert media.error_message is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status", [MediaStatus.UPLOADED, MediaStatus.PROCESSING, MediaStatus.COMPLETED]
+)
+async def test_reprocess_media_refuses_media_that_did_not_fail(service_components, status):
+    """Recusa sem apagar nada: numa mídia concluída, a limpeza levaria o resumo
+    corrigido e as avaliações; numa em processamento, os resultados em gravação."""
+    service: MediaService = service_components["service"]
+    media_repository = service_components["media_repository"]
+
+    media = Media.create(
+        media_id=uuid4(),
+        user_id=uuid4(),
+        filename="aula.mp4",
+        file_size_bytes=123,
+        original_file_path="media/aula.mp4",
+        media_type=MediaType.VIDEO,
+        storage_provider="local",
+    )
+    media.status = status
+    media_repository.get_by_id.return_value = media
+    eraser = AsyncMock()
+    service.data_erasers.append(eraser)
+
+    with pytest.raises(MediaNotReprocessableError):
+        await service.reprocess_media(
+            ReprocessMediaCommand(media_id=media.id),
+            user_id=media.user_id,
+            user_role=UserRole.USER,
+        )
+
+    eraser.erase.assert_not_awaited()
+    media_repository.update.assert_not_awaited()
+    assert media.status == status
 
 
 @pytest.mark.asyncio
@@ -197,7 +239,9 @@ async def test_get_media_stream_processes_range_header(service_components):
         storage_provider="local",
     )
     media_repository.get_by_id.return_value = media
-    storage_downloader.download.return_value = b"0123456789" * 10 # 100 bytes
+    content = b"0123456789" * 10  # 100 bytes
+    storage_downloader.size.return_value = len(content)
+    storage_downloader.read_range.side_effect = lambda provider, path, start, end: content[start : end + 1]
 
     query = GetMediaStreamQuery(
         media_id=media.id,
@@ -207,6 +251,8 @@ async def test_get_media_stream_processes_range_header(service_components):
     stream_dto = await service.get_media_stream(query, user_id=media.user_id)
 
     assert stream_dto.status_code == 206
-    assert stream_dto.content == b"0123456789"
+    assert b"".join([c async for c in stream_dto.chunks]) == b"0123456789"
+    # Só o trecho pedido foi lido do armazenamento.
+    storage_downloader.read_range.assert_called_once_with("local", "path/to/file", 0, 9)
     assert stream_dto.headers["Content-Range"] == "bytes 0-9/100"
     assert stream_dto.headers["Content-Length"] == "10"

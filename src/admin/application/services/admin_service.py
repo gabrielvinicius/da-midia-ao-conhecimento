@@ -1,29 +1,27 @@
 """Service layer for admin operations acting as a facade over domain services."""
 from __future__ import annotations
 
+from typing import Any, Optional
+
+from src.shared.application.ports import ProcessingStatsPort
+
 from dataclasses import dataclass
 from uuid import UUID
 
-from src.admin.application.ports import MediaAdminPort, UserAdminPort
 from src.media_management.application.dtos import (
     ListMediaQuery,
 )
-from src.user_management.application.dtos import GetUserQuery, ListUsersQuery
+from src.user_management.application.dtos import ListUsersQuery
 from src.user_management.domain import User
 
 from ..dtos import (
-    BulkReprocessFailedMediaCommand,
-    DeleteMediaCommand,
-    DeleteUserCommand,
     GetMediaProcessingStatsQuery,
     GetSystemHealthQuery,
     GetSystemStatsQuery,
     GetUserActivityQuery,
-    ReprocessMediaCommand,
-    UpdateUserRoleCommand,
 )
 from .admin_audit_service import AdminAuditService
-from .admin_media_service import AdminMediaService
+from .admin_media_service import AdminMediaService, BulkReprocessResult
 from .admin_read_service import AdminReadService
 from .admin_user_service import AdminUserService
 
@@ -36,8 +34,7 @@ class AdminService:
     audit_service: AdminAuditService
     admin_user_service: AdminUserService
     admin_media_service: AdminMediaService
-    user_adapter: UserAdminPort
-    media_adapter: MediaAdminPort
+    processing_stats: Optional[ProcessingStatsPort] = None
 
     # --- Stats & monitoring -------------------------------------------------
     async def get_system_stats(self, query: GetSystemStatsQuery) -> dict:
@@ -45,6 +42,11 @@ class AdminService:
 
     async def get_system_health(self, query: GetSystemHealthQuery) -> dict:
         return await self.admin_read_service.get_system_health_status()
+
+    async def get_processing_times(self, days: Optional[int] = None) -> dict:
+        """Durações registradas de transcrição e de cada etapa da análise."""
+        items = await self.processing_stats.summarize(days) if self.processing_stats else []
+        return {"days": days, "items": items}
 
     async def get_media_processing_stats(
         self, query: GetMediaProcessingStatsQuery
@@ -98,5 +100,5 @@ class AdminService:
             admin_user=admin_user
         )
 
-    async def bulk_reprocess_failed_media(self, admin_user: User) -> int:
-        return await self.admin_media_service.bulk_reprocess_failed_media(admin_user)
+    async def bulk_reprocess_failed_media(self, admin_user: User, limit: int) -> BulkReprocessResult:
+        return await self.admin_media_service.bulk_reprocess_failed_media(admin_user, limit)

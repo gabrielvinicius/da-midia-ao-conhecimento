@@ -18,8 +18,8 @@ class MediaReadAdapter(AdminMediaReadPort):
     async def count_all(self) -> int:
         return await self._svc.count_all()
 
-    async def count_by_status(self, status: MediaStatus) -> int:
-        return await self._svc.count_by_status(status)
+    async def count_by_status(self, status: MediaStatus, since=None) -> int:
+        return await self._svc.count_by_status(status, since=since)
 
     async def count_by_user(self, user_id: UUID) -> int:
         return await self._svc.count_by_user(user_id)

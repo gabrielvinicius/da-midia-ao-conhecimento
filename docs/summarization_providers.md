@@ -1,50 +1,64 @@
-# Providers de Sumarização
+# Modelos de IA do pipeline
 
-| Provider                 | Descrição                                                                 | Dependências                                   | Situação padrão |
-|--------------------------|-----------------------------------------------------------------------------|------------------------------------------------|-----------------|
-| `heuristic_interpretive` | Heurística com TextRank + narrativa interpretativa (timeline + quartis).  | Nenhuma                                        | ✅ habilitado   |
-| `keyword_highlighter`    | Seleciona sentenças com maior densidade de palavras-chave.                 | Nenhuma                                        | ✅ habilitado   |
-| `huggingface`            | Alias padrão (T5-base).                                                    | `transformers`, PyTorch                        | Opcional        |
-| `huggingface_t5_base`    | T5-base focado em PT/EN curtos.                                            | `transformers`, PyTorch                        | Opcional        |
-| `huggingface_bart_large` | BART-Large CNN (resumos longos em EN).                                     | `transformers`, PyTorch                        | Opcional        |
-| `huggingface_pegasus`    | Pegasus Multi-News, bom para conteúdos extensos.                           | `transformers`, PyTorch                        | Opcional        |
-| `openai`                 | Invoca modelos ChatCompletion (GPT) para resumo abstrativo.                | `openai`, chave de API válida                  | Opcional        |
+Visão geral dos modelos usados em cada etapa e de como trocá-los. Todos rodam
+localmente; nenhum conteúdo é enviado a serviços externos.
 
-## Como habilitar
+| Etapa | Modelo padrão | Onde configurar |
+|---|---|---|
+| Transcrição | Faster-Whisper `large-v3-turbo` | `transcription_provider` no envio; sem provedor, usa o padrão real (`default`) |
+| Divisão em trechos | Agrupa segmentos da transcrição até `chunk_size` caracteres, mantendo início e fim | `AnalysisConfig.chunk_size` |
+| Sentimento | `cardiffnlp/twitter-xlm-roberta-base-sentiment` (positivo/neutro/negativo) | `AnalysisConfig.sentiment_model` |
+| Embeddings (temas e busca) | `intfloat/multilingual-e5-small` (384 dimensões, com prefixos `passage:`/`query:`) | `AnalysisConfig.embedding_model` — a dimensão precisa bater com `knowledge_chunks.embedding` |
+| Temas | BERTopic | `AnalysisConfig.topic_model` (`tfidf` para modo leve) |
+| Títulos dos temas, resumo final | LLM via Ollama: `qwen3.5:9b`, reserva `gemma4:e4b` | `LLM_MODEL`, `LLM_FALLBACK_MODEL` |
+| Descrição de quadros de vídeo | Moondream 2 | `VISUAL_PROVIDER=moondream` ou `ollama` (usa `VISUAL_OLLAMA_MODEL`) |
 
-Configurar via variáveis de ambiente:
+## LLM via Ollama
+
+O serviço `ollama` do `docker-compose.yml` serve o modelo de linguagem. Na primeira
+execução, baixe os modelos:
 
 ```bash
-export SUMMARIZATION_ENABLED_PROVIDERS="heuristic_interpretive,keyword_highlighter,huggingface"
-export SUMMARIZATION_DEFAULT_PROVIDER="heuristic_interpretive"
-export SUMMARIZATION_PROVIDER_OVERRIDES='{"huggingface": {"model_name": "google-t5/t5-large"}}'
+docker compose exec ollama ollama pull qwen3.5:9b
+docker compose exec ollama ollama pull gemma4:e4b
 ```
 
-* **OpenAI**: definir `SUMMARIZATION_PROVIDER_OVERRIDES` com `{"openai": {"api_key": "sk-...", "model": "gpt-4"}}`.
-* **HuggingFace**: aceitar `model_name`, `device` e limites de tokens.
+Variáveis de ambiente (ver `.env.example`):
 
-## Registry Global
-- O arquivo `providers.py` agora lista os providers acima em `/providers/summarization`.
-- Workers Celery carregam apenas os providers presentes em `SUMMARIZATION_ENABLED_PROVIDERS`.
-
-## Plano de Validação
-1. Reprocessar um conjunto fixo de mídias (>=5 por idioma) com cada provider.
-2. Gravar métricas de coerência/diversidade e tempo total.
-3. Monitorar logs `summarization.domain.completed` com `provider`/`strategy` para telemetria.
-
-## Provedores de Transcrição
-
-O sistema suporta múltiplos provedores de transcrição via `TranscriptionService`.
-
-### Opções Recomendadas
-* **whisper-medium** (Default): Bom equilíbrio entre precisão e velocidade.
-* **turbo** (`faster-whisper-large-v3-turbo`): **Recomendado para produção**. Qualidade de Large-v3 com velocidade de Medium.
-
-### Configuração
-Para alterar o modelo de transcrição, passe o parâmetro `transcription_provider` nas configurações ou requests.
-
-Exemplo de override no `.env`:
 ```env
-TRANSCRIPTION_DEFAULT_PROVIDER=turbo
+OLLAMA_HOST=http://ollama:11434
+LLM_MODEL=qwen3.5:9b
+LLM_FALLBACK_MODEL=gemma4:e4b
+LLM_CONTEXT_TOKENS=32768
 ```
 
+- O modo de raciocínio (`think`) é desligado nas chamadas, pois só aumentaria o tempo de resposta.
+- Se o modelo principal falhar, o adaptador tenta o reserva. Se ambos falharem, devolve um texto
+  simples e o pipeline registra `diagnostics.summary_source = "fallback"`.
+- A geração de texto roda só no Ollama: não há caminho paralelo pelo Transformers. O catálogo
+  (`GET /providers`) lista o modelo principal e o de reserva configurados.
+
+## Orçamento de memória (GPU de 12 GB)
+
+Estimativas para uma RTX 3060 12 GB — confirme medindo no seu hardware:
+
+| Componente | VRAM aproximada |
+|---|---|
+| Faster-Whisper large-v3-turbo | ~1,5–2 GB |
+| multilingual-e5-small | ~0,5 GB |
+| XLM-RoBERTa (sentimento) | ~1 GB |
+| Moondream 2 (se `VISUAL_PROVIDER=moondream`) | ~4 GB |
+| Qwen3.5-9B quantizado no Ollama, com contexto | ~6,5–7 GB |
+
+O Ollama descarrega o modelo após 5 minutos ocioso (`OLLAMA_KEEP_ALIVE`). Com
+`VISUAL_PROVIDER=ollama`, o Moondream deixa de ser carregado e a descrição dos quadros usa o
+mesmo modelo do resumo.
+
+## Diagnóstico de uma análise
+
+Cada análise grava em `diagnostics`:
+
+- `steps`: status de cada etapa (`ok` ou `failed: ...`); o resultado é salvo ao fim de cada etapa.
+- `summary_source`: `llm`, `fallback` ou `error`.
+- `synthesis_input`: `full_transcript` (transcrição inteira) ou `topics` (material por tema).
+- `indexed_chunks`, `visual_frames`, `sentiment_distribution`, `topic_titles_source`.

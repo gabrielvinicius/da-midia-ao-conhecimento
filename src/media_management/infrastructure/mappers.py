@@ -1,21 +1,13 @@
 """Mappers for converting between Media Entities and domain Media."""
 
 from src.media_management.domain import Media
-from src.media_management.infrastructure.persistence.models import MediaEntity
 from src.media_management.domain.enums import MediaStatus, MediaType
-import datetime
+from src.media_management.infrastructure.persistence.models import MediaEntity
 
 
 class MediaMapper:
     """Maps MediaEntity <-> Media."""
 
-    @staticmethod
-    def _naive(dt: datetime.datetime | None) -> datetime.datetime | None:
-        if dt is None:
-            return None
-        if dt.tzinfo:
-            return dt.replace(tzinfo=None)
-        return dt
 
     def to_domain(self, entity: MediaEntity) -> Media:
         return Media(
@@ -30,9 +22,6 @@ class MediaMapper:
             original_file_path=entity.original_file_path,
             status=entity.status or MediaStatus.UPLOADED,
             transcription_provider=entity.transcription_provider,
-            summarization_provider=entity.summarization_provider,
-            sentiment_provider=entity.sentiment_provider,
-            topic_modeling_provider=entity.topic_modeling_provider,
             language=entity.language or "auto",
             created_at=entity.created_at,
             updated_at=(entity.updated_at or entity.created_at),
@@ -47,13 +36,10 @@ class MediaMapper:
             media_type=media.media_type,
             storage_provider=media.storage_provider,
             status=media.status,
-            created_at=self._naive(media.created_at),
-            updated_at=self._naive(media.updated_at),
+            created_at=media.created_at,
+            updated_at=media.updated_at,
             error_message=media.error_message,
             transcription_provider=media.transcription_provider,
-            summarization_provider=media.summarization_provider,
-            sentiment_provider=media.sentiment_provider,
-            topic_modeling_provider=media.topic_modeling_provider,
             language=media.language,
             filename=media.filename,
             file_size=media.file_size_bytes,

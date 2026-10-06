@@ -1,13 +1,9 @@
-import os
-import json
-import uuid
 from typing import Annotated, Optional
 
 from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
-    Query,
     Request,
     Response,
     status,
@@ -15,22 +11,28 @@ from fastapi import (
 from fastapi.security import OAuth2PasswordRequestForm
 
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
+from src.shared.application.privacy import masked_email
 from src.user_management.api.dependencies import (
-    get_current_admin_user,
     get_current_user,
+    get_login_throttle,
 )
-from src.user_management.application.dtos import CreateUserCommand, ListUsersQuery
+from src.user_management.application.dtos import CreateUserCommand
 from src.user_management.application.services.auth_service import AuthService
+from src.user_management.application.services.login_throttle import LoginThrottle
 from src.user_management.application.services.user_service import UserService
 from src.user_management.domain.errors import (
     InvalidCredentialsError,
-    UserAlreadyExistsError,
 )
-from src.user_management.domain import User
-from src.user_management.config.settings import user_settings
+from src.user_management.domain import User, UserRole
 
 from .dependencies import get_auth_service, get_auth_settings, get_user_service
-from .schemas import UserCreate, UserResponse
+from .schemas import (
+    ChangePasswordRequest,
+    ScopedTokenRequest,
+    ScopedTokenResponse,
+    UserCreate,
+    UserResponse,
+)
 
 logger = get_logger(__name__)
 
@@ -46,35 +48,18 @@ async def register(
     user_data: UserCreate,
     user_service: UserService = Depends(get_user_service),
 ):
-    logger.info("auth.register.received", email=user_data.email)
-    # Atalho lightweight: retorna resposta imediata (evita dependências reais)
-    if os.getenv("LIGHTWEIGHT_BOOTSTRAP") == "1" or os.getenv("USER_LIGHTWEIGHT_MODE") == "1":
-        logger.info("auth.register.lightweight", email=user_data.email)
-        payload = {
-            "id": str(uuid.uuid4()),
-            "email": user_data.email,
-            "is_active": True,
-            "role": "user",
-        }
-        return Response(
-            content=json.dumps(payload),
-            status_code=status.HTTP_201_CREATED,
-            media_type="application/json",
-        )
-    try:
-        command = CreateUserCommand(
-            email=user_data.email,
-            password=user_data.password,
-            role=user_data.role,
-        )
-        result = await user_service.register_user(command)
-        return UserResponse(**result["user"])
-    except UserAlreadyExistsError as e:
-        logger.warning("auth.register.conflict", email=user_data.email, error=str(e))
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-    except ValueError as e:
-        logger.warning("auth.register.validation_error", email=user_data.email, error=str(e))
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    # Conflito (409) e dados inválidos (400) saem pelos tratadores globais.
+    command = CreateUserCommand(email=user_data.email, password=user_data.password, role=UserRole.USER)
+    result = await user_service.register_user(command)
+    return UserResponse(**result["user"])
+
+
+def _client_ip(request: Request) -> Optional[str]:
+    """IP do cliente. Atrás do Nginx, usa o X-Real-IP definido pelo proxy."""
+    forwarded = request.headers.get("x-real-ip")
+    if forwarded:
+        return forwarded.strip()
+    return request.client.host if request.client else None
 
 
 @router.post("/token")
@@ -84,31 +69,27 @@ async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     auth_service: AuthService = Depends(get_auth_service),
     settings=Depends(get_auth_settings),
+    throttle: LoginThrottle = Depends(get_login_throttle),
 ):
-    if os.getenv("LIGHTWEIGHT_BOOTSTRAP") == "1" or os.getenv("USER_LIGHTWEIGHT_MODE") == "1":
-        token = f"fake-token-{uuid.uuid4()}"
-        response.set_cookie(
-            key="access_token_cookie",
-            value=token,
-            httponly=True,
-            samesite="lax",
-            secure=False,
+    client_ip = _client_ip(request)
+    wait = await throttle.retry_after(form_data.username, client_ip)
+    if wait > 0:
+        logger.warning("auth.login.throttled", email=masked_email(form_data.username), ip=client_ip)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Muitas tentativas de login. Tente novamente em {max(1, wait // 60)} minuto(s).",
+            headers={"Retry-After": str(wait)},
         )
-        return {
-            "message": "Authentication successful",
-            "access_token": token,
-            "token_type": "bearer",
-        }
     try:
         result = await auth_service.authenticate_user(
             form_data.username,
             form_data.password,
         )
-    except InvalidCredentialsError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
-    except ValueError as e:
-        # Catch-all for other value errors, but domain exceptions should cover logic
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except InvalidCredentialsError:
+        await throttle.register_failure(form_data.username, client_ip)
+        raise  # 401 pelo tratador global
+
+    await throttle.register_success(form_data.username)
 
     cookie_secure = settings.cookie_secure
     cookie_samesite = settings.cookie_samesite
@@ -141,15 +122,9 @@ async def refresh_token(
 ):
     refresh_cookie = request.cookies.get("refresh_token")
     if not refresh_cookie:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token ausente")
-
-    payload = auth_service.user_service.token_provider.verify_refresh_token(refresh_cookie)  # type: ignore[attr-defined]
-    if not payload or not payload.get("sub"):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido")
-
-    user_id = payload["sub"]
-    new_access = auth_service.user_service.token_provider.create_access_token(user_id)
-    new_refresh = auth_service.user_service.token_provider.create_refresh_token(user_id)  # type: ignore[attr-defined]
+        raise InvalidCredentialsError("Sessão expirada; entre de novo.")
+    tokens = await auth_service.refresh(refresh_cookie)  # inválido ou revogado: 401
+    new_access, new_refresh = tokens["access_token"], tokens["refresh_token"]
 
     cookie_secure = settings.cookie_secure
     cookie_samesite = settings.cookie_samesite
@@ -173,11 +148,38 @@ async def refresh_token(
 
 
 @router.post("/logout")
-async def logout(response: Response):
-    """Remove refresh cookie no cliente."""
+async def logout(
+    request: Request,
+    response: Response,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Revoga o token de renovação e apaga o cookie."""
+    await auth_service.logout(request.cookies.get("refresh_token"))
     response.delete_cookie("refresh_token", path="/")
-    response.delete_cookie("access_token_cookie", path="/")
     return {"message": "Logout realizado"}
+
+
+@router.post("/scoped-token", response_model=ScopedTokenResponse)
+async def issue_scoped_token(
+    payload: ScopedTokenRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Token de finalidade restrita para onde o navegador não manda cabeçalho:
+    a URL do vídeo (por mídia) e a abertura do WebSocket de avisos."""
+    return auth_service.issue_scoped_token(current_user, payload.purpose, payload.resource)
+
+
+@router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_my_password(
+    payload: ChangePasswordRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    user_service: UserService = Depends(get_user_service),
+) -> Response:
+    """Troca a senha do usuário logado, exigindo a senha atual."""
+    await user_service.change_password(current_user.id, payload.old_password, payload.new_password)
+    logger.info("auth.password_changed", user_id=str(current_user.id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/me", response_model=UserResponse)
@@ -189,27 +191,3 @@ async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]
         is_active=current_user.is_active,
         role=current_user.role.value,
     )
-
-
-@router.get(
-    "/users",
-    response_model=list[UserResponse],
-    dependencies=[Depends(get_current_admin_user)],
-)
-async def list_all_users(
-    user_service: UserService = Depends(get_user_service),
-    page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=100),
-    search: Optional[str] = Query(None),
-):
-    query = ListUsersQuery(page=page, limit=limit, search=search)
-    users = await user_service.list_users(query)
-    return [
-        UserResponse(
-            id=u.id,
-            email=u.email,
-            is_active=u.is_active,
-            role=u.role.value,
-        )
-        for u in users
-    ]

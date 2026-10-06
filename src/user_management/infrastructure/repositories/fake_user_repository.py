@@ -25,7 +25,7 @@ class FakeUserRepository:
 
     async def find_by_email(self, email: str) -> Optional[User]:
         for u in self._users.values():
-            if u.email == email:
+            if u.email.lower() == email.strip().lower():
                 return u
         return None
 

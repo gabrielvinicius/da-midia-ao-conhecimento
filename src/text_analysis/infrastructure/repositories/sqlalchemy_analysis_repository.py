@@ -5,13 +5,18 @@ from __future__ import annotations
 import uuid
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.application.utils.serialization import to_json_serializable
+from src.text_analysis.application.mappers import analysis_diagnostics, restore_from_diagnostics
 from src.text_analysis.application.ports.repository import AnalysisRepositoryPort
 from src.text_analysis.domain import Analysis, Topic
+from src.text_analysis.infrastructure.persistence.feedback_models import FeedbackModel
+from src.text_analysis.infrastructure.persistence.knowledge_models import KnowledgeChunkModel
 from src.text_analysis.infrastructure.persistence.models import AnalysisModel
+from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
+from src.shared.infrastructure.database.unit_of_work import rollback as uow_rollback
 
 
 class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
@@ -22,15 +27,22 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
 
     async def save(self, analysis: Analysis) -> str:
         payload = {
-            "schema_version": self.CURRENT_SCHEMA_VERSION, # Versioning for Level 6.0
+            "schema_version": self.CURRENT_SCHEMA_VERSION,  # permite migrar análises antigas na leitura
             "analysis_id": str(analysis.id),
             "document_id": str(analysis.document.id),
             "overall_sentiment": (
                 analysis.overall_sentiment.value if analysis.overall_sentiment else None
             ),
             "sentiment_items": [s.__dict__ for s in analysis.sentiments],
+            # Trechos (texto e horário): a leitura já os esperava, mas não eram
+            # gravados, e o sentimento chegava à tela sem texto nem horário.
+            "chunks": [
+                {"id": c.id, "text": c.text, "start": c.start, "end": c.end}
+                for c in (analysis.chunks or [])
+            ],
             "topics": [t.__dict__ for t in analysis.topics],
-            "diagnostics": analysis.diagnostics,
+            # Campos tipados e detalhes técnicos, no formato de sempre.
+            "diagnostics": analysis_diagnostics(analysis),
             "media_id": str(analysis.media_id) if analysis.media_id else None,
             "transcription_id": (
                 str(analysis.transcription_id) if analysis.transcription_id else None
@@ -43,8 +55,8 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         serializable_payload = to_json_serializable(payload)
 
         record = AnalysisModel(
-            id=str(analysis.id),
-            document_id=str(analysis.document.id),
+            id=uuid.UUID(str(analysis.id)),
+            document_id=uuid.UUID(str(analysis.document.id)),
             media_id=analysis.media_id,
             user_id=analysis.user_id,
             transcription_id=analysis.transcription_id,
@@ -52,21 +64,24 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         )
         await self.session.merge(record)
         try:
-            await self.session.commit()
+            await uow_commit(self.session)
         except Exception:
-            await self.session.rollback()
+            await uow_rollback(self.session)
             raise
         return str(analysis.id)
 
     async def get(self, analysis_id: str) -> Optional[Analysis]:
-        stmt = select(AnalysisModel).where(AnalysisModel.id == analysis_id)
+        key = _uuid_or_none(analysis_id)
+        if key is None:
+            return None
+        stmt = select(AnalysisModel).where(AnalysisModel.id == key)
         result = await self.session.execute(stmt)
         record = result.scalar_one_or_none()
         if not record:
             return None
         payload = record.payload or {}
         
-        # Level 6.0: Automated Schema Evolution on Read
+        # Análises gravadas em versões anteriores do formato são convertidas na leitura.
         version = payload.get("schema_version", 1)
         if version < self.CURRENT_SCHEMA_VERSION:
             payload = self._upcast_payload(payload, from_version=version)
@@ -90,9 +105,10 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
 
     async def update_summary(self, analysis_id: str, new_summary: str) -> bool:
         """Updates the summary with a human-corrected version."""
-        stmt = select(AnalysisModel).where(AnalysisModel.id == analysis_id)
-        result = await self.session.execute(stmt)
-        record = result.scalar_one_or_none()
+        key = _uuid_or_none(analysis_id)
+        if key is None:
+            return False
+        record = (await self.session.execute(select(AnalysisModel).where(AnalysisModel.id == key))).scalar_one_or_none()
         if not record:
             return False
             
@@ -107,7 +123,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         from sqlalchemy.orm.attributes import flag_modified
         flag_modified(record, "payload")
         
-        await self.session.commit()
+        await uow_commit(self.session)
         return True
 
     async def get_by_media_id(self, media_id: str) -> Optional[Analysis]:
@@ -116,14 +132,8 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         except ValueError:
             return None
 
-        # Level 7.1 Fix: Handle multiple analysis results (legacy dupes)
-        # Order by created_at DESC to get the latest one
-        stmt = (
-            select(AnalysisModel)
-            .where(AnalysisModel.media_id == media_uuid)
-            .order_by(AnalysisModel.created_at.desc())
-            .limit(1)
-        )
+        # Uma análise por mídia (índice único em media_id).
+        stmt = select(AnalysisModel).where(AnalysisModel.media_id == media_uuid)
         result = await self.session.execute(stmt)
         record = result.scalar_one_or_none()
         
@@ -131,7 +141,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
             return None
         payload = record.payload or {}
         
-        # Level 6.0: Automated Schema Evolution on Read
+        # Análises gravadas em versões anteriores do formato são convertidas na leitura.
         version = payload.get("schema_version", 1)
         if version < self.CURRENT_SCHEMA_VERSION:
             payload = self._upcast_payload(payload, from_version=version)
@@ -143,12 +153,27 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         return analysis.topics if analysis else []
 
     async def delete_by_media_id(self, media_id: uuid.UUID) -> None:
-        """Deletes all analysis results associated with a media ID."""
+        """Remove as análises, suas avaliações e os trechos indexados da mídia.
+
+        knowledge_chunks tem chave estrangeira para media sem exclusão em
+        cascata: sem apagar os trechos aqui, a exclusão da mídia falharia.
+        As avaliações não têm chave estrangeira e ficariam órfãs (RNF06).
+        """
+        await self.session.execute(
+            delete(KnowledgeChunkModel).where(KnowledgeChunkModel.media_id == media_id)
+        )
+        await self.session.execute(
+            delete(FeedbackModel).where(
+                FeedbackModel.analysis_id.in_(
+                    select(AnalysisModel.id).where(AnalysisModel.media_id == media_id)
+                )
+            )
+        )
         stmt = select(AnalysisModel).where(AnalysisModel.media_id == media_id)
         result = await self.session.execute(stmt)
         for record in result.scalars().all():
             await self.session.delete(record)
-        await self.session.commit()
+        await uow_commit(self.session)
 
     def _payload_to_analysis(self, payload: dict) -> Analysis:
         from src.text_analysis.domain import Analysis as AnalysisEntity
@@ -211,18 +236,18 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         for raw in payload.get("topics") or []:
             topics.append(
                 Topic(
-                    id=str(raw.get("id", "")),
+                    id=_topic_id(raw.get("id", "")),
                     title=raw.get("title"),
                     keywords=list(raw.get("keywords", []) or []),
                     snippets=list(raw.get("snippets", []) or []),
-                    summary=raw.get("summary"),
-                    diagnostics=raw.get("diagnostics") or {},
+                    size=int(raw.get("size") or 0),
+                    chunk_indices=[int(i) for i in raw.get("chunk_indices") or []],
                 )
             )
         analysis.topics = topics
 
         analysis.summary = payload.get("summary")
-        analysis.diagnostics = payload.get("diagnostics") or {}
+        restore_from_diagnostics(analysis, payload.get("diagnostics") or {})
         overall = payload.get("overall_sentiment")
         if overall:
             try:
@@ -237,8 +262,9 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
                 TextChunk(
                     id=str(raw.get("id", "")),
                     text=str(raw.get("text", "")),
-                    start=int(raw.get("start", 0)),
-                    end=int(raw.get("end", 0)),
+                    # Sem horário (documentos) fica None, não 0.
+                    start=float(raw["start"]) if raw.get("start") is not None else None,
+                    end=float(raw["end"]) if raw.get("end") is not None else None,
                 )
             )
         analysis.chunks = chunks
@@ -248,3 +274,18 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
 
 __all__ = ["SqlAlchemyAnalysisRepository"]
 
+
+def _topic_id(value):
+    """O id do tema volta como número: como texto, "-1" (ruído) deixava de ser
+    reconhecido nas comparações com -1."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return value
+
+
+def _uuid_or_none(value) -> Optional[uuid.UUID]:
+    try:
+        return uuid.UUID(str(value))
+    except (TypeError, ValueError):
+        return None

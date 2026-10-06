@@ -26,5 +26,9 @@ async def test_tfidf_fallback_when_deps_missing(monkeypatch):
 
 
 def test_stopwords_language_selection():
-    from src.text_analysis.infrastructure.dependencies.registry import STOPWORDS_LANGS
-    assert "english" in STOPWORDS_LANGS
+    from src.text_analysis.infrastructure.adapters.stopwords import stop_words_for
+
+    for code in ("pt", "pt-BR", "pt_br", "portuguese"):
+        assert "que" in stop_words_for(code)
+    assert "the" in stop_words_for("en")
+    assert stop_words_for("ja") is None

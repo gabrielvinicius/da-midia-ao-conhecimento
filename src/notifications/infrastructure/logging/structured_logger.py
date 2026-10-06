@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
-from src.shared.infrastructure.observability.ports import LoggerPort
+from src.shared.application.observability import LoggerPort
 
 
 class StructuredNotificationLogger(LoggerPort):

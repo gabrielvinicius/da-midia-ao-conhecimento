@@ -1,26 +1,21 @@
-# src/admin/api/routers.py
+"""Rotas do painel do administrador (o roteador inteiro exige administrador)."""
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from src.admin.application.dtos import (
-    BulkReprocessFailedMediaCommand,
-    DeleteMediaCommand,
-    DeleteUserCommand,
     GetMediaProcessingStatsQuery,
     GetSystemHealthQuery,
     GetSystemStatsQuery,
     GetUserActivityQuery,
-    ReprocessMediaCommand,
-    UpdateUserRoleCommand,
 )
 from src.admin.application.services.admin_service import AdminService
-from src.media_management.api.schemas import MediaResponse
+from src.media_management.api.schemas import MediaResponse, media_page
 from src.media_management.application.dtos import (
     ListMediaQuery,
 )
-from src.shared.application.schemas import PaginatedResponse
+from src.shared.api.schemas import PaginatedResponse
 from src.user_management.api.dependencies import get_current_admin_user
 from src.user_management.api.schemas import UserResponse
 from src.user_management.application.dtos import ListUsersQuery
@@ -34,32 +29,30 @@ from .schemas import SystemStatsResponse, UserUpdateRequest
 router = APIRouter(
     prefix="/admin",
     tags=["Admin"],
-    dependencies=[Depends(get_current_admin_user)] # Protect the entire router
+    dependencies=[Depends(get_current_admin_user)],
 )
 
 
 @router.get(
     "/stats",
     response_model=SystemStatsResponse,
-    summary="Get system-wide statistics",
+    summary="Estatísticas gerais",
 )
 async def get_system_stats(service: AdminService = Depends(get_admin_service)):
-    """Retrieves global statistics about the system, such as total users, media, etc."""
     return await service.get_system_stats(GetSystemStatsQuery())
 
 
 @router.get(
     "/users",
     response_model=PaginatedResponse[UserResponse],
-    summary="List all users in the system",
+    summary="Usuários",
 )
 async def list_all_users(
     service: AdminService = Depends(get_admin_service),
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(10, ge=1, le=100, description="Items per page"),
-    search: Optional[str] = Query(None, description="Search term for user email"),
+    page: int = Query(1, ge=1, description="Página"),
+    limit: int = Query(10, ge=1, le=100, description="Itens por página"),
+    search: Optional[str] = Query(None, description="Busca pelo e-mail"),
 ):
-    """Lists all users com paginação e busca."""
     result = await service.list_users(
         ListUsersQuery(page=page, limit=limit, search=search)
     )
@@ -75,7 +68,7 @@ async def list_all_users(
 @router.put(
     "/users/{user_id}",
     response_model=UserResponse,
-    summary="Update a user's role",
+    summary="Alterar o perfil de um usuário",
 )
 async def update_user(
     user_id: UUID,
@@ -83,229 +76,156 @@ async def update_user(
     service: AdminService = Depends(get_admin_service),
     current_admin: User = Depends(get_current_admin_user),
 ):
-    """Updates a user's role. Requires admin privileges."""
-    try:
-        return await service.update_user_role(
-            user_id=user_id,
-            new_role=update_data.role,
-            admin_user=current_admin,
-        )
-    except (ValueError, PermissionError) as e:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if isinstance(e, ValueError)
-            else status.HTTP_403_FORBIDDEN
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+    return await service.update_user_role(
+        user_id=user_id,
+        new_role=update_data.role,
+        admin_user=current_admin,
+    )
 
 
 @router.delete(
     "/users/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a user",
+    summary="Excluir um usuário",
 )
 async def delete_user(
     user_id: UUID,
     service: AdminService = Depends(get_admin_service),
     current_admin: User = Depends(get_current_admin_user),
 ):
-    """Deletes a user from the system. Requires admin privileges."""
-    try:
-        await service.delete_user(
-            user_id=user_id,
-            admin_user=current_admin,
-        )
-    except (ValueError, PermissionError) as e:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if isinstance(e, ValueError)
-            else status.HTTP_403_FORBIDDEN
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+    await service.delete_user(
+        user_id=user_id,
+        admin_user=current_admin,
+    )
 
 
 
 @router.get(
     "/media",
     response_model=PaginatedResponse[MediaResponse],
-    summary="List all media in the system",
+    summary="Mídias de todos os usuários",
 )
 async def list_all_media(
     service: AdminService = Depends(get_admin_service),
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(
-        None, description="Search term for media filename"
+        None, description="Busca pelo nome do arquivo"
     ),
 ):
-    """Lists all media items with pagination and search capabilities."""
-    result = await service.list_media(
-        ListMediaQuery(page=page, limit=limit, search=search)
-    )
-
-    if isinstance(result, dict):
-        total = result.get("total", 0)
-        items = result.get("items", [])
-    else:
-        total = getattr(result, "total", 0)
-        items = getattr(result, "items", [])
-
-    total_pages = (total + limit - 1) // limit if limit else 1
-
-    return PaginatedResponse[MediaResponse](
-        items=items,
-        total=total,
-        page=page,
-        pages=total_pages,
-        limit=limit,
-    )
+    result = await service.list_media(ListMediaQuery(page=page, limit=limit, search=search))
+    return media_page(result, page, limit)
 
 
 @router.delete(
     "/media/{media_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a media item",
+    summary="Excluir uma mídia",
 )
 async def delete_media(
     media_id: UUID,
     service: AdminService = Depends(get_admin_service),
     current_admin: User = Depends(get_current_admin_user),
 ):
-    """Deletes a media item and its associated files from storage."""
-    try:
-        await service.delete_media(
-            media_id=media_id,
-            admin_user=current_admin,
-        )
-    except (ValueError, PermissionError) as e:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if isinstance(e, ValueError)
-            else status.HTTP_403_FORBIDDEN
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+    await service.delete_media(
+        media_id=media_id,
+        admin_user=current_admin,
+    )
 
 
 @router.post(
     "/media/{media_id}/reprocess",
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Reprocess a failed media item",
+    summary="Reprocessar uma mídia que falhou",
 )
 async def reprocess_media(
     media_id: UUID,
     service: AdminService = Depends(get_admin_service),
     current_admin: User = Depends(get_current_admin_user),
 ):
-    """Triggers reprocessing for a media item that previously failed."""
-    try:
-        await service.reprocess_media(
-            media_id=media_id,
-            admin_user=current_admin,
-        )
-        return {"message": "Reprocessing initiated."}
-    except (ValueError, PermissionError) as e:
-        status_code = (
-            status.HTTP_400_BAD_REQUEST
-            if isinstance(e, ValueError)
-            else status.HTTP_403_FORBIDDEN
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+    await service.reprocess_media(
+        media_id=media_id,
+        admin_user=current_admin,
+    )
+    return {"message": "Reprocessamento iniciado."}
 
 
-# New enhanced admin routes using SOLID refactored services
-
-@router.get("/stats/health", summary="Get system health status")
+@router.get("/stats/health", summary="Alertas do sistema")
 async def get_system_health(service: AdminService = Depends(get_admin_service)):
-    """Get comprehensive system health status."""
     return await service.get_system_health(GetSystemHealthQuery())
 
 
 @router.get(
+    "/stats/processing-times",
+    summary="Durações de transcrição e de cada etapa da análise",
+)
+async def get_processing_times(
+    days: Optional[int] = Query(None, ge=1, le=365, description="Últimos N dias; vazio = tudo."),
+    service: AdminService = Depends(get_admin_service),
+):
+    """Execuções, falhas, média, mediana, máximo e fator de tempo real por tarefa."""
+    return await service.get_processing_times(days)
+
+
+@router.get(
     "/stats/media-processing",
-    summary="Get detailed media processing statistics",
+    summary="Mídias por estado",
 )
 async def get_media_processing_stats(
     service: AdminService = Depends(get_admin_service),
 ):
-    """Get detailed media processing statistics."""
     return await service.get_media_processing_stats(GetMediaProcessingStatsQuery())
 
 
-@router.get("/users/{user_id}/activity", summary="Get user activity statistics")
+@router.get("/users/{user_id}/activity", summary="Atividade de um usuário")
 async def get_user_activity(
     user_id: UUID,
     service: AdminService = Depends(get_admin_service),
     current_admin: User = Depends(get_current_admin_user),
 ):
-    """Get activity statistics for a specific user."""
-    try:
-        return await service.get_user_activity(
-            query=GetUserActivityQuery(user_id=user_id, admin_user_id=current_admin.id)
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return await service.get_user_activity(
+        query=GetUserActivityQuery(user_id=user_id)
+    )
 
 
 @router.post(
     "/users/{user_id}/activate",
     response_model=UserResponse,
-    summary="Activate user account",
+    summary="Reativar uma conta",
 )
 async def activate_user(
     user_id: UUID,
     service: AdminService = Depends(get_admin_service),
     current_admin: User = Depends(get_current_admin_user),
 ):
-    """Activate a user account."""
-    try:
-        return await service.activate_user(user_id=user_id, admin_user=current_admin)
-    except (ValueError, PermissionError) as e:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if isinstance(e, ValueError)
-            else status.HTTP_403_FORBIDDEN
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+    return await service.activate_user(user_id=user_id, admin_user=current_admin)
 
 
 @router.post(
     "/users/{user_id}/deactivate",
     response_model=UserResponse,
-    summary="Deactivate user account",
+    summary="Desativar uma conta",
 )
 async def deactivate_user(
     user_id: UUID,
     service: AdminService = Depends(get_admin_service),
     current_admin: User = Depends(get_current_admin_user),
 ):
-    """Deactivate a user account."""
-    try:
-        return await service.deactivate_user(user_id=user_id, admin_user=current_admin)
-    except (ValueError, PermissionError) as e:
-        status_code = (
-            status.HTTP_404_NOT_FOUND
-            if isinstance(e, ValueError)
-            else status.HTTP_403_FORBIDDEN
-        )
-        raise HTTPException(status_code=status_code, detail=str(e))
+    return await service.deactivate_user(user_id=user_id, admin_user=current_admin)
 
 
-@router.post("/media/bulk-reprocess", summary="Bulk reprocess all failed media")
+@router.post("/media/bulk-reprocess", summary="Reprocessar um lote de mídias que falharam")
 async def bulk_reprocess_failed_media(
     service: AdminService = Depends(get_admin_service),
     current_admin: User = Depends(get_current_admin_user),
+    limit: int = Query(50, ge=1, le=200, description="Máximo de mídias neste pedido"),
 ):
-    """Reprocess all failed media items in bulk."""
-    try:
-        reprocessed_count = await service.bulk_reprocess_failed_media(
-            admin_user=current_admin
-        )
-        return {
-            "message": (
-                f"Bulk reprocessing initiated for {reprocessed_count} media items"
-            ),
-            "reprocessed_count": reprocessed_count,
-        }
-    except PermissionError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    """Reprocessa até ``limit`` mídias com falha, das mais antigas para as mais
+    novas; ``more_pending`` indica que há outras para um próximo pedido."""
+    result = await service.bulk_reprocess_failed_media(admin_user=current_admin, limit=limit)
+    return {
+        "reprocessed_count": result.reprocessed,
+        "failed_count": result.failed,
+        "more_pending": result.more_pending,
+    }
 

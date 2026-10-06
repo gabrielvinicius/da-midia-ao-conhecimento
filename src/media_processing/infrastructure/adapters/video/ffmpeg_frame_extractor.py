@@ -1,61 +1,46 @@
-"""Adapter for extracting frames from video using FFmpeg."""
+"""Extração de quadros de vídeo com o FFmpeg."""
 from __future__ import annotations
 
 import asyncio
 import os
 import tempfile
-from pathlib import Path
+from typing import Optional
+
 import structlog
 
 from src.media_processing.application.ports import VideoFrameExtractorPort
 
 logger = structlog.get_logger(__name__)
 
+
 class FFmpegFrameExtractor(VideoFrameExtractorPort):
-    """Uses FFmpeg to extract a single frame at a specific timestamp."""
+    """Extrai os quadros do vídeo já em disco (o arquivo da transcrição).
 
-    async def extract_frame(self, video_data: bytes, timestamp: float) -> bytes:
-        logger.debug("ffmpeg.extract_frame", timestamp=timestamp)
-        
-        # Create temporary video file from bytes
-        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as video_temp:
-            video_temp.write(video_data)
-            video_temp_path = video_temp.name
+    Antes, o vídeo inteiro (até 500 MB) vinha em memória e era regravado.
+    """
 
-        # Create temporary output image path
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as img_temp:
-            img_temp_path = img_temp.name
+    async def extract_frames(self, video_path: str, timestamps: list[float]) -> list[Optional[bytes]]:
+        if not timestamps:
+            return []
+        with tempfile.TemporaryDirectory() as workdir:
+            return [await self._frame_at(video_path, ts, workdir, i) for i, ts in enumerate(timestamps)]
 
-        try:
-            # -ss before -i is faster (seeking)
-            cmd = [
-                'ffmpeg', '-y',
-                '-ss', str(timestamp),
-                '-i', video_temp_path,
-                '-vframes', '1',
-                '-q:v', '2',
-                img_temp_path
-            ]
+    @staticmethod
+    async def _frame_at(video_path: str, timestamp: float, workdir: str, index: int) -> Optional[bytes]:
+        image_path = os.path.join(workdir, f"frame-{index}.jpg")
+        # -ss antes de -i: busca rápida pelo índice do contêiner.
+        process = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-y", "-ss", str(timestamp), "-i", video_path,
+            "-vframes", "1", "-q:v", "2", image_path,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await process.communicate()
+        if process.returncode != 0 or not os.path.exists(image_path):
+            logger.warning("ffmpeg.extract_frame_failed", timestamp=timestamp, stderr=stderr.decode()[-300:])
+            return None
+        with open(image_path, "rb") as image:
+            return image.read()
 
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-
-            stdout, stderr = await process.communicate()
-
-            if process.returncode != 0:
-                logger.error("ffmpeg.extract_frame_failed", stderr=stderr.decode())
-                raise RuntimeError("Failed to extract frame via FFmpeg")
-
-            with open(img_temp_path, 'rb') as f:
-                return f.read()
-
-        finally:
-            if os.path.exists(video_temp_path):
-                os.unlink(video_temp_path)
-            if os.path.exists(img_temp_path):
-                os.unlink(img_temp_path)
 
 __all__ = ["FFmpegFrameExtractor"]

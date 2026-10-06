@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from src.media_processing.infrastructure.repositories.transcription_repository import (
@@ -23,22 +23,17 @@ class TranscriptionQueryAdapter(TranscriptionQueryPort):
         self._media_repo = media_repo
 
     async def get_text_source(self, media_id: UUID) -> Optional[TextSourceData]:
-        # ... exists ...
         transcription = await self._repo.get_by_media_id(media_id)
         if not transcription:
             return None
 
-        # Prioritize 'text' field, fallback to 'content' if legacy
-        text_content = getattr(transcription, "text", "") or getattr(
-            transcription, "content", ""
-        )
-
         return TextSourceData(
             id=transcription.id,
-            text=text_content,
+            text=transcription.text,
             language=transcription.language or "auto",
             segments=transcription.segments or [],
             media_id=transcription.media_id,
+            visual_context=list(transcription.visual_context),
         )
 
     async def get_media_info(self, media_id: UUID) -> Optional[Dict[str, Any]]:
@@ -56,6 +51,12 @@ class TranscriptionQueryAdapter(TranscriptionQueryPort):
             "media_type": media.media_type
         }
 
+
+    async def get_media_owner(self, media_id: UUID) -> Optional[UUID]:
+        if not self._media_repo:
+            return None
+        media = await self._media_repo.get_by_id(media_id)
+        return media.user_id if media else None
 
 
 __all__ = ["TranscriptionQueryAdapter"]

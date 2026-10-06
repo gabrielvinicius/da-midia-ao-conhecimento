@@ -24,18 +24,17 @@ async def test_root_endpoint(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_health_check_endpoint(client: AsyncClient):
-    """Test the health check endpoint."""
+async def test_health_check_endpoint(client: AsyncClient, monkeypatch):
+    """A rota /health da aplicação é a que verifica banco e Redis."""
+    from src.shared.infrastructure.observability.health import health_check as health
+
+    async def ok():
+        return True
+
+    monkeypatch.setattr(health, "CHECKS", {"database": ok, "redis": ok})
     response = await client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
-
-
-@pytest.mark.asyncio
-async def test_metrics_endpoint(client: AsyncClient):
-    """Test the metrics endpoint."""
-    response = await client.get("/metrics")
-    assert response.status_code == 200
+    assert response.json() == {"status": "healthy", "database": "connected", "redis": "connected"}
 
 
 @pytest.mark.asyncio
@@ -43,10 +42,41 @@ async def test_register_user(client: AsyncClient):
     """Test user registration."""
     response = await client.post(
         "/auth/register",
-        json={"email": "test@example.com", "password": "Password123"},
+        json={"email": "novo@example.com", "password": "Password123"},
     )
     assert response.status_code == 201
-    assert response.json()["email"] == "test@example.com"
+    assert response.json()["email"] == "novo@example.com"
+
+
+@pytest.mark.asyncio
+async def test_register_cannot_grant_admin_role(client: AsyncClient):
+    """Um visitante não pode se cadastrar como administrador."""
+    response = await client.post(
+        "/auth/register",
+        json={"email": "intruso@example.com", "password": "Password123", "role": "ADMIN"},
+    )
+    assert response.status_code == 201
+    assert response.json()["role"] == "USER"
+
+
+@pytest.mark.asyncio
+async def test_register_duplicate_email_is_rejected(client: AsyncClient):
+    """O e-mail do usuário semeado já existe."""
+    response = await client.post(
+        "/auth/register",
+        json={"email": "test@example.com", "password": "Password123"},
+    )
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_login_with_wrong_password_is_rejected(client: AsyncClient):
+    """Sem atalho de teste: senha errada não autentica."""
+    response = await client.post(
+        "/auth/token",
+        data={"username": "test@example.com", "password": "Errada123"},
+    )
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio

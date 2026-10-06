@@ -1,226 +1,187 @@
-# src/storage/infrastructure/adapters/s3_storage_adapter.py
-"""S3-compatible storage provider - OCP and SRP compliance.
+"""Armazenamento em serviço compatível com S3 (AWS S3, MinIO).
+
+Cada arquivo é um objeto no bucket configurado, com o caminho como chave.
+O boto3 é síncrono; as chamadas rodam em outra thread para não travar o
+laço de eventos.
 """
+from __future__ import annotations
+
 import asyncio
-from typing import Any, AsyncIterator, Dict, Optional
+import mimetypes
+from datetime import datetime, timezone
+from typing import Any, List, Optional
 from uuid import uuid4
 
-import boto3
-from botocore.exceptions import ClientError, NoCredentialsError
-
-from src.storage.application.ports import StorageConfigurationPort, StorageProviderError
+from src.storage.application.ports import StorageRepositoryPort
 from src.storage.domain.entities.file_metadata import FileMetadata
 from src.storage.domain.value_objects.file_path import FilePath
 from src.storage.domain.value_objects.file_size import FileSize
-from src.storage.infrastructure.adapters.base_adapter import BaseStorageProvider
 
 
-class S3StorageConfiguration(StorageConfigurationPort):
-    """Configuration for S3 storage - SRP compliance."""
-
+class S3StorageRepository(StorageRepositoryPort):
     def __init__(
         self,
-        bucket_name: str,
-        endpoint_url: str,
-        access_key: str,
-        secret_key: str,
-        region: str = "us-east-1"
-    ):
-        self.bucket_name = bucket_name
-        self.endpoint_url = endpoint_url
-        self.access_key = access_key
-        self.secret_key = secret_key
-        self.region = region
+        bucket: str,
+        endpoint_url: Optional[str] = None,
+        access_key: Optional[str] = None,
+        secret_key: Optional[str] = None,
+        region: str = "us-east-1",
+        client: Any = None,
+    ) -> None:
+        if client is None:
+            import boto3
 
-    def get_config(self) -> Dict[str, Any]:
-        """Get configuration dictionary."""
-        return {
-            "bucket_name": self.bucket_name,
-            "endpoint_url": self.endpoint_url,
-            "region": self.region,
-            # Don't include credentials in config output
-        }
-
-    def validate_config(self) -> bool:
-        """Validate configuration."""
-        required_fields = [
-            self.bucket_name, self.endpoint_url,
-            self.access_key, self.secret_key
-        ]
-        return all(field and field.strip() for field in required_fields)
-
-
-class S3StorageProvider(BaseStorageProvider):
-    """S3-compatible storage provider.
-    Follows OCP - can be extended without modification.
-    """
-
-    def __init__(self, config: S3StorageConfiguration):
-        super().__init__(config)
-        self._config = config
-        self._client = self._create_client()
-        self._ensure_bucket_exists()
+            client = boto3.client(
+                "s3",
+                endpoint_url=endpoint_url,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name=region,
+            )
+        self._s3 = client
+        self._bucket = bucket
+        self._bucket_ready = False
 
     @property
     def provider_name(self) -> str:
-        """Provider identifier."""
         return "s3"
 
-    def _create_client(self):
-        """Create S3 client with configuration."""
-        try:
-            return boto3.client(
-                "s3",
-                aws_access_key_id=self._config.access_key,
-                aws_secret_access_key=self._config.secret_key,
-                endpoint_url=self._config.endpoint_url,
-                region_name=self._config.region
-            )
-        except NoCredentialsError as e:
-            raise StorageProviderError("Invalid S3 credentials") from e
-
-    def _ensure_bucket_exists(self) -> None:
-        """Ensure bucket exists, create if necessary."""
-        try:
-            self._client.head_bucket(Bucket=self._config.bucket_name)
-        except ClientError as e:
-            if e.response['Error']['Code'] == '404':
-                try:
-                    self._client.create_bucket(Bucket=self._config.bucket_name)
-                except ClientError as create_error:
-                    raise StorageProviderError(
-                        f"Failed to create bucket {self._config.bucket_name}"
-                    ) from create_error
-            else:
-                raise StorageProviderError(
-                    f"Failed to access bucket {self._config.bucket_name}"
-                ) from e
-
-    async def _do_write(self, file_path: FilePath, content: bytes) -> None:
-        """Write file to S3."""
+    async def store(self, file_path: FilePath, content: bytes) -> FileMetadata:
+        await self._ensure_bucket()
+        key = _key(file_path)
+        content_type = mimetypes.guess_type(key)[0] or "application/octet-stream"
         await asyncio.to_thread(
-            self._sync_write,
-            str(file_path),
-            content
+            self._s3.put_object, Bucket=self._bucket, Key=key, Body=content, ContentType=content_type
+        )
+        now = datetime.now(timezone.utc)
+        return FileMetadata(
+            id=uuid4(),
+            file_path=file_path,
+            size=FileSize(len(content)),
+            content_type=content_type,
+            created_at=now,
+            updated_at=now,
         )
 
-    def _sync_write(self, file_path: str, content: bytes) -> None:
-        """Synchronous write operation."""
-        self._client.put_object(
-            Bucket=self._config.bucket_name,
-            Key=file_path,
-            Body=content
+    async def store_from(self, file_path: FilePath, source_path: str) -> FileMetadata:
+        """Envio em partes (upload_file do boto3), sem ler o arquivo para a memória."""
+        await self._ensure_bucket()
+        key = _key(file_path)
+        content_type = mimetypes.guess_type(key)[0] or "application/octet-stream"
+        await asyncio.to_thread(
+            self._s3.upload_file, source_path, self._bucket, key, ExtraArgs={"ContentType": content_type}
         )
+        return await self.get_metadata(file_path)
 
-    async def _do_read(self, file_path: FilePath) -> Optional[bytes]:
-        """Read file from S3."""
+    async def read_range(self, file_path: FilePath, start: int, end: int) -> Optional[bytes]:
         try:
-            return await asyncio.to_thread(self._sync_read, str(file_path))
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'NoSuchKey':
+            response = await asyncio.to_thread(
+                self._s3.get_object, Bucket=self._bucket, Key=_key(file_path), Range=f"bytes={start}-{end}"
+            )
+        except Exception as exc:
+            if _not_found(exc):
+                return None
+            raise
+        return await asyncio.to_thread(response["Body"].read)
+
+    async def download_to(self, file_path: FilePath, destination: str) -> bool:
+        """Baixa em partes direto para o disco (download_file do boto3)."""
+        try:
+            await asyncio.to_thread(self._s3.download_file, self._bucket, _key(file_path), destination)
+        except Exception as exc:
+            if _not_found(exc):
+                return False
+            raise
+        return True
+
+    async def retrieve(self, file_path: FilePath) -> Optional[bytes]:
+        try:
+            response = await asyncio.to_thread(
+                self._s3.get_object, Bucket=self._bucket, Key=_key(file_path)
+            )
+        except Exception as exc:
+            if _not_found(exc):
+                return None
+            raise
+        return await asyncio.to_thread(response["Body"].read)
+
+    async def remove(self, file_path: FilePath) -> bool:
+        if not await self.exists(file_path):
+            return False
+        await asyncio.to_thread(self._s3.delete_object, Bucket=self._bucket, Key=_key(file_path))
+        return True
+
+    async def remove_folder(self, folder_path: str) -> bool:
+        """Remove todos os objetos sob o prefixo. False se não houver nenhum."""
+        prefix = folder_path.strip("/")
+        if not prefix or ".." in prefix.split("/"):
+            raise ValueError(f"Pasta fora do armazenamento: {folder_path}")
+        keys = await self.list_files(prefix + "/")
+        for start in range(0, len(keys), 1000):  # limite do delete_objects
+            batch = [{"Key": key} for key in keys[start : start + 1000]]
+            await asyncio.to_thread(
+                self._s3.delete_objects, Bucket=self._bucket, Delete={"Objects": batch}
+            )
+        return bool(keys)
+
+    async def exists(self, file_path: FilePath) -> bool:
+        return await self._head(file_path) is not None
+
+    async def get_metadata(self, file_path: FilePath) -> Optional[FileMetadata]:
+        head = await self._head(file_path)
+        if head is None:
+            return None
+        modified = head.get("LastModified") or datetime.now(timezone.utc)
+        return FileMetadata(
+            id=uuid4(),
+            file_path=file_path,
+            size=FileSize(int(head.get("ContentLength", 0))),
+            content_type=head.get("ContentType") or "application/octet-stream",
+            created_at=modified,
+            updated_at=modified,
+        )
+
+    async def list_files(self, prefix: str = "") -> List[str]:
+        def _gather() -> List[str]:
+            keys: List[str] = []
+            paginator = self._s3.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+                keys.extend(item["Key"] for item in page.get("Contents", []))
+            return keys
+
+        await self._ensure_bucket()
+        return await asyncio.to_thread(_gather)
+
+    async def _head(self, file_path: FilePath) -> Optional[dict]:
+        try:
+            return await asyncio.to_thread(
+                self._s3.head_object, Bucket=self._bucket, Key=_key(file_path)
+            )
+        except Exception as exc:
+            if _not_found(exc):
                 return None
             raise
 
-    def _sync_read(self, file_path: str) -> bytes:
-        """Synchronous read operation."""
-        response = self._client.get_object(
-            Bucket=self._config.bucket_name,
-            Key=file_path
-        )
-        return response['Body'].read()
-
-    async def _do_delete(self, file_path: FilePath) -> bool:
-        """Delete file from S3."""
-        try:
-            await asyncio.to_thread(self._sync_delete, str(file_path))
-            return True
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'NoSuchKey':
-                return False
-            raise
-
-    def _sync_delete(self, file_path: str) -> None:
-        """Synchronous delete operation."""
-        self._client.delete_object(
-            Bucket=self._config.bucket_name,
-            Key=file_path
-        )
-
-    async def _do_delete_folder(self, folder_path: str) -> None:
-        """Delete all objects with given prefix."""
-        await asyncio.to_thread(self._sync_delete_folder, folder_path)
-
-    def _sync_delete_folder(self, folder_path: str) -> None:
-        """Synchronous folder (prefix) delete."""
-        bucket = self._config.bucket_name
-        # S3 folders are just prefixes. Delete all objects with the prefix.
-        paginator = self._client.get_paginator('list_objects_v2')
-        for page in paginator.paginate(Bucket=bucket, Prefix=folder_path):
-            if 'Contents' in page:
-                delete_keys = [{'Key': obj['Key']} for obj in page['Contents']]
-                self._client.delete_objects(
-                    Bucket=bucket,
-                    Delete={'Objects': delete_keys}
-                )
-
-    async def exists(self, file_path: FilePath) -> bool:
-        """Check if file exists in S3."""
-        try:
-            await asyncio.to_thread(
-                self._client.head_object,
-                Bucket=self._config.bucket_name,
-                Key=str(file_path)
-            )
-            return True
-        except ClientError:
-            return False
-
-    async def get_metadata(self, file_path: FilePath) -> Optional[FileMetadata]:
-        """Get file metadata from S3."""
-        try:
-            response = await asyncio.to_thread(
-                self._client.head_object,
-                Bucket=self._config.bucket_name,
-                Key=str(file_path)
-            )
-
-            return FileMetadata(
-                id=uuid4(),  # In real implementation, should be persisted
-                file_path=file_path,
-                size=FileSize(response['ContentLength']),
-                content_type=response.get('ContentType', 'application/octet-stream'),
-                created_at=response['LastModified']
-            )
-        except ClientError:
-            return None
-
-    async def list_files(self, prefix: Optional[str] = None) -> AsyncIterator[FilePath]:
-        """List files in S3 with optional prefix filter."""
-        try:
-            objects = await asyncio.to_thread(
-                self._sync_list_objects,
-                prefix
-            )
-
-            for obj in objects:
-                yield FilePath.from_path(obj['Key'])
-
-        except ClientError:
+    async def _ensure_bucket(self) -> None:
+        """Cria o bucket na primeira gravação, se ele ainda não existir."""
+        if self._bucket_ready:
             return
+        try:
+            await asyncio.to_thread(self._s3.head_bucket, Bucket=self._bucket)
+        except Exception as exc:
+            if not _not_found(exc):
+                raise
+            await asyncio.to_thread(self._s3.create_bucket, Bucket=self._bucket)
+        self._bucket_ready = True
 
-    def _sync_list_objects(self, prefix: Optional[str]) -> list:
-        """Synchronous object listing."""
-        kwargs = {'Bucket': self._config.bucket_name}
-        if prefix:
-            kwargs['Prefix'] = prefix
 
-        objects = []
-        paginator = self._client.get_paginator('list_objects_v2')
+def _key(file_path: FilePath) -> str:
+    return str(file_path).lstrip("/")
 
-        for page in paginator.paginate(**kwargs):
-            if 'Contents' in page:
-                objects.extend(page['Contents'])
 
-        return objects
+def _not_found(exc: Exception) -> bool:
+    code = str(getattr(exc, "response", {}).get("Error", {}).get("Code", ""))
+    return code in {"404", "NoSuchKey", "NoSuchBucket", "NotFound"}
 
-    # Hooks pós-write já são tratados em `BaseStorageProvider` (noop por padrão).
+
+__all__ = ["S3StorageRepository"]

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, List, Optional, Protocol
+
 from abc import ABC, abstractmethod
 from uuid import UUID
 
@@ -24,3 +26,16 @@ class AnalysisRepositoryPort(ABC):
     @abstractmethod
     async def list_topics(self, analysis_id: str) -> List[Topic]:
         ...
+
+    @abstractmethod
+    async def update_summary(self, analysis_id: str, new_summary: str) -> bool:
+        """Grava o resumo corrigido pelo usuário, guardando o original. False se não existir."""
+        ...
+
+
+class FeedbackRepositoryPort(Protocol):
+    """Avaliações dos usuários sobre os resultados da análise."""
+
+    async def save_feedback(
+        self, analysis_id: str, user_id: UUID, score: int, comment: Optional[str] = None
+    ) -> Any: ...

@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import io
 import structlog
-from typing import Optional
 from src.media_processing.application.ports import VisualAnalysisPort
 from src.shared.infrastructure.config.settings import settings
 
@@ -24,16 +23,20 @@ class MoondreamVisualAdapter(VisualAnalysisPort):
     def _initialize(self):
         if not self._initialized:
             from transformers import AutoModelForCausalLM, AutoTokenizer
-            from PIL import Image
             
             logger.info("moondream.loading_model", device=self.device, model=self.model_id)
             
-            # Moondream 2 é pequeno o suficiente para carregar rápido na GPU
+            import torch
+
+            # Na GPU, float16: sem torch_dtype o modelo carregava em float32,
+            # o dobro de memória (~7 GB) numa placa de 12 GB compartilhada.
+            on_gpu = self.device == "cuda"
             self._model = AutoModelForCausalLM.from_pretrained(
-                self.model_id, 
-                trust_remote_code=True, 
+                self.model_id,
+                trust_remote_code=True,
                 revision=self.revision,
-                device_map={"": self.device} if self.device == "cuda" else "cpu"
+                torch_dtype=torch.float16 if on_gpu else torch.float32,
+                device_map={"": self.device} if on_gpu else "cpu",
             ).eval()
             self._tokenizer = AutoTokenizer.from_pretrained(self.model_id, revision=self.revision)
             self._initialized = True
@@ -55,5 +58,22 @@ class MoondreamVisualAdapter(VisualAnalysisPort):
         except Exception as exc:
             logger.error("moondream.inference_failed", error=str(exc))
             return "Visual description unavailable."
+
+    async def release(self) -> None:
+        """Descarrega o modelo e devolve a memória da GPU ao driver, para o
+        Ollama usá-la nas etapas seguintes; a próxima análise o recarrega."""
+        self._model = None
+        self._tokenizer = None
+        self._initialized = False
+        try:
+            import gc
+
+            import torch
+
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception as exc:
+            logger.warning("moondream.release_failed", error=str(exc))
 
 __all__ = ["MoondreamVisualAdapter"]

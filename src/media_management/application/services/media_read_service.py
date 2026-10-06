@@ -3,7 +3,7 @@
 Provides read-only access to Media statistics and data.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from src.media_management.application.ports import MediaRepositoryPort
@@ -84,9 +84,9 @@ class MediaReadService:
         """Count all media items."""
         return await self.repository.count_all()
 
-    async def count_by_status(self, status: MediaStatus) -> int:
-        """Count media items by status."""
-        return await self.repository.count_by_status(status)
+    async def count_by_status(self, status: MediaStatus, since=None) -> int:
+        """Mídias no estado; com ``since``, só as que mudaram desde então."""
+        return await self.repository.count_by_status(status, since=since)
 
     async def count_by_user(self, user_id: UUID) -> int:
         """Count media items for a specific user."""

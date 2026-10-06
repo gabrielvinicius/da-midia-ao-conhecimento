@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import hashlib
 from typing import Optional
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from src.user_management.application.auth_queries import UserReadService
 from src.user_management.application.dtos import CreateUserCommand
@@ -16,7 +16,7 @@ from src.user_management.infrastructure.repositories.fake_user_repository import
     FakeUserRepository,
 )
 from datetime import timedelta
-from jose import jwt
+import jwt
 from src.shared.domain.time.clock import utcnow
 
 

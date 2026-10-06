@@ -7,6 +7,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+# Chave só dos testes, com o tamanho mínimo do HS256 (32 bytes, RFC 7518),
+# definida antes de qualquer configuração ser lida.
+os.environ.setdefault("SECRET_KEY", "chave-apenas-para-os-testes-0123456789")
+
 # Import test utilities
 from tests.mocks.in_memory_event_bus import InMemoryEventBus
 from tests.mocks.in_memory_storage import InMemoryStorage
@@ -17,7 +21,7 @@ def pytest_configure(config):
     os.environ.setdefault("LIGHTWEIGHT_BOOTSTRAP", "1")
     try:
         from src.shared.infrastructure.observability.logging.logging_config import configure_logging
-        configure_logging("test", level="DEBUG", debug_mode=True)
+        configure_logging("test", level="DEBUG", log_format="console")
     except ImportError:
         pass
 
@@ -29,8 +33,6 @@ _joblib_tmp = os.path.join(tempfile.gettempdir(), "joblib")
 os.makedirs(_joblib_tmp, exist_ok=True)
 os.environ.setdefault("JOBLIB_TEMP_FOLDER", _joblib_tmp)
 warnings.filterwarnings("ignore", message=".*joblib will operate in serial mode.*", category=UserWarning, module="joblib.*")
-# Silenciar DeprecationWarning do passlib que importa crypt (Python 3.12+)
-warnings.filterwarnings("ignore", message=".*'crypt' is deprecated.*", category=DeprecationWarning, module="passlib.utils")
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:

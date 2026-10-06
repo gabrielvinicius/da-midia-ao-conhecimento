@@ -1,5 +1,6 @@
 import uuid
 
+import structlog
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
@@ -8,17 +9,26 @@ from src.shared.infrastructure.observability.logging.logging_config import get_l
 
 logger = get_logger("correlation")
 
+CORRELATION_HEADER = "X-Correlation-ID"
+
+
+def correlation_id_of(request: Request) -> str | None:
+    """Identificador da requisição atual, para seguir até as tarefas."""
+    return getattr(request.state, "correlation_id", None)
+
+
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
-        correlation_id = request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
-        # Contextvars could be used here
-        logger.info(
-            "Request started",
-            correlation_id=correlation_id,
-            path=request.url.path,
-        )
-        response = await call_next(request)
-        response.headers["X-Correlation-ID"] = correlation_id
-        return response
+    """Associa o identificador da requisição a todo log emitido durante ela."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        correlation_id = request.headers.get(CORRELATION_HEADER) or str(uuid.uuid4())
+        request.state.correlation_id = correlation_id
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(correlation_id=correlation_id)
+        try:
+            logger.info("Request started", method=request.method, path=request.url.path)
+            response = await call_next(request)
+            response.headers[CORRELATION_HEADER] = correlation_id
+            return response
+        finally:
+            structlog.contextvars.clear_contextvars()

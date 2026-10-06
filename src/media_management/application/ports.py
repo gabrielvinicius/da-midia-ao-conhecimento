@@ -1,21 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Protocol
+import datetime
+from typing import Any, Dict, List, Optional, Protocol, Set
 from uuid import UUID
 
 from src.media_management.domain import Media
-from src.shared.infrastructure.observability.ports import LoggerPort, MetricsPort
-from src.storage.application.ports import FileStoragePort
+from src.shared.application.observability import MetricsPort
 
-StorageUploadPort = FileStoragePort
 
 
 class MediaMetricsPort(MetricsPort, Protocol):
-    ...
-
-
-class MediaLoggerPort(LoggerPort, Protocol):
     ...
 
 
@@ -30,7 +25,7 @@ class MediaRepositoryPort(Protocol):
     async def update(self, media: Media): ...
     async def count_all(self) -> int: ...
     async def count_by_user(self, user_id: UUID) -> int: ...
-    async def count_by_status(self, status): ...
+    async def count_by_status(self, status, since=None): ...
     async def count_by_user_and_status(self, user_id: UUID, status): ...
     async def count_by_type(self, media_type): ...
     async def count_by_user_and_type(self, user_id: UUID, media_type): ...
@@ -52,12 +47,53 @@ class MediaRepositoryPort(Protocol):
     ): ...
 
 
-class TranscriptionCleanupPort(Protocol):
-    async def delete_by_media_id(self, media_id: UUID) -> None: ...
+class RecoverableMediaPort(Protocol):
+    async def list_waiting(
+        self,
+        created_before: datetime.datetime,
+        limit: int = 50,
+        after: Optional[Media] = None,
+    ) -> List[Media]:
+        """Mídias ainda enviadas ou em processamento, criadas antes do instante
+        dado, da mais antiga para a mais nova; after continua depois dessa mídia."""
+        ...
+
+    async def update(self, media: Media): ...
 
 
-class TextAnalysisCleanupPort(Protocol):
-    async def delete_by_media_id(self, media_id: UUID) -> None: ...
+class AnalyzingMediaPort(Protocol):
+    async def list_analyzing_since_before(self, updated_before: datetime.datetime, limit: int) -> List[Media]:
+        """Mídias em análise desde antes do instante dado, das mais antigas para as mais novas."""
+        ...
+
+    async def update(self, media: Media): ...
+
+
+class ProcessingRecordsPort(Protocol):
+    """Diz quais mídias já ganharam registro no processamento (transcrição ou extração)."""
+
+    async def media_with_processing(self, media_ids: List[UUID]) -> Set[UUID]: ...
+
+
+class StoredFileRemoverPort(Protocol):
+    """Remove os arquivos de uma mídia do armazenamento (implementado pelo módulo storage)."""
+
+    async def delete_folder(self, provider_name: str, folder_path: str) -> None: ...
+
+    async def delete_file(self, provider_name: str, path: str) -> None: ...
+
+
+class MediaDataEraserPort(Protocol):
+    """Apaga o que um módulo derivou de uma mídia (transcrição, análise...).
+
+    Cada módulo implementa a sua, sobre os próprios dados; este módulo só
+    conhece a lista. Deve ser idempotente: uma exclusão interrompida pode ser
+    repetida.
+    """
+
+    name: str
+
+    async def erase(self, media_id: UUID) -> None: ...
 
 
 @dataclass
@@ -78,9 +114,22 @@ class StorageUploaderPort(Protocol):
         self, command, media_id: UUID, content_type: str
     ) -> UploadResult: ...
 
+    async def discard(self, command, destination_path: str) -> None:
+        """Apaga um arquivo enviado cuja mídia não chegou a ser gravada."""
+        ...
+
 
 class StorageDownloaderPort(Protocol):
-    async def download(self, provider_name: str, path: str) -> bytes: ...
+    """Leitura do arquivo para o reprodutor, por trechos: um vídeo de 500 MB
+    nunca passa inteiro pela memória da API."""
+
+    async def size(self, provider_name: str, path: str) -> Optional[int]:
+        """Tamanho em bytes, ou None se o arquivo não existir."""
+        ...
+
+    async def read_range(self, provider_name: str, path: str, start: int, end: int) -> Optional[bytes]:
+        """Bytes de ``start`` a ``end`` (inclusivos)."""
+        ...
 
 
 class UploadMetadataMapperPort(Protocol):
@@ -88,5 +137,5 @@ class UploadMetadataMapperPort(Protocol):
         self,
         storage_metadata: Dict[str, Any],
         default_path: str,
-        file_data: bytes,
+        file_size: int,
     ) -> UploadMetadata: ...

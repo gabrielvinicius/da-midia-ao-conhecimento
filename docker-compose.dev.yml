@@ -1,0 +1,22 @@
+# Desenvolvimento com o código do host:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# A API recarrega sozinha a cada alteração; os workers do Celery não
+# recarregam (reinicie-os com "docker compose restart worker-heavy worker-light").
+# Fora do compose principal porque, em produção, o código em execução deve ser
+# o da imagem: montar só src/ misturava versões (main.py e as migrações vinham
+# da imagem) e um "git pull" mudava o código sem reconstruí-la.
+services:
+  backend:
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-dir src
+    volumes:
+      - ./src:/app/src:ro
+      - ./main.py:/app/main.py:ro
+      - ./alembic:/app/alembic:ro
+
+  worker-heavy:
+    volumes:
+      - ./src:/app/src:ro
+
+  worker-light:
+    volumes:
+      - ./src:/app/src:ro

@@ -13,7 +13,7 @@ except Exception:  # pragma: no cover - fallback when prometheus_client missing
 
 @dataclass(slots=True)
 class PrometheusNotificationMetrics:
-    """Minimal metrics collector used during Stage A scaffolding."""
+    """Coletor de métricas mínimo das notificações."""
 
     _sent_counter: ClassVar[Optional["Counter"]] = None
 

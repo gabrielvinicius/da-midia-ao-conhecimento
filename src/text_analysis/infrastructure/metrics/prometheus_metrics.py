@@ -29,11 +29,8 @@ class PrometheusTextAnalysisMetrics(TextAnalysisMetrics):
     ) -> None:
         status = "success" if success else "failure"
         provider_label = provider or "unknown"
-        media_label = getattr(self, "_media_id", None) or "unknown"
-        user_label = getattr(self, "_user_id", None) or "unknown"
         
-        # Positional arguments must match: operation, provider, status, media_id, user_id
-        labels = (operation, provider_label, status, media_label, user_label)
+        labels = (operation, provider_label, status)
         
         try:
             self._operations_total.labels(*labels).inc()
@@ -42,10 +39,6 @@ class PrometheusTextAnalysisMetrics(TextAnalysisMetrics):
             # Fallback if labels don't match (e.g. older version registered in REGISTRY)
             # This avoids crashing the whole analysis task just because metrics failed
             pass
-
-    def set_context(self, media_id: str | None, user_id: str | None = None):
-        self._media_id = media_id or "unknown"
-        self._user_id = user_id or "unknown"
 
 
 __all__ = ["PrometheusTextAnalysisMetrics"]

@@ -1,0 +1,7 @@
+# Testes e verificações (CI e desenvolvimento). Não vão para a imagem.
+pytest~=9.1.1
+pytest-asyncio~=1.4.0
+aiosqlite~=0.22.1  # SQLite assíncrono dos testes (antes, uma imitação na raiz)
+moto[s3,server]~=5.2.3
+ruff~=0.16.9
+import-linter==2.15

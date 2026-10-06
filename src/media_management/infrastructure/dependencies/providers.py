@@ -4,31 +4,11 @@ from __future__ import annotations
 from src.media_management.application.ports import (
     EventBusPort,
     MediaMetricsPort,
-    StorageUploadPort,
 )
 from src.media_management.infrastructure.metrics.prometheus_metrics import (
     PrometheusMediaMetrics,
 )
-from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
-from src.storage.infrastructure.dependencies import StorageServiceFactory
-
-
-def get_storage_uploader(factory: StorageServiceFactory) -> StorageUploadPort:
-    class _Uploader(StorageUploadPort):
-        async def upload(
-            self,
-            *,
-            file_data: bytes,
-            destination: str,
-            content_type: str,
-        ) -> dict:
-            storage = factory.create_storage_service("local")
-            return await storage.upload(
-                file_data=file_data,
-                destination=destination,
-                content_type=content_type,
-            )
-    return _Uploader()
+from src.shared.application.event_bus import SupportsEventBus
 
 
 def get_media_metrics() -> MediaMetricsPort:
@@ -45,4 +25,4 @@ def get_event_bus(event_bus: SupportsEventBus | None) -> EventBusPort | None:
     return event_bus
 
 
-__all__ = ["get_storage_uploader", "get_media_metrics", "get_event_bus"]
+__all__ = ["get_media_metrics", "get_event_bus"]

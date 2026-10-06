@@ -1,26 +1,12 @@
-# src/media_management/api/schemas.py
+"""Esquemas da API de mídias."""
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.media_management.domain.entities.media import Media, MediaStatus, MediaType
-
-
-class MediaCreate(BaseModel):
-    """Schema for creating a new media item."""
-
-    original_file_path: str = Field(
-        ...,
-        description="The path to the original file in storage.",
-        json_schema_extra={"example": "media/user1/video.mp4"},
-    )
-    media_type: MediaType = Field(
-        ...,
-        description="The type of the media file.",
-        json_schema_extra={"example": "VIDEO"},
-    )
+from src.shared.api.schemas import PaginatedResponse
 
 
 class MediaResponse(BaseModel):
@@ -29,6 +15,7 @@ class MediaResponse(BaseModel):
     """
 
     id: UUID = Field(..., description="The unique identifier for the media item.")
+    user_id: UUID = Field(..., description="Dono da mídia (a interface mostra as ações do dono).")
     filename: Optional[str] = Field(None, description="Original filename.")
     content_type: Optional[str] = Field(None, description="MIME type of the file.")
     size: Optional[int] = Field(None, description="File size in bytes.")
@@ -47,14 +34,12 @@ class MediaResponse(BaseModel):
     # Providers
     storage_provider: Optional[str] = None
     transcription_provider: Optional[str] = None
-    summarization_provider: Optional[str] = None
-    sentiment_provider: Optional[str] = None
-    topic_modeling_provider: Optional[str] = None
 
     @classmethod
     def from_domain(cls, media: Media) -> "MediaResponse":
         return cls(
             id=media.id,
+            user_id=media.user_id,
             filename=media.filename,
             content_type=media.mime_type,
             size=media.file_size,
@@ -66,23 +51,25 @@ class MediaResponse(BaseModel):
             duration=media.duration,
             storage_provider=media.storage_provider,
             transcription_provider=media.transcription_provider,
-            summarization_provider=media.summarization_provider,
-            sentiment_provider=media.sentiment_provider,
-            topic_modeling_provider=media.topic_modeling_provider,
         )
 
-    @computed_field(return_type=List[str])
-    @property
-    def processing_pipeline(self) -> List[str]:
-        pipeline: List[str] = ["upload"]
-
-        if self.media_type == MediaType.VIDEO:
-            pipeline.append("video_processing")
-        elif self.media_type == MediaType.AUDIO:
-            pipeline.append("transcription")
-        elif self.media_type == MediaType.TEXT:
-            pipeline.append("extract_text")
-
-        return pipeline
-
     model_config = ConfigDict(from_attributes=True)
+
+
+def media_page(page_data, page: int, limit: int) -> PaginatedResponse[MediaResponse]:
+    """Página de mídias no formato comum das listas."""
+    return PaginatedResponse[MediaResponse](
+        items=[MediaResponse.from_domain(media) for media in page_data.items],
+        total=page_data.total,
+        page=page_data.page or page,
+        limit=page_data.limit or limit,
+        pages=page_data.pages if page_data.pages is not None else PaginatedResponse.pages_for(page_data.total, limit),
+    )
+
+
+class MediaStatisticsResponse(BaseModel):
+    """Mídias por estado e por tipo (chaves em minúsculas, como nos enums)."""
+
+    total: int
+    by_status: Dict[str, int]
+    by_type: Dict[str, int]

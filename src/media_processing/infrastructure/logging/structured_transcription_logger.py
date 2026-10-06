@@ -4,7 +4,7 @@ from typing import Optional
 
 import structlog
 
-from src.shared.infrastructure.observability.ports import LoggerPort
+from src.shared.application.observability import LoggerPort
 
 
 class StructuredTranscriptionLogger(LoggerPort):

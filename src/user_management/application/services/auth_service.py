@@ -1,113 +1,137 @@
+"""Login, renovação e encerramento da sessão, e a verificação de cada token.
+
+A verificação ficava copiada em três dependências da API (cabeçalho, URL do
+vídeo e WebSocket), com o mesmo decode e a mesma consulta ao usuário; e
+nenhuma conferia o tipo, então o token de renovação (7 dias) valia como token
+de acesso. Agora há um só lugar, que confere a finalidade do token.
+"""
 from __future__ import annotations
 
+import time
 from typing import Any, Optional
 from uuid import UUID
 
-from src.shared.infrastructure.observability.logging.logging_config import get_logger
-from src.user_management.domain import User, UserRole
+import structlog
+
+from src.shared.application.privacy import masked_email
+from src.user_management.application.ports import RevokedTokensPort
+from src.user_management.application.tokens import SCOPED_PURPOSES, TokenPurpose
+from src.user_management.domain import User
+from src.user_management.domain.errors import InvalidCredentialsError
 
 from .user_service import UserService
 
-logger = get_logger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class AuthService:
-    """Thin facade over UserService kept for compatibility with API wiring."""
-
     def __init__(
         self,
         user_service: UserService,
         settings: Any,
+        revoked_tokens: Optional[RevokedTokensPort] = None,
     ) -> None:
         self.user_service = user_service
         self.settings = settings
+        self._revoked = revoked_tokens
+
+    @property
+    def _tokens(self):
+        return self.user_service.token_provider
 
     async def authenticate_user(self, email: str, password: str) -> dict[str, Any]:
-        logger.info("auth.authenticate.started", email=email)
+        logger.info("auth.authenticate.started", email=masked_email(email))
         try:
             result = await self.user_service.authenticate_user(email, password)
-        except ValueError:
-            logger.warning(
-                "auth.authenticate.failed",
-                email=email,
-                reason="invalid_credentials",
-            )
+        except InvalidCredentialsError as exc:
+            logger.warning("auth.authenticate.failed", email=masked_email(email), reason=str(exc) or "invalid_credentials")
             raise
-        logger.info("auth.authenticate.success", email=email)
+        logger.info("auth.authenticate.success", email=masked_email(email))
         return result
 
-    # Sync methods removed or deprecated as UserService is async-only
-    # def authenticate_user_sync(self, email: str, password: str) -> dict[str, Any]: ...
+    async def user_for_token(
+        self, token: Optional[str], purpose: TokenPurpose = TokenPurpose.ACCESS, resource: Any = None
+    ) -> User:
+        """Usuário ativo dono de um token válido para ``purpose`` (e ``resource``)."""
+        payload = self._tokens.verify_token(token) if token else None
+        if not payload or not self._serves(payload, purpose, resource):
+            raise InvalidCredentialsError("Sessão inválida ou expirada")
+        return await self._active_user(payload.get("sub"))
 
-    async def create_user(self, email: str, password: str, role: str = "user"):
-        from ..dtos import CreateUserCommand
-        return await self.user_service.create_user(
-            CreateUserCommand(
-                email=email,
-                password=password,
-                role=UserRole(role.upper()),
+    @staticmethod
+    def _serves(payload: dict, purpose: TokenPurpose, resource: Any) -> bool:
+        # Tokens emitidos antes do campo "type" eram sempre de acesso.
+        kind = payload.get("type", TokenPurpose.ACCESS.value)
+        if purpose in SCOPED_PURPOSES:
+            return (
+                kind == "scoped"
+                and payload.get("scope") == purpose.value
+                and (resource is None or payload.get("res") == str(resource))
             )
+        return kind == purpose.value
+
+    def issue_scoped_token(self, user: User, purpose: TokenPurpose, resource: Any = None) -> dict[str, Any]:
+        """Token só para reproduzir uma mídia ou abrir o WebSocket de avisos."""
+        if purpose not in SCOPED_PURPOSES:
+            raise ValueError(f"Finalidade sem token próprio: {purpose}")
+        ttl = (
+            self.settings.stream_token_expire_minutes * 60
+            if purpose == TokenPurpose.MEDIA_STREAM
+            else self.settings.socket_token_expire_seconds
         )
+        token = self._tokens.create_scoped_token(user.id, purpose.value, ttl, resource)
+        return {"token": token, "expires_in": ttl}
 
-    async def update_user(
-        self,
-        user_id: UUID,
-        updates: Dict[str, Any],
-        admin_user_id: Optional[UUID] = None,
-    ):
-        logger.info(
-            "user.update.started",
-            user_id=str(user_id),
-            updates=updates,
-            admin_user_id=str(admin_user_id),
-        )
-        from ..dtos import UpdateUserCommand
-        # Mapping updates dict to Command
-        cmd = UpdateUserCommand(
-            user_id=user_id,
-            email=updates.get("email"),
-            password=updates.get("password"),
-            role=UserRole(updates.get("role").upper()) if updates.get("role") else None,
-            is_active=updates.get("is_active"),
-        )
-        updated = await self.user_service.update_user(cmd)
-        logger.info("user.update.completed", user_id=str(updated.id))
-        return updated
+    async def refresh(self, refresh_token: str) -> dict[str, str]:
+        """Novos tokens a partir do de renovação, só para usuário existente e ativo.
 
-    async def delete_user(
-        self, user_id: UUID, admin_user_id: Optional[UUID] = None
-    ) -> bool:
-        logger.info(
-            "user.delete.started",
-            user_id=str(user_id),
-            admin_user_id=str(admin_user_id),
-        )
-        from ..dtos import DeleteUserCommand
-        await self.user_service.delete_user(DeleteUserCommand(user_id=user_id))
-        logger.info("user.delete.completed", user_id=str(user_id))
-        return True
+        O token usado é consumido (rotação): copiado, ele só serve uma vez,
+        mesmo em duas renovações simultâneas (antes, as duas passavam pela
+        verificação antes de qualquer revogação).
+        """
+        payload = await self._valid_refresh(refresh_token)
+        await self._consume(payload)
+        user = await self._active_user(payload.get("sub"))
+        return {
+            "access_token": self._tokens.create_access_token(user.id),
+            "refresh_token": self._tokens.create_refresh_token(user.id),
+        }
 
-    async def change_password(
-        self, user_id: UUID, old_password: str, new_password: str
-    ) -> bool:
-        await self.user_service.change_password(user_id, old_password, new_password)
-        return True
+    async def logout(self, refresh_token: Optional[str]) -> None:
+        """Revoga o token de renovação. Antes, o logout só apagava o cookie, e
+        uma cópia do token continuava renovando a sessão por 7 dias."""
+        payload = self._tokens.verify_refresh_token(refresh_token) if refresh_token else None
+        if payload:
+            await self._revoke(payload)
 
-    def require_admin_role(self, user: User) -> None:
-        if user.role != UserRole.ADMIN:
-            raise PermissionError("Perfil de admin é obrigatório")
+    async def _valid_refresh(self, refresh_token: str) -> dict:
+        payload = self._tokens.verify_refresh_token(refresh_token)
+        jti = payload.get("jti") if payload else None
+        if payload is None or (jti and self._revoked and await self._revoked.is_revoked(jti)):
+            raise InvalidCredentialsError("Sessão inválida")
+        return payload
 
-    def can_modify_user(self, current_user: User, target_user_id: UUID) -> bool:
-        if current_user.role == UserRole.ADMIN:
-            return True
-        return str(current_user.id) == str(target_user_id)
+    async def _consume(self, payload: dict) -> None:
+        jti = payload.get("jti")
+        if jti and self._revoked and not await self._revoked.consume(jti, self._remaining(payload)):
+            raise InvalidCredentialsError("Sessão inválida")
 
-    async def get_user_by_id(self, user_id: UUID):
-        return await self.user_service.user_read_service.get_user_by_id(user_id)
+    @staticmethod
+    def _remaining(payload: dict) -> int:
+        return int(payload.get("exp", time.time()) - time.time())
 
-    async def get_user_by_email(self, email: str):
-        return await self.user_service.user_read_service.get_user_by_email(email)
+    async def _revoke(self, payload: dict) -> None:
+        jti = payload.get("jti")
+        if jti and self._revoked:
+            await self._revoked.revoke(jti, self._remaining(payload))
 
-    async def list_users(self) -> list[User]:
-        from ..dtos import ListUsersQuery
-        return await self.user_service.user_read_service.list_all()
+    async def _active_user(self, user_id: Optional[str]) -> User:
+        """Conta excluída ou desativada perde o acesso já na próxima requisição."""
+        try:
+            key = UUID(str(user_id)) if user_id else None
+        except ValueError:
+            key = None
+        user = await self.user_service.user_read_service.get_user_by_id(key) if key else None
+        if user is None or not user.is_active:
+            raise InvalidCredentialsError("Sessão inválida")
+        return user

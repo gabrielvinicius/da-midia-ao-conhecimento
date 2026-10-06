@@ -5,18 +5,21 @@ concreto (infra) que implementa o port (application).
 """
 from __future__ import annotations
 
+from src.shared.infrastructure.model_cache import model_cache
+
 from typing import Callable, Dict, Any
 
-from src.shared.infrastructure.messaging.event_bus import SupportsEventBus
+import structlog
+
 
 from src.media_processing.application.ports import (
     OCRProviderPort,
     SpeechRecognizer,
     TextExtractorPort,
-    VideoAudioExtractorPort,
-    VideoThumbnailGeneratorPort,
 )
 from src.shared.infrastructure.config.settings import settings
+
+logger = structlog.get_logger(__name__)
 
 # Optional adapters; guard imports to avoid missing deps
 def _load_fastwhisper():
@@ -28,18 +31,6 @@ def _load_fastwhisper():
     except Exception as exc:  # pragma: no cover - optional dependency
         raise ImportError(
             "Provider 'fastwhisper' requer o pacote faster-whisper instalado."
-        ) from exc
-
-
-def _load_huggingface():
-    try:
-        from src.media_processing.infrastructure.adapters.transcription.huggingface_adapter import (
-            HuggingfaceTranscriber,
-        )
-        return HuggingfaceTranscriber
-    except Exception as exc:  # pragma: no cover - optional dependency
-        raise ImportError(
-            "Provider 'huggingface' requer deps do transformers instaladas."
         ) from exc
 
 
@@ -63,30 +54,6 @@ def _load_moondream():
     except ImportError:
         return None
 
-def _load_qwen2_vl():
-    try:
-        from src.media_processing.infrastructure.adapters.visual.qwen2_vl_adapter import (
-            Qwen2VLAdapter,
-        )
-        return Qwen2VLAdapter
-    except ImportError:
-        return None
-
-try:
-    from src.media_processing.infrastructure.adapters.video import (
-        ffmpeg_audio_extractor,
-        ffmpeg_thumbnail_generator,
-    )
-
-    FFmpegVideoAudioExtractor = (
-        ffmpeg_audio_extractor.FFmpegVideoAudioExtractor
-    )
-    FFmpegVideoThumbnailGenerator = (
-        ffmpeg_thumbnail_generator.FFmpegVideoThumbnailGenerator
-    )
-except Exception:  # pragma: no cover - optional dependency
-    FFmpegVideoAudioExtractor = None
-    FFmpegVideoThumbnailGenerator = None
 
 from src.media_processing.infrastructure.adapters.text import (
     ocr_provider_adapter,
@@ -103,6 +70,20 @@ _VISUAL_ANALYZERS: Dict[str, Callable[[], VisualAnalysisPort]] = {}
 _VISUAL_META: Dict[str, Dict[str, Any]] = {}
 
 def _register_visual_providers():
+    # Ollama (modelo multimodal configurado em settings.visual_ollama_model)
+    from src.media_processing.infrastructure.adapters.visual.ollama_visual_adapter import (
+        OllamaVisualAdapter,
+    )
+
+    _VISUAL_ANALYZERS["ollama"] = lambda: OllamaVisualAdapter(
+        model=settings.visual_ollama_model, host=settings.ollama_host
+    )
+    _VISUAL_META["ollama"] = {
+        "label": f"Ollama ({settings.visual_ollama_model})",
+        "public": True,
+        "description": "Usa o modelo multimodal do Ollama para descrever os quadros.",
+    }
+
     # Moondream
     cls_moon = _load_moondream()
     if cls_moon:
@@ -112,114 +93,56 @@ def _register_visual_providers():
             "public": True,
             "description": "Modelo leve para descrição de imagens.",
         }
-    
-    # Qwen2-VL
-    cls_qwen = _load_qwen2_vl()
-    if cls_qwen:
-        _VISUAL_ANALYZERS["qwen2-vl"] = lambda: cls_qwen()
-        _VISUAL_META["qwen2-vl"] = {
-            "label": "Qwen2.5-VL (SOTA)",
-            "public": True,
-            "description": "Modelo Multimodal 7B SOTA (4-bit).",
-        }
-    
-    # Default
-    if "default" in _VISUAL_ANALYZERS:
-        _VISUAL_ANALYZERS["default"] = _VISUAL_ANALYZERS["qwen2-vl"]
-    elif "moondream" in _VISUAL_ANALYZERS:
+
+    if "moondream" in _VISUAL_ANALYZERS:
         _VISUAL_ANALYZERS["default"] = _VISUAL_ANALYZERS["moondream"]
 
 _register_visual_providers()
 
+
+
 def get_visual_analyzer(provider: str | None = None) -> VisualAnalysisPort:
+    """Uma instância por processo e provedor.
+
+    Antes, cada análise criava um adaptador novo, e o modelo da instância
+    anterior ficava na GPU até o coletor de lixo agir. O pipeline chama
+    ``release()`` ao terminar a etapa visual; a instância recarrega o modelo
+    na próxima análise.
+    """
     key = (provider or "default").lower()
+    if key not in _VISUAL_ANALYZERS and "default" in _VISUAL_ANALYZERS:
+        key = "default"
     factory = _VISUAL_ANALYZERS.get(key)
     if not factory:
-        # Fallback ou erro
-        if "default" in _VISUAL_ANALYZERS:
-             return _VISUAL_ANALYZERS["default"]()
         raise RuntimeError("Nenhum provider de análise visual disponível.")
-    return factory()
-
-
-# ----------------- TTS providers -----------------
-from src.media_processing.application.ports.tts_port import TTSProviderPort
-
-def _load_kokoro():
-    try:
-        from src.media_processing.infrastructure.adapters.audio.kokoro_adapter import (
-            KokoroTTSAdapter,
-        )
-        return KokoroTTSAdapter
-    except ImportError:
-        return None
-
-_TTS_PROVIDERS: Dict[str, Callable[[], TTSProviderPort]] = {}
-_TTS_META: Dict[str, Dict[str, Any]] = {}
-
-def _register_tts_providers():
-    cls_kokoro = _load_kokoro()
-    if cls_kokoro:
-        _TTS_PROVIDERS["kokoro"] = lambda: cls_kokoro()
-        _TTS_META["kokoro"] = {
-            "label": "Kokoro-82M",
-            "public": True,
-            "description": "TTS Neural SOTA ultraleve.",
-        }
-        _TTS_PROVIDERS["default"] = _TTS_PROVIDERS["kokoro"]
-
-_register_tts_providers()
-
-def get_tts_provider(provider: str | None = None) -> TTSProviderPort:
-    key = (provider or "default").lower()
-    factory = _TTS_PROVIDERS.get(key)
-    if not factory:
-        if "default" in _TTS_PROVIDERS:
-            return _TTS_PROVIDERS["default"]()
-        raise RuntimeError(f"Provider TTS '{key}' não encontrado.")
-    return factory()
-
-def register_tts_provider(name: str, factory: Callable[[], TTSProviderPort], meta: Dict[str, Any] | None = None):
-    _TTS_PROVIDERS[name] = factory
-    if meta:
-        _TTS_META[name] = meta
-
-def list_tts_providers(public_only: bool = True) -> list[str]:
-    return sorted([k for k, v in _TTS_META.items() if not public_only or v.get("public", True)])
-
-def tts_provider_meta(name: str) -> Dict[str, Any]:
-    return _TTS_META.get(name, {})
+    return model_cache.get_or_create(("visual", key), factory)
 
 
 # ----------------- Speech recognizers -----------------
+_DEVELOPMENT_ENVS = ("dev", "development", "local")
+
+
 class BasicWhisperRecognizer:
-    """Stub recognizer to keep unit paths lightweight."""
+    """Transcritor de mentira (texto vazio), só para desenvolvimento sem os
+    modelos instalados. Fora de APP_ENV=development ele nem é registrado:
+    antes, o compose não definia APP_ENV, a produção rodava como
+    "development" e o stub podia ser escolhido no envio."""
 
     async def transcribe(self, path: str, language: str = "auto"):
-        # Em produção, não permitir uso do stub para evitar "sucesso" sem transcrição.
-        if settings.app_env.lower() not in ("dev", "development", "local"):
-            raise RuntimeError(
-                "Provider 'whisper' (stub) não está habilitado em produção. "
-                "Configure um provider real (ex.: 'huggingface')."
-            )
-        return {
-            "text": "",
-            "language": language,
-            "provider": "whisper",
-            "segments": [],
-        }
+        return {"text": "", "language": language, "provider": "whisper", "segments": []}
 
 
-_SPEECH_RECOGNIZERS: Dict[str, Callable[[], SpeechRecognizer]] = {
-    "whisper": lambda: BasicWhisperRecognizer(),
-}
-_SPEECH_META: Dict[str, Dict[str, Any]] = {
-    "whisper": {
+_SPEECH_RECOGNIZERS: Dict[str, Callable[[], SpeechRecognizer]] = {}
+_SPEECH_META: Dict[str, Dict[str, Any]] = {}
+if settings.app_env.lower() in _DEVELOPMENT_ENVS:
+    _SPEECH_RECOGNIZERS["whisper"] = lambda: BasicWhisperRecognizer()
+    _SPEECH_META["whisper"] = {
         "label": "Whisper (stub - dev only)",
-        "public": False,  # não expor no catálogo em produção
+        "public": False,
         "description": "Stub de desenvolvimento; não produz transcrição real.",
-    },
-}
+    }
+
+
 def _register_fastwhisper():
     try:
         cls = _load_fastwhisper()
@@ -228,19 +151,6 @@ def _register_fastwhisper():
             "label": "Faster-Whisper (CTranslate2)",
             "public": True,
             "description": "Implementação otimizada do Whisper (CPU/GPU).",
-        }
-    except ImportError:
-        pass
-
-
-def _register_huggingface():
-    try:
-        cls = _load_huggingface()
-        _SPEECH_RECOGNIZERS["huggingface"] = lambda: cls()
-        _SPEECH_META["huggingface"] = {
-            "label": "Transformers ASR (HF)",
-            "public": True,
-            "description": "",
         }
     except ImportError:
         pass
@@ -260,10 +170,9 @@ def _register_openai_whisper():
 
 
 _register_fastwhisper()
-_register_huggingface()
 _register_openai_whisper()
 
-# definir default: prioriza fastwhisper, depois openai-whisper, depois huggingface; se nada, mantém stub (não público)
+# Padrão: faster-whisper, depois openai-whisper; em desenvolvimento sem eles, o stub.
 if "fastwhisper" in _SPEECH_RECOGNIZERS:
     _SPEECH_RECOGNIZERS["default"] = _SPEECH_RECOGNIZERS["fastwhisper"]
     _SPEECH_META["default"] = {
@@ -278,14 +187,7 @@ elif "openai-whisper" in _SPEECH_RECOGNIZERS:
         "public": True,
         "description": "Provider padrão usando modelo oficial.",
     }
-elif "huggingface" in _SPEECH_RECOGNIZERS:
-    _SPEECH_RECOGNIZERS["default"] = _SPEECH_RECOGNIZERS["huggingface"]
-    _SPEECH_META["default"] = {
-        "label": "Transformers ASR (HF) (default)",
-        "public": True,
-        "description": "Provider padrão para transcrição.",
-    }
-else:
+elif "whisper" in _SPEECH_RECOGNIZERS:
     _SPEECH_RECOGNIZERS["default"] = _SPEECH_RECOGNIZERS["whisper"]
     _SPEECH_META["default"] = {
         "label": "Whisper (stub default)",
@@ -311,8 +213,18 @@ def register_speech_recognizer(
 
 
 def get_speech_recognizer(provider: str | None) -> SpeechRecognizer:
-    key = (provider or "whisper").lower()
-    factory = _SPEECH_RECOGNIZERS.get(key) or _SPEECH_RECOGNIZERS["whisper"]
+    """Resolve o reconhecedor de fala.
+
+    Sem provedor informado (ou com um nome desconhecido), usa o padrão real
+    ("default": Faster-Whisper, openai-whisper ou HuggingFace, nessa ordem).
+    Antes, caía no stub "whisper", que devolvia uma transcrição vazia.
+    """
+    key = (provider or "default").lower()
+    factory = _SPEECH_RECOGNIZERS.get(key) or _SPEECH_RECOGNIZERS.get("default")
+    if factory is None:
+        raise RuntimeError("Nenhum modelo de transcrição instalado (faster-whisper ou openai-whisper).")
+    if provider and key not in _SPEECH_RECOGNIZERS:
+        logger.warning("speech_recognizer.unknown_provider_using_default", provider=provider)
     return factory()
 
 def list_speech_recognizers(public_only: bool = True) -> list[str]:
@@ -407,102 +319,6 @@ def list_ocr_providers(public_only: bool = True) -> list[str]:
 def ocr_provider_meta(name: str) -> Dict[str, Any]:
     return _OCR_META.get(name, {"label": name, "description": "", "public": True})
 
-# ----------------- Video adapters -----------------
-_AUDIO_EXTRACTORS: Dict[str, Callable[[], VideoAudioExtractorPort]] = {}
-_AUDIO_META: Dict[str, Dict[str, Any]] = {}
-if FFmpegVideoAudioExtractor:
-    _AUDIO_EXTRACTORS["ffmpeg"] = lambda: FFmpegVideoAudioExtractor()
-    _AUDIO_META["ffmpeg"] = {
-        "label": "FFmpeg Audio Extractor",
-        "public": True,
-        "description": "",
-    }
-
-_THUMBNAIL_GENERATORS: Dict[str, Callable[[], VideoThumbnailGeneratorPort]] = {}
-_THUMBNAIL_META: Dict[str, Dict[str, Any]] = {}
-if FFmpegVideoThumbnailGenerator:
-    _THUMBNAIL_GENERATORS["ffmpeg"] = lambda: FFmpegVideoThumbnailGenerator()
-    _THUMBNAIL_META["ffmpeg"] = {
-        "label": "FFmpeg Thumbnail",
-        "public": True,
-        "description": "",
-    }
-
-
-def register_audio_extractor(
-    name: str,
-    factory: Callable[[], VideoAudioExtractorPort],
-    *,
-    label: str | None = None,
-    description: str | None = None,
-    public: bool = True,
-) -> None:
-    _AUDIO_EXTRACTORS[name.lower()] = factory
-    _AUDIO_META[name.lower()] = {
-        "label": label or name,
-        "description": description or "",
-        "public": public,
-    }
-
-
-def register_thumbnail_generator(
-    name: str,
-    factory: Callable[[], VideoThumbnailGeneratorPort],
-    *,
-    label: str | None = None,
-    description: str | None = None,
-    public: bool = True,
-) -> None:
-    _THUMBNAIL_GENERATORS[name.lower()] = factory
-    _THUMBNAIL_META[name.lower()] = {
-        "label": label or name,
-        "description": description or "",
-        "public": public,
-    }
-
-
-def get_audio_extractor(provider: str | None = None) -> VideoAudioExtractorPort:
-    key = (provider or "ffmpeg").lower()
-    factory = _AUDIO_EXTRACTORS.get(key) or _AUDIO_EXTRACTORS["ffmpeg"]
-    return factory()
-
-def list_audio_extractors(public_only: bool = True) -> list[str]:
-    names = sorted(_AUDIO_EXTRACTORS.keys())
-    if not public_only:
-        return names
-    return [n for n in names if _AUDIO_META.get(n, {}).get("public", True)]
-
-
-def audio_extractor_meta(name: str) -> Dict[str, Any]:
-    return _AUDIO_META.get(name, {"label": name, "description": "", "public": True})
-
-
-def get_thumbnail_generator(provider: str | None = None) -> VideoThumbnailGeneratorPort:
-    key = (provider or "ffmpeg").lower()
-    factory = _THUMBNAIL_GENERATORS.get(key) or _THUMBNAIL_GENERATORS["ffmpeg"]
-    return factory()
-
-def list_thumbnail_generators(public_only: bool = True) -> list[str]:
-    names = sorted(_THUMBNAIL_GENERATORS.keys())
-    if not public_only:
-        return names
-    return [n for n in names if _THUMBNAIL_META.get(n, {}).get("public", True)]
-
-
-def thumbnail_generator_meta(name: str) -> Dict[str, Any]:
-    return _THUMBNAIL_META.get(name, {"label": name, "description": "", "public": True})
-
-
-def get_event_bus(event_bus: SupportsEventBus | None = None) -> SupportsEventBus:
-    """Retorna o event bus recebido do bootstrap; falha se não for fornecido."""
-    if event_bus is None:
-        raise RuntimeError(
-            "MediaProcessing event bus não foi fornecido. Passe via bootstrap/tasks "
-            "para evitar acoplamento a estado global."
-        )
-    return event_bus
-
-
 __all__ = [
     "get_speech_recognizer",
     "register_speech_recognizer",
@@ -516,15 +332,5 @@ __all__ = [
     "register_ocr_provider",
     "list_ocr_providers",
     "ocr_provider_meta",
-    "get_audio_extractor",
-    "register_audio_extractor",
-    "list_audio_extractors",
-    "audio_extractor_meta",
-    "get_thumbnail_generator",
-    "register_thumbnail_generator",
-    "list_thumbnail_generators",
-    "thumbnail_generator_meta",
     "get_visual_analyzer",
-    "get_event_bus",
-    "get_tts_provider",
 ]

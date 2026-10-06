@@ -6,8 +6,10 @@ from src.media_processing.application.services.text_extraction_service import (
     TextExtractionService,
 )
 from src.media_processing.domain import Transcription, TranscriptionStatus
-from src.media_processing.application.tasks import CeleryTextTaskScheduler
-from src.shared.domain.events import MediaProcessingCompleted, TextContentReady
+from src.media_processing.infrastructure.adapters.celery_task_schedulers import (
+    CeleryTextTaskScheduler,
+)
+from src.shared.domain.events import MediaProcessingCompleted, TranscriptionCompleted
 
 
 class FakeRepo:
@@ -36,8 +38,10 @@ class FakeStorage:
     async def download_file(self, path: str):
         return b"file-bytes", "file.txt"
 
-    async def retrieve(self, file_path):
-        return b"file-bytes"
+    async def download_to(self, path, destination):
+        with open(destination, "wb") as target:
+            target.write(b"file-bytes")
+        return True
 
 
 class FakeEventBus:
@@ -78,4 +82,5 @@ async def test_text_extraction_publishes_events():
 
     assert str(media_id) in repo.saved
     assert any(isinstance(e, MediaProcessingCompleted) for e in bus.events)
-    assert any(isinstance(e, TextContentReady) for e in bus.events)
+    # O texto pronto é anunciado pelo módulo de mídias, ao tratar este evento.
+    assert any(isinstance(e, TranscriptionCompleted) for e in bus.events)

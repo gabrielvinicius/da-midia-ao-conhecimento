@@ -56,12 +56,12 @@ class FakeMediaRepo(MediaRepositoryPort):
 
 class FakeUploader(StorageUploaderPort):
     async def upload(self, command, media_id, content_type: str):
-        return type("UploadResult", (), {"destination_path": f"/fake/{media_id}", "metadata": {"size": len(command.file)}})()
+        return type("UploadResult", (), {"destination_path": f"/fake/{media_id}", "metadata": {"size": command.file_size_bytes}})()
 
 
 class FakeMetadataMapper(UploadMetadataMapperPort):
-    def map(self, storage_metadata, default_path, file_data: bytes):
-        return UploadMetadata(stored_path=default_path, file_size=len(file_data))
+    def map(self, storage_metadata, default_path, file_size: int):
+        return UploadMetadata(stored_path=default_path, file_size=file_size)
 
 
 class FakeMetrics(MediaMetricsPort):
@@ -89,6 +89,7 @@ class FakeEventBus:
 async def test_media_service_create_media_with_ports():
     repo = FakeMediaRepo()
     read_service = MediaReadService(media_repository=repo)
+    event_bus = FakeEventBus()
     service = MediaService(
         media_repository=repo,
         storage_uploader=FakeUploader(),
@@ -96,23 +97,19 @@ async def test_media_service_create_media_with_ports():
         metrics_service=FakeMetrics(),
         upload_validator=MediaUploadValidator(settings=media_settings),
         media_read_service=read_service,
-        event_bus=FakeEventBus(),
+        event_bus=event_bus,
         storage_maintenance=None,
-        transcription_cleanup=None,
-        text_analysis_cleanup=None,
-        storage_downloader=None,
+                        storage_downloader=None,
     )
 
     cmd = CreateMediaCommand(
         user_id=str(uuid4()),
-        file=b"hello",
+        file_path="/tmp/upload.bin", file_size_bytes=5,
         filename="file.txt",
         storage_provider="local",
         transcription_provider=None,
-        summarization_provider=None,
-        sentiment_provider=None,
-        topic_modeling_provider=None,
         metadata=None,
+        correlation_id="req-123",
     )
 
     media = await service.create_media(cmd)
@@ -120,5 +117,8 @@ async def test_media_service_create_media_with_ports():
     assert media.id in repo.saved
     assert media.media_type == MediaType.TEXT
     assert repo.saved[media.id].original_file_path.startswith("/fake/")
-    # Metrics and events were attempted
-    assert isinstance(service.event_bus, FakeEventBus)
+    # O identificador da requisição segue no evento até as tarefas.
+    [event] = event_bus.events
+    assert event.media_id == str(media.id)
+    assert event.correlation_id == "req-123"
+    assert event.file_path == repo.saved[media.id].original_file_path

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,6 +22,10 @@ class AnalyzeTextCommand(BaseModel):
     transcription_id: Optional[UUID] = Field(
         None,
         description="ID of the transcription, if applicable.",
+    )
+    correlation_id: Optional[str] = Field(
+        None,
+        description="Identificador da requisição de envio, para seguir a mídia nos logs e eventos.",
     )
     language: Optional[str] = Field(
         None,
@@ -64,11 +68,8 @@ class TopicDTO:
     topic_id: int
     title: Optional[str]
     keywords: list[str]
-    summary_md: Optional[str]
-    summary: Optional[str]
     representative_snippets: list[str]
     size: int
-    diagnostics: dict
 
 
 @dataclass(slots=True)

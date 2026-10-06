@@ -1,0 +1,173 @@
+# Regras de dependência da arquitetura, verificadas na CI com "lint-imports".
+#
+# Cada módulo tem quatro camadas: domínio, aplicação, infraestrutura/API e
+# montagem (bootstrap, tasks, worker). Uma camada só conhece as de baixo. O
+# núcleo (domínio e aplicação) de um módulo também não pode depender do de
+# outro módulo em sentido contrário ao fluxo do processamento.
+
+[importlinter]
+root_package = src
+include_external_packages = False
+
+[importlinter:contract:camadas]
+name = Camadas de cada módulo
+type = layers
+containers =
+    src.media_management
+    src.media_processing
+    src.text_analysis
+    src.storage
+    src.notifications
+    src.user_management
+    src.admin
+layers =
+    (bootstrap) : (tasks) : (worker) : (worker_bootstrap)
+    (api)
+    (infrastructure)
+    application
+    (domain)
+exhaustive = False
+
+[importlinter:contract:nucleo-sem-infraestrutura]
+name = Domínio e aplicação não dependem de infraestrutura, API ou montagem de nenhum módulo
+type = forbidden
+source_modules =
+    src.media_management.application
+    src.media_management.domain
+    src.media_processing.application
+    src.media_processing.domain
+    src.text_analysis.application
+    src.text_analysis.domain
+    src.storage.application
+    src.storage.domain
+    src.notifications.application
+    src.notifications.domain
+    src.user_management.application
+    src.user_management.domain
+    src.admin.application
+forbidden_modules =
+    src.media_management.infrastructure
+    src.media_management.api
+    src.media_management.bootstrap
+    src.media_processing.infrastructure
+    src.media_processing.api
+    src.media_processing.tasks
+    src.media_processing.worker
+    src.media_processing.worker_bootstrap
+    src.text_analysis.infrastructure
+    src.text_analysis.api
+    src.text_analysis.bootstrap
+    src.text_analysis.tasks
+    src.text_analysis.worker_bootstrap
+    src.storage.infrastructure
+    src.notifications.infrastructure
+    src.notifications.api
+    src.notifications.bootstrap
+    src.notifications.tasks
+    src.user_management.infrastructure
+    src.user_management.api
+    src.user_management.bootstrap
+    src.admin.infrastructure
+    src.admin.api
+    src.admin.bootstrap
+exclude_type_checking_imports = True
+
+[importlinter:contract:nucleo-sem-infraestrutura-compartilhada]
+name = Domínio e aplicação usam só o domínio e a aplicação do núcleo compartilhado
+type = forbidden
+source_modules =
+    src.shared.application
+    src.shared.domain
+    src.media_management.application
+    src.media_management.domain
+    src.media_processing.application
+    src.media_processing.domain
+    src.text_analysis.application
+    src.text_analysis.domain
+    src.storage.application
+    src.storage.domain
+    src.notifications.application
+    src.notifications.domain
+    src.user_management.application
+    src.user_management.domain
+    src.admin.application
+forbidden_modules =
+    src.shared.infrastructure
+    src.shared.api
+exclude_type_checking_imports = True
+
+[importlinter:contract:fluxo-armazenamento]
+name = O armazenamento não conhece nenhum outro módulo
+type = forbidden
+source_modules =
+    src.storage
+forbidden_modules =
+    src.media_management
+    src.media_processing
+    src.text_analysis
+    src.notifications
+    src.user_management
+    src.admin
+
+[importlinter:contract:fluxo-midias]
+name = O núcleo de mídias não conhece outros módulos (só o núcleo compartilhado)
+type = forbidden
+source_modules =
+    src.media_management.application
+    src.media_management.domain
+forbidden_modules =
+    src.media_processing
+    src.text_analysis
+    src.storage
+    src.user_management
+    src.notifications
+    src.admin
+
+[importlinter:contract:fluxo-processamento]
+name = O núcleo do processamento não conhece outros módulos (só o núcleo compartilhado)
+type = forbidden
+source_modules =
+    src.media_processing.application
+    src.media_processing.domain
+forbidden_modules =
+    src.media_management
+    src.text_analysis
+    src.storage
+    src.user_management
+    src.notifications
+    src.admin
+
+[importlinter:contract:fluxo-analise]
+name = O núcleo da análise não conhece outros módulos (só o núcleo compartilhado)
+type = forbidden
+source_modules =
+    src.text_analysis.application
+    src.text_analysis.domain
+forbidden_modules =
+    src.media_management
+    src.media_processing
+    src.storage
+    src.user_management
+    src.notifications
+    src.admin
+
+[importlinter:contract:avisos-por-eventos]
+name = Processamento e análise não chamam o módulo de avisos (ele assina os eventos)
+type = forbidden
+source_modules =
+    src.media_processing
+    src.text_analysis
+forbidden_modules =
+    src.notifications
+
+[importlinter:contract:celery-sem-montagem-dos-workers]
+name = A configuração do Celery (usada pela API para enviar tarefas) não conhece a montagem dos workers
+type = forbidden
+source_modules =
+    src.celery_app
+    src.shared
+forbidden_modules =
+    src.worker_process
+    src.media_management.worker
+    src.media_processing.worker
+    src.notifications.worker

@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 import redis.asyncio as aioredis
 
+from src.notifications.application.realtime import notification_id_of
 from src.notifications.infrastructure.adapters.websockets.connection_manager import (
     manager,
 )
@@ -65,7 +66,7 @@ class RedisNotificationPubSubBridge:
 
                 user_id = payload.get("user_id")
                 event_payload = payload.get("payload") or {}
-                notification_id = event_payload.get("notification_id")
+                notification_id = notification_id_of(event_payload)
 
                 if not user_id:
                     continue
@@ -84,7 +85,7 @@ class RedisNotificationPubSubBridge:
         finally:
             try:
                 await pubsub.unsubscribe(self._channel)
-                await pubsub.close()
+                await pubsub.aclose()
             finally:
                 await client.aclose()
             logger.info("notifications.realtime.bridge_stopped", channel=self._channel)

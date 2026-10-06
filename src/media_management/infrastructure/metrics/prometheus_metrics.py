@@ -31,10 +31,7 @@ class PrometheusMediaMetrics:
             success = False
         status_label = status or ("success" if success else "failure")
         provider_label = provider or "unknown"
-        media_id_label = media_id or "unknown"
-
-        # Standard order: operation, provider, status, media_id
-        labels = (operation, provider_label, status_label, media_id_label)
+        labels = (operation, provider_label, status_label)
 
         try:
             self._operations_total.labels(*labels).inc()

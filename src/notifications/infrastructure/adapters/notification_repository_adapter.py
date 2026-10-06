@@ -20,35 +20,18 @@ class NotificationRepositoryAdapter(NotificationRepositoryPort):
     async def save(self, notification: Notification) -> Notification:
         return await self._repo.save(notification)
 
-    async def list_by_user(self, user_id: str):
-        return await self._repo.list_by_user(user_id)
+    async def list_by_user(self, user_id: str, limit: int = 50, unread_only: bool = False):
+        return await self._repo.list_by_user(user_id, limit=limit, unread_only=unread_only)
 
-    async def delete(self, notification_id: str) -> bool:
-        return await self._repo.delete(str(notification_id))
-
-    async def mark_as_read(self, notification_id: str) -> bool:
-        return await self._repo.mark_as_read(str(notification_id))
-
-    async def mark_as_delivered(self, notification_id: str) -> bool:
-        return await self._repo.mark_as_delivered(str(notification_id))
+    async def mark_all_as_read(self, user_id: str) -> int:
+        return await self._repo.mark_all_as_read(user_id)
 
     async def list_undelivered_by_user(self, user_id: str, limit: int = 50):
         return await self._repo.list_undelivered_by_user(user_id, limit=limit)
 
-    async def count_all(self) -> int:
-        return await self._repo.count_all()
+    async def mark_as_delivered(self, notification_id: UUID) -> bool:
+        return await self._repo.mark_as_delivered(str(notification_id))
 
-    async def count_unread_all(self) -> int:
-        return await self._repo.count_unread_all()
-
-    async def count_by_user_id(self, user_id: UUID) -> int:
-        return await self._repo.count_by_user_id(user_id)
-
-    async def count_unread_by_user_id(self, user_id: UUID) -> int:
-        return await self._repo.count_unread_by_user_id(user_id)
-
-    async def delete_older_than(self, days_to_keep: int) -> int:
-        return await self._repo.delete_older_than(days_to_keep)
 
 
 __all__ = ["NotificationRepositoryAdapter"]

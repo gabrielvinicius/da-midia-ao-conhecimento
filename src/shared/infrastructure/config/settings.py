@@ -1,6 +1,5 @@
 """Application Configuration."""
 
-from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -8,52 +7,55 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Global application settings."""
 
-    # Application
-    app_name: str = "video-summarizer"
+    # "production" no docker-compose; "development" libera o transcritor de
+    # mentira, usado só sem os modelos instalados.
     app_env: str = "development"
-    debug: bool = False
     LIGHTWEIGHT_BOOTSTRAP: bool = False
 
     # Database
     database_url: str = "sqlite+aiosqlite:///./app.db"
-    db_echo: bool = False
 
-    # Security
-    secret_key: str = "insecure-secret-key-for-dev"
-    algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
-    auth_password_min_length: int = 8
+    # Origens aceitas pelo CORS, separadas por vírgula (CORS_ORIGINS). Em
+    # produção o frontend chega pelo proxy do Nginx, na mesma origem.
+    cors_origins: str = (
+        "http://localhost:5173,http://localhost:5174,http://localhost:3000,"
+        "http://127.0.0.1:5173,http://127.0.0.1:5174"
+    )
 
-    # RabbitMQ / Celery
-    rabbitmq_url: str = "amqp://guest:guest@localhost:5672//"
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
-    # OpenAI
-    openai_api_key: Optional[str] = None
-
-    # Hugging Face
-    hf_token: Optional[str] = None
-
-    # MinIO / S3
-    minio_endpoint: str = "localhost:9000"
-    minio_access_key: str = "minioadmin"
-    minio_secret_key: str = "minioadmin"
-    minio_bucket_name: str = "video-summarizer"
-    minio_secure: bool = False
-
-    # Providers (global defaults only; per-context allowlists live in each context)
-    transcription_default_provider: str = "whisper"
-    summarization_default_provider: str = "openai"
-    sentiment_default_provider: str = "vader"
-    topic_modeling_default_provider: str = "bertopic"
+    # Ollama (LLM local): endereço do servidor e modelos padrão
+    ollama_host: str = "http://localhost:11434"
+    llm_model: str = "qwen3.5:9b"
+    llm_fallback_model: str = "gemma4:e4b"
+    # 16k tokens: cabe nos prompts do pipeline (síntese em blocos) sem que o
+    # cache de contexto do Ollama ocupe GBs a mais da GPU de 12 GB.
+    llm_context_tokens: int = 16384
+    llm_timeout_seconds: int = 900
+    # Tempo máximo de uma análise no worker. Fica abaixo do prazo em que a
+    # mídia "em análise" é dada como falha (MEDIA_ANALYSIS_GIVE_UP_MINUTES,
+    # 180), para que a falha venha da própria análise, com o motivo.
+    analysis_time_limit_minutes: float = 150
+    # Fatores opcionais da análise, separados por vírgula: sentiment, topics
+    # (temas e seus títulos) e grounding (verificação de fidelidade).
+    analysis_factors: str = "sentiment,topics,grounding"
+    # Descrição de quadros de vídeo: "moondream" (padrão), "ollama" (usa o
+    # modelo multimodal definido em visual_ollama_model) ou "none" (desligada).
+    visual_provider: str = "moondream"
+    visual_ollama_model: str = "qwen3.5:9b"
 
     # AI / Machine Learning Hardware
     # Options: "auto", "cuda", "cpu", "rocm"
     ai_device: str = "auto"
     # Options: "float16", "float32", "int8", "int8_float16"
     ai_compute_type: str = "default"
+    # Modelo de transcrição (Faster-Whisper ou openai-whisper).
+    whisper_model: str = "large-v3-turbo"
 
     @property
     def resolved_device(self) -> str:
@@ -68,7 +70,10 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> str:
-        if "aiosqlite" in self.database_url:
+        """URL com driver síncrono (psycopg2/sqlite), para scripts e migrações."""
+        if "+asyncpg" in self.database_url:
+            return self.database_url.replace("+asyncpg", "+psycopg2")
+        if "+aiosqlite" in self.database_url:
             return self.database_url.replace("+aiosqlite", "")
         return self.database_url
 

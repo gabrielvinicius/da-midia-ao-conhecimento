@@ -1,15 +1,13 @@
-# src/admin/api/schemas.py
-from typing import Optional
-
+"""Esquemas da API do administrador."""
 from pydantic import BaseModel
 
 from src.user_management.domain import UserRole
 
 
 class UserUpdateRequest(BaseModel):
-    """Schema for updating a user's details."""
+    """Novo perfil do usuário (obrigatório: antes, vazio virava erro 400 confuso)."""
 
-    role: Optional[UserRole] = None
+    role: UserRole
 
 
 class SystemStatsResponse(BaseModel):

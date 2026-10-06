@@ -3,11 +3,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import structlog
 
-from src.storage.infrastructure.adapters.s3_stub_adapter import S3StorageService
+from src.storage.infrastructure.adapters.s3_storage_adapter import S3StorageRepository
 from src.storage.application.ports import (
     StorageRepositoryPort,
     StorageServiceResolverPort,
@@ -24,123 +24,42 @@ logger = structlog.get_logger(__name__)
 
 @dataclass
 class StorageClientAdapter(FileStoragePort):
-    """Adapter exposing a uniform interface for upload/download used by other modules.
-    Wraps the Application Service to maintain backward compatibility.
-    """
+    """Arquivos das mídias para os demais módulos, sempre sem carregá-los
+    inteiros na memória: grava a partir de um temporário, lê por trechos e
+    baixa direto para o disco."""
 
     service: StorageService
     provider_name: str
 
-    async def upload(
-        self,
-        *,
-        file_data: bytes,
-        destination: str,
-        content_type: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        # Ensure deterministic path layout
-        normalized_path = str(Path(destination))
-
-        # Use new Service API
-        file_meta = await self.service.store_file(normalized_path, file_data)
-
+    async def upload_file(self, *, source_path: str, destination: str, content_type: str) -> Dict[str, Any]:
+        """Grava o arquivo enviado a partir do temporário da API."""
+        file_meta = await self.service.store_file_from(str(Path(destination)), source_path)
         return {
             "path": str(file_meta.file_path),
             "provider": self.provider_name,
             "content_type": file_meta.content_type,
-            "metadata": metadata or {},
-            "size": file_meta.size.bytes
+            "size": file_meta.size.bytes,
         }
 
-    async def retrieve(self, path: Any):
-        """Compat: usado por services que esperam StoragePort.retrieve(FilePath)."""
-        normalized_path = str(path)
-        return await self.service.retrieve_file(normalized_path)
+    async def size(self, path: Any) -> Optional[int]:
+        meta = await self.service.get_file_metadata(str(path))
+        return meta.size.bytes if meta else None
 
-    async def download(self, file_path: str):
-        normalized_path = str(Path(file_path))
-        data = await self.service.retrieve_file(normalized_path)
-        if data is None:
-            return None
+    async def read_range(self, path: Any, start: int, end: int) -> Optional[bytes]:
+        return await self.service.read_file_range(str(path), start, end)
 
-        # Reconstruct filename from path
-        filename = Path(normalized_path).name
-        return data, filename
-
-    async def download_file(self, file_path: str) -> bytes:
-        normalized_path = str(Path(file_path))
-        data = await self.service.retrieve_file(normalized_path)
-        if data is None:
-            raise FileNotFoundError(
-                (
-                    f"File '{normalized_path}' not found in storage provider "
-                    f"'{self.provider_name}'"
-                )
-            )
-        return data
-
-    def download_file_sync(self, file_path: str) -> bytes:
-        """Synchronous version of download_file for use in Celery tasks."""
-        import asyncio
-        import concurrent.futures
-
-        def run_async_download():
-            async def async_download():
-                normalized_path = str(Path(file_path))
-                return await self.service.retrieve_file(normalized_path)
-
-            # Create a new event loop for this thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                return loop.run_until_complete(async_download())
-            finally:
-                loop.close()
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(run_async_download)
-            result = future.result()
-
-        if result is None:
-            normalized_path = str(Path(file_path))
-            raise FileNotFoundError(
-                (
-                    f"File '{normalized_path}' not found in storage provider "
-                    f"'{self.provider_name}'"
-                )
-            )
-        return result
+    async def download_to(self, path: Any, destination: str) -> bool:
+        """Grava o arquivo em ``destination`` (vídeos de até 500 MB não passam pela memória)."""
+        return await self.service.download_file_to(str(path), destination)
 
     async def delete(self, file_path: str) -> bool:
         return await self.service.delete_file(file_path)
 
-    def delete_sync(self, file_path: str) -> bool:
-        """Synchronous version of delete."""
-        import asyncio
-        import concurrent.futures
-
-        def run_async():
-            return asyncio.run(self.service.delete_file(file_path))
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(run_async)
-            return future.result()
+    async def delete_folder(self, folder_path: str) -> bool:
+        return await self.service.delete_folder(folder_path)
 
     async def exists(self, file_path: str) -> bool:
         return await self.service.file_exists(file_path)
-
-    def exists_sync(self, file_path: str) -> bool:
-        """Synchronous version of exists."""
-        import asyncio
-        import concurrent.futures
-
-        def run_async():
-            return asyncio.run(self.service.file_exists(file_path))
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(run_async)
-            return future.result()
 
     async def list_files(self, prefix: str = "") -> List[str]:
         """Lists all files in the storage system matching the prefix."""
@@ -151,12 +70,8 @@ class StorageServiceFactory(StorageServiceResolverPort):
     """Resolves storage services based on the provider."""
 
     def __init__(self) -> None:
-        # Initialize repositories
-        self._repositories: Dict[str, StorageRepositoryPort] = {
-            "local": LocalStorageService(),
-            "s3": S3StorageService(),
-        }
-        # metadados (label/description/public/capabilities)
+        self._repositories: Dict[str, StorageRepositoryPort] = {"local": LocalStorageService()}
+        # Metadados exibidos na escolha do armazenamento.
         self._meta: Dict[str, Dict[str, Any]] = {
             "local": {
                 "label": "Local (Filesystem)",
@@ -164,15 +79,25 @@ class StorageServiceFactory(StorageServiceResolverPort):
                 "public": True,
                 "capabilities": {"upload": True, "download": True},
             },
-            "s3": {
+        }
+        # S3 só é oferecido quando há um bucket configurado; antes, a opção
+        # existia sempre e gravava no disco local.
+        if storage_settings.s3_configured:
+            self._repositories["s3"] = S3StorageRepository(
+                bucket=storage_settings.s3_bucket,
+                endpoint_url=storage_settings.s3_endpoint_url,
+                access_key=storage_settings.s3_access_key,
+                secret_key=storage_settings.s3_secret_key,
+                region=storage_settings.s3_region,
+            )
+            self._meta["s3"] = {
                 "label": "S3 / MinIO",
-                "description": "Compatível com S3/MinIO (stub filesystem para dev)",
+                "description": f"Bucket {storage_settings.s3_bucket} em serviço compatível com S3",
                 "public": True,
                 "capabilities": {"upload": True, "download": True},
-            },
-        }
-        self._allowed = set(
-            storage_settings.providers_allowed or self._repositories.keys()
+            }
+        self._allowed = set(storage_settings.providers_allowed or self._repositories) & set(
+            self._repositories
         )
 
     def _get_service(self, provider: str) -> StorageClientAdapter:

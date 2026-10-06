@@ -1,11 +1,13 @@
 """Query services that aggregate cross-module admin information."""
 
-from datetime import datetime
+from datetime import timedelta
 from typing import Any, Dict
 from uuid import UUID
 
+from src.shared.domain.errors import NotFoundError
 from src.admin.application.ports import AdminMediaReadPort, AdminUserReadPort
-from src.media_management.domain.enums import MediaStatus
+from src.media_management.domain.enums import IN_PROGRESS_STATUSES, MediaStatus
+from src.shared.domain.time.clock import utcnow
 from src.user_management.application.dtos import GetUserQuery
 
 
@@ -16,18 +18,32 @@ class AdminReadService:
         self,
         user_read_port: AdminUserReadPort,
         media_read_port: AdminMediaReadPort,
+        *,
+        failure_window_hours: int = 24,
+        failed_alert: int = 5,
+        queue_alert: int = 20,
     ) -> None:
         self._user_read_service = user_read_port
         self._media_read_service = media_read_port
+        self.failure_window_hours = failure_window_hours
+        self.failed_alert = failed_alert
+        self.queue_alert = queue_alert
+
+    async def _count_in_progress(self) -> int:
+        """Em processamento ou em análise: as duas etapas ocupam os workers."""
+        return sum([await self._media_read_service.count_by_status(s) for s in IN_PROGRESS_STATUSES])
+
+    async def _count_user_in_progress(self, user_id: UUID) -> int:
+        return sum(
+            [await self._media_read_service.count_by_user_and_status(user_id, s) for s in IN_PROGRESS_STATUSES]
+        )
 
     async def get_global_stats(self) -> Dict[str, Any]:
         """Aggregate high level statistics from multiple bounded contexts."""
         total_users = await self._user_read_service.count_all()
         active_users = await self._user_read_service.count_active()
         total_media = await self._media_read_service.count_all()
-        processing_media = await self._media_read_service.count_by_status(
-            MediaStatus.PROCESSING
-        )
+        processing_media = await self._count_in_progress()
         failed_media = await self._media_read_service.count_by_status(
             MediaStatus.FAILED
         )
@@ -53,12 +69,10 @@ class AdminReadService:
             GetUserQuery(user_id=user_id)
         )
         if not user:
-            raise ValueError(f"Usuário com id {user_id} não foi encontrado")
+            raise NotFoundError("Usuário não encontrado")
 
         total_media = await self._media_read_service.count_by_user(user.id)
-        processing_media = await self._media_read_service.count_by_user_and_status(
-            user.id, MediaStatus.PROCESSING
-        )
+        processing_media = await self._count_user_in_progress(user.id)
         failed_media = await self._media_read_service.count_by_user_and_status(
             user.id, MediaStatus.FAILED
         )
@@ -80,9 +94,7 @@ class AdminReadService:
         """Return detailed information about media processing throughput."""
         total = await self._media_read_service.count_all()
         uploaded = await self._media_read_service.count_by_status(MediaStatus.UPLOADED)
-        processing = await self._media_read_service.count_by_status(
-            MediaStatus.PROCESSING
-        )
+        processing = await self._count_in_progress()
         failed = await self._media_read_service.count_by_status(MediaStatus.FAILED)
         completed = await self._media_read_service.count_by_status(
             MediaStatus.COMPLETED
@@ -103,38 +115,37 @@ class AdminReadService:
         }
 
     async def get_system_health_status(self) -> Dict[str, Any]:
-        """Return coarse health indicators for the platform."""
-        total_failed = await self._media_read_service.count_by_status(
-            MediaStatus.FAILED
-        )
-        total_processing = await self._media_read_service.count_by_status(
-            MediaStatus.PROCESSING
-        )
-        total_users = await self._user_read_service.count_all()
-        active_users = await self._user_read_service.count_active()
+        """Alertas do painel, em português e sobre o que pede ação agora.
 
-        health_status = "healthy"
+        Antes, o total de falhas desde sempre ligava o alerta para sempre
+        (bastavam 11), e "baixa atividade" contava contas desativadas, não uso.
+        Agora contam as falhas recentes e o tamanho da fila; os limites são
+        parâmetros do serviço.
+        """
+        since = utcnow() - timedelta(hours=self.failure_window_hours)
+        recent_failures = await self._media_read_service.count_by_status(MediaStatus.FAILED, since=since)
+        processing = await self._count_in_progress()
+        waiting = await self._media_read_service.count_by_status(MediaStatus.UPLOADED)
+
         issues = []
-
-        if total_failed > 10:
-            health_status = "warning"
-            issues.append(f"{total_failed} failed media items need attention")
-
-        if total_processing > 50:
-            health_status = "warning"
-            issues.append(f"{total_processing} items in the processing queue")
-
-        if total_users and (active_users / total_users) < 0.5:
-            issues.append("Low user activity detected")
-
+        if recent_failures >= self.failed_alert:
+            issues.append(
+                f"{recent_failures} mídias falharam nas últimas {self.failure_window_hours} horas: "
+                "veja o motivo na lista de mídias."
+            )
+        if processing + waiting >= self.queue_alert:
+            issues.append(f"{processing + waiting} mídias aguardando ou em processamento: a fila está longa.")
         return {
-            "status": health_status,
-            "total_users": total_users,
-            "active_users": active_users,
-            "failed_media": total_failed,
-            "processing_media": total_processing,
+            "status": "warning" if issues else "healthy",
+            "total_users": await self._user_read_service.count_all(),
+            "active_users": await self._user_read_service.count_active(),
+            "failed_media": recent_failures,
+            "failure_window_hours": self.failure_window_hours,
+            "processing_media": processing,
+            "waiting_media": waiting,
             "issues": issues,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utcnow().isoformat(),
         }
+
 
 # Backward compatibility

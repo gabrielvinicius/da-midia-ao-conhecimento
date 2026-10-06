@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 
 from src.media_processing.application.dtos import (
-    ReprocessTranscriptionCommand,
+    RequestTranscriptionCommand,
 )
 from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
@@ -56,9 +56,6 @@ class FakeMediaQueries:
                 "transcription_provider": "fake_whisper",
                 "language": "en",
                 "file_size": 123,
-                "summarization_provider": None,
-                "sentiment_provider": None,
-                "topic_modeling_provider": None,
             },
         )()
 
@@ -79,9 +76,6 @@ class FakeMetrics:
         self.calls.append(kwargs)
         return None
 
-    def set_context(self, *args, **kwargs):
-        return None
-
 
 class FakeLogger:
     async def log_operation(self, **kwargs):
@@ -90,11 +84,9 @@ class FakeLogger:
 
 @pytest.mark.integration
 @pytest.mark.anyio
-async def test_reprocess_transcription_emits_completed_event():
+async def test_request_transcription_saves_and_schedules():
     repo = FakeTranscriptionRepo()
     scheduler = FakeScheduler()
-    storage = FakeStorage()
-    event_bus = FakeEventBus()
     metrics = FakeMetrics()
 
     service = TranscriptionService(
@@ -102,21 +94,18 @@ async def test_reprocess_transcription_emits_completed_event():
         task_scheduler=scheduler,
         transcription_logger=FakeLogger(),
         transcription_metrics=metrics,
-        storage_service=storage,
-        speech_recognizer_factory=lambda provider: FakeRecognizer(),
-        media_queries=FakeMediaQueries(),
-        event_bus=event_bus,
     )
 
-    command = ReprocessTranscriptionCommand(
+    command = RequestTranscriptionCommand(
         media_id=uuid4(),
-        provider=None,
+        file_path="/fake/path.wav",
+        storage_provider="local",
+        transcription_provider="fake_whisper",
         language="en",
-        force=False,
-        user_id=uuid4(),
+        file_size_bytes=123,
     )
 
-    await service.reprocess_transcription(command)
+    await service.request_transcription_generation(command)
 
     # A transcription should be saved and task scheduled
     assert len(repo.saved) == 1

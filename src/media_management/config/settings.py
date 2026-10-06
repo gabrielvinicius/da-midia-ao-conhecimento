@@ -7,15 +7,9 @@ class MediaSettings(BaseSettings):
     """Media-management specific settings."""
 
     storage_providers_allowed: List[str] = ["local", "s3"]
-    transcription_providers_allowed: List[str] = [
-        "whisper",
-        "fastwhisper",
-        "mock",
-        "mock_whisper",
-    ]
-    summarization_providers_allowed: List[str] = ["openai", "ollama", "mock"]
-    sentiment_providers_allowed: List[str] = ["vader", "transformers", "mock"]
-    topic_providers_allowed: List[str] = ["bertopic", "mock"]
+    # Nomes do catálogo de transcrição (media_processing); um nome fora da
+    # lista só gera aviso, e o worker usa o padrão.
+    transcription_providers_allowed: List[str] = ["default", "fastwhisper", "openai-whisper"]
     media_min_file_size_bytes: int = 1
     media_max_file_size_bytes: int = 500 * 1024 * 1024
     media_allowed_audio_extensions: List[str] = [
@@ -37,7 +31,6 @@ class MediaSettings(BaseSettings):
     media_allowed_text_extensions: List[str] = [
         "txt",
         "pdf",
-        "doc",
         "docx",
         "png",
         "jpg",
@@ -45,6 +38,16 @@ class MediaSettings(BaseSettings):
         "tiff",
         "bmp",
     ]
+
+    # Mídia enviada sem registro de processamento (UnstartedMediaRecovery):
+    # anunciada de novo após a folga e marcada como falha após o limite.
+    unstarted_check_interval_seconds: int = 300
+    unstarted_grace_minutes: float = 10
+    unstarted_give_up_minutes: float = 60
+    # Mídia "em análise" há mais que isto: o worker da análise morreu sem
+    # anunciar a falha (UnfinishedAnalysisRecovery). A análise de uma aula de
+    # duas horas leva minutos; o limite só pega o que parou de vez.
+    analysis_give_up_minutes: float = 180
 
     model_config = SettingsConfigDict(
         env_prefix="MEDIA_",

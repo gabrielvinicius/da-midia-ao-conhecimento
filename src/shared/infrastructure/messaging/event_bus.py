@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections import defaultdict
 from typing import (
     Awaitable,
@@ -10,12 +11,14 @@ from typing import (
     Iterable,
     List,
     Optional,
-    Protocol,
     Type,
     TypeVar,
 )
 
+from src.shared.application.event_bus import SupportsEventBus  # noqa: F401 (reexportado)
 from src.shared.domain.events import DomainEvent
+
+logger = logging.getLogger(__name__)
 
 # --- From subscription_manager.py ---
 EventHandler = Callable[[DomainEvent], Awaitable[None]]
@@ -60,40 +63,6 @@ class SubscriptionManager:
 
 # --- From event_publisher.py ---
 EventListener = Callable[[DomainEvent], Awaitable[None]]
-
-class EventPublisher:
-    """Lightweight publisher that directly forwards events to a listener."""
-
-    def __init__(self) -> None:
-        self._listener: Optional[EventListener] = None
-        self._running: bool = False
-
-    async def publish(self, event: DomainEvent) -> None:
-        """Forward the event to the registered listener."""
-        if not self._running or self._listener is None:
-            raise RuntimeError(
-                "EventPublisher não está em execução. "
-                "Garanta que event_bus.start(listener) foi chamado no bootstrap."
-            )
-        await self._listener(event)
-
-    async def start(self, listener: EventListener) -> None:
-        """Activate the publisher with the given listener callback."""
-        self._listener = listener
-        self._running = True
-
-    async def stop(self) -> None:
-        """Deactivate the publisher and drop the listener reference."""
-        self._listener = None
-        self._running = False
-
-    async def emit(self, event: DomainEvent) -> None:
-        """Helper used in tests to simulate inbound events."""
-        await self.publish(event)
-
-    @property
-    def is_running(self) -> bool:
-        return self._running
 
 # --- From async_queue_publisher.py ---
 class AsyncQueueBrokerPublisher:
@@ -166,95 +135,19 @@ class AsyncQueueBrokerPublisher:
                 event = await self._queue.get()
                 try:
                     await listener(event)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    # Uma falha ao tratar um evento não pode parar o consumidor:
+                    # os eventos seguintes ainda precisam ser entregues.
+                    logger.exception(
+                        "Falha ao tratar o evento %s", type(event).__name__
+                    )
                 finally:
                     self._queue.task_done()
         except asyncio.CancelledError:  # pragma: no cover - cooperative shutdown
             pass
 
-# --- From bus.py ---
-class SupportsEventBus(Protocol):
-    """Protocol defining the contract expected from an event bus implementation."""
-
-    async def publish(self, event: DomainEvent) -> None:  # pragma: no cover
-        ...
-
-    async def publish_many(
-        self, events: Iterable[DomainEvent]
-    ) -> None:  # pragma: no cover
-        ...
-
-    def subscribe(
-        self,
-        event_type: Type[TEvent],
-        handler: EventHandler,
-    ) -> None:  # pragma: no cover
-        ...
-
-    def unsubscribe(
-        self,
-        event_type: Type[TEvent],
-        handler: EventHandler,
-    ) -> None:  # pragma: no cover
-        ...
-
-    async def start_listener(self) -> None:  # pragma: no cover
-        ...
-
-    async def stop_listener(self) -> None:  # pragma: no cover
-        ...
-
-class InMemoryEventBus:
-    """Simple asynchronous event bus used during Stage A scaffolding and tests."""
-
-    def __init__(self) -> None:
-        self._subscriptions: DefaultDict[
-            Type[DomainEvent],
-            List[EventHandler],
-        ] = defaultdict(list)
-        self._started: bool = False
-
-    async def publish(self, event: DomainEvent) -> None:
-        """Deliver an event to every registered handler."""
-        handlers = list(self._subscriptions.get(type(event), []))
-        for handler in handlers:
-            await handler(event)
-
-    async def publish_many(self, events: Iterable[DomainEvent]) -> None:
-        """Publish a batch of events preserving order."""
-        for event in events:
-            await self.publish(event)
-
-    def subscribe(self, event_type: Type[TEvent], handler: EventHandler) -> None:
-        """Register an asynchronous handler for the given event."""
-        self._subscriptions[event_type].append(handler)
-
-    def unsubscribe(self, event_type: Type[TEvent], handler: EventHandler) -> None:
-        """Unregister an event handler."""
-        handlers = self._subscriptions.get(event_type)
-        if not handlers:
-            return
-        try:
-            handlers.remove(handler)
-        except ValueError:  # pragma: no cover - defensive guard
-            pass
-
-        if not handlers:
-            self._subscriptions.pop(event_type, None)
-
-    def has_subscribers(self, event_type: Type[DomainEvent]) -> bool:
-        """Utility used in smoke tests to confirm registration."""
-        return bool(self._subscriptions.get(event_type))
-
-    async def start_listener(self) -> None:
-        """Hook invoked during application startup to activate the bus."""
-        self._started = True
-
-    async def stop_listener(self) -> None:
-        """Hook invoked during shutdown to flush subscriptions."""
-        self._subscriptions.clear()
-        self._started = False
-
-# --- From event_bus.py (top-level) ---
 class EventBus:
     """Coordinates event publishing and subscription management."""
 
@@ -320,8 +213,24 @@ class EventBus:
     # --------------------------------------------------------------------- #
     async def _dispatch(self, event: DomainEvent) -> None:
         handlers = self._subscriptions.handlers_for(type(event))
+        failures: list[BaseException] = []
         for handler in handlers:
-            await handler(event)
+            # Cada handler é isolado: a falha de um módulo não impede os demais
+            # de reagirem ao mesmo evento.
+            try:
+                await handler(event)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.exception(
+                    "Handler %s falhou ao tratar %s",
+                    getattr(handler, "__qualname__", repr(handler)),
+                    type(event).__name__,
+                )
+                failures.append(exc)
+        if failures and not self._is_listening:
+            # Na entrega síncrona (workers), quem publicou precisa saber da falha.
+            raise failures[0]
 
 
 def create_inmemory_event_bus() -> EventBus:
@@ -333,12 +242,10 @@ def create_inmemory_event_bus() -> EventBus:
 
 __all__ = [
     "EventListener",
-    "EventPublisher",
     "AsyncQueueBrokerPublisher",
     "EventHandler",
     "SubscriptionManager",
     "SupportsEventBus",
-    "InMemoryEventBus",
     "EventBus",
     "create_inmemory_event_bus",
 ]

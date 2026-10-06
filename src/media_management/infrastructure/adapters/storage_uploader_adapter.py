@@ -7,38 +7,11 @@ from typing import Any, Dict
 
 from src.media_management.application.ports import (
     StorageUploaderPort,
-    StorageUploadPort,
     UploadMetadata,
     UploadMetadataMapperPort,
     UploadResult,
 )
 from src.storage.application.ports import StorageServiceResolverPort  # Use Port
-
-
-class StorageUploaderAdapter(StorageUploadPort):
-    """Adapter wrapping StorageServiceResolverPort to FileStoragePort."""
-
-    def __init__(
-        self,
-        factory: StorageServiceResolverPort,
-        provider_name: str = "local",
-    ) -> None:
-        self._factory = factory
-        self._provider = provider_name
-
-    async def upload(
-        self,
-        *,
-        file_data: bytes,
-        destination: str,
-        content_type: str,
-    ) -> dict:
-        storage = self._factory.create_storage_service(self._provider)
-        return await storage.upload(
-            file_data=file_data,
-            destination=destination,
-            content_type=content_type,
-        )
 
 
 class StorageServiceFactoryUploader(StorageUploaderPort):
@@ -60,19 +33,26 @@ class StorageServiceFactoryUploader(StorageUploaderPort):
         content_type: str,
     ) -> UploadResult:
         now = datetime.now(timezone.utc)
-        safe_filename = os.path.basename(command.filename)
+        # Só o nome, sem pastas; "." e ".." não são nomes de arquivo.
+        safe_filename = os.path.basename(command.filename or "").strip()
+        if safe_filename in ("", ".", ".."):
+            safe_filename = "arquivo"
         destination_path = (
             f"{command.user_id}/{now.year}/{now.month:02d}/{media_id}/{safe_filename}"
         )
 
         provider = getattr(command, "storage_provider", None) or self._default_provider
         storage = self._factory.create_storage_service(str(provider))
-        metadata = await storage.upload(
-            file_data=command.file,
+        metadata = await storage.upload_file(
+            source_path=command.file_path,
             destination=destination_path,
             content_type=content_type,
         )
         return UploadResult(destination_path=destination_path, metadata=metadata)
+
+    async def discard(self, command, destination_path: str) -> None:
+        provider = getattr(command, "storage_provider", None) or self._default_provider
+        await self._factory.create_storage_service(str(provider)).delete(destination_path)
 
 
 class DefaultUploadMetadataMapper(UploadMetadataMapperPort):
@@ -82,9 +62,9 @@ class DefaultUploadMetadataMapper(UploadMetadataMapperPort):
         self,
         storage_metadata: Dict[str, Any],
         default_path: str,
-        file_data: bytes,
+        file_size: int,
     ) -> UploadMetadata:
-        size = storage_metadata.get("size") or len(file_data)
+        size = storage_metadata.get("size") or file_size
         path = storage_metadata.get("path") or default_path
         return UploadMetadata(
             stored_path=path,
@@ -93,37 +73,9 @@ class DefaultUploadMetadataMapper(UploadMetadataMapperPort):
         )
 
 
-class DefaultStorageUploader(StorageUploaderPort):
-    """Standard implementation of storage uploading using the adapter."""
-
-    def __init__(self, storage_adapter: StorageUploadPort):
-        self.storage = storage_adapter
-
-    async def upload(
-        self,
-        command,
-        media_id: uuid.UUID,
-        content_type: str,
-    ) -> UploadResult:
-        now = datetime.now(timezone.utc)
-        safe_filename = os.path.basename(command.filename)
-        destination_path = (
-            f"{command.user_id}/{now.year}/{now.month:02d}/{media_id}/{safe_filename}"
-        )
-
-        metadata = await self.storage.upload(
-            file_data=command.file,
-            destination=destination_path,
-            content_type=content_type,
-        )
-        return UploadResult(destination_path=destination_path, metadata=metadata)
-
-
 __all__ = [
-    "StorageUploaderAdapter",
     "StorageServiceFactoryUploader",
     "UploadResult",
     "UploadMetadata",
     "DefaultUploadMetadataMapper",
-    "DefaultStorageUploader",
 ]

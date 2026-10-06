@@ -1,6 +1,9 @@
 # src/media_management/api/routers.py
-import re
-from typing import List, Optional
+import asyncio
+import os
+import tempfile
+from contextlib import asynccontextmanager, suppress
+from typing import AsyncIterator, Optional
 from uuid import UUID
 
 from fastapi import (
@@ -13,8 +16,10 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import Response
+from fastapi.responses import StreamingResponse
 
+from src.media_management.application.errors import InvalidRangeError, InvalidUploadError
+from src.media_management.config.settings import media_settings
 from src.media_management.application.dtos import (
     CreateMediaCommand,
     DeleteMediaCommand,
@@ -25,82 +30,81 @@ from src.media_management.application.dtos import (
     ReprocessMediaCommand,
 )
 from src.media_management.application.services.media_service import MediaService
-from src.shared.application.schemas import (
-    BaseResponseSchema,
-    create_error_response,
-    create_success_response,
-)
-from src.shared.domain.errors import DomainError
-from src.shared.infrastructure.observability.logging.logging_config import get_logger
-from src.user_management.api.dependencies import get_current_user, get_current_user_from_query
+from src.shared.infrastructure.middleware.correlation_middleware import correlation_id_of
+from src.user_management.api.dependencies import get_current_user, get_current_user_for_media_stream
 from src.user_management.domain import User
-from src.user_management.domain import UserRole
 
 from .dependencies import get_media_service
-from .schemas import MediaResponse
+from src.shared.api.schemas import PaginatedResponse
+
+from .schemas import MediaResponse, MediaStatisticsResponse, media_page
+
+UPLOAD_CHUNK_BYTES = 1024 * 1024
+
+
+@asynccontextmanager
+async def received_file(upload: UploadFile, max_bytes: int) -> AsyncIterator[tuple[str, int]]:
+    """Grava o envio num temporário, em partes de 1 MB, e o apaga ao sair.
+
+    Antes, o arquivo inteiro (até 500 MB) era lido para a memória da API. Um
+    envio acima do limite é recusado durante a cópia, sem chegar a ocupar o
+    disco por inteiro.
+    """
+    descriptor, path = tempfile.mkstemp(suffix=os.path.splitext(upload.filename or "")[1])
+    size = 0
+    try:
+        with os.fdopen(descriptor, "wb") as target:
+            while chunk := await upload.read(UPLOAD_CHUNK_BYTES):
+                size += len(chunk)
+                if size > max_bytes:
+                    raise InvalidUploadError("Tamanho do arquivo excede o limite máximo")
+                await asyncio.to_thread(target.write, chunk)
+        yield path, size
+    finally:
+        with suppress(FileNotFoundError):
+            os.remove(path)
+
 
 router = APIRouter(
     prefix="/media",
     tags=["Media"],
 )
 
-logger = get_logger("media_api")
 
 @router.post(
     "/",
     response_model=MediaResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Upload a new media file"
+    summary="Enviar uma mídia"
 )
 async def create_media(
+    request: Request,
     file: UploadFile = File(...),
     storage_provider: Optional[str] = Query("local"),
     transcription_provider: Optional[str] = Query(None),
-    summarization_provider: Optional[str] = Query(None),
-    sentiment_provider: Optional[str] = Query(None),
-    topic_modeling_provider: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
 ):
-    try:
-        file_content = await file.read()
-
+    async with received_file(file, media_settings.media_max_file_size_bytes) as (path, size):
         command = CreateMediaCommand(
             user_id=current_user.id,
-            file=file_content,
+            file_path=path,
+            file_size_bytes=size,
             filename=file.filename,
             storage_provider=storage_provider,
             transcription_provider=transcription_provider,
-            summarization_provider=summarization_provider,
-            sentiment_provider=sentiment_provider,
-            topic_modeling_provider=topic_modeling_provider,
+            correlation_id=correlation_id_of(request),
         )
-
+        # Erros de validação viram 400 nos tratadores globais; o resto, 500 sem
+        # expor a mensagem interna.
         media = await service.create_media(command)
-
-        return MediaResponse.from_domain(media)
-    except DomainError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as exc:
-        logger.error(
-            "media_api.upload_failed",
-            error=str(exc),
-            exc_info=True,
-            filename=file.filename if file else None,
-            user_id=str(current_user.id),
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc),
-        )
+    return MediaResponse.from_domain(media)
 
 
 @router.get(
     "/",
-    response_model=dict,
-    summary="List all media for the current user",
+    response_model=PaginatedResponse[MediaResponse],
+    summary="Mídias do usuário",
 )
 async def list_user_media(
     current_user: User = Depends(get_current_user),
@@ -117,25 +121,13 @@ async def list_user_media(
         search=search,
         order=order,
     )
-    page_data = await service.list_media(query)
-
-    items = [
-        MediaResponse.from_domain(media)
-        for media in page_data.items
-    ]
-
-    return {
-        "items": items,
-        "total": page_data.total,
-        "page": page_data.page,
-        "pages": page_data.pages,
-        "limit": page_data.limit,
-    }
+    return media_page(await service.list_media(query), page, limit)
 
 
 @router.get(
     "/stats",
-    summary="Obter estatísticas das mídias do usuário atual",
+    response_model=MediaStatisticsResponse,
+    summary="Estatísticas das mídias do usuário",
 )
 async def media_stats(
     current_user: User = Depends(get_current_user),
@@ -149,59 +141,40 @@ async def media_stats(
 @router.get(
     "/{media_id}",
     response_model=MediaResponse,
-    summary="Get a media item by its ID",
+    summary="Uma mídia pelo id",
 )
 async def get_media_by_id(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
 ):
-    try:
-        query = GetMediaQuery(media_id=media_id)
-        media = await service.get_media(query)
-
-        if not media:
-            raise ValueError("Mídia não encontrada")
-
-        if media.user_id != current_user.id and current_user.role != UserRole.ADMIN:
-            raise PermissionError("Não autorizado")
-
-        return MediaResponse.from_domain(media)
-    except (ValueError, PermissionError):
-        raise HTTPException(
-            status_code=404,
-            detail="Media not found or not authorized",
-        )
+    media = await service.get_accessible_media(
+        GetMediaQuery(media_id=media_id), current_user.id, current_user.role
+    )
+    return MediaResponse.from_domain(media)
 
 
 @router.delete(
     "/{media_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a media item",
+    summary="Excluir uma mídia",
 )
 async def delete_media(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
 ):
-    try:
-        command = DeleteMediaCommand(media_id=media_id)
-        await service.delete_media(
-            command,
-            user_id=current_user.id,
-            user_role=current_user.role,
-        )
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    # Mídia de outro usuário: a política de acesso responde 404.
+    await service.delete_media(
+        DeleteMediaCommand(media_id=media_id), user_id=current_user.id, user_role=current_user.role
+    )
 
 
-@router.get("/{media_id}/stream", summary="Stream media bytes for playback")
+@router.get("/{media_id}/stream", summary="Bytes da mídia para o reprodutor (com Range)")
 async def stream_media(
     media_id: UUID,
     request: Request,
-    current_user: User = Depends(get_current_user_from_query),
+    current_user: User = Depends(get_current_user_for_media_stream),
     service: MediaService = Depends(get_media_service),
 ):
     try:
@@ -215,58 +188,30 @@ async def stream_media(
             user_role=current_user.role,
         )
 
-        return Response(
-            content=stream_dto.content,
+        # Enviado em partes, lidas do armazenamento à medida que saem.
+        return StreamingResponse(
+            stream_dto.chunks,
             media_type=stream_dto.media_type,
             headers=stream_dto.headers,
             status_code=stream_dto.status_code,
         )
-    except (ValueError, PermissionError) as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-    except Exception as exc:
-        logger.error("media_api.stream_failed", media_id=str(media_id), error=str(exc))
-        raise HTTPException(status_code=500, detail="Internal server error during streaming")
+    except InvalidRangeError as exc:  # 416 é próprio do HTTP de streaming, não um erro de negócio
+        raise HTTPException(status_code=416, detail=str(exc))
 
 
 @router.post(
     "/{media_id}/reprocess",
-    response_model=BaseResponseSchema,
-    summary="Reprocess media item",
+    response_model=MediaResponse,
+    summary="Reprocessar uma mídia que falhou",
 )
 async def reprocess_media(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
 ):
-    """Reprocess a media item (transcription, summarization, sentiment)."""
-    try:
-        command = ReprocessMediaCommand(media_id=media_id)
-        await service.reprocess_media(
-            command,
-            user_id=current_user.id,
-            user_role=current_user.role,
-        )
-
-        response_data = {
-            "media_id": str(media_id),
-            "status": "processing",
-            "message": "Media reprocessing initiated"
-        }
-
-        return create_success_response(
-            data=response_data,
-            message="Media reprocessing started successfully"
-        )
-
-    except PermissionError:
-        raise HTTPException(status_code=404, detail="Mídia não encontrada ou não autorizada")
-    except ValueError as e:
-        return create_error_response(
-            error=str(e),
-            message="Media reprocessing failed",
-        )
-    except Exception as e:
-        return create_error_response(
-            error=f"Media reprocessing failed: {str(e)}",
-            message="Internal reprocessing error"
-        )
+    """Apaga os resultados anteriores e processa a mídia de novo; devolve a
+    mídia já em processamento. Mídia de outro usuário: 404."""
+    media = await service.reprocess_media(
+        ReprocessMediaCommand(media_id=media_id), user_id=current_user.id, user_role=current_user.role
+    )
+    return MediaResponse.from_domain(media)

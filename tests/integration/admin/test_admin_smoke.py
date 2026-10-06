@@ -5,17 +5,12 @@ from src.admin.application.services.admin_read_service import AdminReadService
 from src.admin.application.services.admin_service import AdminService
 from src.admin.application.services.admin_user_service import AdminUserService
 from src.admin.application.services.admin_media_service import AdminMediaService
-from src.admin.application.services.admin_audit_service import AdminAuditService
-from src.admin.application.ports import (
-    AdminMediaRepositoryPort,
-    AdminUserRepositoryPort,
-)
 from src.media_management.domain import Media
 from src.media_management.domain.enums import MediaStatus
 from src.user_management.domain import User, UserRole
 
 
-class InMemoryUserRepo(AdminUserRepositoryPort):
+class InMemoryUserRepo:
     def __init__(self):
         self.users = {}
 
@@ -36,7 +31,7 @@ class InMemoryUserRepo(AdminUserRepositoryPort):
         return sum(1 for u in self.users.values() if u.is_active)
 
 
-class InMemoryMediaRepo(AdminMediaRepositoryPort):
+class InMemoryMediaRepo:
     def __init__(self):
         self.media = {}
 
@@ -74,6 +69,9 @@ class InMemoryMediaRepo(AdminMediaRepositoryPort):
 
 
 class DummyPermission:
+    def require_admin(self, admin_user):
+        return None
+
     def validate_admin_operation(self, admin_user, target_user_id):
         return None
 
@@ -97,9 +95,6 @@ async def test_admin_smoke():
         storage_provider="local",
         original_file_path="/tmp/file.txt",
         transcription_provider=None,
-        summarization_provider=None,
-        sentiment_provider=None,
-        topic_modeling_provider=None,
         language="en",
     )
     media.status = MediaStatus.FAILED
@@ -110,7 +105,7 @@ async def test_admin_smoke():
     mock_media_port = AsyncMock()
 
     admin_user_svc = AdminUserService(user_service=mock_user_port, permission_service=DummyPermission(), audit_service=audit)
-    admin_media_svc = AdminMediaService(media_repository=media_repo, permission_service=DummyPermission(), audit_service=audit, media_service=mock_media_port)
+    admin_media_svc = AdminMediaService(media=mock_media_port, permission_service=DummyPermission(), audit_service=audit)
     admin_read_svc = AdminReadService(user_read_port=user_repo, media_read_port=media_repo)
 
     admin_svc = AdminService(
@@ -118,8 +113,6 @@ async def test_admin_smoke():
         audit_service=audit,
         admin_user_service=admin_user_svc,
         admin_media_service=admin_media_svc,
-        user_adapter=admin_user_svc,
-        media_adapter=admin_media_svc,
     )
 
     stats = await admin_svc.get_system_stats(None)

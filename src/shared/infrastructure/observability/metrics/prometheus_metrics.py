@@ -1,12 +1,17 @@
 """Module for managing shared Prometheus metrics across different contexts
 (FastAPI and Celery) to avoid metric duplication.
 """
+from functools import partial
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from prometheus_client import REGISTRY, Counter, Gauge, Histogram
 
 
+# Rótulos só com valores de conjunto pequeno (operação, provedor, situação).
+# Ids de mídia ou de usuário criariam uma série por mídia, e a memória do
+# Prometheus cresceria sem limite; quem precisa seguir uma mídia usa os logs
+# (correlation_id) ou os tempos gravados em processing_stats.
 class SharedPrometheusMetrics:
     """Singleton for managing Prometheus metrics that can be shared
     between different contexts (API and Celery) to avoid duplication.
@@ -76,7 +81,7 @@ class SharedPrometheusMetrics:
     def get_media_operations_total(self) -> Counter:
         return self._get_or_create_metric(
             "counter", 'media_operations_total', 'Total number of media operations',
-            ['operation', 'provider', 'status', 'media_id'], Counter
+            ['operation', 'provider', 'status'], Counter
         )
 
     def get_media_duration_seconds(self) -> Histogram:
@@ -84,7 +89,7 @@ class SharedPrometheusMetrics:
             "histogram",
             "media_operation_duration_seconds",
             "Duration of media operations in seconds",
-            ["operation", "provider", "status", "media_id"],
+            ["operation", "provider", "status"],
             Histogram,
         )
 
@@ -131,35 +136,7 @@ class SharedPrometheusMetrics:
             "transcription_active_operations",
             "Number of active transcription operations",
             ["provider"],
-            Gauge,
-        )
-
-    # --- Metrics for Video Processing ---
-    def get_video_processing_operations_total(self) -> Counter:
-        return self._get_or_create_metric(
-            "counter",
-            "video_processing_operations_total",
-            "Total number of video processing operations",
-            ["operation", "status"],
-            Counter,
-        )
-
-    def get_video_processing_duration_seconds(self) -> Histogram:
-        return self._get_or_create_metric(
-            "histogram",
-            "video_processing_operation_duration_seconds",
-            "Duration of video processing operations",
-            ["operation"],
-            Histogram,
-        )
-
-    def get_video_processing_input_file_size_bytes(self) -> Histogram:
-        return self._get_or_create_metric(
-            "histogram",
-            "video_processing_input_file_size_bytes",
-            "Size of video files processed",
-            ["operation"],
-            Histogram,
+            partial(Gauge, multiprocess_mode="livesum"),
         )
 
     # --- Metrics for Text Analysis ---
@@ -168,7 +145,7 @@ class SharedPrometheusMetrics:
             "counter",
             "text_analysis_operations_total",
             "Total number of text analysis operations",
-            ["operation", "provider", "status", "media_id", "user_id"],
+            ["operation", "provider", "status"],
             Counter
         )
 
@@ -177,26 +154,7 @@ class SharedPrometheusMetrics:
             "histogram",
             "text_analysis_operation_duration_seconds",
             "Duration of text analysis operations in seconds",
-            ["operation", "provider", "status", "media_id", "user_id"],
-            Histogram,
-        )
-
-    # --- Metrics for Topic Modeling ---
-    def get_topic_modeling_operations_total(self) -> Counter:
-        return self._get_or_create_metric(
-            "counter",
-            "topic_modeling_operations_total",
-            "Total number of topic modeling operations",
             ["operation", "provider", "status"],
-            Counter,
-        )
-
-    def get_topic_modeling_operation_duration_seconds(self) -> Histogram:
-        return self._get_or_create_metric(
-            "histogram",
-            "topic_modeling_operation_duration_seconds",
-            "Duration of topic modeling operations in seconds",
-            ["operation", "provider"],
             Histogram,
         )
 
@@ -235,143 +193,6 @@ class SharedPrometheusMetrics:
             "Ollama text generation retries",
             ["model"],
             Counter,
-        )
-
-    def get_textgen_transformers_attempts(self) -> Counter:
-        return self._get_or_create_metric(
-            "counter",
-            "textgen_transformers_attempts_total",
-            "Transformers text generation attempts",
-            ["model"],
-            Counter,
-        )
-
-    def get_textgen_transformers_failures(self) -> Counter:
-        return self._get_or_create_metric(
-            "counter",
-            "textgen_transformers_failures_total",
-            "Transformers text generation failures",
-            ["model"],
-            Counter,
-        )
-
-    def get_textgen_transformers_success(self) -> Counter:
-        return self._get_or_create_metric(
-            "counter",
-            "textgen_transformers_success_total",
-            "Transformers text generation successes",
-            ["model"],
-            Counter,
-        )
-
-    def get_textgen_ollama_success(self) -> Counter:
-        return self._get_or_create_metric(
-            "counter",
-            "textgen_ollama_success_total",
-            "Ollama text generation successes",
-            ["model"],
-            Counter,
-        )
-
-    def get_topic_modeling_input_text_length_chars(self) -> Histogram:
-        return self._get_or_create_metric(
-            "histogram",
-            "topic_modeling_input_text_length_chars",
-            "Length of input text in characters",
-            ["provider"],
-            Histogram,
-        )
-
-    def get_topic_modeling_num_topics(self) -> Histogram:
-        return self._get_or_create_metric(
-            "histogram",
-            "topic_modeling_num_topics",
-            "Number of topics identified",
-            ["provider"],
-            Histogram,
-        )
-
-    def get_topic_modeling_active_operations(self) -> Gauge:
-        return self._get_or_create_metric(
-            "gauge",
-            "topic_modeling_active_operations",
-            "Number of active topic modeling operations",
-            ["provider"],
-            Gauge,
-        )
-
-    # --- Metrics for Sentiment Analysis ---
-    def get_sentiment_analysis_events_total(self) -> Counter:
-        return self._get_or_create_metric(
-            "counter",
-            "sentiment_analysis_events_total",
-            "Total number of sentiment analysis events emitted.",
-            ("metric",),
-            Counter,
-        )
-
-    def get_sentiment_analysis_processing_seconds(self) -> Histogram:
-        return self._get_or_create_metric(
-            "histogram",
-            "sentiment_analysis_processing_seconds",
-            "Observed processing time for sentiment analysis operations.",
-            ("metric",),
-            Histogram,
-        )
-
-    # --- Metrics for Text Processing (OCR/Extraction) ---
-    def get_text_processing_operations_total(self) -> Counter:
-        return self._get_or_create_metric(
-            "counter",
-            "text_processing_operations_total",
-            "Total number of text processing operations",
-            ["operation", "format_type", "status"],
-            Counter,
-        )
-
-    def get_text_processing_operation_duration_seconds(self) -> Histogram:
-        return self._get_or_create_metric(
-            "histogram",
-            "text_processing_operation_duration_seconds",
-            "Duration of text processing operations in seconds",
-            ["operation", "format_type"],
-            Histogram,
-        )
-
-    def get_text_processing_file_size_bytes(self) -> Histogram:
-        return self._get_or_create_metric(
-            "histogram",
-            "text_processing_file_size_bytes",
-            "Size of processed files in bytes",
-            ["format_type"],
-            Histogram,
-        )
-
-    def get_text_processing_text_length_chars(self) -> Histogram:
-        return self._get_or_create_metric(
-            "histogram",
-            "text_processing_text_length_chars",
-            "Length of extracted text in characters",
-            ["format_type"],
-            Histogram,
-        )
-
-    def get_text_processing_extraction_ratio(self) -> Histogram:
-        return self._get_or_create_metric(
-            "histogram",
-            "text_processing_extraction_ratio",
-            "Ratio of extracted text length to file size",
-            ["format_type"],
-            Histogram,
-        )
-
-    def get_text_processing_active_operations(self) -> Gauge:
-        return self._get_or_create_metric(
-            "gauge",
-            "text_processing_active_operations",
-            "Number of active text processing operations",
-            ["format_type"],
-            Gauge,
         )
 
 

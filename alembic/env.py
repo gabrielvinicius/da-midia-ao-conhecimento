@@ -16,6 +16,9 @@ import src.media_management.infrastructure.persistence.models  # noqa: F401
 import src.media_processing.infrastructure.persistence.models  # noqa: F401
 import src.notifications.infrastructure.persistence.models  # noqa: F401
 import src.text_analysis.infrastructure.persistence.models  # noqa: F401
+import src.text_analysis.infrastructure.persistence.knowledge_models  # noqa: F401
+import src.text_analysis.infrastructure.persistence.feedback_models  # noqa: F401
+import src.shared.infrastructure.persistence.processing_stats_model  # noqa: F401
 import src.user_management.infrastructure.persistence.models  # noqa: F401
 from src.shared.infrastructure.config.settings import settings
 from src.shared.infrastructure.database import Base  # SQLAlchemy Base
@@ -30,11 +33,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Derive URL síncrona para o Alembic (evita drivers async).
-_db_url = settings.database_url
-if "+asyncpg" in _db_url:
-    _db_url = _db_url.replace("+asyncpg", "+psycopg2")
-elif "+aiosqlite" in _db_url:
-    _db_url = _db_url.replace("+aiosqlite", "")
+_db_url = settings.sync_database_url
 
 config.set_main_option("sqlalchemy.url", _db_url)
 

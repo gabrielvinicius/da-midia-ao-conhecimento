@@ -1,22 +1,14 @@
 import os
 from contextlib import asynccontextmanager
-from types import SimpleNamespace
 
 from fastapi import (
-    Depends,
     FastAPI,
-    Response,
-    WebSocket,
-    WebSocketDisconnect,
-    WebSocketException,
 )
 from fastapi.middleware.cors import CORSMiddleware
 
 # OpenTelemetry Imports
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from src.media_processing.application.event_handlers import MediaProcessingEventHandlers
 from src.shared.api.monitoring_router import router as monitoring_router
 from src.shared.api.providers_router import router as providers_router
 from src.shared.application.lifecycle import (
@@ -24,7 +16,7 @@ from src.shared.application.lifecycle import (
     start_application_resources,
     stop_application_resources,
 )
-from src.shared.application.modules import (
+from src.shared.api.modules import (
     DEFAULT_MODULE_SPECS,
     include_module_routers,
     register_module_dependencies,
@@ -38,11 +30,11 @@ from src.user_management.bootstrap import (
 from src.admin.bootstrap import (
     build_admin_module,
 )
+from src.user_management.infrastructure.dependencies.data_erasers import (
+    build_user_data_erasers,
+)
 from src.notifications.bootstrap import (
     build_notifications_module,
-)
-from src.notifications.infrastructure.adapters.auth_queries_adapter import (
-    NotificationsAuthQueriesAdapter,
 )
 from src.text_analysis.bootstrap import (
     build_text_analysis_module,
@@ -52,9 +44,10 @@ from src.shared.domain.events import (
 )
 
 # metrics_collector disabled (psutil dep)
-from src.shared.infrastructure.caching.cache import cache
 from src.shared.infrastructure.database.db import (
     AsyncSessionLocal,
+    DbSessionScopeMiddleware,
+    RequestScopedSession,
     Base,
     engine,
     engine_sync,
@@ -66,9 +59,6 @@ from src.shared.infrastructure.messaging.event_bus_factory import get_event_bus
 from src.shared.infrastructure.middleware.correlation_middleware import (
     CorrelationIdMiddleware,
 )
-from src.shared.infrastructure.middleware.error_middleware import (
-    unified_error_middleware,
-)
 from src.shared.infrastructure.middleware.performance_middleware import (
     register_performance_middleware,
 )
@@ -78,14 +68,14 @@ from src.shared.infrastructure.middleware.validation_middleware import (
 from src.shared.infrastructure.observability.health.health_check import (
     router as health_router,
 )
+from src.shared.infrastructure.config.settings import settings
+from src.shared.infrastructure.observability.metrics.exposition import start_metrics_server
 from src.shared.infrastructure.observability.logging.logging_config import (
     configure_logging,
     get_logger,
 )
 from src.shared.infrastructure.observability.tracing.tracer import configure_tracer
 from src.storage.infrastructure.dependencies import StorageServiceFactory
-from src.user_management.api.dependencies import get_current_user_websocket
-from src.user_management.domain import User
 from src.notifications.infrastructure.realtime.redis_pubsub_bridge import (
     RedisNotificationPubSubBridge,
 )
@@ -146,11 +136,18 @@ async def lifespan(app: FastAPI):
 
     lightweight_mode = os.getenv("LIGHTWEIGHT_BOOTSTRAP", "0") == "1"
 
-    configure_logging("video-summarizer-api", level="INFO", debug_mode=True)
+    configure_logging("video-summarizer-api")
     logger = get_logger("main")
+
+    if not lightweight_mode:
+        from src.user_management.config.settings import ensure_secure_secret, user_settings
+
+        ensure_secure_secret(user_settings)
 
     # Configurar tracing
     configure_tracer("video-summarizer-api")
+    # Métricas numa porta interna, fora da API pública (METRICS_PORT).
+    start_metrics_server()
 
     logger.info("Iniciando aplicação", component="lifespan")
     logger.info("Criando tabelas do banco de dados", component="database")
@@ -208,46 +205,44 @@ async def lifespan(app: FastAPI):
     # --- Manually build and bind the Media Module ---
     # This is critical to ensure dependencies like storage_downloader are injected
     # instead of using the default (empty) dependencies in routes.
-    async with AsyncSessionLocal() as session:
-        media_module, _ = build_media_components(
-            session=session,
-            storage_service_factory=storage_factory,
-            metrics_service=None,
-            event_bus=event_bus,
-        )
-        user_management_module = build_user_management_components(session=session)
-        
-        # Build notifications module using auth queries from the same session context
-        notifications_module = build_notifications_module(
-            session=session,
-            auth_queries=NotificationsAuthQueriesAdapter(db_session=session),
-            event_bus=event_bus
-        )
+    # Os módulos são montados uma vez, mas cada requisição recebe a sua sessão
+    # (RequestScopedSession + DbSessionScopeMiddleware); antes, a sessão aberta
+    # aqui era compartilhada por todas as requisições.
+    session = RequestScopedSession
+    media_module, _ = build_media_components(
+        session=session,
+        storage_service_factory=storage_factory,
+        event_bus=event_bus,
+    )
+    # Excluir um usuário apaga antes as mídias, os avisos e as avaliações dele.
+    user_management_module = build_user_management_components(
+        session=session,
+        data_erasers=build_user_data_erasers(session, media_module.media_service),
+    )
+    
+    notifications_module = build_notifications_module(session=session)
 
-        admin_module = build_admin_module(
-            session=session,
-            auth_queries=user_management_module.auth_queries,
-            user_service_core=user_management_module.user_service,
-            media_service_core=media_module.media_service,
-        )
+    admin_module = build_admin_module(
+        session=session,
+        auth_queries=user_management_module.auth_queries,
+        user_service_core=user_management_module.user_service,
+        media_service_core=media_module.media_service,
+    )
 
-        text_analysis_module = await build_text_analysis_module(
-            session=session,
-            event_bus=event_bus,
-        )
+    text_analysis_module = await build_text_analysis_module(session=session)
 
-        # Register all built modules so FastAPI uses the correct instances
-        register_module_dependencies(
-            app,
-            module_instances={
-                "media": media_module,
-                "auth": user_management_module,
-                "notifications": notifications_module,
-                "admin": admin_module,
-                "text_analysis": text_analysis_module,
-            },
-            specs=DEFAULT_MODULE_SPECS,
-        )
+    # Register all built modules so FastAPI uses the correct instances
+    register_module_dependencies(
+        app,
+        module_instances={
+            "media": media_module,
+            "auth": user_management_module,
+            "notifications": notifications_module,
+            "admin": admin_module,
+            "text_analysis": text_analysis_module,
+        },
+        specs=DEFAULT_MODULE_SPECS,
+    )
 
     notifications_bridge = None
     if not lightweight_mode:
@@ -262,43 +257,28 @@ async def lifespan(app: FastAPI):
             )
             notifications_bridge = None
 
-    resources = ApplicationResources(cache=cache, event_bus=event_bus)
+    resources = ApplicationResources(event_bus=event_bus)
 
-    default_admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "user@example.com").strip()
-    default_admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "Admin123!")
+    # O primeiro administrador só é criado quando as duas variáveis são
+    # definidas. Não há valor padrão: uma senha fixa no código-fonte público
+    # daria acesso administrativo a qualquer instalação nova.
+    default_admin_email = os.getenv("DEFAULT_ADMIN_EMAIL", "").strip()
+    default_admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "")
     force_admin_password = (
         os.getenv("DEFAULT_ADMIN_FORCE_PASSWORD", "0").lower() in {"1", "true", "yes"}
     )
 
+    if not lightweight_mode and not (default_admin_email and default_admin_password):
+        logger.info(
+            "auth.ensure_admin.skipped",
+            reason="DEFAULT_ADMIN_EMAIL e DEFAULT_ADMIN_PASSWORD não definidos",
+        )
+
     if not lightweight_mode and default_admin_email and default_admin_password:
         try:
             async with AsyncSessionLocal() as session:
-                from src.user_management.application.auth_queries import UserReadService
-                from src.user_management.application.services.user_service import (
-                    UserService,
-                )
-                from src.user_management.config.settings import user_settings
-                from src.user_management.infrastructure.adapters.user_repository_adapter import (
-                    UserRepositoryAdapter,
-                )
-                from src.user_management.infrastructure.dependencies.providers import (
-                    get_password_hasher,
-                    get_token_provider,
-                )
-                from src.user_management.infrastructure.repositories.sqlalchemy_user_repository import (
-                    UserRepository,
-                )
-
-                user_repo = UserRepository(db=session)
-                user_repo_adapter = UserRepositoryAdapter(user_repo)
-                auth_queries = UserReadService(user_repository=user_repo_adapter)
-                user_service = UserService(
-                    user_repository=user_repo_adapter,
-                    user_read_service=auth_queries,
-                    password_hasher=get_password_hasher(),
-                    token_provider=get_token_provider(),
-                    settings=user_settings,
-                )
+                # A mesma montagem do módulo usada pela API.
+                user_service = build_user_management_components(session=session).user_service
 
                 admin_user = await user_service.ensure_admin_user(
                     email=default_admin_email,
@@ -362,8 +342,6 @@ def create_app() -> FastAPI:
     # Correlation ID middleware (First to run)
     app.add_middleware(CorrelationIdMiddleware)
 
-    # Error middleware
-    app.middleware("http")(unified_error_middleware)
 
     # Instrumentação OpenTelemetry
     FastAPIInstrumentor.instrument_app(app)
@@ -377,17 +355,10 @@ def create_app() -> FastAPI:
     # Registrar middlewares de performance
     register_performance_middleware(app)
 
-    # Add CORS middleware (configuração segura)
+    # CORS: origens do ambiente, nunca uma lista fixa no código.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:5173",
-            "http://localhost:5174",  # Vite às vezes usa esta porta
-            "http://localhost:3000",
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:5174",
-            "https://yourdomain.com"  # Adicionar domínio de produção
-        ],
+        allow_origins=settings.cors_origin_list,  # CORS_ORIGINS
         allow_credentials=True,  # Necessário para cookies httpOnly
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
         allow_headers=[
@@ -412,58 +383,11 @@ def create_app() -> FastAPI:
     app.include_router(monitoring_router)
     app.include_router(providers_router)
 
-    # Add WebSocket endpoints for real-time notifications
-    @app.websocket("/ws/notifications")
-    async def websocket_notifications(
-        websocket: WebSocket,
-        current_user: User = Depends(get_current_user_websocket),
-    ):
-        from src.notifications.infrastructure.adapters.websockets.connection_manager import (
-            manager,
-        )
-        from src.notifications.infrastructure.repositories.notification_repository import (
-            NotificationRepository,
-        )
-        from src.shared.infrastructure.database.db import AsyncSessionLocal
+    # Mais externo: cada requisição ganha sua própria sessão de banco, fechada
+    # ao fim (ver RequestScopedSession).
+    app.add_middleware(DbSessionScopeMiddleware)
 
-        user_id = str(current_user.id)
-        try:
-            await manager.connect(user_id, websocket)
-
-            # Envia backlog de notificações ainda não entregues via realtime.
-            async with AsyncSessionLocal() as session:
-                repo = NotificationRepository(db=session)
-                pending = await repo.list_undelivered_by_user(user_id, limit=50)
-                for notif in pending:
-                    ok = await manager.send_to_user(
-                        user_id,
-                        {
-                            "notification_id": str(notif.id),
-                            "type": notif.type.value,
-                            "message": notif.content,
-                            "priority": notif.priority.value,
-                            "created_at": notif.created_at,
-                            "variables": notif.variables,
-                        },
-                    )
-                    if ok:
-                        await repo.mark_as_delivered(str(notif.id))
-
-            try:
-                while True:
-                    data = await websocket.receive_text()
-                    print(f"Received message from user {user_id}: {data}")
-                    await websocket.send_text(f"Server received: {data}")
-            except WebSocketDisconnect:
-                manager.disconnect(user_id, websocket)
-                print(f"WebSocket connection for user {user_id} closed")
-        except WebSocketException as exc:
-            await websocket.close(code=exc.code, reason=exc.reason or "Unauthorized")
-        except Exception as e:
-            print(f"WebSocket error: {e}")
-            await websocket.close(code=1000)
-
-    return app  # This was missing!
+    return app
 
 
 app = create_app()
@@ -482,35 +406,4 @@ async def root():
     }
 
 
-# Health Check Endpoint
-@app.get("/health")
-async def health_check():
-    """Endpoint para verificação de saúde da aplicação."""
-    try:
-        from sqlalchemy import text
-        async with AsyncSessionLocal() as session:
-            await session.execute(text("SELECT 1"))
 
-        try:
-            await cache.get("health_check")
-            cache_status = "connected"
-        except Exception:
-            cache_status = "disconnected"
-
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "cache": cache_status,
-        }
-    except Exception:
-        return {
-            "status": "unhealthy",
-            "database": "disconnected",
-            "cache": "unknown",
-        }
-
-
-@app.get("/metrics")
-async def metrics() -> Response:
-    data = generate_latest()
-    return Response(content=data, media_type=CONTENT_TYPE_LATEST)

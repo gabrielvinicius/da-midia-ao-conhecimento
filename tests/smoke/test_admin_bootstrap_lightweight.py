@@ -16,6 +16,8 @@ async def test_admin_bootstrap_lightweight(anyio_backend_name):
         assert hasattr(app.state, "event_bus")
         assert hasattr(app.state, "providers_read_service")
 
-        # Confirma que o router admin foi incluído (sem depender de overrides).
-        paths = {getattr(route, "path", None) for route in app.routes}
-        assert any(path and path.startswith("/admin") for path in paths)
+        # Confirma que o router admin foi incluído. Usa o OpenAPI em vez de
+        # app.routes: versões recentes do FastAPI agrupam os routers incluídos
+        # em objetos sem atributo "path".
+        paths = app.openapi()["paths"]
+        assert any(path.startswith("/admin") for path in paths)

@@ -21,7 +21,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-por \
     curl \
-    git \
     dumb-init \
     && rm -rf /var/lib/apt/lists/*
 
@@ -31,42 +30,51 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ build-essential pkg-config libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# ARG para definir qual versão do Torch instalar (cpu, cu124, rocm6.1, etc)
-ARG PYTORCH_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
+# Índice do PyTorch: cu124 (GPU NVIDIA, padrão), cpu ou rocm6.2 (GPU AMD).
+# O torch é instalado primeiro, a partir desse índice; o restante das
+# dependências o reaproveita (a versão fixada vai como restrição: sem ela, o
+# pip o trocava por um torch mais novo do PyPI, de outra variante de CUDA).
+ARG PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu124
 
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip setuptools wheel && \
+    TORCH_PIN="$(grep -E '^torch==' requirements.txt)" && \
     pip install --user --no-warn-script-location \
-    --extra-index-url ${PYTORCH_EXTRA_INDEX_URL} \
-    -r requirements.txt
+    --index-url ${PYTORCH_INDEX_URL} "${TORCH_PIN}" && \
+    grep -vE '^torch==' requirements.txt > /tmp/requirements-sem-torch.txt && \
+    echo "${TORCH_PIN}" > /tmp/torch-constraint.txt && \
+    pip install --user --no-warn-script-location \
+    -r /tmp/requirements-sem-torch.txt -c /tmp/torch-constraint.txt
 
 # --- Stage Final ---
 FROM base AS runtime
 
-LABEL org.opencontainers.image.title="Video Summarizer API" \
-      org.opencontainers.image.description="Enterprise Autonomous Media Intelligence" \
-      org.opencontainers.image.version="2.0.0" \
-      org.opencontainers.image.authors="Gemini Level 6.0 Agent"
+LABEL org.opencontainers.image.title="Video Summarizer" \
+      org.opencontainers.image.description="API e workers: transcrição, resumo e busca semântica de aulas gravadas" \
+      org.opencontainers.image.version="2.0.0"
 
 # Criar usuário não-root
 RUN groupadd -r appuser && useradd -m -r -g appuser appuser
 
 # Copiar dependências do builder
 COPY --from=builder /root/.local /home/appuser/.local
-ENV PATH=/home/appuser/.local/bin:$PATH
+ENV PATH=/home/appuser/.local/bin:$PATH \
+    XDG_CACHE_HOME=/app/.cache
+# Modelos baixados (Hugging Face, faster-whisper, torch) ficam em /app/.cache,
+# o volume ai_models_cache. Antes iam para /home/appuser/.cache, fora do
+# volume: cada recriação do contêiner baixava GBs de novo, e o sistema deixava
+# de funcionar sem internet.
 
 # Copiar código e configurar permissões
 COPY --chown=appuser:appuser . .
 RUN chmod +x /app/docker/*.sh
 
-# Persistência e Cache
-RUN mkdir -p /app/logs /app/media /app/storage /app/data /app/.cache && \
+# Mídias (armazenamento local) e modelos baixados; ambos viram volumes no compose.
+RUN mkdir -p /app/storage /app/.cache && \
     chown -R appuser:appuser /app /home/appuser
 
 USER appuser
-
-
 
 EXPOSE 8000
 

@@ -1,12 +1,18 @@
 """Lightweight SQLAlchemy helpers for tests and local usage."""
 from __future__ import annotations
 
-from contextlib import asynccontextmanager, contextmanager
-from typing import AsyncGenerator, Generator
+from contextvars import ContextVar
+from uuid import uuid4
+from typing import AsyncGenerator
 
 from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_scoped_session,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool
 
 from src.shared.infrastructure.config.settings import settings
@@ -14,13 +20,6 @@ from src.shared.infrastructure.observability.logging.logging_config import get_l
 
 _async_url = settings.database_url
 _sync_url = settings.sync_database_url
-
-# If async driver is provided for Postgres, derive sync URL by swapping driver.
-if "+asyncpg" in _async_url:
-    _sync_url = _async_url.replace("+asyncpg", "+psycopg2")
-# If sqlite async driver is provided, ensure sync URL is sqlite without async.
-if "+aiosqlite" in _async_url:
-    _sync_url = _async_url.replace("+aiosqlite", "")
 
 _is_sqlite = _sync_url.startswith("sqlite")
 
@@ -43,8 +42,37 @@ if "+async" in _async_url or "aiosqlite" in _async_url:
         pool_pre_ping=True,
     )
 
-SessionLocal = sessionmaker(bind=engine_sync)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+
+# --- Uma sessão por requisição --------------------------------------------
+# Os módulos da API são montados uma vez, na inicialização. Antes, recebiam a
+# sessão aberta nesse momento, e ela era compartilhada por todas as
+# requisições: duas requisições simultâneas falhavam ("concurrent operations
+# are not permitted") e o estado de transação de uma podia vazar para outra.
+# Agora recebem RequestScopedSession, que entrega a cada requisição a sua
+# própria sessão (escopo definido por DbSessionScopeMiddleware).
+_request_scope: ContextVar[str] = ContextVar("db_request_scope", default="global")
+RequestScopedSession = async_scoped_session(AsyncSessionLocal, scopefunc=_request_scope.get)
+
+
+class DbSessionScopeMiddleware:
+    """Abre um escopo de sessão por requisição HTTP/WebSocket e o fecha no fim."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            return await self.app(scope, receive, send)
+        token = _request_scope.set(uuid4().hex)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            try:
+                await RequestScopedSession.remove()
+            finally:
+                _request_scope.reset(token)
+
 
 Base = declarative_base()
 
@@ -65,46 +93,4 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             yield session
         except Exception:
             await session.rollback()
-            raise
-
-
-def get_sync_db() -> Generator[Session, None, None]:
-    """Provide a synchronous SQLAlchemy session (sem commit automático).
-
-    Mesma estratégia do `get_db()`: commit explícito nos repositórios/adapters.
-    """
-    with SessionLocal() as session:
-        try:
-            yield session
-        except Exception:
-            session.rollback()
-            raise
-
-
-def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """Compatibility alias kept for callers; prefer get_db()."""
-    return get_db()
-
-
-@asynccontextmanager
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Async context manager yielding a managed session (sem commit automático)."""
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
-
-
-@contextmanager
-def get_sync_session() -> Generator[Session, None, None]:
-    """Synchronous context manager for SQLAlchemy session (sem commit automático)."""
-    with SessionLocal() as session:
-        try:
-            yield session
-        except Exception:
-            session.rollback()
             raise

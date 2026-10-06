@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import List
+
 from abc import ABC, abstractmethod
 
 from ...domain import Document, TextChunk

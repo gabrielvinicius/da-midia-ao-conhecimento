@@ -5,10 +5,11 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, String, Text, Uuid
-from sqlalchemy import Enum as SqlEnum
 
-from src.media_processing.domain import Transcription as DomainTranscription, TranscriptionStatus
+from src.media_processing.domain import Transcription as DomainTranscription
+from src.media_processing.domain import TranscriptionStatus
 from src.shared.infrastructure.database.db import Base
+from src.shared.infrastructure.database.types import enum_column
 
 
 class TranscriptionModel(Base):
@@ -28,10 +29,9 @@ class TranscriptionModel(Base):
     content = Column(Text, nullable=False, default="")
     language = Column(String, nullable=True)
     confidence_score = Column(Float, nullable=True)
-    speaker_labels = Column(JSON, nullable=True)
     segments = Column(JSON, nullable=True)
     status = Column(
-        SqlEnum(TranscriptionStatus),
+        enum_column(TranscriptionStatus),
         default=TranscriptionStatus.PENDING,
         nullable=False,
         index=True,
@@ -44,7 +44,11 @@ class TranscriptionModel(Base):
     updated_at = Column(DateTime(timezone=True), nullable=True)
     processed_at = Column(DateTime(timezone=True), nullable=True)
     error_message = Column(String, nullable=True)
-    result = Column(JSON, nullable=True)
+    # Duração da gravação e o que aparecia na tela. Antes ficavam numa coluna
+    # JSON "result" junto com a saída bruta do Whisper, que repetia o texto e
+    # os segmentos já gravados em content e segments.
+    media_duration_seconds = Column(Float, nullable=True)
+    visual_context = Column(JSON, nullable=True)
     speaker_aliases = Column(JSON, nullable=True, default=lambda: {})
 
     def to_domain(self) -> DomainTranscription:
@@ -54,10 +58,9 @@ class TranscriptionModel(Base):
             user_id=self.user_id,
             filename=self.filename,
             correlation_id=self.correlation_id,
-            content=self.content,
+            text=self.content or "",
             language=self.language,
             confidence_score=self.confidence_score,
-            speaker_labels=self.speaker_labels,
             segments=self.segments,
             status=self.status,
             provider=self.provider,
@@ -65,8 +68,9 @@ class TranscriptionModel(Base):
             updated_at=self.updated_at,
             processed_at=self.processed_at,
             error_message=self.error_message,
-            result=self.result,
-            speaker_aliases=self.speaker_aliases
+            speaker_aliases=self.speaker_aliases,
+            media_duration_seconds=self.media_duration_seconds,
+            visual_context=self.visual_context,
         )
 
     @classmethod
@@ -80,7 +84,6 @@ class TranscriptionModel(Base):
             content=transcription.text,
             language=transcription.language,
             confidence_score=transcription.confidence_score,
-            speaker_labels=getattr(transcription, "speaker_labels", None),
             segments=transcription.segments,
             status=transcription.status,
             provider=transcription.provider,
@@ -88,6 +91,7 @@ class TranscriptionModel(Base):
             updated_at=transcription.updated_at,
             processed_at=transcription.processed_at,
             error_message=transcription.error_message,
-            result=transcription.result,
-            speaker_aliases=transcription.speaker_aliases
+            speaker_aliases=transcription.speaker_aliases,
+            media_duration_seconds=transcription.media_duration_seconds,
+            visual_context=list(transcription.visual_context or []) or None,
         )

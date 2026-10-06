@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, AsyncIterator, Dict, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,23 +12,18 @@ class CreateMediaCommand(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     user_id: str | UUID = Field(..., description="ID do dono do media.")
-    file: bytes = Field(..., description="Arquivo binário a ser armazenado.")
+    file_path: str = Field(..., description="Arquivo recebido, já gravado num temporário local.")
+    file_size_bytes: int = Field(..., ge=0, description="Tamanho do arquivo recebido.")
     filename: str = Field(..., description="Nome original do arquivo.")
     storage_provider: str = Field(..., description="Provider de storage escolhido.")
     transcription_provider: Optional[str] = Field(
         None, description="Provider de transcrição a utilizar."
     )
-    summarization_provider: Optional[str] = Field(
-        None, description="Provider de sumarização a utilizar."
-    )
-    sentiment_provider: Optional[str] = Field(
-        None, description="Provider de sentimento a utilizar."
-    )
-    topic_modeling_provider: Optional[str] = Field(
-        None, description="Provider de tópicos a utilizar."
-    )
     metadata: Optional[Dict[str, Any]] = Field(
         None, description="Metadados adicionais enviados pelo cliente."
+    )
+    correlation_id: Optional[str] = Field(
+        None, description="Identificador da requisição, levado até as tarefas da fila."
     )
 
 
@@ -91,7 +86,8 @@ class MediaStreamDTO(BaseModel):
     """Resultado do processamento de stream, pronto para a camada de transporte."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    content: bytes
+    # Trechos lidos sob demanda enquanto a resposta é enviada.
+    chunks: AsyncIterator[bytes]
     media_type: str
     headers: Dict[str, str]
     status_code: int

@@ -18,7 +18,9 @@ class UserReadAdapter(AdminUserReadPort):
         return await self._svc.count_active()
 
     async def get_user_by_id(self, query: GetUserQuery):
-        return await self._svc.get_user_by_id(query)
+        # O serviço de usuários recebe o id, não a consulta do admin; antes a
+        # consulta inteira ia para session.get() e a rota de atividade dava 500.
+        return await self._svc.get_user_by_id(query.user_id)
 
 
 __all__ = ["UserReadAdapter"]

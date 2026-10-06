@@ -1,3 +1,44 @@
+# Instalação completa numa máquina com GPU NVIDIA:
+#   cp .env.example .env   (e ajuste SECRET_KEY, DB_PASSWORD e o administrador)
+#   docker compose up -d --build
+# Variantes: docker-compose.cpu.yml (sem GPU) e docker-compose.rocm.yml (GPU
+# AMD). Para desenvolver com o código do host: docker-compose.dev.yml.
+
+# Comum à API e aos workers. O .env vale para todos (antes, só para a API:
+# os workers ignoravam os prazos, o modelo de transcrição e o formato dos
+# logs definidos nele); as variáveis abaixo têm precedência sobre ele e
+# apontam para os serviços deste compose.
+x-app-environment: &app-environment
+  APP_ENV: production
+  REDIS_URL: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/0
+  DATABASE_URL: ${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-video_summarizer}
+  STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-video-summarizer}
+  STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-http://minio:9000}
+  STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-minio}
+  STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-minio123}
+  OLLAMA_HOST: http://ollama:11434
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+  # Métricas só na rede interna (coletadas pelo serviço prometheus).
+  METRICS_PORT: "9100"
+
+x-app: &app
+  build:
+    context: .
+    target: runtime
+  image: video-summarizer-app:latest
+  env_file: [.env]
+  restart: unless-stopped
+  networks:
+    - backend-net
+    - public-net
+
+x-gpu: &gpu
+  devices:
+    - driver: nvidia
+      count: all
+      capabilities: [gpu]
+
 services:
   postgres:
     image: pgvector/pgvector:pg17
@@ -7,7 +48,10 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-video_summarizer}
     volumes:
-      - postgres_data:/var/lib/postgresql
+      # Pasta de dados do PostgreSQL 17. Antes, o volume ia para a pasta-mãe
+      # (/var/lib/postgresql, caminho do PostgreSQL 18), e o banco ficava num
+      # volume anônimo que um "docker compose down" descartava.
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - backend-net
     restart: unless-stopped
@@ -18,8 +62,13 @@ services:
       retries: 5
 
   redis:
-    image: redis:latest
+    image: redis:8.8
     container_name: video_summarizer_redis
+    # Gravado em disco: a fila, os bloqueios de login e os tokens revogados no
+    # logout sobrevivem a uma recriação (antes, um token revogado voltava a valer).
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
     networks:
       - backend-net
     restart: unless-stopped
@@ -33,40 +82,101 @@ services:
     image: minio/minio:latest
     container_name: video_summarizer_minio
     environment:
-      MINIO_ROOT_USER: ${ACCESS_KEY:-minio}
-      MINIO_ROOT_PASSWORD: ${SECRET_KEY_S3:-minio123}
+      MINIO_ROOT_USER: ${STORAGE_S3_ACCESS_KEY:-minio}
+      MINIO_ROOT_PASSWORD: ${STORAGE_S3_SECRET_KEY:-minio123}
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
     networks:
       - backend-net
+    restart: unless-stopped
 
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    image: jaegertracing/jaeger:2.22.0
     container_name: video_summarizer_jaeger
+    ports:
+      # Só na própria máquina: os rastros incluem dados das requisições.
+      - "127.0.0.1:16686:16686"  # interface web do Jaeger
     networks:
       - backend-net
       - public-net
+    restart: unless-stopped
+
+  prometheus:
+    # Coleta as métricas da API e dos workers pela porta interna 9100.
+    image: prom/prometheus:v3.15.0
+    container_name: video_summarizer_prometheus
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"  # interface web, só na própria máquina
+    networks:
+      - backend-net
+      - public-net
+    restart: unless-stopped
+
+  ollama:
+    # LLM local (Qwen3.5-9B por padrão). Os modelos são baixados pelo
+    # serviço ollama-models na primeira inicialização.
+    image: ollama/ollama:0.35.1
+    container_name: video_summarizer_ollama
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      # Descarrega o modelo da GPU após 5 min ocioso, liberando VRAM.
+      - OLLAMA_KEEP_ALIVE=5m
+      - OLLAMA_MAX_LOADED_MODELS=1
+      # Atenção eficiente e cache de contexto em 8 bits: cerca de metade da
+      # memória de GPU do contexto, com perda de qualidade desprezível.
+      - OLLAMA_FLASH_ATTENTION=1
+      - OLLAMA_KV_CACHE_TYPE=q8_0
+    networks:
+      - backend-net
+      # backend-net é interna (sem internet); public-net dá a saída necessária
+      # para o "ollama pull". Nenhuma porta é publicada no host.
+      - public-net
+    deploy:
+      resources:
+        reservations: *gpu
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  ollama-models:
+    # Roda uma vez a cada "up": baixa o modelo principal e o reserva, se ainda
+    # não estiverem no volume ollama_models (downloads seguintes são rápidos).
+    image: ollama/ollama:0.35.1
+    container_name: video_summarizer_ollama_models
+    depends_on:
+      ollama: { condition: service_healthy }
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - LLM_MODEL=${LLM_MODEL:-qwen3.5:9b}
+      - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-gemma4:e4b}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull \"$$LLM_MODEL\" && ollama pull \"$$LLM_FALLBACK_MODEL\""]
+    networks:
+      - backend-net
+    restart: "no"
 
   backend:
-    build:
-      context: .
-      target: runtime
-    image: video-summarizer-app:latest
+    <<: *app
     container_name: video_summarizer_backend
     ports:
-      - "8000:8000"
-    env_file: [.env]
+      # Só na própria máquina (documentação da API e depuração). O acesso
+      # externo passa pelo Nginx do frontend, que define o X-Real-IP usado
+      # no limite de tentativas de login; acessar a API direto permitiria
+      # forjar esse cabeçalho.
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
     volumes:
-      - ./src:/app/src:ro
       - media_data:/app/storage
       - ai_models_cache:/app/.cache
-    networks:
-      - backend-net
-      - public-net
     deploy:
       resources:
         limits:
@@ -77,103 +187,75 @@ services:
       timeout: 10s
       retries: 3
     environment:
-      - DB_HOST=postgres
-      - REDIS_HOST=redis
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
-      - HF_TOKEN=${HF_TOKEN}
-      - AI_DEVICE=cuda
+      <<: *app-environment
+      AI_DEVICE: cuda
 
   worker-heavy:
-    build:
-      context: .
-      target: runtime
-    image: video-summarizer-app:latest
+    <<: *app
     container_name: video_summarizer_worker_heavy
     entrypoint: /app/docker/worker-entrypoint.sh
-    # Processa filas pesadas: Vídeo, Transcrição e Análise de Texto
-    command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=1 -Q video_fast_lane,video_queue,transcription_fast_lane,transcription_queue,text_analysis_fast_lane,text_analysis_queue
+    # GPU, uma tarefa por vez: transcrição, extração de texto e análise.
+    command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=1 -Q transcription_fast_lane,transcription_queue,text_analysis_queue
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       backend: { condition: service_healthy }
+      ollama: { condition: service_started }
     volumes:
-      - ./src:/app/src:ro
       - media_data:/app/storage
       - ai_models_cache:/app/.cache
-    networks:
-      - backend-net
-      - public-net
     deploy:
       resources:
         limits:
           memory: 12G
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+        reservations: *gpu
     environment:
-      - DB_HOST=postgres
-      - REDIS_HOST=redis
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
-      - HF_TOKEN=${HF_TOKEN}
-      - AI_DEVICE=cuda
+      <<: *app-environment
+      AI_DEVICE: cuda
+      AI_COMPUTE_TYPE: float16
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
 
   worker-light:
-    build:
-      context: .
-      target: runtime
-    image: video-summarizer-app:latest
+    <<: *app
     container_name: video_summarizer_worker_light
     entrypoint: /app/docker/worker-entrypoint.sh
-    # Processa fila default (notificações, IO)
-    command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=4 -Q celery
+    # Tarefas curtas; --beat agenda as verificações periódicas (uma instância só).
+    command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=4 -Q celery --beat --schedule /tmp/celerybeat-schedule
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       backend: { condition: service_healthy }
     volumes:
-      - ./src:/app/src:ro
       - media_data:/app/storage
-    networks:
-      - backend-net
-      - public-net
     deploy:
       resources:
         limits:
           memory: 2G
     environment:
-      - DB_HOST=postgres
-      - REDIS_HOST=redis
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
-      - HF_TOKEN=${HF_TOKEN}
-      - AI_DEVICE=cpu
-
+      <<: *app-environment
+      AI_DEVICE: cpu
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
 
   frontend:
+    # Submódulo frontend (git clone --recurse-submodules, ou
+    # git submodule update --init frontend).
     build:
-      context: .
-      dockerfile: docker/frontend.Dockerfile
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: video_summarizer_frontend
     ports: ["3000:80"]
     depends_on: [backend]
     networks:
       - public-net
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+  redis_data:
   minio_data:
   media_data:
   ai_models_cache:
+  ollama_models:
 
 networks:
   public-net:

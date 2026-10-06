@@ -25,14 +25,17 @@ class MediaRepositoryAdapter(MediaRepositoryPort):
     async def update(self, media: Media):
         return await self._repo.update(media)
 
+    async def list_waiting(self, created_before, limit: int = 50, after=None):
+        return await self._repo.list_waiting(created_before, limit, after)
+
     async def count_all(self) -> int:
         return await self._repo.count_all()
 
     async def count_by_user(self, user_id: UUID) -> int:
         return await self._repo.count_by_user(user_id)
 
-    async def count_by_status(self, status):
-        return await self._repo.count_by_status(status)
+    async def count_by_status(self, status, since=None):
+        return await self._repo.count_by_status(status, since=since)
 
     async def count_by_user_and_status(self, user_id: UUID, status):
         return await self._repo.count_by_user_and_status(user_id, status)

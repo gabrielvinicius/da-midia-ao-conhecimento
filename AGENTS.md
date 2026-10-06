@@ -1,28 +1,59 @@
-# Repository Guidelines (Level 7.0 Precursor - Sovereign Knowledge Base)
+# Repository Guidelines
 
 ## Project Structure & Module Organization
 Backend code lives in `src/`, grouped by bounded contexts such as `media_management`, `media_processing`, `text_analysis`, `storage`, and `admin`. The system operates as a **Modular Monolith** with **Clean Architecture** and **DDD**.
 
-- `media_processing`: Orchestrates the Multimodal pipeline (Whisper for audio, Moondream 2 for vision). Handlers are in `tasks.py`.
-- `text_analysis`: Granular pipeline (Chunking -> Sentiment -> Topics -> Visual Integration -> Summary). Uses Llama 3 for synthesis.
+- `media_processing`: Orchestrates the Multimodal pipeline (Whisper for audio, Moondream 2 for vision). Celery tasks are in the module-root `tasks.py`.
+- `text_analysis`: Granular pipeline (Chunking -> Sentiment -> Topics -> Indexing -> Topic titles -> Summary -> Grounding check). Synthesis via Ollama (Qwen3.5-9B, Gemma 4 as reserve). Frame descriptions arrive ready from `media_processing`.
 - `storage`: High-level ports for swappable backends (Local/S3/MinIO). Includes `StorageMaintenanceService` for cleanup.
 - `shared`: Common domain events, infrastructure middleware, and the `pgvector` semantic indexing bridge.
 
 ### Core Architectural Mandates
-- **Pure Dependency Injection**: All dependencies MUST be composed in `main.py` via `bootstrap.py` factories. Avoid global singletons.
+- **Pure Dependency Injection**: All dependencies MUST be composed in `main.py` via `bootstrap.py` factories. Avoid global singletons. The only process-wide state allowed is explicit and centralized: loaded AI models in `shared/infrastructure/model_cache.py` and the worker's event bus in `shared/infrastructure/messaging/process_bus.py`.
+- **Shared kernel**: application and domain code may import only `shared.domain` and `shared.application` (ports such as `LoggerPort`, `SupportsEventBus`, `UnitOfWorkPort`, `UserRole`), never `shared.infrastructure`.
+- **Data ownership**: a module queries only its own tables (enforced by `tests/unit/test_architecture_table_ownership.py`); to know about another module's data, define a port and let that module implement it.
+- **Integration events**: each event in `shared/domain/events.py` declares `published_by`; only that module creates it (`tests/unit/test_architecture_event_ownership.py`).
+- **Event payloads**: events carry typed fields only, never a free `metadata` dict (checked by the same test). IDs travel as strings and become UUIDs on entry through `shared/domain/value_objects/identifiers.py` (`parse_id`, `parse_media_id`).
+- **Queues**: Celery task and queue names live in `shared/events/integration_events.py`; the `-Q` lists in the docker-compose files must match (`tests/unit/test_queue_names.py`).
+- **Transactions**: a repository commits its own single-aggregate change; a use case that touches several repositories runs inside `UnitOfWorkPort.transaction()` (repositories then only flush).
+- **Single composition**: each application service has one factory, in its module's `infrastructure/dependencies/builders.py`, used by the API bootstrap, the workers and the event handlers alike. API dependency defaults (`api/dependencies.py`) never build services; they raise until `bootstrap.bind_*_module` binds the instance (`tests/unit/test_architecture_single_composition.py`).
+- **Errors**: application and domain errors extend `shared/domain/errors.py` (`NotFoundError`, `AccessDeniedError`, `ConflictError`, `TemporarilyUnavailableError`, `ValidationError`, `DomainError`). They are translated to HTTP in one place (`shared/infrastructure/exceptions/exception_handlers.py`); routes don't catch them just to change the status code. Unexpected errors become a 500 without the internal message.
+- **Complexity**: functions stay at McCabe complexity 12 or less (checked in CI); split long flows into named steps.
+- **Data model**: ids are UUID; timestamps are `DateTime(timezone=True)` in UTC (`shared/domain/time/clock.utcnow`); enums are stored as text via `shared/infrastructure/database/types.enum_column` (no native PostgreSQL enums). Tables derived from a media reference `media.id` with a foreign key; deletion is done by the application (`MediaDataEraserPort` per media, `UserDataEraserPort` per user), never by cascades across modules.
+- **Repositories**: map rows to domain objects right away; no `rollback` before reads (a failed commit is rolled back inside `unit_of_work.commit`); no `refresh` after commit unless a server-side default must be read.
+- **Rich entities**: state changes go through entity methods (`mark_as_failed`, `mark_as_processing`, `mark_as_extracted`), never by assigning `status` from services.
+- **Observability**: logs are JSON by default (`LOG_FORMAT=console` for local reading) and every line carries the `correlation_id` bound in `contextvars` by `CorrelationIdMiddleware` (API) or `task_prerun` (Celery). The request id travels in `MediaUploaded` to the queued tasks. Prometheus metrics are never served by the public API: API and workers expose them on the internal `METRICS_PORT` (workers in multiprocess mode, `PROMETHEUS_MULTIPROC_DIR`), scraped by the `prometheus` Compose service. `/health` checks the database and Redis and answers 503 when one is down.
+- **Analysis factors**: sentiment, topics (with titles) and grounding are optional (`ANALYSIS_FACTORS`); frame description is switched off with `VISUAL_PROVIDER=none`. A switched-off factor is left out of the pipeline and its model is never loaded; later steps must cope with its absence. Chunking, chunk embeddings, indexing and synthesis always run.
+- **Media lifecycle**: `uploaded → processing → analyzing → completed`, any stage → `failed`, `failed → processing` (reprocess). Transitions live in `Media` (and `Transcription`); an out-of-order event is refused by the entity and ignored by `MediaLifecycle`. The media is `completed` only on `AnalysisCompleted`; `AnalysisFailed` fails it. Media stuck in `analyzing` are failed by `UnfinishedAnalysisRecovery`. A finished transcription is never re-run (`Transcription.is_finished`); a recording without speech fails at once (`NoSpeechFoundError`).
+- **End of the pipeline**: text_analysis publishes `AnalysisCompleted` (topic titles, overall tone, failed steps, summary source) and `AnalysisFailed`; new layers subscribe to them. Media state subscribes in `media_management/worker.py`; notifications subscribe to the pipeline events in `notifications/worker.py` (both bound by `src/worker_process.py`); media_processing and text_analysis never import notifications (`.importlinter`). A subscriber failure must not reach the publisher (it would re-run GPU work).
+- **Task retries** (`shared/infrastructure/tasks/retry.py`, at most `PIPELINE_MAX_RETRIES`): transcription and text extraction retry everything except permanent errors (`shared.domain.errors.is_permanent_failure`: any `DomainError` but `TemporarilyUnavailableError`) via `retry_unless_permanent`; the analysis retries only transient errors. A permanent error is final on the first attempt. One analysis per media (unique `media_id`): a retry overwrites the previous one.
+- **Workers**: `src/celery_app.py` holds only configuration (the API imports it to send tasks); the worker process assembly is `src/worker_process.py` (loaded by name through `include`), which lists every module's subscriptions in order (media state, processing, notices last). The process bus subscribes them when created, so a failure reaches the task instead of being swallowed by a Celery signal (`.importlinter` forbids `celery_app` and `shared` from importing it). Results are not stored (`task_ignore_result`). GPU tasks have a hard `time_limit` (processing maximum); the analysis has a soft limit that announces `AnalysisFailed`, below `MEDIA_ANALYSIS_GIVE_UP_MINUTES`. A task delivered again after finishing re-announces the stored result (unless a reprocess replaced it) instead of doing nothing. Task bodies run with `asyncio.run`.
+- **Media files**: workers stage the media on disk with `StoragePort.download_to`, never `retrieve` into memory; transcription, frame description and text extraction share `processing_job.staged_file`.
+- **Analysis state**: language, visual context, summary source (`SummarySource`), grounding report and step outcomes are typed fields of `Analysis`; `diagnostics` holds only technical details. `application/mappers.analysis_diagnostics`/`restore_from_diagnostics` keep the stored and API `diagnostics` format.
+- **Storage paths**: `FilePath` accepts only relative paths without `..`; every adapter relies on it.
+- **Time**: domain and application read the clock only through `shared/domain/time/clock.utcnow`; recording times are formatted by `shared/domain/time/timestamps.format_timestamp`.
+- **Authentication**: every token is checked by `AuthService.user_for_token(token, purpose, resource)`. Access tokens go only in the `Authorization` header; the video URL and the WebSocket use short scoped tokens (`POST /auth/scoped-token`, `application/tokens.TokenPurpose`). Refresh tokens rotate on use and are revoked on logout (`RevokedTokensPort`, Redis).
+- **API never runs models**: analysis requests from the API go to the queue (`AnalysisRequestService`); the API composes only read, review and request services of text_analysis.
+- **Access rule**: owner or admin, 404 for everyone else, in one place (`shared/application/access.py`: `Requester`, `ensure_can_access`), applied by the services of media, transcriptions, analyses and notices; routes get the `Requester` from `user_management.api.dependencies.get_requester` and never check ownership themselves.
+- **API responses**: typed schemas; lists use `shared/api/schemas.PaginatedResponse`.
+- **Logs**: no personal data (e-mails masked with `shared/application/privacy.masked_email`, search text never logged); Prometheus labels never carry media or user ids.
+- **Text generation**: only through Ollama (`OllamaTextGenerationAdapter`, main and reserve model from settings). There is no Transformers path for the LLM.
+- **Deployment**: `docker-compose.yml` is production (no host code mounts; every app service gets `env_file: .env` plus the shared `x-app-environment`, `APP_ENV=production`, `restart: unless-stopped`); variants only override what differs (`docker-compose.cpu.yml`, `docker-compose.rocm.yml`); host code mounts live in `docker-compose.dev.yml`. Data volumes must target the image's data directory (Postgres 17: `/var/lib/postgresql/data`; Redis with AOF: `/data`); model caches go to `/app/.cache` (`XDG_CACHE_HOME`). Every variable in `.env.example` must be read by some setting (`tests/unit/test_deployment_config.py`). Backups: `scripts/ops/backup.sh` / `restore.sh`.
+- **Dependencies**: runtime in `requirements.txt` with tested versions pinned by `~=` (GPU-only packages capped below the next major; `torch` fixed, installed from the variant's index); tests and linters in `requirements-dev.txt`, never in the image. Passwords use `bcrypt` directly and tokens use `PyJWT` (no passlib, no python-jose). Docker images use fixed tags, never `latest`.
+- **Configuration**: environment-specific values (CORS origins in `CORS_ORIGINS`, hosts, models) come from settings, never hard-coded lists.
 - **Hexagonal Integrity**: Business logic interacts with the world only through Ports (`application/ports.py`). Adapters stay in `infrastructure/`.
 - **Granular Pipeline**: Analysis is step-based. Partial results MUST be saved to allow resilience and adaptive retries.
 - **Semantic indexing**: Every processed chunk is vectorized via `pgvector` for global semantic search.
 
 ### Module Deprecations & Cleanup Status
-- `media_management`: `MediaService` is the unique orchestrator. Legacy `MediaOrchestrator` and utilities are removed.
-- `monitoring`: Partially legacy. Prefer using the new observability ports (`LoggerPort`, `MetricsPort`).
+- `media_management`: each operation is a use-case class in `application/use_cases/` (`UploadMedia`, `DeleteMedia`, `ReprocessMedia`, `StreamMedia`, `MediaLifecycle`); `MediaService` is only a facade over them.
+- `monitoring`: only `HardwareAdvisor` and `gpu_stats` (admin panel). Logging and metrics live in `shared/infrastructure/observability`.
 - `tests`: Directories like `tests/unit/auth` are removed. Unit tests reside within context folders (e.g., `tests/unit/user_management`).
 
 ## Intelligence & Autonomy Features
-- **Multimodal Vision**: Uses Moondream 2 to describe keyframes. Agent should ensure the `VisualAnalysisPort` is used for visual context.
+- **Multimodal Vision**: Moondream 2 describes keyframes in `media_processing`, right after transcription, through `VisualAnalysisPort`.
 - **Human-in-the-loop (HITL)**: Supports rating and editing AI outputs. Updates to summaries must preserve versioning for future fine-tuning.
-- **Hardware Awareness**: `HardwareAdvisor` monitors GPU/RAM pressure. Pipelines should be "adaptive" (e.g., smaller chunks if VRAM is low).
+- **Hardware Awareness**: `HardwareAdvisor` reports GPU/RAM pressure (whole-GPU readings via `nvidia-smi`) for the admin panel and processing deadlines.
 - **JSONB Upcasting**: Persistence uses JSONB for metadata to support zero-downtime schema evolution.
 
 ## Build, Test, and Development Commands
@@ -30,6 +61,7 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 - **Migrations**: `docker-compose exec backend alembic upgrade head`.
 - **Tests**: `poetry run pytest` (Unit, Integration, E2E). 90+ tests must pass.
 - **Linting**: `poetry run ruff check --fix` and `poetry run mypy .`.
+- **Architecture**: `lint-imports` checks the layer and module rules in `.importlinter` (also in CI). Composition code (`bootstrap.py`, `tasks.py`, `worker*.py`) lives at the module root, never in `application/`.
 
 ## Coding Style & Naming Conventions
 - **Python**: 4-space indent, Ruff formatting, strict type hints.

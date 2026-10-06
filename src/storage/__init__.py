@@ -4,16 +4,6 @@ Mantém exports estáveis (ports, VOs e services) sem acoplar o módulo a bootst
 """
 
 from src.storage.application.ports import (
-    StorageConfigurationPort as StorageConfiguration,
-)
-from src.storage.application.ports import StorageProviderError
-from src.storage.application.ports import (
-    StorageProviderFactoryPort as StorageProviderFactory,
-)
-from src.storage.application.ports import (
-    StorageProviderPort as StorageProvider,
-)
-from src.storage.application.ports import (
     StorageRepositoryPort as StorageRepository,
 )
 from src.storage.application.services.storage_service import StorageService
@@ -29,10 +19,6 @@ __all__ = [
     "FileMetadata",
     "FilePath",
     "FileSize",
-    "StorageConfiguration",
-    "StorageProvider",
-    "StorageProviderFactory",
-    "StorageProviderError",
     "StorageRepository",
     "LocalStorageService",
 ]

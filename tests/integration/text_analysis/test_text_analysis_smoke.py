@@ -21,7 +21,7 @@ from src.text_analysis.application.ports import (
 
 
 class DummySentiment(SentimentServicePort):
-    async def analyze(self, text, language=None):
+    def analyze(self, text, language=None):
         # text comes as list of chunks; map to sentiments
         items = []
         for idx, chunk in enumerate(text if isinstance(text, list) else [text]):
@@ -66,7 +66,7 @@ class DummyChunker(ChunkingServicePort):
 
 
 class DummyEmbeddings(EmbeddingServicePort):
-    async def embed(self, texts):
+    def embed(self, texts):
         return [[0.0] * len(texts)]
 
 
@@ -78,7 +78,7 @@ class AsyncInMemoryRepo(InMemoryAnalysisRepository):
         return super().get(analysis_id)
 
     async def get_by_media_id(self, media_id: str):
-        return super().get_by_media_id(media_id)
+        return await super().get_by_media_id(media_id)
 
     async def list_topics(self, analysis_id: str):
         return super().list_topics(analysis_id)
@@ -89,8 +89,8 @@ from src.text_analysis.application.pipeline.steps import (
     ChunkingStep,
     SentimentStep,
     TopicModelingStep,
-    SummarizationStep,
 )
+from src.text_analysis.application.pipeline.synthesis import SynthesisStep
 
 @pytest.mark.integration
 @pytest.mark.anyio
@@ -102,7 +102,7 @@ async def test_text_analysis_smoke():
         ChunkingStep(DummyChunker()),
         SentimentStep(DummySentiment(), language="pt"),
         TopicModelingStep(DummyTopic(), DummyEmbeddings(), language="pt"),
-        SummarizationStep(DummyTextGen(), language="pt"),
+        SynthesisStep(DummyTextGen(), language="pt"),
     ])
 
     service = TextAnalysisService(
@@ -112,8 +112,6 @@ async def test_text_analysis_smoke():
         metrics=NoOpTextAnalysisMetrics(),
         event_bus=None,
         transcription_queries=None,
-        text_analysis_read_service=None,
-        settings=None,
     )
 
     cmd = AnalyzeTextCommand(

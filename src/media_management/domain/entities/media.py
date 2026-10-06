@@ -4,8 +4,36 @@ import datetime
 from typing import Optional
 from uuid import UUID
 
-from src.shared.domain.base_entity import BaseEntity
 from src.media_management.domain.enums import MediaStatus, MediaType
+from src.shared.domain.base_entity import BaseEntity
+from src.shared.domain.errors import ConflictError
+from src.shared.domain.time.clock import utcnow
+
+
+class MediaNotReprocessableError(ConflictError):
+    """A mídia não está em um estado que permita reprocessamento."""
+
+
+class InvalidMediaTransitionError(ConflictError):
+    """Mudança de estado que o ciclo de vida da mídia não permite.
+
+    Acontece com eventos atrasados ou repetidos: uma transcrição que termina
+    depois de a mídia ter sido dada como parada, por exemplo.
+    """
+
+
+# Ciclo de vida: enviada → processando (texto) → analisando → concluída.
+# Qualquer etapa pode falhar; só uma mídia com falha volta a processar
+# (reprocessamento). Repetir o estado atual é aceito (eventos repetidos).
+# Uma análise que termina depois do prazo ainda conclui a mídia: o resultado
+# existe e foi gravado.
+_TRANSITIONS: dict[MediaStatus, frozenset[MediaStatus]] = {
+    MediaStatus.UPLOADED: frozenset({MediaStatus.PROCESSING, MediaStatus.ANALYZING, MediaStatus.FAILED}),
+    MediaStatus.PROCESSING: frozenset({MediaStatus.ANALYZING, MediaStatus.FAILED}),
+    MediaStatus.ANALYZING: frozenset({MediaStatus.COMPLETED, MediaStatus.FAILED}),
+    MediaStatus.COMPLETED: frozenset(),
+    MediaStatus.FAILED: frozenset({MediaStatus.PROCESSING, MediaStatus.COMPLETED}),
+}
 
 
 class Media(BaseEntity):
@@ -21,9 +49,6 @@ class Media(BaseEntity):
     original_file_path: str
     status: MediaStatus
     transcription_provider: Optional[str]
-    summarization_provider: Optional[str]
-    sentiment_provider: Optional[str]
-    topic_modeling_provider: Optional[str]
     language: str
     created_at: datetime.datetime
     updated_at: datetime.datetime
@@ -42,9 +67,6 @@ class Media(BaseEntity):
         original_file_path: str,
         status: MediaStatus = MediaStatus.UPLOADED,
         transcription_provider: Optional[str] = None,
-        summarization_provider: Optional[str] = None,
-        sentiment_provider: Optional[str] = None,
-        topic_modeling_provider: Optional[str] = None,
         language: str = "auto",
         created_at: Optional[datetime.datetime] = None,
         updated_at: Optional[datetime.datetime] = None,
@@ -61,12 +83,9 @@ class Media(BaseEntity):
         self.original_file_path = original_file_path
         self.status = status
         self.transcription_provider = transcription_provider
-        self.summarization_provider = summarization_provider
-        self.sentiment_provider = sentiment_provider
-        self.topic_modeling_provider = topic_modeling_provider
         self.language = language
-        self.created_at = created_at or datetime.datetime.now(datetime.timezone.utc)
-        self.updated_at = updated_at or datetime.datetime.now(datetime.timezone.utc)
+        self.created_at = created_at or utcnow()
+        self.updated_at = updated_at or utcnow()
         self.error_message = error_message
 
     @classmethod
@@ -82,9 +101,6 @@ class Media(BaseEntity):
         mime_type: Optional[str] = None,
         duration: Optional[int] = None,
         transcription_provider: Optional[str] = None,
-        summarization_provider: Optional[str] = None,
-        sentiment_provider: Optional[str] = None,
-        topic_modeling_provider: Optional[str] = None,
         language: str = "auto",
     ) -> Media:
         return cls(
@@ -98,52 +114,58 @@ class Media(BaseEntity):
             mime_type=mime_type,
             duration=duration,
             transcription_provider=transcription_provider,
-            summarization_provider=summarization_provider,
-            sentiment_provider=sentiment_provider,
-            topic_modeling_provider=topic_modeling_provider,
             language=language,
         )
 
+    def can_change_to(self, status: MediaStatus) -> bool:
+        return status == self.status or status in _TRANSITIONS[self.status]
+
+    def _change_to(self, status: MediaStatus, error_message: Optional[str] = None) -> None:
+        if not self.can_change_to(status):
+            raise InvalidMediaTransitionError(
+                f"A mídia não pode passar de {self.status.value} para {status.value}."
+            )
+        self.status = status
+        # Só a falha carrega mensagem; os demais estados não levam erro antigo.
+        self.error_message = error_message if status == MediaStatus.FAILED else None
+        self.updated_at = utcnow()
+
     def mark_as_processing(self) -> None:
-        self.status = MediaStatus.PROCESSING
-        self.updated_at = datetime.datetime.now(datetime.timezone.utc)
+        """Transcrição ou extração do texto começou."""
+        self._change_to(MediaStatus.PROCESSING)
+
+    def mark_text_ready(self) -> None:
+        """Texto pronto: a análise começa."""
+        self._change_to(MediaStatus.ANALYZING)
 
     def mark_as_completed(self) -> None:
-        self.status = MediaStatus.COMPLETED
-        self.updated_at = datetime.datetime.now(datetime.timezone.utc)
+        """Análise concluída."""
+        self._change_to(MediaStatus.COMPLETED)
 
     def mark_as_failed(self, error_message: str) -> None:
-        self.status = MediaStatus.FAILED
-        self.error_message = error_message
-        self.updated_at = datetime.datetime.now(datetime.timezone.utc)
-
-    def update(
-        self,
-        filename: Optional[str] = None,
-        file_size: Optional[int] = None,
-        mime_type: Optional[str] = None,
-        duration: Optional[int] = None,
-        created_at: Optional[datetime.datetime] = None,
-    ) -> Media:
-        if filename:
-            self.filename = filename
-        if file_size is not None:
-            self.file_size_bytes = file_size
-        if mime_type is not None:
-            self.mime_type = mime_type
-        if duration is not None:
-            self.duration = duration
-        if created_at:
-            self.created_at = created_at
-        self.updated_at = datetime.datetime.now(datetime.timezone.utc)
-        return self
+        self._change_to(MediaStatus.FAILED, error_message or "Erro desconhecido")
 
     @property
     def file_size(self) -> int:
         return self.file_size_bytes
 
+    def can_be_reprocessed(self) -> bool:
+        """Só uma mídia que falhou pode ser processada de novo.
+
+        Reprocessar apaga a transcrição e a análise anteriores: numa mídia
+        concluída, perderia o resumo corrigido e as avaliações; numa mídia em
+        processamento, apagaria os resultados enquanto o worker ainda grava.
+        """
+        return self.status == MediaStatus.FAILED
+
+    def ensure_can_be_reprocessed(self) -> None:
+        if not self.can_be_reprocessed():
+            raise MediaNotReprocessableError(
+                "Só é possível reprocessar uma mídia cujo processamento falhou "
+                f"(estado atual: {self.status.value})."
+            )
+
     def process(self) -> None:
-        """Trigger processing state transition."""
-        if self.status == MediaStatus.FAILED:
-            self.error_message = None
+        """Reinicia o processamento de uma mídia que falhou."""
+        self.ensure_can_be_reprocessed()
         self.mark_as_processing()

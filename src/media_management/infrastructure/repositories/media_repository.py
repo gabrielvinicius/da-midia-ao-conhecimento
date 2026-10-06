@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
 import structlog
-from datetime import datetime
-from sqlalchemy import func, select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.media_management.domain import Media
 from src.media_management.domain.enums import MediaStatus, MediaType
+from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
 
 from ..mappers import MediaMapper
 from ..persistence.models import MediaEntity
@@ -27,7 +28,6 @@ class MediaRepository:
         self._mapper = mapper or MediaMapper()
 
     async def get_by_id(self, media_id: UUID) -> Optional[Media]:
-        await self.db.rollback()  # garante conexão livre
         result = await self.db.execute(
             select(MediaEntity).where(MediaEntity.id == media_id)
         )
@@ -39,16 +39,14 @@ class MediaRepository:
     async def add(self, media: Media) -> Media:
         entity = self._mapper.to_entity(media)
         self.db.add(entity)
-        await self.db.commit()
-        await self.db.refresh(entity)
+        await uow_commit(self.db)
         persisted = self._mapper.to_domain(entity)
         return self._mapper.merge_transient_data(persisted, media)
 
     async def save(self, media: Media) -> Media:
         entity = self._mapper.to_entity(media)
         merged = await self.db.merge(entity)
-        await self.db.commit()
-        await self.db.refresh(merged)
+        await uow_commit(self.db)
         persisted = self._mapper.to_domain(merged)
         return self._mapper.merge_transient_data(persisted, media)
 
@@ -62,28 +60,8 @@ class MediaRepository:
         entity = result.scalar_one_or_none()
         if entity is not None:
             await self.db.delete(entity)
-            await self.db.commit()
+            await uow_commit(self.db)
 
-    async def update_status(
-        self,
-        media_id: UUID,
-        status: MediaStatus,
-        *,
-        error_message: Optional[str] = None,
-    ) -> Media:
-        await self.db.rollback()  # garante conexão livre
-        result = await self.db.execute(
-            select(MediaEntity).where(MediaEntity.id == media_id)
-        )
-        entity = result.scalar_one()
-        entity.status = status
-        entity.error_message = error_message
-        entity.updated_at = datetime.utcnow()
-        await self.db.commit()
-        await self.db.refresh(entity)
-        aggregate = self._mapper.to_domain(entity)
-        updated = aggregate.update(error_message=error_message)
-        return updated
 
     async def list_paginated(
         self,
@@ -95,7 +73,6 @@ class MediaRepository:
         search: Optional[str] = None,
         order: str = "desc",
     ) -> List[Media]:
-        await self._ensure_clean()
         stmt = select(MediaEntity)
         if user_id is not None:
             stmt = stmt.where(MediaEntity.user_id == user_id)
@@ -134,7 +111,6 @@ class MediaRepository:
         user_id: Optional[UUID] = None,
         status: Optional[MediaStatus] = None,
     ) -> List[Media]:
-        await self._ensure_clean()
         return await self.list_paginated(
             page=1,
             limit=10_000,
@@ -142,23 +118,66 @@ class MediaRepository:
             status=status,
         )
 
+    async def list_ids_by_user(self, user_id: UUID) -> List[UUID]:
+        result = await self.db.execute(select(MediaEntity.id).where(MediaEntity.user_id == user_id))
+        return list(result.scalars().all())
+
     async def count_all(self) -> int:
-        await self._ensure_clean()
         result = await self.db.execute(select(func.count()).select_from(MediaEntity))
         return result.scalar_one()
 
-    async def count_by_status(self, status: MediaStatus) -> int:
-        await self._ensure_clean()
+    async def list_waiting(
+        self, created_before: datetime, limit: int = 50, after: Optional[Media] = None
+    ) -> List[Media]:
+        """Mídias enviadas ou em processamento, criadas antes de created_before,
+        em páginas ordenadas por (created_at, id); after é a última da página anterior."""
+        stmt = select(MediaEntity).where(
+            MediaEntity.status.in_([MediaStatus.UPLOADED, MediaStatus.PROCESSING]),
+            MediaEntity.created_at < created_before,
+        )
+        if after is not None:
+            stmt = stmt.where(
+                tuple_(MediaEntity.created_at, MediaEntity.id)
+                > tuple_(after.created_at, after.id)
+            )
+        stmt = stmt.order_by(MediaEntity.created_at, MediaEntity.id).limit(limit)
+        result = await self.db.execute(stmt)
+        return [self._mapper.to_domain(entity) for entity in result.scalars().all()]
+
+    async def list_analyzing_since_before(self, updated_before: datetime, limit: int) -> List[Media]:
+        stmt = (
+            select(MediaEntity)
+            .where(MediaEntity.status == MediaStatus.ANALYZING, MediaEntity.updated_at < updated_before)
+            .order_by(MediaEntity.updated_at, MediaEntity.id)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return [self._mapper.to_domain(entity) for entity in result.scalars().all()]
+
+    async def list_ids_by_status(self, status: MediaStatus, limit: int) -> List[UUID]:
+        """Ids das mídias no estado, das mais antigas para as mais novas."""
+        stmt = (
+            select(MediaEntity.id)
+            .where(MediaEntity.status == status)
+            .order_by(MediaEntity.created_at, MediaEntity.id)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def count_by_status(self, status: MediaStatus, since=None) -> int:
+        """Mídias no estado; com ``since``, só as que mudaram desde então."""
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
             .where(MediaEntity.status == status)
         )
+        if since is not None:
+            stmt = stmt.where(MediaEntity.updated_at >= since)
         result = await self.db.execute(stmt)
         return result.scalar_one()
 
     async def count_by_user(self, user_id: UUID) -> int:
-        await self._ensure_clean()
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
@@ -168,7 +187,6 @@ class MediaRepository:
         return result.scalar_one()
 
     async def count_by_user_and_status(self, user_id: UUID, status: MediaStatus) -> int:
-        await self._ensure_clean()
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
@@ -179,7 +197,6 @@ class MediaRepository:
         return result.scalar_one()
 
     async def count_by_type(self, media_type: MediaType) -> int:
-        await self._ensure_clean()
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
@@ -189,7 +206,6 @@ class MediaRepository:
         return result.scalar_one()
 
     async def count_by_user_and_type(self, user_id: UUID, media_type: MediaType) -> int:
-        await self._ensure_clean()
         stmt = (
             select(func.count())
             .select_from(MediaEntity)
@@ -201,7 +217,6 @@ class MediaRepository:
 
     async def get_existing_paths(self, paths: List[str]) -> set[str]:
         """Check which of the provided paths exist in the database."""
-        await self._ensure_clean()
         if not paths:
             return set()
         
@@ -212,15 +227,3 @@ class MediaRepository:
         )
         result = await self.db.execute(stmt)
         return set(result.scalars().all())
-
-    async def _ensure_clean(self) -> None:
-        """Rolls back any pending transaction to avoid asyncpg state errors."""
-        try:
-            await self.db.rollback()
-        except Exception as exc:
-            # Best-effort cleanup; leave session as-is if rollback fails
-            logger.warning(
-                "media_repository.rollback_failed",
-                error=str(exc),
-                message="Failed to rollback pending transaction (best-effort cleanup)",
-            )

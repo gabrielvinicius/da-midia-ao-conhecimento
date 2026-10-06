@@ -4,9 +4,9 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import Boolean, Column, String, Uuid
-from sqlalchemy import Enum as SQLAEnum
 
 from src.shared.infrastructure.database.db import Base
+from src.shared.infrastructure.database.types import enum_column
 from src.user_management.domain.entities.user import User as DomainUser
 from src.user_management.domain.entities.user import UserRole
 
@@ -19,7 +19,7 @@ class UserModel(Base):
     password_hash = Column(String, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     role = Column(
-        SQLAEnum(UserRole, name="userrole"),
+        enum_column(UserRole),
         default=UserRole.USER,
         nullable=False,
     )
