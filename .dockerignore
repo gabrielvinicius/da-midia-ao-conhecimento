@@ -95,3 +95,6 @@ logs/
 # Cache
 .cache/
 .pytest_cache/
+
+# A interface tem a própria imagem (contexto ./frontend); o backend não usa o código dela.
+frontend/
