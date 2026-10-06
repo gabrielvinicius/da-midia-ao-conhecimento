@@ -67,7 +67,10 @@ describe('DashboardPage', () => {
     );
     render(<DashboardPage />);
     const card = (await screen.findByText(/Taxa de conclusão/i)).closest('div')?.parentElement;
-    await waitFor(() => expect(card?.textContent).toMatch(/\b50(\.0)?%?/));
-    expect(card?.textContent).not.toMatch(/500/);
+    // O número é animado (NumberTicker, 1,2 s): espera o valor final e confere
+    // que ele fica ali, e não sobe até 500% como no cálculo antigo.
+    await waitFor(() => expect(card?.textContent).toContain('Taxa de conclusão50%'), { timeout: 3000 });
+    await new Promise((resolve) => setTimeout(resolve, 1300));
+    expect(card?.textContent).toContain('Taxa de conclusão50%');
   });
 });
