@@ -64,12 +64,6 @@ export interface Media {
   transcription_provider?: string | null;
 }
 
-// Legacy Video interface for backward compatibility
-export interface Video extends Media {
-  title?: string;
-  duration?: number;
-}
-
 export enum TranscriptionStatus {
   PENDING = "pending",
   PROCESSING = "processing",
@@ -121,15 +115,12 @@ export interface Paginated<T> {
   limit: number;
 }
 
-// Alias legado para compatibilidade (preferir Paginated<T>)
-export type PaginatedResponse<T> = Paginated<T>;
-
 // Paginação simplificada (API /media)
 export type PaginatedMedia = Paginated<Media>;
 
 // --- Text Analysis (unificado) ---
 
-export interface TextAnalysisSentimentItem {
+interface TextAnalysisSentimentItem {
   chunk_id: string;
   label: string;
   score: number;
@@ -152,25 +143,10 @@ export interface TextAnalysisResponse {
   overall_sentiment: string;
   sentiment_items: TextAnalysisSentimentItem[];
   topics: TextAnalysisTopic[];
-  diagnostics: Record<string, any>;
+  diagnostics: Record<string, unknown>;
   media_id?: string | null;
   transcription_id?: string | null;
   provider?: string | null;
   user_id?: string | null;
   summary?: string | null;
-}
-
-// Admin types
-
-export interface UserResponse {
-  id: string;
-  email: string;
-  role: UserRole;
-  is_active: boolean;
-  created_at?: string;
-}
-
-export interface UserUpdateRequest {
-  role?: UserRole;
-  is_active?: boolean;
 }

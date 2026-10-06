@@ -60,7 +60,7 @@ export const InteractiveTranscriptionPanel = ({ mediaId, currentTime, onSeek }: 
   }, [currentTime]);
 
   const resolvedText = transcription?.text ?? "";
-  const resolvedSegments = transcription?.segments ?? [];
+  const resolvedSegments = React.useMemo(() => transcription?.segments ?? [], [transcription]);
   const isDiarized = resolvedSegments.some((segment) => Boolean(segment.speaker));
   
   const durationSeconds = React.useMemo(() => {
@@ -68,7 +68,7 @@ export const InteractiveTranscriptionPanel = ({ mediaId, currentTime, onSeek }: 
       return resolvedSegments[resolvedSegments.length - 1].end;
     }
     return null;
-  }, [resolvedSegments, transcription]);
+  }, [resolvedSegments]);
 
   const formattedDuration = React.useMemo(() => {
     if (!durationSeconds) return null;

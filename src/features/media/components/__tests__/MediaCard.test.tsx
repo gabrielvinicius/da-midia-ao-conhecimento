@@ -8,6 +8,7 @@ import { Media, MediaStatus, MediaType } from "@/types";
 const post = vi.fn();
 vi.mock("@/lib/api", () => ({
   default: { post: (...args: unknown[]) => post(...args), get: vi.fn(), delete: vi.fn() },
+  bindSession: vi.fn(),
 }));
 
 const media = (status: MediaStatus, extra: Partial<Media> = {}): Media =>

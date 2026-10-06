@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { useCreateMediaCommand } from '@/hooks/useCommands';
-import { getProviders, ProvidersResponse } from '@/api/queries';
+import { useUploadMediaMutation } from '../hooks/useMediaMutations';
+import { getProviders, ProvidersResponse } from '../api';
 import {
   ACCEPTED_EXTENSIONS,
   PIPELINE_STEPS,
@@ -19,7 +19,7 @@ import { ProviderSelect } from './ProviderSelect';
 const KIND_LABEL = { video: 'Vídeo', audio: 'Áudio', text: 'Documento ou imagem' } as const;
 
 export const UploadForm = () => {
-  const { mutate: upload, isPending, progress } = useCreateMediaCommand();
+  const { mutate: upload, isPending, progress } = useUploadMediaMutation();
   const [file, setFile] = React.useState<File | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [storageProvider, setStorageProvider] = React.useState<string | undefined>('local');
@@ -31,9 +31,9 @@ export const UploadForm = () => {
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
-  const stages = providers.isError ? {} : providers.data?.stages ?? {};
-  const storageOptions = stages["storage"] ?? [];
-  const transcriptionOptions = stages["transcription"] ?? [];
+  const stages = providers.isError ? undefined : providers.data?.stages;
+  const storageOptions = React.useMemo(() => stages?.storage ?? [], [stages]);
+  const transcriptionOptions = stages?.transcription ?? [];
 
   // O armazenamento escolhido precisa existir na lista do servidor.
   React.useEffect(() => {

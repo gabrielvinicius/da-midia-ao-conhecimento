@@ -3,39 +3,28 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { AuthProvider } from "./contexts/AuthContext";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
 
-// Layouts
 import AppLayout from "./components/AppLayout";
 import AdminLayout from "./components/AdminLayout";
-
-// Route Protectors
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
-
-// Components
 import { Loader2 } from "lucide-react";
 
-// Lazy Load Pages for Code Splitting
+// Cada página é carregada só quando visitada.
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
-
-// User-facing Pages
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const MediaDetailPage = lazy(() => import("./pages/MediaDetailPage"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
 
-// Admin Pages
-// Note: These need to be exported as default or named exports correctly in their files.
-// Assuming named exports for features based on previous file content, we use module destructuring pattern if needed,
-// but React.lazy expects a default export.
-// If features/admin/pages exports named components, we adapt:
+// As páginas do administrador têm exportação nomeada; lazy() pede a padrão.
 const AdminDashboardPage = lazy(() => import("./features/admin/pages/AdminDashboardPage").then(module => ({ default: module.AdminDashboardPage })));
 const AdminAnalyticsPage = lazy(() => import("./features/admin/pages/AdminAnalyticsPage").then(module => ({ default: module.AdminAnalyticsPage })));
 const AdminUsersPage = lazy(() => import("./features/admin/pages/AdminUsersPage").then(module => ({ default: module.AdminUsersPage })));
 const AdminAllMediaPage = lazy(() => import("./features/admin/pages/AdminAllMediaPage").then(module => ({ default: module.AdminAllMediaPage })));
 
-// Loading Fallback
 const PageLoader = () => (
   <div className="flex h-screen w-full items-center justify-center bg-gray-50 dark:bg-gray-900">
     <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -49,11 +38,11 @@ const App = () => {
         <Router>
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              {/* Public routes */}
+              {/* Públicas */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
 
-              {/* Main application routes for standard users */}
+              {/* Usuário logado */}
               <Route element={<ProtectedRoute />}>
                 <Route path="/" element={<AppLayout />}>
                   <Route index element={<Navigate to="/dashboard" replace />} />
@@ -65,7 +54,7 @@ const App = () => {
                 </Route>
               </Route>
 
-              {/* Admin routes */}
+              {/* Administrador */}
               <Route element={<AdminRoute />}>
                 <Route path="/admin" element={<AdminLayout />}>
                   <Route index element={<Navigate to="/admin/dashboard" replace />} />
@@ -76,8 +65,8 @@ const App = () => {
                 </Route>
               </Route>
 
-              {/* Fallback for any other route */}
-              <Route path="*" element={<Navigate to="/login" />} />
+              {/* Endereço inexistente: antes mandava para o login até quem estava logado. */}
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
         </Router>

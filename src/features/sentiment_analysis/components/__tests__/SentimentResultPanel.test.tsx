@@ -11,7 +11,7 @@ const analysisWithTone = {
 };
 let analysis: Record<string, unknown> = analysisWithTone;
 
-vi.mock("@/hooks/useQueries", () => ({
+vi.mock("@/features/summarization/hooks/useAnalysisQuery", () => ({
   useTextAnalysisByMediaIdQuery: () => ({ data: analysis, isLoading: false, isError: false }),
 }));
 

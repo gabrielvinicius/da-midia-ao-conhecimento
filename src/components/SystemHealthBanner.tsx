@@ -1,6 +1,6 @@
 import React from 'react';
-import { useSystemStatusQuery } from '@/hooks/useQueries';
-import { AlertCircle, Zap, ShieldCheck } from 'lucide-react';
+import { useSystemStatusQuery } from '@/features/monitoring/api';
+import { AlertCircle, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const SystemHealthBanner = () => {

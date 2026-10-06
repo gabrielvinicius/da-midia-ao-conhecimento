@@ -8,7 +8,6 @@ import { Media, MediaStatus } from "@/types";
 import { useAllMedia, useSystemStats } from "../hooks/useAdminQueries";
 import { useDeleteMedia, useReprocessMedia, useBulkReprocessMedia } from "../hooks/useAdminMutations";
 import { DataTable } from "@/components/ui/DataTable";
-import { Badge } from "@/components/ui/Badge";
 import { MediaStatusBadge } from "@/components/MediaStatusBadge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import ErrorState from "@/components/ui/ErrorState";

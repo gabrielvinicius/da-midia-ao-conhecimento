@@ -5,7 +5,6 @@ import { useSystemStats, useSystemHealth, useMediaProcessingStats } from "../hoo
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import ErrorState from "@/components/ui/ErrorState";
-import { percentFormatter } from "../components/AnalyticsWidgets";
 
 export const AdminDashboardPage = () => {
   const { data: stats, isLoading, isError: isStatsError, refetch: refetchStats } = useSystemStats();

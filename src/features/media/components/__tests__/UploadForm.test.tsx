@@ -4,10 +4,10 @@ import { render, screen, waitFor } from '@/test/test-utils';
 import { UploadForm } from '../UploadForm';
 
 const upload = vi.fn();
-vi.mock('@/hooks/useCommands', () => ({
-  useCreateMediaCommand: () => ({ mutate: upload, isPending: false, progress: 0 }),
+vi.mock('../../hooks/useMediaMutations', () => ({
+  useUploadMediaMutation: () => ({ mutate: upload, isPending: false, progress: 0 }),
 }));
-vi.mock('@/api/queries', () => ({
+vi.mock('../../api', () => ({
   getProviders: () =>
     Promise.resolve({
       stages: {

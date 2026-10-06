@@ -4,7 +4,7 @@ import { TopicModelingResultPanel } from "../TopicModelingResultPanel";
 
 let analysis: Record<string, unknown> = {};
 
-vi.mock("@/hooks/useQueries", () => ({
+vi.mock("@/features/summarization/hooks/useAnalysisQuery", () => ({
   useTextAnalysisByMediaIdQuery: () => ({ data: analysis, isLoading: false, isError: false }),
 }));
 

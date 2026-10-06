@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
+import { useTextAnalysisByMediaIdQuery } from "@/features/summarization/hooks/useAnalysisQuery";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ThumbsUp, ThumbsDown, Meh, Sparkles } from "lucide-react";

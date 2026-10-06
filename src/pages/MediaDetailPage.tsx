@@ -1,8 +1,9 @@
 import { useState, useRef } from "react";
 import { UserRole } from "@/types";
 import { useParams, useSearchParams } from "react-router-dom";
-import { useMediaByIdQuery, useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
-import { useReprocessMediaCommand } from "@/hooks/useCommands";
+import { useMediaByIdQuery } from "@/features/media/hooks/useMediaQueries";
+import { useTextAnalysisByMediaIdQuery } from "@/features/summarization/hooks/useAnalysisQuery";
+import { useReprocessMediaMutation } from "@/features/media/hooks/useMediaMutations";
 import { InteractiveTranscriptionPanel } from "@/features/transcription/components/InteractiveTranscriptionPanel";
 import { TopicModelingResultPanel } from "@/features/topic_modeling/components/TopicModelingResultPanel";
 import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel";
@@ -21,7 +22,7 @@ import { TranscriptionPanel } from "@/features/transcription/components/Transcri
 import { buildApiUrl } from "@/lib/api";
 import { SummaryPanel } from "@/features/summarization/components/SummaryPanel";
 import { useQuery } from "@tanstack/react-query";
-import { requestScopedToken } from "@/api/scopedToken";
+import { requestScopedToken } from "@/features/authentication/api/scopedToken";
 import { PredictiveInsight } from "@/components/PredictiveInsight";
 import { ProcessingTrace } from "@/components/ProcessingTrace";
 import { getStatusToken } from "@/features/media/lib/status-helpers";
@@ -52,7 +53,7 @@ const MediaDetailPage = () => {
 
   // Hooks sempre na mesma ordem: o retorno antecipado vem depois deles.
   const { data: media, isLoading, isError } = useMediaByIdQuery(id ?? "");
-  const reprocessMutation = useReprocessMediaCommand();
+  const reprocessMutation = useReprocessMediaMutation();
   const { data: textAnalysis } = useTextAnalysisByMediaIdQuery(id ?? "");
   const isPlayableMedia = media?.media_type === MediaType.AUDIO || media?.media_type === MediaType.VIDEO;
   // Token só desta mídia, válido por horas: a URL do vídeo não muda no meio
@@ -71,7 +72,7 @@ const MediaDetailPage = () => {
 
   const handleReprocess = () => {
     if (media) {
-      reprocessMutation.mutate({ mediaId: media.id });
+      reprocessMutation.mutate(media.id);
     }
   };
 

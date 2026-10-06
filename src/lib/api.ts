@@ -68,91 +68,75 @@ if (typeof window !== 'undefined') {
 export const buildApiUrl = (path = '/'): string => `${getApiBaseUrl()}${ensureAbsolutePath(path)}`;
 export const buildWsUrl = (path = '/'): string => buildApiUrl(path).replace(/^http/, 'ws');
 
+/**
+ * O que o cliente HTTP precisa da sessão. O authService se registra aqui
+ * (bindSession), e este módulo não o importa (evita a dependência circular).
+ */
+export interface SessionPort {
+  getToken(): string | null;
+  hasSession(): boolean;
+  refreshSession(): Promise<boolean>;
+  clearLocalAuth(): void;
+}
+
+let session: SessionPort | null = null;
+
+export const bindSession = (port: SessionPort): void => {
+  session = port;
+};
+
 const api = axios.create({
   withCredentials: false,
 });
 
-// Request interceptor to add the auth token to headers
-api.interceptors.request.use(
-  (config) => {
-    if (!config.baseURL) {
-      config.baseURL = getApiBaseUrl();
-    }
-    const token = sessionStorage.getItem('access_token');
-    if (token) {
-      config.headers = config.headers ?? {};
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    console.error('❌ Erro no request interceptor:', error);
-    return Promise.reject(error);
+api.interceptors.request.use((config) => {
+  if (!config.baseURL) {
+    config.baseURL = getApiBaseUrl();
   }
-);
+  const token = session?.getToken();
+  if (token) {
+    config.headers = config.headers ?? {};
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+  return config;
+});
 
-// Response interceptor for global error handling and token refresh
+const AUTH_ENDPOINTS = ['/auth/token', '/auth/refresh', '/auth/logout'];
+
+/**
+ * Só o que é global fica aqui: renovar a sessão num 401, avisar quando ela
+ * acabou, e os erros que nenhuma tela trata (rede, servidor, arquivo grande).
+ * Os demais (400, 404, 409, 422) são de quem chamou: antes, este interceptador
+ * avisava todo 404, e a tela de uma mídia ainda sem análise mostrava "Não
+ * encontrado" enquanto a análise estava a caminho.
+ */
 api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
   async (error) => {
-    const originalRequest = error.config;
-    const message = error.response?.data?.message || error.response?.data?.detail || error.message || 'Erro desconhecido';
-    
-    console.error('❌ Erro na API:', {
-      url: error.config?.url,
-      method: error.config?.method,
-      status: error.response?.status,
-      message: message,
-    });
-    
-    const isAuthEndpoint =
-      originalRequest?.url?.includes('/auth/token') ||
-      originalRequest?.url?.includes('/auth/refresh');
+    const status: number | undefined = error.response?.status;
+    const original = error.config;
+    const isAuthEndpoint = AUTH_ENDPOINTS.some((path) => original?.url?.includes(path));
 
-    if (error.response?.status === 401 && !isAuthEndpoint) {
-      if (!originalRequest?._retry) {
-        originalRequest._retry = true;
-        try {
-          // Dynamic import to break circular dependency
-          const { default: auth } = await import('@/services/auth.service');
-          await auth.refreshToken();
-          
-          const newToken = sessionStorage.getItem('access_token');
-          if (newToken) {
-            originalRequest.headers = originalRequest.headers ?? {};
-            originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
-            return api.request(originalRequest);
-          }
-        } catch (refreshError) {
-          console.warn('🔐 Refresh falhou, limpando sessão');
-        }
+    if (status === 401 && !isAuthEndpoint && original && !original._retry && session) {
+      original._retry = true;
+      const hadSession = session.hasSession();
+      if (hadSession && (await session.refreshSession())) {
+        return api.request(original);
       }
-      
-      const { default: auth } = await import('@/services/auth.service');
-      auth.clearLocalAuth();
-      toast.error('Sessão expirada. Faça login novamente.');
-      window.dispatchEvent(new CustomEvent('app:logout'));
-    } else if (error.response?.status === 413) {
+      session.clearLocalAuth();
+      if (hadSession) {
+        // Visitante sem sessão não recebe aviso: antes, abrir a tela de login
+        // mostrava "Sessão expirada".
+        toast.error('Sessão expirada. Faça login novamente.', { toastId: 'session-expired' });
+        window.dispatchEvent(new CustomEvent('app:logout'));
+      }
+    } else if (status === 413) {
       toast.error('Arquivo muito grande. Tamanho máximo permitido: 500 MB');
-    } else if (error.response?.status === 400) {
-      toast.error(`Dados inválidos: ${message}`);
-    } else if (error.response?.status === 403) {
-      toast.error('Acesso negado. Verifique suas permissões.');
-    } else if (error.response?.status === 404) {
-        // 404 specific handling might be needed, but general toast is often enough
-        toast.error(`Não encontrado: ${message}`);
-    } else if (error.response?.status === 409) {
-        toast.error(`Conflito: ${message}`);
-    } else if (error.response?.status === 500) {
-      toast.error('Erro interno do servidor. Tente novamente.');
-    } else if (error.code === 'NETWORK_ERROR' || !error.response) {
-      toast.error('Erro de conexão. Verifique sua internet.');
-    } else {
-      toast.error(message);
+    } else if (status !== undefined && status >= 500) {
+      toast.error('Erro no servidor. Tente novamente em instantes.', { toastId: 'server-error' });
+    } else if (!error.response) {
+      toast.error('Sem conexão com o servidor. Verifique a sua internet.', { toastId: 'network-error' });
     }
-
     return Promise.reject(error);
   }
 );

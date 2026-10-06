@@ -1,15 +1,14 @@
 import type { MouseEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Media, MediaStatus, MediaType } from "@/types";
-import { FileText, CheckCircle, XCircle, Loader2, Clock, Video, Music, FileImage, MoreVertical, Eye, RotateCcw, Trash2 } from "lucide-react";
+import { FileText, Video, Music, MoreVertical, Eye, RotateCcw, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useDeleteUserMediaCommand, useReprocessMediaCommand } from "@/hooks/useCommands";
+import { useDeleteMediaMutation, useReprocessMediaMutation } from "../hooks/useMediaMutations";
 import { useQueryClient } from "@tanstack/react-query";
-import { getMediaById } from "@/api/queries";
+import { getMedia } from "../api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,13 +44,13 @@ const mediaTypeConfig: Record<MediaType, { icon: ReactNode; label: string; color
 
 export const MediaCard = ({ media }: MediaCardProps) => {
   const queryClient = useQueryClient();
-  const { mutate: reprocess, isPending: isReprocessing } = useReprocessMediaCommand();
-  const { mutate: deleteMedia, isPending: isDeleting } = useDeleteUserMediaCommand();
+  const { mutate: reprocess, isPending: isReprocessing } = useReprocessMediaMutation();
+  const { mutate: deleteMedia, isPending: isDeleting } = useDeleteMediaMutation();
   
   const handlePrefetch = () => {
     queryClient.prefetchQuery({
       queryKey: ['media', media.id],
-      queryFn: () => getMediaById(media.id),
+      queryFn: () => getMedia(media.id),
       staleTime: 30000,
     });
   };
@@ -64,7 +63,7 @@ export const MediaCard = ({ media }: MediaCardProps) => {
   const handleReprocess = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    reprocess({ mediaId: media.id });
+    reprocess(media.id);
   };
 
   return (
@@ -125,7 +124,7 @@ export const MediaCard = ({ media }: MediaCardProps) => {
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-red-600 hover:bg-red-700"
-                  onClick={() => deleteMedia({ mediaId: media.id })}
+                  onClick={() => deleteMedia(media.id)}
                 >
                   {isDeleting ? 'Excluindo...' : 'Excluir'}
                 </AlertDialogAction>

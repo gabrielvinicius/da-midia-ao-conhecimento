@@ -1,10 +1,9 @@
-import { useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
+import { useTextAnalysisByMediaIdQuery } from "@/features/summarization/hooks/useAnalysisQuery";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { MediaStatus, TextAnalysisTopic, isInProgress } from "@/types";
 import { Brain, Clock3, Loader2, Sparkles, Languages, ListOrdered } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface TopicModelingResultPanelProps {
   mediaId: string;
@@ -152,7 +151,7 @@ export const TopicModelingResultPanel = ({ mediaId, mediaStatus }: TopicModeling
     }
 
     // Etapas registradas sem a de temas: o fator foi desligado (ANALYSIS_FACTORS).
-    const steps = analysis.diagnostics?.steps;
+    const steps = analysis.diagnostics?.steps as Record<string, string> | undefined;
     if (steps && !("topic_modeling" in steps)) {
       return <p className="text-muted-foreground text-center text-xs">Os temas não foram analisados nesta mídia.</p>;
     }

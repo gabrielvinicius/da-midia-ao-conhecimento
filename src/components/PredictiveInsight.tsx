@@ -1,4 +1,4 @@
-import { useAnalysisEstimationQuery } from '@/hooks/useQueries';
+import { useAnalysisEstimationQuery } from '@/features/media/hooks/useMediaQueries';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Clock } from 'lucide-react';
 

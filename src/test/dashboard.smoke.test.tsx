@@ -43,4 +43,17 @@ describe('DashboardPage', () => {
 
     expect(screen.getByText(/Total monitorado/i)).toBeInTheDocument();
   });
+
+  it('counts types from the API, not from the current page', async () => {
+    // As chaves da API são minúsculas ("video"); o painel lia "VIDEO" e caía
+    // na contagem da página atual.
+    server.use(
+      http.get('/api/media/stats', () =>
+        HttpResponse.json({ total: 7, by_status: { completed: 7 }, by_type: { video: 5, audio: 2, text: 0 } }),
+      ),
+    );
+    render(<DashboardPage />);
+    const video = await screen.findByText('Vídeo');
+    await waitFor(() => expect(video.closest('div')?.parentElement?.textContent).toContain('5'));
+  });
 });

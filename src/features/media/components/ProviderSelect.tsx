@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
-import type { ProviderOption } from "@/api/queries";
+import type { ProviderOption } from "../api";
 
 export const AUTO_PROVIDER_VALUE = "__auto__";
 

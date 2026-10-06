@@ -1,8 +1,9 @@
 import { GroundingNotice, type GroundingReport } from "./GroundingNotice";
-import { useState } from 'react'; // Add useState
+import { useState } from 'react';
 import { saveAs } from 'file-saver';
-import { useTextAnalysisByMediaIdQuery } from "@/hooks/useQueries";
-import api from '@/lib/api'; // Import api for feedback calls
+import { useTextAnalysisByMediaIdQuery } from "../hooks/useAnalysisQuery";
+import { correctSummary, submitAnalysisFeedback } from "../api";
+import { apiErrorMessage } from '@/lib/errors';
 import { toast } from 'react-toastify';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -157,24 +158,23 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
   const handleFeedback = async (score: number) => {
     if (!analysis) return;
     try {
-      await api.post(`/text-analysis/${analysis.analysis_id}/feedback`, { score });
+      await submitAnalysisFeedback(analysis.analysis_id, score);
       setFeedbackGiven(score);
       toast.success("Obrigado pelo feedback!");
     } catch (err) {
-      toast.error("Falha ao registrar feedback.");
+      toast.error(apiErrorMessage(err, "Falha ao registrar a avaliação."));
     }
   };
 
   const handleSaveCorrection = async () => {
     if (!analysis) return;
     try {
-      // O texto vai no corpo: resumos longos podem exceder o limite de tamanho da URL.
-      await api.put(`/text-analysis/${analysis.analysis_id}/summary`, { summary: editedText });
+      await correctSummary(analysis.analysis_id, editedText);
       toast.success("Resumo atualizado!");
       setIsEditing(false);
       refetch();
     } catch (err) {
-      toast.error("Falha ao salvar correção.");
+      toast.error(apiErrorMessage(err, "Falha ao salvar a correção."));
     }
   };
 

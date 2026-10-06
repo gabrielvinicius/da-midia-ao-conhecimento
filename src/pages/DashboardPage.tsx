@@ -4,11 +4,10 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import ErrorState from "@/components/ui/ErrorState";
-import NumberTicker from "@/components/ui/NumberTicker";
 import { MagicSurface } from "@/components/ui/MagicSurface";
 import { MediaCard } from "../features/media/components/MediaCard";
 import { GenericStatCard } from "@/components/GenericStatCard";
-import { useMediaByUserQuery, useMediaStatsQuery } from "@/hooks/useQueries";
+import { useMediaByUserQuery, useMediaStatsQuery } from "@/features/media/hooks/useMediaQueries";
 import { PaginationState } from "@tanstack/react-table";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
@@ -73,7 +72,7 @@ const DashboardPage = () => {
     debouncedSearch
   );
   const { data: statsApi } = useMediaStatsQuery();
-  const media = Array.isArray(mediaPage?.items) ? mediaPage.items : [];
+  const media = React.useMemo(() => mediaPage?.items ?? [], [mediaPage]);
   const totalMedia =
     typeof mediaPage?.total === "number"
       ? mediaPage.total
@@ -92,11 +91,14 @@ const DashboardPage = () => {
       const byStatus = Object.fromEntries(
         Object.entries(statsApi.by_status).map(([k, v]) => [k.toUpperCase(), v]),
       ) as Record<string, number>;
+      // Por tipo, também da API: contar só a página atual dava números
+      // errados assim que havia mais mídias que cabiam numa página.
+      const byType = statsApi.by_type ?? {};
       return {
         total: statsApi.total ?? fallback.total,
-        videos: media.filter(m => m.media_type === MediaType.VIDEO).length, // ausência de breakdown por tipo; mantém parcial
-        audios: media.filter(m => m.media_type === MediaType.AUDIO).length,
-        texts: media.filter(m => m.media_type === MediaType.TEXT).length,
+        videos: byType[MediaType.VIDEO] ?? 0,
+        audios: byType[MediaType.AUDIO] ?? 0,
+        texts: byType[MediaType.TEXT] ?? 0,
         processing: (byStatus.PROCESSING ?? 0) + (byStatus.ANALYZING ?? 0),
         completed: byStatus.COMPLETED ?? 0,
         failed: byStatus.FAILED ?? 0,
@@ -119,9 +121,9 @@ const DashboardPage = () => {
   const lastUpload = media?.[0];
 
   const breakdown = [
-    { label: "Vídeo", value: statsApi?.by_type?.VIDEO ?? stats.videos, icon: <Video className="h-4 w-4" />, color: "bg-violet-500" },
-    { label: "Áudio", value: statsApi?.by_type?.AUDIO ?? stats.audios, icon: <Music className="h-4 w-4" />, color: "bg-emerald-500" },
-    { label: "Texto", value: statsApi?.by_type?.TEXT ?? stats.texts, icon: <FileText className="h-4 w-4" />, color: "bg-sky-500" },
+    { label: "Vídeo", value: stats.videos, icon: <Video className="h-4 w-4" />, color: "bg-violet-500" },
+    { label: "Áudio", value: stats.audios, icon: <Music className="h-4 w-4" />, color: "bg-emerald-500" },
+    { label: "Texto", value: stats.texts, icon: <FileText className="h-4 w-4" />, color: "bg-sky-500" },
   ];
 
   const renderStatsCards = () => (

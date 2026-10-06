@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { updateSpeakerAliases } from '../api';
+import { apiErrorMessage } from '@/lib/errors';
 
 export const useUpdateSpeakerAliases = () => {
   const queryClient = useQueryClient();
@@ -14,7 +15,7 @@ export const useUpdateSpeakerAliases = () => {
       queryClient.setQueryData(['transcription', data.media_id], data);
     },
     onError: (error) => {
-      console.error('Failed to update speaker names:', error);
+      toast.error(apiErrorMessage(error, 'Não foi possível salvar os nomes dos falantes.'));
     },
   });
 };

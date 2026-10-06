@@ -2,19 +2,11 @@ import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Search } from "lucide-react";
-import api from "@/lib/api";
+import { semanticSearch } from "@/features/summarization/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-
-export interface SemanticSearchResult {
-  media_id: string;
-  content: string;
-  relevance: number;
-  start?: number | null;
-  end?: number | null;
-}
 
 const MIN_QUERY_LENGTH = 3;
 
@@ -28,20 +20,13 @@ export const formatTimestamp = (seconds?: number | null): string | null => {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 };
 
-const fetchSearch = async (query: string): Promise<SemanticSearchResult[]> => {
-  const { data } = await api.get<SemanticSearchResult[]>("/text-analysis/search", {
-    params: { query, limit: 10 },
-  });
-  return data;
-};
-
 const SearchPage = () => {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
 
   const { data, isFetching, isError } = useQuery({
     queryKey: ["semantic-search", query],
-    queryFn: () => fetchSearch(query),
+    queryFn: () => semanticSearch(query),
     enabled: query.length >= MIN_QUERY_LENGTH,
   });
 

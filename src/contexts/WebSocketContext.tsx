@@ -3,9 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { Notification } from '@/types';
 import { toast } from 'react-toastify';
-import { requestScopedToken } from '@/api/scopedToken';
+import { requestScopedToken } from '@/features/authentication/api/scopedToken';
 import { buildWsUrl } from '@/lib/api';
-import { refreshForNotification } from '@/lib/realtime';
+import { createNoticeBatcher, refreshForNotification } from '@/lib/realtime';
 import {
   listNotifications,
   markAllNotificationsAsRead,
@@ -25,6 +25,7 @@ interface WebSocketContextType {
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
 
 const NOTIFICATIONS_KEY = ['notifications'];
+const RECONNECT_DELAY_MS = 5000;
 
 /** Aviso recebido pelo WebSocket, no formato da lista da API. */
 export const notificationFromMessage = (payload: Record<string, unknown>): Notification => ({
@@ -44,8 +45,11 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
   const queryClient = useQueryClient();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('CLOSED');
   const socketRef = useRef<WebSocket | null>(null);
-  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const shouldReconnectRef = useRef(true);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Se a conexão ainda é desejada: falso após o logout, ao desmontar ou
+  // quando o servidor recusa o token (código 1008).
+  const wantedRef = useRef(false);
+  const noticesRef = useRef(createNoticeBatcher((message) => toast.info(message)));
 
   // Os avisos ficam gravados no servidor: ao abrir a página aparecem também
   // os que chegaram com ela fechada.
@@ -62,24 +66,35 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
     [queryClient],
   );
 
+  const scheduleReconnect = useCallback((reconnect: () => void) => {
+    if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+    reconnectTimerRef.current = setTimeout(() => {
+      reconnectTimerRef.current = null;
+      if (wantedRef.current) reconnect();
+    }, RECONNECT_DELAY_MS);
+  }, []);
+
   const connect = useCallback(async () => {
-    if (socketRef.current || !isAuthenticated || !user) return;
+    if (socketRef.current || !wantedRef.current) return;
 
     // Token de abertura, válido por 2 min: o token de acesso não vai na URL.
     let token: string;
     try {
       token = await requestScopedToken("notifications");
     } catch {
-      reconnectTimerRef.current = setTimeout(() => connect(), 5000);
+      scheduleReconnect(connect);
       return;
     }
-    if (socketRef.current) return;
+    // Durante a espera do token o usuário pode ter saído: sem esta checagem,
+    // o socket abria depois do logout.
+    if (socketRef.current || !wantedRef.current) return;
     const ws = new WebSocket(`${buildWsUrl("/ws/notifications")}?token=${encodeURIComponent(token)}`);
     socketRef.current = ws;
+    setConnectionStatus('CONNECTING');
 
     ws.onopen = () => {
       setConnectionStatus('OPEN');
-      shouldReconnectRef.current = true;
+      noticesRef.current.open();
       // Recupera o que mudou enquanto a conexão estava fechada.
       queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
       queryClient.invalidateQueries({ queryKey: ['media-list'] });
@@ -88,23 +103,18 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
     };
 
     ws.onclose = (event) => {
-      setConnectionStatus('CLOSED');
+      if (socketRef.current !== ws) return; // fechada por disconnect()
       socketRef.current = null;
+      setConnectionStatus('CLOSED');
 
       // Token expirado ou recusado: não insiste em reconectar.
       if (event?.code === 1008) {
-        shouldReconnectRef.current = false;
+        wantedRef.current = false;
         return;
       }
-
-      if (isAuthenticated && shouldReconnectRef.current) {
+      if (wantedRef.current) {
         setConnectionStatus('RECONNECTING');
-        if (reconnectTimerRef.current) {
-          clearTimeout(reconnectTimerRef.current);
-        }
-        reconnectTimerRef.current = setTimeout(() => {
-          connect();
-        }, 5000);
+        scheduleReconnect(connect);
       }
     };
 
@@ -122,42 +132,36 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
         const notification = notificationFromMessage(payload);
         setCached((old) => [notification, ...old.filter((n) => n.id !== notification.id)]);
         refreshForNotification(queryClient, notification.variables);
-        toast.info(notification.content);
+        noticesRef.current.push(notification.content);
       } catch (parseError) {
         console.error('Failed to parse WebSocket message:', parseError);
       }
     };
-  }, [isAuthenticated, user, queryClient, setCached]);
+  }, [queryClient, setCached, scheduleReconnect]);
 
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      shouldReconnectRef.current = true;
-      connect();
-    } else {
-      if (socketRef.current) {
-        setConnectionStatus('CLOSING');
-        shouldReconnectRef.current = false;
-        socketRef.current.close();
-        socketRef.current = null;
-      }
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
+  const disconnect = useCallback(() => {
+    wantedRef.current = false;
+    noticesRef.current.cancel();
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
     }
+    const ws = socketRef.current;
+    socketRef.current = null;
+    if (ws) {
+      setConnectionStatus('CLOSING');
+      ws.close();
+    }
+    setConnectionStatus('CLOSED');
+  }, []);
 
-    return () => {
-      if (socketRef.current) {
-        shouldReconnectRef.current = false;
-        socketRef.current.close();
-        socketRef.current = null;
-      }
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
-    };
-  }, [isAuthenticated, user, connect]);
+  const userId = user?.id;
+  useEffect(() => {
+    if (!isAuthenticated || !userId) return undefined;
+    wantedRef.current = true;
+    connect();
+    return disconnect;
+  }, [isAuthenticated, userId, connect, disconnect]);
 
   const markAsRead = useCallback(async (notificationId: string) => {
     setCached((old) => old.map((n) => (n.id === notificationId ? { ...n, read: true } : n)));

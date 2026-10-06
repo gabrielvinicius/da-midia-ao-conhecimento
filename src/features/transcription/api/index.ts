@@ -1,3 +1,4 @@
+// Chamadas HTTP da transcrição; os segmentos chegam como dicionários livres.
 import api from "@/lib/api";
 import { apiErrorStatus } from '@/lib/errors';
 import { Transcription, TranscriptionSegment, TranscriptionStatus } from "@/types";
@@ -17,8 +18,9 @@ interface RawTranscriptionResponse {
   created_at: string;
   processed_at?: string | null;
   error_message?: string | null;
-  text?: string | null;
-  content?: string | null;
+  text: string;
+  language?: string | null;
+  confidence_score?: number | null;
   segments?: RawTranscriptionSegment[] | null;
   speaker_aliases?: Record<string, string>;
 }
@@ -33,8 +35,6 @@ const normalizeSegments = (segments: RawTranscriptionSegment[] = []): Transcript
 
 const adaptTranscription = (payload: RawTranscriptionResponse): Transcription => {
   const segments = normalizeSegments(payload.segments ?? []);
-  const resolvedText = payload.text ?? payload.content ?? "";
-
   return {
     id: payload.id,
     media_id: payload.media_id,
@@ -43,7 +43,9 @@ const adaptTranscription = (payload: RawTranscriptionResponse): Transcription =>
     created_at: payload.created_at,
     processed_at: payload.processed_at ?? null,
     error_message: payload.error_message ?? null,
-    text: resolvedText,
+    text: payload.text ?? "",
+    language: payload.language ?? null,
+    confidence_score: payload.confidence_score ?? null,
     segments,
     speaker_aliases: payload.speaker_aliases ?? {},
   };
@@ -66,10 +68,5 @@ export const updateSpeakerAliases = async (transcriptionId: string, aliases: Rec
     `/transcriptions/${transcriptionId}/speaker-aliases`,
     { aliases }
   );
-  return adaptTranscription(response.data);
-};
-
-export const getTranscriptionById = async (transcriptionId: string): Promise<Transcription> => {
-  const response = await api.get<RawTranscriptionResponse>(`/transcriptions/${transcriptionId}`);
   return adaptTranscription(response.data);
 };

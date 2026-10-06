@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { User } from '../types';
 import authService from '../services/auth.service';
+import { getMe } from '@/features/authentication/api';
 
 // Define the shape of the context value
 interface AuthContextType {
@@ -10,19 +11,21 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   logout: () => void;
-  refreshToken: () => Promise<void>;
 }
 
 // Create the context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Function to fetch the current user
+/**
+ * Usuário da sessão, ou null para um visitante. Numa aba nova, a sessão é
+ * recuperada pelo cookie de renovação; sem ela, nada é pedido à API (antes,
+ * o 401 de /auth/me mostrava "Sessão expirada" na tela de login).
+ */
 const fetchCurrentUser = async (): Promise<User | null> => {
+  if (!(await authService.restoreSession())) return null;
   try {
-    const user = await authService.getCurrentUser();
-    return user;
-  } catch (error) {
-    console.error('❌ Erro ao buscar usuário:', error);
+    return await getMe();
+  } catch {
     authService.clearLocalAuth();
     return null;
   }
@@ -60,17 +63,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const refreshToken = async () => {
-    try {
-      await authService.refreshToken();
-      // Invalidar query para buscar dados atualizados
-      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
-    } catch (error) {
-      console.error('❌ Erro no refresh token:', error);
-      throw error;
-    }
-  };
-
   // O usuário vindo da consulta vale já na mesma renderização em que ela
   // termina; o useEffect acima só copia para o estado depois. Sem isso, ao
   // recarregar a página, a rota protegida via isLoading=false e user=null por
@@ -83,7 +75,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isAuthenticated: !!effectiveUser,
     isLoading,
     logout,
-    refreshToken,
   };
 
   useEffect(() => {
@@ -110,5 +101,3 @@ export const useAuth = () => {
   return context;
 };
 
-// Export useAuthContext as alias for backward compatibility
-export const useAuthContext = useAuth;

@@ -13,7 +13,7 @@ export const useLogin = () => {
 
   return useMutation({
     mutationFn: (credentials: UserCredentials) => login(credentials),
-    onSuccess: async (data) => {
+    onSuccess: async () => {
       try {
         // Buscar dados do usuário
         const user = await getMe();
@@ -29,7 +29,6 @@ export const useLogin = () => {
       }
     },
     onError: (error) => {
-      console.error('Login failed:', error);
       toast.error(apiErrorMessage(error, 'Não foi possível entrar. Tente novamente.'));
     },
   });
@@ -45,7 +44,8 @@ export const useRegister = () => {
       navigate('/login');
     },
     onError: (error) => {
-      console.error('Registration failed:', error);
+      // 409: e-mail já cadastrado; 400/422: dados inválidos.
+      toast.error(apiErrorMessage(error, 'Não foi possível concluir o cadastro.'));
     },
   });
 };
@@ -61,7 +61,7 @@ export const useChangePassword = () => {
       logout();
     },
     onError: (error) => {
-      console.error('Failed to change password:', error);
+      toast.error(apiErrorMessage(error, 'Não foi possível alterar a senha.'));
     },
   });
 };
