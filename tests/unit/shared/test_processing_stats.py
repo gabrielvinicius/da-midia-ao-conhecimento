@@ -63,7 +63,7 @@ async def test_pipeline_times_steps_and_service_records_them():
             return str(analysis.id)
 
     service = TextAnalysisService(
-        repository=_Repo(), pipeline=pipeline, text_analysis_read_service=None,
+        repository=_Repo(), pipeline=pipeline,
         stats_recorder=recorder,
     )
     analysis = Analysis.new(Document.from_payload("oi", [{"text": "oi", "start": 0, "end": 90.0}]))

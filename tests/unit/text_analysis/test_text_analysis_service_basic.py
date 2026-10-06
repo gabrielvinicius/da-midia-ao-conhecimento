@@ -4,9 +4,6 @@ import pytest
 
 from src.text_analysis.application.config import AnalysisConfig
 from src.text_analysis.application.dtos import AnalyzeTextCommand
-from src.text_analysis.application.services.text_analysis_read_service import (
-    TextAnalysisReadService,
-)
 from src.text_analysis.application.services.text_analysis_service import (
     TextAnalysisService,
 )
@@ -69,7 +66,6 @@ from src.text_analysis.application.pipeline.synthesis import SynthesisStep
 @pytest.mark.anyio
 async def test_analyze_text_service_saves_and_returns_dto():
     repo = InMemoryRepo()
-    read_service = TextAnalysisReadService(repository=repo)
     
     config = AnalysisConfig(chunk_size=50, chunk_overlap=0)
     
@@ -85,7 +81,6 @@ async def test_analyze_text_service_saves_and_returns_dto():
         repository=repo,
         pipeline=pipeline,
         config=config,
-        text_analysis_read_service=read_service,
     )
 
     command = AnalyzeTextCommand(

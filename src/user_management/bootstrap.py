@@ -62,7 +62,9 @@ def build_user_management_components(
         data_erasers=data_erasers,
     )
 
-    auth_service = AuthService(user_service=user_service, settings=user_settings)
+    auth_service = AuthService(
+        user_service=user_service, settings=user_settings, revoked_tokens=_revoked_tokens()
+    )
 
     return UserManagementModule(
         user_service=user_service,
@@ -79,6 +81,23 @@ def bind_user_management_module(app: FastAPI, module: UserManagementModule) -> N
     app.dependency_overrides[get_auth_settings] = lambda: user_settings
     login_throttle = _build_login_throttle()
     app.dependency_overrides[get_login_throttle] = lambda: login_throttle
+
+
+_REVOKED_TOKENS = None
+
+
+def _revoked_tokens():
+    """Uma única lista de revogações por processo, guardada no Redis."""
+    global _REVOKED_TOKENS
+    if _REVOKED_TOKENS is None:
+        from src.shared.infrastructure.config.settings import settings as shared_settings
+        from src.user_management.infrastructure.adapters.security.revoked_tokens import (
+            build_revoked_tokens,
+        )
+
+        redis_url = None if os.getenv("LIGHTWEIGHT_BOOTSTRAP") == "1" else shared_settings.redis_url
+        _REVOKED_TOKENS = build_revoked_tokens(redis_url)
+    return _REVOKED_TOKENS
 
 
 def _build_login_throttle() -> LoginThrottle:

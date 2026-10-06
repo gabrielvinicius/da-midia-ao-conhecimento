@@ -6,6 +6,7 @@ from passlib.context import CryptContext
 from src.user_management.application.ports import PasswordHasherPort, TokenProviderPort
 from src.user_management.config.settings import user_settings
 from datetime import timedelta
+from uuid import uuid4
 
 from jose import JWTError, jwt
 
@@ -37,56 +38,40 @@ class PasslibPasswordHasher(PasswordHasherPort):
 
 
 class JwtTokenProvider(TokenProviderPort):
+    """Tokens JWT com o tipo no conteúdo: o de renovação não vale como acesso.
+
+    O de renovação leva um id (jti) para poder ser revogado no logout.
+    """
+
+    @staticmethod
+    def _encode(payload: dict, ttl_seconds: float) -> str:
+        payload = {**payload, "exp": utcnow() + timedelta(seconds=ttl_seconds)}
+        return jwt.encode(payload, user_settings.secret_key, algorithm=user_settings.algorithm)
+
     def create_access_token(self, user_id):
-        expire = utcnow() + timedelta(
-            minutes=user_settings.access_token_expire_minutes
-        )
-        payload = {
-            "sub": str(user_id),
-            "exp": expire,
-        }
-        return jwt.encode(
-            payload,
-            user_settings.secret_key,
-            algorithm=user_settings.algorithm,
+        return self._encode(
+            {"sub": str(user_id), "type": "access"}, user_settings.access_token_expire_minutes * 60
         )
 
     def create_refresh_token(self, user_id):
-        expire = utcnow() + timedelta(
-            minutes=user_settings.refresh_token_expire_minutes
-        )
-        payload = {
-            "sub": str(user_id),
-            "exp": expire,
-            "type": "refresh",
-        }
-        return jwt.encode(
-            payload,
-            user_settings.secret_key,
-            algorithm=user_settings.algorithm,
+        return self._encode(
+            {"sub": str(user_id), "type": "refresh", "jti": uuid4().hex},
+            user_settings.refresh_token_expire_minutes * 60,
         )
 
+    def create_scoped_token(self, user_id, purpose, ttl_seconds, resource=None):
+        payload = {"sub": str(user_id), "type": "scoped", "scope": str(purpose)}
+        if resource is not None:
+            payload["res"] = str(resource)
+        return self._encode(payload, ttl_seconds)
+
     def verify_refresh_token(self, token: str) -> dict | None:
-        try:
-            payload = jwt.decode(
-                token,
-                user_settings.secret_key,
-                algorithms=[user_settings.algorithm],
-            )
-            if payload.get("type") != "refresh":
-                return None
-            return payload
-        except JWTError:
-            return None
+        payload = self.verify_token(token)
+        return payload if payload and payload.get("type") == "refresh" else None
 
     def verify_token(self, token: str) -> dict | None:
         try:
-            payload = jwt.decode(
-                token,
-                user_settings.secret_key,
-                algorithms=[user_settings.algorithm],
-            )
-            return payload
+            return jwt.decode(token, user_settings.secret_key, algorithms=[user_settings.algorithm])
         except JWTError:
             return None
 

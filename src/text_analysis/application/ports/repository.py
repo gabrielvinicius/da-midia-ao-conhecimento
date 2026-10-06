@@ -27,6 +27,11 @@ class AnalysisRepositoryPort(ABC):
     async def list_topics(self, analysis_id: str) -> List[Topic]:
         ...
 
+    @abstractmethod
+    async def update_summary(self, analysis_id: str, new_summary: str) -> bool:
+        """Grava o resumo corrigido pelo usuário, guardando o original. False se não existir."""
+        ...
+
 
 class FeedbackRepositoryPort(Protocol):
     """Avaliações dos usuários sobre os resultados da análise."""

@@ -59,3 +59,23 @@ async def test_audit_is_a_log_line_and_keeps_nothing_in_memory():
     admin = type("Admin", (), {"id": uuid4()})()
     await audit.log_admin_action(admin, "delete_user", "user", uuid4(), details={"target_id": "x"})
     assert not hasattr(audit, "audit_entries")
+
+
+@pytest.mark.asyncio
+async def test_unknown_storage_is_refused_before_anything_is_stored():
+    """Antes, só um aviso no log, e o envio terminava em erro 500."""
+    from src.media_management.application.errors import InvalidUploadError
+
+    repo, uploader = FakeMediaRepo(), Uploader()
+    uploader.upload = None  # não pode ser chamado
+    service = MediaService(
+        media_repository=repo, storage_uploader=uploader, metadata_mapper=Mapper(),
+        metrics_service=None, upload_validator=MediaUploadValidator(settings=media_settings),
+        media_read_service=MediaReadService(media_repository=repo), event_bus=None,
+        storage_maintenance=None, storage_downloader=None,
+    )
+    command = CreateMediaCommand(
+        user_id=uuid4(), file_path="/tmp/x", file_size_bytes=10, filename="aula.txt", storage_provider="gcs"
+    )
+    with pytest.raises(InvalidUploadError, match="Armazenamento desconhecido"):
+        await service.create_media(command)

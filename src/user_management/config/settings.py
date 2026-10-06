@@ -24,6 +24,10 @@ class UserSettings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_minutes: int = 60 * 24 * 7  # 7 dias
+    # Tokens de finalidade restrita (application/tokens.py): o do reprodutor
+    # cobre uma aula longa; o do WebSocket só precisa durar até conectar.
+    stream_token_expire_minutes: int = 6 * 60
+    socket_token_expire_seconds: int = 120
     auth_password_min_length: int = 8
     cookie_secure: bool = False
     cookie_samesite: str = "lax"

@@ -36,7 +36,7 @@ from src.shared.application.schemas import (
     BaseResponseSchema,
     create_success_response,
 )
-from src.user_management.api.dependencies import get_current_user, get_current_user_from_query
+from src.user_management.api.dependencies import get_current_user, get_current_user_for_media_stream
 from src.user_management.domain import User
 from src.user_management.domain import UserRole
 
@@ -191,7 +191,7 @@ async def delete_media(
 async def stream_media(
     media_id: UUID,
     request: Request,
-    current_user: User = Depends(get_current_user_from_query),
+    current_user: User = Depends(get_current_user_for_media_stream),
     service: MediaService = Depends(get_media_service),
 ):
     try:

@@ -1,7 +1,10 @@
-# src/auth/api/schemas.py
+"""Esquemas da API de autenticação e usuários."""
+from typing import Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+
+from src.user_management.application.tokens import TokenPurpose
 
 
 class UserCreate(BaseModel):
@@ -77,3 +80,21 @@ class UserResponse(BaseModel):
     role: str # Assuming role is a string representation
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ScopedTokenRequest(BaseModel):
+    purpose: Literal[TokenPurpose.MEDIA_STREAM, TokenPurpose.NOTIFICATIONS] = Field(
+        ..., description="media_stream (com resource = id da mídia) ou notifications."
+    )
+    resource: Optional[UUID] = None
+
+    @model_validator(mode="after")
+    def _stream_needs_media(self) -> "ScopedTokenRequest":
+        if self.purpose == TokenPurpose.MEDIA_STREAM and self.resource is None:
+            raise ValueError("Informe a mídia (resource) do token de reprodução.")
+        return self
+
+
+class ScopedTokenResponse(BaseModel):
+    token: str
+    expires_in: int

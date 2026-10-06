@@ -34,8 +34,26 @@ class PasswordHasherPort(Protocol):
 class TokenProviderPort(Protocol):
     def create_access_token(self, user_id: UUID | str): ...
     def create_refresh_token(self, user_id: UUID | str): ...
-    def verify_token(self, token: str) -> dict | None: ...
+
+    def create_scoped_token(
+        self, user_id: UUID | str, purpose: str, ttl_seconds: int, resource: str | None = None
+    ) -> str:
+        """Token que só serve para ``purpose`` (e, se dado, para ``resource``)."""
+        ...
+
+    def verify_token(self, token: str) -> dict | None:
+        """Conteúdo do token com assinatura e validade conferidas, ou None."""
+        ...
+
     def verify_refresh_token(self, token: str) -> dict | None: ...
+
+
+class RevokedTokensPort(Protocol):
+    """Tokens de renovação invalidados antes do prazo (logout e rotação)."""
+
+    async def revoke(self, token_id: str, ttl_seconds: int) -> None: ...
+
+    async def is_revoked(self, token_id: str) -> bool: ...
 
 
 class UserDataEraserPort(Protocol):

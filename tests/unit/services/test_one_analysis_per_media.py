@@ -20,7 +20,7 @@ class NoSteps:
 
 
 def _service(repo):
-    return TextAnalysisService(repository=repo, pipeline=NoSteps(), text_analysis_read_service=None)
+    return TextAnalysisService(repository=repo, pipeline=NoSteps(),)
 
 
 @pytest.mark.asyncio
@@ -88,8 +88,7 @@ async def test_the_request_id_reaches_the_analysis_events():
 
     bus = InMemoryEventBus()
     service = TextAnalysisService(
-        repository=InMemoryAnalysisRepository(), pipeline=WithSummary(),
-        text_analysis_read_service=None, event_bus=bus,
+        repository=InMemoryAnalysisRepository(), pipeline=WithSummary(), event_bus=bus,
     )
     media_id = uuid4()
     await service.analyze_text_content(

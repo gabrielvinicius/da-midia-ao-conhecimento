@@ -41,6 +41,17 @@ class NotificationRepository:
         result = await self.db.execute(stmt.order_by(NotificationModel.created_at.desc()).limit(limit))
         return [model.to_domain() for model in result.scalars().all()]
 
+    async def list_undelivered_by_user(self, user_id: str, limit: int = 50) -> List[Notification]:
+        """Avisos ainda não entregues pelo WebSocket, dos mais antigos aos mais novos."""
+        stmt = (
+            select(NotificationModel)
+            .where(NotificationModel.user_id == UUID(str(user_id)), NotificationModel.delivered_at.is_(None))
+            .order_by(NotificationModel.created_at)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return [model.to_domain() for model in result.scalars().all()]
+
     async def mark_all_as_read(self, user_id: str) -> int:
         now = utcnow()
         result = await self.db.execute(

@@ -538,6 +538,28 @@ def test_existing_users_can_be_updated(client):
     assert r.json()["role"] == "ADMIN"
 
 
+def test_logout_ends_the_session_and_refresh_rotates(client):
+    """O logout só apagava o cookie: uma cópia do token de renovação seguia
+    renovando a sessão por 7 dias, e ele também valia como token de acesso."""
+    email = f"sara-{uuid.uuid4().hex[:8]}@teste.com"
+    assert client.post("/auth/register", json={"email": email, "password": "Senha123"}).status_code == 201
+    first = client.post("/auth/token", data={"username": email, "password": "Senha123"}).cookies["refresh_token"]
+    assert client.get("/auth/me", headers={"Authorization": f"Bearer {first}"}).status_code == 401
+
+    client.cookies.set("refresh_token", first)
+    second = client.post("/auth/refresh")
+    assert second.status_code == 200
+    client.cookies.set("refresh_token", first)
+    assert client.post("/auth/refresh").status_code == 401  # usado uma vez
+
+    copy = second.cookies["refresh_token"]
+    client.cookies.set("refresh_token", copy)
+    assert client.post("/auth/logout").status_code == 200
+    client.cookies.set("refresh_token", copy)
+    assert client.post("/auth/refresh").status_code == 401
+    client.cookies.clear()
+
+
 def test_deactivated_user_loses_access(client):
     """Desativar uma conta no painel não bloqueava nada: o login, o token já
     emitido e a renovação continuavam funcionando."""
@@ -608,6 +630,51 @@ def test_notifications_survive_a_closed_page(client):
     assert all(n["read"] for n in client.get("/notifications/", headers=alice).json())
 
 
+def test_websocket_delivers_what_arrived_with_the_page_closed(client):
+    """A conexão fechava logo após abrir (método inexistente na consulta dos
+    pendentes), e os pendentes saíam num formato que a interface ignorava."""
+    import asyncio
+
+    import pytest
+    from starlette.websockets import WebSocketDisconnect
+
+    from src.notifications.domain import Notification
+    from src.notifications.infrastructure.repositories.notification_repository import (
+        NotificationRepository,
+    )
+    from src.shared.infrastructure.database.db import AsyncSessionLocal
+
+    headers = _account(client, "paula")
+    user_id = client.get("/auth/me", headers=headers).json()["id"]
+    token = client.post("/auth/scoped-token", headers=headers, json={"purpose": "notifications"}).json()["token"]
+
+    async def store():
+        async with AsyncSessionLocal() as session:
+            await NotificationRepository(db=session).save(
+                Notification(user_id=uuid.UUID(user_id), content="Análise concluída")
+            )
+
+    asyncio.run(store())
+    import time
+
+    with client.websocket_connect(f"/ws/notifications?token={token}") as ws:
+        message = ws.receive_json()
+        # Marcado como entregue logo depois do envio, com a conexão aberta.
+        for _ in range(50):
+            [item] = client.get("/notifications/", headers=headers).json()
+            if item["status"] == "delivered":
+                break
+            time.sleep(0.05)
+    assert message["kind"] == "new_notification"
+    assert message["payload"]["content"] == "Análise concluída"
+    assert item["status"] == "delivered"
+
+    # Já entregue: uma nova conexão não o repete. Sem token, a conexão é recusada.
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws/notifications") as ws:
+            ws.receive_json()
+
+
 def test_admin_manages_own_media_and_owner_is_reported(client):
     """O painel barrava o admin nas próprias mídias (regra feita para contas),
     e a resposta da mídia não dizia o dono, então o dono não via "Reprocessar"."""
@@ -654,7 +721,12 @@ def test_s3_storage_keeps_files_in_the_bucket(client):
     keys = [o["Key"] for o in s3.list_objects_v2(Bucket=storage_settings.s3_bucket).get("Contents", [])]
     assert any(media["id"] in key for key in keys)
 
-    token = me["Authorization"].split()[1]
+    # O token de acesso não vai mais na URL; o de reprodução só abre esta mídia.
+    access = me["Authorization"].split()[1]
+    assert client.get(f"/media/{media['id']}/stream?token={access}").status_code == 401
+    token = client.post(
+        "/auth/scoped-token", headers=me, json={"purpose": "media_stream", "resource": media["id"]}
+    ).json()["token"]
     stream = client.get(f"/media/{media['id']}/stream?token={token}")
     assert stream.status_code == 200 and stream.content == "Ata da reunião.".encode()
     # O reprodutor pede trechos: só o intervalo pedido volta (lido em partes).

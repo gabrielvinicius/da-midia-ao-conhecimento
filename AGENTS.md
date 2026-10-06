@@ -31,6 +31,9 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 - **Analysis state**: language, visual context, summary source (`SummarySource`), grounding report and step outcomes are typed fields of `Analysis`; `diagnostics` holds only technical details. `application/mappers.analysis_diagnostics`/`restore_from_diagnostics` keep the stored and API `diagnostics` format.
 - **Storage paths**: `FilePath` accepts only relative paths without `..`; every adapter relies on it.
 - **Time**: domain and application read the clock only through `shared/domain/time/clock.utcnow`; recording times are formatted by `shared/domain/time/timestamps.format_timestamp`.
+- **Authentication**: every token is checked by `AuthService.user_for_token(token, purpose, resource)`. Access tokens go only in the `Authorization` header; the video URL and the WebSocket use short scoped tokens (`POST /auth/scoped-token`, `application/tokens.TokenPurpose`). Refresh tokens rotate on use and are revoked on logout (`RevokedTokensPort`, Redis).
+- **API never runs models**: analysis requests from the API go to the queue (`AnalysisRequestService`); the API composes only read, review and request services of text_analysis.
+- **Access to analyses**: `text_analysis/application/access.ensure_can_access` answers 404 for other users' data, as media does.
 - **Logs**: no personal data (e-mails masked with `shared/application/privacy.masked_email`, search text never logged); Prometheus labels never carry media or user ids.
 - **Text generation**: only through Ollama (`OllamaTextGenerationAdapter`, main and reserve model from settings). There is no Transformers path for the LLM.
 - **Configuration**: environment-specific values (CORS origins in `CORS_ORIGINS`, hosts, models) come from settings, never hard-coded lists.

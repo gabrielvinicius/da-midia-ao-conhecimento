@@ -12,10 +12,10 @@ from src.text_analysis.api.schemas import AnalyzeRequest
 
 
 def test_analyze_request_model_is_fully_defined():
-    request = AnalyzeRequest.model_validate(
-        {"text": "oi", "segments": [{"start": 0, "end": 1, "text": "oi"}]}
-    )
-    assert request.segments[0].text == "oi"
+    from uuid import uuid4
+
+    media_id = uuid4()
+    assert AnalyzeRequest.model_validate({"media_id": str(media_id)}).media_id == media_id
 
 
 def test_text_analysis_openapi_schema_builds():

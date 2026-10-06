@@ -11,12 +11,19 @@ from typing import Any, Optional
 from src.shared.application.event_bus import SupportsEventBus
 from src.text_analysis.application import NoOpTextAnalysisMetrics, TextAnalysisService
 from src.text_analysis.application.ports import TranscriptionQueryPort
+from src.text_analysis.application.services.analysis_request_service import (
+    AnalysisRequestService,
+)
+from src.text_analysis.application.services.analysis_review_service import (
+    AnalysisReviewService,
+)
 from src.text_analysis.application.services.knowledge_base_service import (
     KnowledgeBaseService,
 )
 from src.text_analysis.application.services.text_analysis_read_service import (
     TextAnalysisReadService,
 )
+from src.text_analysis.infrastructure.adapters.celery_analysis_queue import CeleryAnalysisQueue
 from src.text_analysis.infrastructure.dependencies.pipeline_factory import (
     build_analysis_pipeline,
 )
@@ -77,19 +84,38 @@ def build_text_analysis_service(
     repository: Any = None,
     transcription_queries: Optional[TranscriptionQueryPort] = None,
 ) -> TextAnalysisService:
+    """Execução da análise (worker): monta o pipeline e os modelos."""
     config = build_analysis_config()
-    repository = repository or SqlAlchemyAnalysisRepository(session)
     return TextAnalysisService(
-        repository=repository,
+        repository=repository or SqlAlchemyAnalysisRepository(session),
         pipeline=build_analysis_pipeline(config, session).pipeline,
-        feedback_repo=FeedbackRepository(session),
         config=config,
         metrics=_metrics(),
         event_bus=event_bus,
         transcription_queries=transcription_queries or build_transcription_queries(session),
-        text_analysis_read_service=TextAnalysisReadService(repository=repository),
         stats_recorder=_stats_recorder(session),
         runtime_diagnostics=runtime_diagnostics(),
+    )
+
+
+def build_analysis_read_service(session, *, repository: Any = None) -> TextAnalysisReadService:
+    return TextAnalysisReadService(repository=repository or SqlAlchemyAnalysisRepository(session))
+
+
+def build_analysis_review_service(session, *, repository: Any = None) -> AnalysisReviewService:
+    return AnalysisReviewService(
+        repository=repository or SqlAlchemyAnalysisRepository(session),
+        feedback_repo=FeedbackRepository(session),
+    )
+
+
+def build_analysis_request_service(
+    session, *, transcription_queries: Optional[TranscriptionQueryPort] = None
+) -> AnalysisRequestService:
+    """Pedido de análise pela API: vai para a fila, sem pipeline nem modelos."""
+    return AnalysisRequestService(
+        sources=transcription_queries or build_transcription_queries(session),
+        queue=CeleryAnalysisQueue(),
     )
 
 
@@ -101,4 +127,11 @@ def build_knowledge_service(session) -> KnowledgeBaseService:
     )
 
 
-__all__ = ["build_knowledge_service", "build_text_analysis_service", "build_transcription_queries"]
+__all__ = [
+    "build_analysis_read_service",
+    "build_analysis_request_service",
+    "build_analysis_review_service",
+    "build_knowledge_service",
+    "build_text_analysis_service",
+    "build_transcription_queries",
+]

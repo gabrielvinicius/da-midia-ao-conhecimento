@@ -1,30 +1,25 @@
-"""Application-level service for Text Analysis.
+"""Execução da análise de uma mídia (no worker), pelo pipeline de etapas.
 
-Consolidates command and query logic into a single Service class.
-Now uses a Pipeline pattern for granular and resilient processing.
+Leitura, revisão humana e pedidos de análise feitos pela API ficam em
+serviços próprios (TextAnalysisReadService, AnalysisReviewService,
+AnalysisRequestService): a API não monta o pipeline nem carrega modelos.
 """
 
 from __future__ import annotations
 
 import time
-from typing import Any, Optional, List, Dict
-from uuid import UUID
+from typing import Any, Optional
 
 import structlog
 
 from src.shared.application.event_bus import SupportsEventBus
 from src.shared.application.ports import ProcessingStatsPort
 from src.shared.domain.events import AnalysisCompleted
-from src.text_analysis.application.ports.repository import FeedbackRepositoryPort
 
 from src.text_analysis.domain import Analysis, Document
-from src.text_analysis.domain import Topic
 from src.text_analysis.application.config import AnalysisConfig
 from src.text_analysis.application.dtos import (
     AnalyzeTextCommand,
-    GetAnalysisByMediaIdQuery,
-    GetAnalysisQuery,
-    ListTopicsQuery,
 )
 from src.text_analysis.application.mappers import analysis_to_dto
 from src.text_analysis.application.metrics import NoOpTextAnalysisMetrics, TextAnalysisMetrics
@@ -33,7 +28,6 @@ from src.text_analysis.application.ports import (
 )
 from src.text_analysis.application.ports.transcription_port import TranscriptionQueryPort
 from src.text_analysis.application.pipeline.base import AnalysisPipeline
-from src.text_analysis.application.services.text_analysis_read_service import TextAnalysisReadService
 
 logger = structlog.get_logger(__name__)
 
@@ -46,40 +40,22 @@ class TextAnalysisService:
         *,
         repository: AnalysisRepositoryPort,
         pipeline: AnalysisPipeline,
-        feedback_repo: Optional[FeedbackRepositoryPort] = None,
         config: Optional[AnalysisConfig] = None,
         metrics: TextAnalysisMetrics | None = None,
         event_bus: SupportsEventBus | None = None,
         transcription_queries: Optional[TranscriptionQueryPort] = None,
-        text_analysis_read_service: TextAnalysisReadService,
         stats_recorder: ProcessingStatsPort | None = None,
         runtime_diagnostics: Optional[dict] = None,
     ) -> None:
         self.repository = repository
         self.pipeline = pipeline
-        self.feedback_repo = feedback_repo
         self.config = config or AnalysisConfig()
         self.metrics = metrics or NoOpTextAnalysisMetrics()
         self.event_bus = event_bus
         self.transcription_queries = transcription_queries
-        self.text_analysis_read_service = text_analysis_read_service
         self.stats_recorder = stats_recorder
         # Ex.: {"hardware_target": "cuda", "compute_type": "float16"}.
         self.runtime_diagnostics = dict(runtime_diagnostics or {})
-
-    async def submit_feedback(self, analysis_id: str, user_id: UUID, score: int, comment: str | None = None) -> bool:
-        """Saves user feedback for an analysis."""
-        await self.feedback_repo.save_feedback(analysis_id, user_id, score, comment)
-        logger.info("text_analysis.feedback_submitted", analysis_id=analysis_id, score=score)
-        return True
-
-    async def correct_summary(self, analysis_id: str, new_summary: str) -> bool:
-        """Allows manual correction of the AI summary."""
-        success = await self.repository.update_summary(analysis_id, new_summary)
-        if success:
-            logger.info("text_analysis.summary_corrected_by_human", analysis_id=analysis_id)
-        return success
-
 
     async def analyze_text_content(
         self,
@@ -224,13 +200,3 @@ class TextAnalysisService:
             await self.event_bus.publish(event)
         except Exception as exc:
             logger.warning("text_analysis.completed_event_failed", error=str(exc))
-
-    async def get_analysis(self, query: GetAnalysisQuery) -> Dict[str, Any]:
-        return await self.text_analysis_read_service.get_analysis(query)
-
-    async def get_analysis_by_media_id(self, query: GetAnalysisByMediaIdQuery) -> Optional[Dict[str, Any]]:
-        return await self.text_analysis_read_service.get_analysis_by_media_id(query)
-
-    async def list_topics(self, query: ListTopicsQuery) -> List[Topic]:
-        return await self.text_analysis_read_service.list_topics(query)
-

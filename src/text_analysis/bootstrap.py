@@ -7,13 +7,17 @@ from typing import Any, Optional
 
 from fastapi import FastAPI
 
-from .application import TextAnalysisService
 from .application.ports import TranscriptionQueryPort
+from .application.services.analysis_request_service import AnalysisRequestService
+from .application.services.analysis_review_service import AnalysisReviewService
 from .application.services.knowledge_base_service import KnowledgeBaseService
+from .application.services.text_analysis_read_service import TextAnalysisReadService
 from .infrastructure.dependencies import registry as ta_registry
 from .infrastructure.dependencies.builders import (
+    build_analysis_read_service,
+    build_analysis_request_service,
+    build_analysis_review_service,
     build_knowledge_service,
-    build_text_analysis_service,
 )
 from .infrastructure.dependencies.registry import needs_health_refresh, update_health_timestamp
 from src.shared.infrastructure.config.settings import settings
@@ -35,14 +39,20 @@ def _prom_available() -> bool:
 
 @dataclass
 class TextAnalysisModule:
-    service: TextAnalysisService
+    """Serviços da API: leitura, revisão, pedido de análise e busca.
+
+    A análise roda no worker; a API não monta o pipeline nem carrega modelos.
+    """
+
+    read_service: TextAnalysisReadService
+    review_service: AnalysisReviewService
+    request_service: AnalysisRequestService
     knowledge_service: KnowledgeBaseService
 
 
 async def build_text_analysis_module(
     session: Any,
     repository: Any | None = None,
-    event_bus: Any | None = None,
     transcription_queries: Optional[TranscriptionQueryPort] = None,
     **_kwargs: Any,
 ) -> TextAnalysisModule:
@@ -54,21 +64,25 @@ async def build_text_analysis_module(
         raise RuntimeError("TextAnalysis requires a database session for persistence")
     _update_registry_availability()
     return TextAnalysisModule(
-        service=build_text_analysis_service(
-            session,
-            event_bus,
-            repository=repository,
-            transcription_queries=transcription_queries,
-        ),
+        read_service=build_analysis_read_service(session, repository=repository),
+        review_service=build_analysis_review_service(session, repository=repository),
+        request_service=build_analysis_request_service(session, transcription_queries=transcription_queries),
         knowledge_service=build_knowledge_service(session),
     )
 
 
 def bind_text_analysis_module(app: FastAPI, module: TextAnalysisModule) -> None:
     """Register dependency overrides for text analysis."""
-    from .api.dependencies import get_knowledge_service, get_text_analysis_service
+    from .api.dependencies import (
+        get_analysis_read_service,
+        get_analysis_request_service,
+        get_analysis_review_service,
+        get_knowledge_service,
+    )
 
-    app.dependency_overrides[get_text_analysis_service] = lambda: module.service
+    app.dependency_overrides[get_analysis_read_service] = lambda: module.read_service
+    app.dependency_overrides[get_analysis_review_service] = lambda: module.review_service
+    app.dependency_overrides[get_analysis_request_service] = lambda: module.request_service
     app.dependency_overrides[get_knowledge_service] = lambda: module.knowledge_service
 
 

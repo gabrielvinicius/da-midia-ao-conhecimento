@@ -1,31 +1,26 @@
-"""Authentication dependencies contract.
+"""Dependências da autenticação.
 
-This module defines the dependency interfaces (functions) used by the API routers.
-These functions are placeholders that raise NotImplementedError by default.
-They MUST be overridden by the application Composition Root (main.py) using
-FastAPI's app.dependency_overrides mechanism.
+Os serviços são ligados por bootstrap.bind_user_management_module; sem essa
+ligação, as dependências falham em vez de montar uma versão própria.
 """
 from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, Query, WebSocketException, status
-from jose import JWTError, ExpiredSignatureError, jwt
+from uuid import UUID
+
+from fastapi import Depends, Query, WebSocketException, status
 
 from src.user_management.application.auth_queries import UserReadService
-from src.user_management.application.dtos import GetUserQuery
+from src.shared.domain.errors import AccessDeniedError, AuthenticationError
 from src.user_management.application.services.auth_service import AuthService
 from src.user_management.application.services.login_throttle import LoginThrottle
 from src.user_management.application.services.user_service import UserService
+from src.user_management.application.tokens import TokenPurpose
 from src.user_management.config.settings import UserSettings
 from src.user_management.domain import User, UserRole
 from src.user_management.infrastructure.adapters.auth.oauth2_scheme import oauth2_scheme
 
 
 # --- Placeholder Dependencies (Contracts) ---
-
-def get_auth_dependencies() -> None:
-    """Deprecated placeholder. Use specific service getters below."""
-    raise NotImplementedError("Legacy dependency. Use specific services.")
-
 
 def get_user_service() -> UserService:
     """Returns the UserService instance."""
@@ -72,107 +67,44 @@ def get_login_throttle() -> LoginThrottle:
     return _default_login_throttle
 
 
-# --- Derived Dependencies (Leafs) ---
+# --- Usuário autenticado ---------------------------------------------------
+# Toda a verificação fica em AuthService.user_for_token; aqui só se escolhe
+# de onde vem o token e para que ele precisa servir.
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
-    queries: UserReadService = Depends(get_auth_queries),
-    settings: UserSettings = Depends(get_auth_settings),
+    auth: AuthService = Depends(get_auth_service),
 ) -> User:
-    """Resolves the current authenticated user from the Bearer token."""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(
-            token,
-            settings.secret_key,
-            algorithms=[settings.algorithm],
-        )
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-
-    user = await queries.get_user_by_id(GetUserQuery(user_id=user_id).user_id)
-    # Conta excluída ou desativada perde o acesso já na próxima requisição,
-    # mesmo com um token ainda dentro da validade.
-    if user is None or not user.is_active:
-        raise credentials_exception
-    return user
+    """Usuário do token de acesso (cabeçalho Authorization)."""
+    return await auth.user_for_token(token, TokenPurpose.ACCESS)
 
 
-async def get_current_user_from_query(
-    token: Annotated[str, Query(...)],
-    queries: UserReadService = Depends(get_auth_queries),
-    settings: UserSettings = Depends(get_auth_settings),
+async def get_current_user_for_media_stream(
+    media_id: UUID,
+    token: Annotated[str, Query(..., description="Token de reprodução (POST /auth/scoped-token).")],
+    auth: AuthService = Depends(get_auth_service),
 ) -> User:
-    """Resolves current user from a 'token' query parameter (for streaming/ws)."""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(
-            token,
-            settings.secret_key,
-            algorithms=[settings.algorithm],
-        )
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-
-    user = await queries.get_user_by_id(GetUserQuery(user_id=user_id).user_id)
-    # Conta excluída ou desativada perde o acesso já na próxima requisição,
-    # mesmo com um token ainda dentro da validade.
-    if user is None or not user.is_active:
-        raise credentials_exception
-    return user
+    """Usuário do token de reprodução daquela mídia, na URL do <video>."""
+    return await auth.user_for_token(token, TokenPurpose.MEDIA_STREAM, media_id)
 
 
 async def get_current_admin_user(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
-    """Ensures the current user has ADMIN privileges."""
     if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user does not have enough privileges",
-        )
+        raise AccessDeniedError("Acesso restrito a administradores")
     return current_user
 
 
 async def get_current_user_websocket(
     token: Annotated[Optional[str], Query()] = None,
-    queries: UserReadService = Depends(get_auth_queries),
-    settings: UserSettings = Depends(get_auth_settings),
+    auth: AuthService = Depends(get_auth_service),
 ) -> User:
-    """Resolves current user for WebSocket connections."""
-    if not token:
-        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Token ausente")
-
+    """Usuário do token de abertura do WebSocket de avisos."""
     try:
-        payload = jwt.decode(
-            token,
-            settings.secret_key,
-            algorithms=[settings.algorithm],
-        )
-        user_id: str = payload.get("sub")
-    except ExpiredSignatureError:
-        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Token expirado")
-    except JWTError:
-        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Token inválido")
-
-    user = await queries.get_user_by_id(GetUserQuery(user_id=user_id).user_id)
-    if not user or not user.is_active:
-        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Usuário não encontrado")
-    return user
+        return await auth.user_for_token(token, TokenPurpose.NOTIFICATIONS)
+    except AuthenticationError as exc:
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason=str(exc)) from None
 
 
 __all__ = [
@@ -181,7 +113,8 @@ __all__ = [
     "get_auth_queries",
     "get_auth_settings",
     "get_current_user",
-    "get_current_user_from_query",
+    "get_current_user_for_media_stream",
     "get_current_admin_user",
     "get_current_user_websocket",
+    "get_login_throttle",
 ]

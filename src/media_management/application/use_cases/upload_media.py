@@ -63,7 +63,7 @@ class UploadMedia:
             metrics_publisher=MediaMetricsPublisher(metrics_service=metrics),
             event_publisher=MediaEventPublisher(event_bus=event_bus),
         )
-        # Provedores conhecidos por campo (validação branda: só avisa).
+        # Provedores conhecidos por campo.
         self._allowed: Dict[str, Set[str]] = {
             "storage_provider": set(media_settings.storage_providers_allowed or []),
             "transcription_provider": set(media_settings.transcription_providers_allowed or []),
@@ -71,7 +71,7 @@ class UploadMedia:
 
     async def execute(self, command: CreateMediaCommand) -> Media:
         self._upload_validator.validate(command.file_size_bytes, command.filename)
-        self._warn_unknown_providers(command)
+        self._check_providers(command)
 
         media_type = media_type_of(command.filename)
         content_type = mimetypes.guess_type(command.filename)[0] or "application/octet-stream"
@@ -114,14 +114,23 @@ class UploadMedia:
         except Exception as exc:  # a falha original é a que importa
             logger.warning("media_management.upload_discard_failed", path=path, error=str(exc))
 
-    def _warn_unknown_providers(self, command: CreateMediaCommand) -> None:
-        for field, allowed in self._allowed.items():
-            name = getattr(command, field, None)
-            if name is not None and allowed and name not in allowed:
-                logger.warning(
-                    "media_management.provider.unrecognized",
-                    field=field, provider=name, allowed=sorted(allowed),
-                )
+    def _check_providers(self, command: CreateMediaCommand) -> None:
+        """Armazenamento desconhecido é recusado (400): antes, só gerava um aviso
+        no log e o envio terminava em erro 500 ao procurar o armazenamento.
+        Um modelo de transcrição desconhecido só gera aviso: o worker usa o padrão."""
+        storage = command.storage_provider
+        allowed_storage = self._allowed["storage_provider"]
+        if allowed_storage and storage not in allowed_storage:
+            raise InvalidUploadError(
+                f"Armazenamento desconhecido: {storage}. Opções: {', '.join(sorted(allowed_storage))}."
+            )
+        transcription = command.transcription_provider
+        allowed_transcription = self._allowed["transcription_provider"]
+        if transcription and allowed_transcription and transcription not in allowed_transcription:
+            logger.warning(
+                "media_management.provider.unrecognized",
+                field="transcription_provider", provider=transcription, allowed=sorted(allowed_transcription),
+            )
 
 
 __all__ = ["UploadMedia", "media_type_of"]

@@ -42,7 +42,7 @@ DEFAULT_MODULE_SPECS: tuple[ModuleSpec, ...] = (
     ModuleSpec(
         name="notifications",
         binder_path="src.notifications.bootstrap:bind_notifications_module",
-        routers=("src.notifications.api.routers:router",),
+        routers=("src.notifications.api.routers:router", "src.notifications.api.websocket_router:router"),
     ),
     ModuleSpec(
         name="text_analysis",

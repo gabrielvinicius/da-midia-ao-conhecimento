@@ -2,11 +2,7 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import (
-    Depends,
     FastAPI,
-    WebSocket,
-    WebSocketDisconnect,
-    WebSocketException,
 )
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -80,8 +76,6 @@ from src.shared.infrastructure.observability.logging.logging_config import (
 )
 from src.shared.infrastructure.observability.tracing.tracer import configure_tracer
 from src.storage.infrastructure.dependencies import StorageServiceFactory
-from src.user_management.api.dependencies import get_current_user_websocket
-from src.user_management.domain import User
 from src.notifications.infrastructure.realtime.redis_pubsub_bridge import (
     RedisNotificationPubSubBridge,
 )
@@ -235,10 +229,7 @@ async def lifespan(app: FastAPI):
         media_service_core=media_module.media_service,
     )
 
-    text_analysis_module = await build_text_analysis_module(
-        session=session,
-        event_bus=event_bus,
-    )
+    text_analysis_module = await build_text_analysis_module(session=session)
 
     # Register all built modules so FastAPI uses the correct instances
     register_module_dependencies(
@@ -391,57 +382,6 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(monitoring_router)
     app.include_router(providers_router)
-
-    # Add WebSocket endpoints for real-time notifications
-    @app.websocket("/ws/notifications")
-    async def websocket_notifications(
-        websocket: WebSocket,
-        current_user: User = Depends(get_current_user_websocket),
-    ):
-        from src.notifications.infrastructure.adapters.websockets.connection_manager import (
-            manager,
-        )
-        from src.notifications.infrastructure.repositories.notification_repository import (
-            NotificationRepository,
-        )
-        from src.shared.infrastructure.database.db import AsyncSessionLocal
-
-        user_id = str(current_user.id)
-        try:
-            await manager.connect(user_id, websocket)
-
-            # Envia backlog de notificações ainda não entregues via realtime.
-            async with AsyncSessionLocal() as session:
-                repo = NotificationRepository(db=session)
-                pending = await repo.list_undelivered_by_user(user_id, limit=50)
-                for notif in pending:
-                    ok = await manager.send_to_user(
-                        user_id,
-                        {
-                            "notification_id": str(notif.id),
-                            "type": notif.type.value,
-                            "message": notif.content,
-                            "priority": notif.priority.value,
-                            "created_at": notif.created_at,
-                            "variables": notif.variables,
-                        },
-                    )
-                    if ok:
-                        await repo.mark_as_delivered(str(notif.id))
-
-            try:
-                while True:
-                    data = await websocket.receive_text()
-                    print(f"Received message from user {user_id}: {data}")
-                    await websocket.send_text(f"Server received: {data}")
-            except WebSocketDisconnect:
-                manager.disconnect(user_id, websocket)
-                print(f"WebSocket connection for user {user_id} closed")
-        except WebSocketException as exc:
-            await websocket.close(code=exc.code, reason=exc.reason or "Unauthorized")
-        except Exception as e:
-            print(f"WebSocket error: {e}")
-            await websocket.close(code=1000)
 
     # Mais externo: cada requisição ganha sua própria sessão de banco, fechada
     # ao fim (ver RequestScopedSession).

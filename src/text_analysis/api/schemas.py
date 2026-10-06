@@ -1,47 +1,19 @@
-"""Pydantic schemas for text analysis API."""
+"""Esquemas da API da análise."""
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
-
-
-class Segment(BaseModel):
-    start: Optional[float] = None
-    end: Optional[float] = None
-    text: str
+from pydantic import BaseModel, Field
 
 
 class AnalyzeRequest(BaseModel):
-    text: Optional[str] = None
-    media_id: Optional[UUID] = None
-    transcription_id: Optional[UUID] = None
-    segments: Optional[List[Segment]] = None
-    language: Optional[str] = Field(default="pt")
-    chunk_size: Optional[int] = None
-    chunk_overlap: Optional[int] = None
+    """Pedido de nova análise de uma mídia; o texto vem da sua transcrição.
 
-    @model_validator(mode="before")
-    def trim_text(cls, values: dict[str, Any]) -> dict[str, Any]:  # noqa: N805
-        if (
-            isinstance(values, dict)
-            and "text" in values
-            and isinstance(values["text"], str)
-        ):
-            values["text"] = values["text"].strip()
-        return values
+    Antes aceitava texto, segmentos e tamanho dos trechos, que nada usava.
+    """
 
-    @model_validator(mode="after")
-    def ensure_source_present(self) -> "AnalyzeRequest":
-        has_text = bool(self.text)
-        has_ids = bool(self.media_id or self.transcription_id)
-        if not has_text and not has_ids:
-            raise ValueError(
-                "Informe texto ou um media_id/transcription_id para análise"
-            )
-        return self
+    media_id: UUID = Field(..., description="Mídia a analisar de novo.")
 
 
 class AnalyzeResponse(BaseModel):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Protocol
+from typing import Any, List, Optional, Protocol
 from uuid import UUID
 
 from src.notifications.domain import Notification
@@ -14,6 +14,8 @@ class NotificationRepositoryPort(Protocol):
     async def save(self, notification: Notification) -> Notification: ...
     async def list_by_user(self, user_id: str, limit: int = 50, unread_only: bool = False): ...
     async def mark_all_as_read(self, user_id: str) -> int: ...
+    async def list_undelivered_by_user(self, user_id: str, limit: int = 50) -> List[Notification]: ...
+    async def mark_as_delivered(self, notification_id: UUID) -> bool: ...
 
 
 class NotificationDeliveryPort(Protocol):

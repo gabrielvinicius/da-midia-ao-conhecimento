@@ -1,33 +1,40 @@
-"""FastAPI routers exposing text analysis operations."""
+"""Rotas da análise: leitura, revisão humana, pedido de análise e busca.
+
+Quem pode ver ou alterar cada análise é decidido na camada de aplicação
+(application/access.py); as rotas só traduzem HTTP.
+"""
 
 from __future__ import annotations
 
-from typing import Annotated, Optional
+from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel, Field
 
-from src.media_management.api.dependencies import get_media_read_service
-from src.media_management.application.dtos import GetMediaQuery
-from src.media_management.application.services.media_read_service import MediaReadService
+from src.shared.infrastructure.middleware.correlation_middleware import correlation_id_of
 from src.user_management.api.dependencies import get_current_user
-from src.user_management.domain import User, UserRole
+from src.user_management.domain import User
 
-from ..application.dtos import (
-    AnalyzeTextCommand,
-    GetAnalysisByMediaIdQuery,
-    GetAnalysisQuery,
-)
-from ..application.services.text_analysis_service import TextAnalysisService
+from ..application.access import Requester
+from ..application.dtos import GetAnalysisByMediaIdQuery, GetAnalysisQuery, ListTopicsQuery
+from ..application.services.analysis_request_service import AnalysisRequestService
+from ..application.services.analysis_review_service import AnalysisReviewService
 from ..application.services.knowledge_base_service import KnowledgeBaseService
-from src.shared.domain.errors import AccessDeniedError, NotFoundError
-from src.shared.infrastructure.observability.logging.logging_config import get_logger
-from .dependencies import AnalyzeRequest, AnalyzeResponse, get_text_analysis_service, get_knowledge_service
-
-logger = get_logger(__name__)
+from ..application.services.text_analysis_read_service import TextAnalysisReadService
+from .dependencies import (
+    get_analysis_read_service,
+    get_analysis_request_service,
+    get_analysis_review_service,
+    get_knowledge_service,
+)
+from .schemas import AnalyzeRequest, AnalyzeResponse
 
 router = APIRouter(prefix="/text-analysis", tags=["text-analysis"])
+
+
+def _requester(user: User) -> Requester:
+    return Requester(user_id=user.id, role=user.role)
 
 
 @router.get("/search")
@@ -38,126 +45,82 @@ async def semantic_search(
     current_user: User = Depends(get_current_user),
 ):
     """Busca semântica nas mídias do usuário (administradores veem todas)."""
-    owner_filter = None if current_user.role == UserRole.ADMIN else current_user.id
-    return await service.search(query, limit=limit, user_id=owner_filter)
+    requester = _requester(current_user)
+    return await service.search(query, limit=limit, user_id=None if requester.is_admin else requester.user_id)
 
 
-def _ensure_owner(owner, current_user: User) -> None:
-    """Só o dono (ou um administrador) vê ou altera a análise."""
-    if owner and str(owner) != str(current_user.id) and current_user.role != UserRole.ADMIN:
-        raise AccessDeniedError("Acesso negado")
-
-
-@router.post("/analyze", response_model=AnalyzeResponse)
-async def analyze_text(
+@router.post("/analyze", status_code=status.HTTP_202_ACCEPTED)
+async def request_analysis(
     payload: AnalyzeRequest,
-    service: TextAnalysisService = Depends(get_text_analysis_service),
-    media_read_service: MediaReadService = Depends(get_media_read_service),
-    current_user: Annotated[User, Depends(get_current_user)] = None,
+    request: Request,
+    service: AnalysisRequestService = Depends(get_analysis_request_service),
+    current_user: User = Depends(get_current_user),
 ):
-    if payload.media_id is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Informe um media_id para análise")
-    media = await media_read_service.get_media(GetMediaQuery(media_id=payload.media_id))
-    if not media:
-        raise NotFoundError("Mídia não encontrada")
-    _ensure_owner(media.user_id, current_user)
-
-    command = AnalyzeTextCommand(
-        media_id=payload.media_id,
-        document_id=payload.transcription_id or payload.media_id,
-        text_content=payload.text or "",
-        user_id=current_user.id if current_user else None,
-        transcription_id=payload.transcription_id,
-        language=payload.language,
-    )
-    return await service.analyze_text_content(command)
+    """Pede uma nova análise da mídia ao worker; o resultado chega pelos avisos."""
+    await service.request(payload.media_id, _requester(current_user), correlation_id_of(request))
+    return {"media_id": str(payload.media_id), "status": "queued"}
 
 
 @router.get("/media/{media_id}", response_model=AnalyzeResponse)
 async def get_analysis_by_media(
     media_id: UUID,
-    service: TextAnalysisService = Depends(get_text_analysis_service),
-    current_user: Annotated[User, Depends(get_current_user)] = None,
+    service: TextAnalysisReadService = Depends(get_analysis_read_service),
+    current_user: User = Depends(get_current_user),
 ):
-    """Retrieve the latest text analysis result for a given media ID."""
-    result = await service.get_analysis_by_media_id(GetAnalysisByMediaIdQuery(media_id=media_id))
-    if not result:
-        raise NotFoundError("Análise não encontrada para esta mídia")
-    _ensure_owner(result.get("user_id"), current_user)
-    return result
+    return await service.get_analysis_by_media_id(
+        GetAnalysisByMediaIdQuery(media_id=media_id), _requester(current_user)
+    )
 
 
 @router.get("/{analysis_id}", response_model=AnalyzeResponse)
 async def get_analysis_result(
     analysis_id: UUID,
-    service: TextAnalysisService = Depends(get_text_analysis_service),
-    current_user: Annotated[User, Depends(get_current_user)] = None,
+    service: TextAnalysisReadService = Depends(get_analysis_read_service),
+    current_user: User = Depends(get_current_user),
 ):
-    result = await service.get_analysis(GetAnalysisQuery(analysis_id=analysis_id))
-    _ensure_owner(result.get("user_id"), current_user)
-    return result
+    return await service.get_analysis(GetAnalysisQuery(analysis_id=analysis_id), _requester(current_user))
+
+
+@router.get("/{analysis_id}/topics")
+async def get_topics(
+    analysis_id: UUID,
+    service: TextAnalysisReadService = Depends(get_analysis_read_service),
+    current_user: User = Depends(get_current_user),
+):
+    return await service.list_topics(ListTopicsQuery(analysis_id=analysis_id), _requester(current_user))
+
+
+class FeedbackRequest(BaseModel):
+    score: int = Field(..., ge=-1, le=5, description="-1 (não útil), 1 (útil) ou nota de 1 a 5.")
+    comment: Optional[str] = Field(None, max_length=2000)
+
+
+@router.post("/{analysis_id}/feedback")
+async def submit_analysis_feedback(
+    analysis_id: UUID,
+    body: FeedbackRequest,
+    service: AnalysisReviewService = Depends(get_analysis_review_service),
+    current_user: User = Depends(get_current_user),
+):
+    """Registra a avaliação humana de uma análise (no corpo, não na URL)."""
+    await service.submit_feedback(analysis_id, _requester(current_user), body.score, body.comment)
+    return {"message": "Avaliação registrada."}
 
 
 class SummaryCorrection(BaseModel):
     summary: str = Field(..., min_length=1, description="Resumo corrigido (Markdown).")
 
 
-async def _ensure_analysis_owner(
-    analysis_id: str, service: TextAnalysisService, current_user: User
-) -> None:
-    """Garante que a análise existe (NotFoundError) e pertence ao usuário."""
-    result = await service.get_analysis(GetAnalysisQuery(analysis_id=UUID(str(analysis_id))))
-    _ensure_owner(result.get("user_id"), current_user)
-
-
-@router.post("/{analysis_id}/feedback")
-async def submit_analysis_feedback(
-    analysis_id: str,
-    score: int = Query(..., ge=-1, le=5),
-    comment: Optional[str] = Query(None),
-    service: TextAnalysisService = Depends(get_text_analysis_service),
-    current_user: User = Depends(get_current_user),
-):
-    """Registra a avaliação humana de uma análise."""
-    await _ensure_analysis_owner(analysis_id, service, current_user)
-    await service.submit_feedback(analysis_id, current_user.id, score, comment)
-    return {"message": "Feedback registrado com sucesso"}
-
-
 @router.put("/{analysis_id}/summary")
 async def correct_analysis_summary(
-    analysis_id: str,
-    body: Optional[SummaryCorrection] = Body(None),
-    new_summary: Optional[str] = Query(
-        None, description="Obsoleto: use o corpo JSON {\"summary\": ...}."
-    ),
-    service: TextAnalysisService = Depends(get_text_analysis_service),
+    analysis_id: UUID,
+    body: SummaryCorrection,
+    service: AnalysisReviewService = Depends(get_analysis_review_service),
     current_user: User = Depends(get_current_user),
 ):
-    """Corrige o resumo gerado pela IA, preservando o original.
-
-    O texto vai no corpo da requisição: resumos longos em Markdown podem
-    ultrapassar o limite de tamanho de uma URL.
-    """
-    summary = body.summary if body else new_summary
-    if not summary:
-        raise HTTPException(status_code=422, detail="Informe o resumo corrigido.")
-    await _ensure_analysis_owner(analysis_id, service, current_user)
-    success = await service.correct_summary(analysis_id, summary)
-    if not success:
-        raise HTTPException(status_code=404, detail="Análise não encontrada")
-    return {"message": "Resumo atualizado com sucesso"}
-
-
-@router.get("/{analysis_id}/topics")
-async def get_topics(
-    analysis_id: UUID,
-    service: TextAnalysisService = Depends(get_text_analysis_service),
-    current_user: Annotated[User, Depends(get_current_user)] = None,
-):
-    analysis = await service.get_analysis(GetAnalysisQuery(analysis_id=analysis_id))
-    _ensure_owner(analysis.get("user_id"), current_user)
-    return analysis.get("topics", [])
+    """Corrige o resumo gerado pela IA, preservando o original."""
+    await service.correct_summary(analysis_id, _requester(current_user), body.summary)
+    return {"message": "Resumo atualizado."}
 
 
 __all__ = ["router"]

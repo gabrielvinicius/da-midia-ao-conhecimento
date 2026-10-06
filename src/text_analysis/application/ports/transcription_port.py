@@ -29,3 +29,7 @@ class TranscriptionQueryPort(Protocol):
         """Retrieves media metadata (file_path, storage_provider, type)."""
         ...
 
+    async def get_media_owner(self, media_id: UUID) -> Optional[UUID]:
+        """Dono da mídia, ou None se ela não existir."""
+        ...
+

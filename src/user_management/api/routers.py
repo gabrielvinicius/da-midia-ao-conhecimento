@@ -26,7 +26,13 @@ from src.user_management.domain.errors import (
 from src.user_management.domain import User, UserRole
 
 from .dependencies import get_auth_service, get_auth_settings, get_user_service
-from .schemas import ChangePasswordRequest, UserCreate, UserResponse
+from .schemas import (
+    ChangePasswordRequest,
+    ScopedTokenRequest,
+    ScopedTokenResponse,
+    UserCreate,
+    UserResponse,
+)
 
 logger = get_logger(__name__)
 
@@ -149,11 +155,26 @@ async def refresh_token(
 
 
 @router.post("/logout")
-async def logout(response: Response):
-    """Remove refresh cookie no cliente."""
+async def logout(
+    request: Request,
+    response: Response,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Revoga o token de renovação e apaga o cookie."""
+    await auth_service.logout(request.cookies.get("refresh_token"))
     response.delete_cookie("refresh_token", path="/")
-    response.delete_cookie("access_token_cookie", path="/")
     return {"message": "Logout realizado"}
+
+
+@router.post("/scoped-token", response_model=ScopedTokenResponse)
+async def issue_scoped_token(
+    payload: ScopedTokenRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Token de finalidade restrita para onde o navegador não manda cabeçalho:
+    a URL do vídeo (por mídia) e a abertura do WebSocket de avisos."""
+    return auth_service.issue_scoped_token(current_user, payload.purpose, payload.resource)
 
 
 @router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)

@@ -27,14 +27,9 @@ class TranscriptionQueryAdapter(TranscriptionQueryPort):
         if not transcription:
             return None
 
-        # Prioritize 'text' field, fallback to 'content' if legacy
-        text_content = getattr(transcription, "text", "") or getattr(
-            transcription, "content", ""
-        )
-
         return TextSourceData(
             id=transcription.id,
-            text=text_content,
+            text=transcription.text,
             language=transcription.language or "auto",
             segments=transcription.segments or [],
             media_id=transcription.media_id,
@@ -56,6 +51,12 @@ class TranscriptionQueryAdapter(TranscriptionQueryPort):
             "media_type": media.media_type
         }
 
+
+    async def get_media_owner(self, media_id: UUID) -> Optional[UUID]:
+        if not self._media_repo:
+            return None
+        media = await self._media_repo.get_by_id(media_id)
+        return media.user_id if media else None
 
 
 __all__ = ["TranscriptionQueryAdapter"]

@@ -26,7 +26,6 @@ def service(mock_transcription_query_port, mock_pipeline):
         repository=AsyncMock(),
         pipeline=mock_pipeline,
         transcription_queries=mock_transcription_query_port,
-        text_analysis_read_service=AsyncMock(),
         event_bus=MagicMock(),
     )
 

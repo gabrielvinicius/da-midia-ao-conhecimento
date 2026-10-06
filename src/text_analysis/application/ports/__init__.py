@@ -1,3 +1,4 @@
+from .analysis_queue import AnalysisQueuePort
 from .chunking import ChunkingServicePort
 from .embeddings import EmbeddingServicePort
 from .repository import AnalysisRepositoryPort, FeedbackRepositoryPort
@@ -9,6 +10,7 @@ from .vector_search import VectorIndexPort, VectorSearchPort
 from .transcription_port import TranscriptionQueryPort
 
 __all__ = [
+    "AnalysisQueuePort",
     "SentimentServicePort",
     "EmbeddingServicePort",
     "TopicModelingPort",
