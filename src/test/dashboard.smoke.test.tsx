@@ -56,4 +56,18 @@ describe('DashboardPage', () => {
     const video = await screen.findByText('Vídeo');
     await waitFor(() => expect(video.closest('div')?.parentElement?.textContent).toContain('5'));
   });
+
+  it('computes the rates over all media, not over the filtered list', async () => {
+    // As contagens vêm de /media/stats (todas as mídias); antes, a taxa dividia
+    // pelo total da lista filtrada e passava de 100%.
+    server.use(
+      http.get('/api/media/stats', () =>
+        HttpResponse.json({ total: 10, by_status: { completed: 5 }, by_type: { video: 10 } }),
+      ),
+    );
+    render(<DashboardPage />);
+    const card = (await screen.findByText(/Taxa de conclusão/i)).closest('div')?.parentElement;
+    await waitFor(() => expect(card?.textContent).toMatch(/\b50(\.0)?%?/));
+    expect(card?.textContent).not.toMatch(/500/);
+  });
 });

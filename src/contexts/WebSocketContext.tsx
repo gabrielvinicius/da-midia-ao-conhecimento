@@ -49,6 +49,9 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
   // Se a conexão ainda é desejada: falso após o logout, ao desmontar ou
   // quando o servidor recusa o token (código 1008).
   const wantedRef = useRef(false);
+  // Muda a cada sessão que pede a conexão: um token que chega atrasado, de
+  // um usuário que já saiu, não abre o socket do usuário seguinte.
+  const generationRef = useRef(0);
   const noticesRef = useRef(createNoticeBatcher((message) => toast.info(message)));
 
   // Os avisos ficam gravados no servidor: ao abrir a página aparecem também
@@ -76,6 +79,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
 
   const connect = useCallback(async () => {
     if (socketRef.current || !wantedRef.current) return;
+    const generation = generationRef.current;
 
     // Token de abertura, válido por 2 min: o token de acesso não vai na URL.
     let token: string;
@@ -85,9 +89,9 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
       scheduleReconnect(connect);
       return;
     }
-    // Durante a espera do token o usuário pode ter saído: sem esta checagem,
-    // o socket abria depois do logout.
-    if (socketRef.current || !wantedRef.current) return;
+    // Durante a espera do token o usuário pode ter saído (ou outro ter
+    // entrado): sem esta checagem, o socket abria depois do logout.
+    if (socketRef.current || !wantedRef.current || generation !== generationRef.current) return;
     const ws = new WebSocket(`${buildWsUrl("/ws/notifications")}?token=${encodeURIComponent(token)}`);
     socketRef.current = ws;
     setConnectionStatus('CONNECTING');
@@ -158,6 +162,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
   const userId = user?.id;
   useEffect(() => {
     if (!isAuthenticated || !userId) return undefined;
+    generationRef.current += 1;
     wantedRef.current = true;
     connect();
     return disconnect;

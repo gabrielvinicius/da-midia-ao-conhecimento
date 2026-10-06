@@ -4,10 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const auth = { user: { id: 'u1' } as { id: string } | null, isAuthenticated: true };
 let resolveToken: (token: string) => void = () => {};
+const pendingTokens: ((token: string) => void)[] = [];
 
 vi.mock('../AuthContext', () => ({ useAuth: () => auth }));
 vi.mock('@/features/authentication/api/scopedToken', () => ({
-  requestScopedToken: vi.fn(() => new Promise<string>((resolve) => { resolveToken = resolve; })),
+  requestScopedToken: vi.fn(() => new Promise<string>((resolve) => {
+    resolveToken = resolve;
+    pendingTokens.push(resolve);
+  })),
 }));
 vi.mock('@/features/notifications/api', () => ({
   listNotifications: vi.fn(async () => []),
@@ -63,5 +67,29 @@ describe('WebSocketProvider', () => {
     );
     await act(async () => resolveToken('tok'));
     expect(FakeSocket.created).toHaveLength(0);
+  });
+
+  it('um token atrasado do usuário anterior não abre o socket do seguinte', async () => {
+    pendingTokens.length = 0;
+    const view = renderProvider();
+    const rerender = () =>
+      view.rerender(
+        <QueryClientProvider client={new QueryClient()}>
+          <WebSocketProvider><div /></WebSocketProvider>
+        </QueryClientProvider>,
+      );
+    auth.user = null;
+    auth.isAuthenticated = false;
+    rerender();
+    auth.user = { id: 'u2' };
+    auth.isAuthenticated = true;
+    rerender();
+
+    await act(async () => pendingTokens[0]('token-do-u1'));
+    expect(FakeSocket.created).toHaveLength(0);
+
+    await act(async () => pendingTokens[1]('token-do-u2'));
+    expect(FakeSocket.created).toHaveLength(1);
+    expect(FakeSocket.created[0].url).toContain('token-do-u2');
   });
 });

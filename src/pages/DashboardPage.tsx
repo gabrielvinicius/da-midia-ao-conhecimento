@@ -115,9 +115,12 @@ const DashboardPage = () => {
     };
   }, [media, statsApi]);
 
-  const completionRate = totalMedia ? (stats.completed / totalMedia) * 100 : 0;
-  const failureRate = totalMedia ? (stats.failed / totalMedia) * 100 : 0;
-  const processingRate = totalMedia ? (stats.processing / totalMedia) * 100 : 0;
+  // Indicadores sobre todas as mídias do usuário: as contagens vêm de
+  // /media/stats, sem o filtro por nome. Antes, a divisão usava o total da
+  // lista filtrada, e a taxa podia passar de 100%.
+  const completionRate = stats.total ? (stats.completed / stats.total) * 100 : 0;
+  const failureRate = stats.total ? (stats.failed / stats.total) * 100 : 0;
+  const processingRate = stats.total ? (stats.processing / stats.total) * 100 : 0;
   const lastUpload = media?.[0];
 
   const breakdown = [
@@ -130,7 +133,7 @@ const DashboardPage = () => {
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
       <GenericStatCard
         title="Total monitorado"
-        value={totalMedia}
+        value={stats.total}
         description={stats.processing ? `${stats.processing} em processamento` : "Nenhum processamento ativo"}
         icon={<FileText className="h-4 w-4" />}
         isLoading={isLoading}
@@ -145,7 +148,7 @@ const DashboardPage = () => {
       />
       <GenericStatCard
         title="Uploads recentes"
-        value={totalMedia}
+        value={stats.total}
         description="Total de itens enviados"
         icon={<Upload className="h-4 w-4" />}
         isLoading={isLoading}
