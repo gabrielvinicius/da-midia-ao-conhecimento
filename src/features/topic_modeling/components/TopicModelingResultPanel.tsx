@@ -132,25 +132,9 @@ export const TopicModelingResultPanel = ({ mediaId, mediaStatus }: TopicModeling
               className="rounded-2xl border border-[#f2eadf] bg-[#fdfbf6] p-3 shadow-sm"
             >
               <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{topic.title || `Tópico ${index + 1}`}</p>
-              {topic.summary_md ? (
-                <div className="mt-2 text-slate-900">
-                   {topic.summary_md.split('\n').map((line, i) => {
-                     const tl = line.trim();
-                     if (tl.startsWith('- ') || tl.startsWith('* ')) return (
-                       <div key={i} className="flex gap-2 ml-1 text-xs">
-                         <span className="text-slate-400 mt-1.5 h-1 w-1 rounded-full bg-slate-400 shrink-0" />
-                         <span>{tl.substring(2)}</span>
-                       </div>
-                     );
-                     return <p key={i} className={cn("mt-1", tl.startsWith('#') ? "font-bold" : "font-medium")}>{line}</p>;
-                   })}
-                </div>
-              ) : (
-                <p className="mt-2 text-muted-foreground italic">
-                  {topic.keywords?.length
-                    ? `Principais termos: ${topic.keywords.slice(0, 5).join(", ")}`
-                    : "Sem resumo disponível."}
-                </p>
+              {/* Um trecho representativo do tema; os termos ficam nas etiquetas abaixo. */}
+              {topic.representative_snippets?.[0] && (
+                <p className="mt-2 text-xs text-slate-700 line-clamp-3">“{topic.representative_snippets[0]}”</p>
               )}
               {topic.keywords?.length > 0 && (
                 <div className="mt-3 pt-2 border-t border-slate-200/50 flex flex-wrap gap-1.5">

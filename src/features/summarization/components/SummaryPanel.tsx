@@ -52,14 +52,8 @@ const buildSummaryText = (analysis: TextAnalysisResponse): string => {
   if (analysis.summary) {
     return analysis.summary;
   }
+  // Sem resumo geral: os trechos representativos dos temas.
   const topics = analysis.topics || [];
-  const summaries = topics
-    .map((t) => (t.summary_md || t.summary || "").trim())
-    .filter(Boolean);
-  if (summaries.length > 0) {
-    return summaries.join("\n\n");
-  }
-  // Fallback: usar snippets representativos quando não há summary_md
   const snippets = topics
     .flatMap((t) => t.representative_snippets || [])
     .map((s) => String(s || "").trim())

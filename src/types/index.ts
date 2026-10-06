@@ -142,11 +142,8 @@ export interface TextAnalysisTopic {
   topic_id: number;
   title?: string | null;
   keywords: string[];
-  summary?: string | null;
-  summary_md?: string | null;
   representative_snippets: string[];
   size: number;
-  diagnostics: Record<string, any>;
 }
 
 export interface TextAnalysisResponse {
