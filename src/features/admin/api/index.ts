@@ -114,8 +114,22 @@ export const reprocessMedia = async (mediaId: string): Promise<{ message: string
   return response.data;
 };
 
-export const bulkReprocessFailedMedia = async (): Promise<{ message: string; reprocessed_count: number }> => {
+/** Resultado de um lote: o backend reprocessa até 50 mídias com falha por pedido. */
+export interface BulkReprocessResult {
+  reprocessed_count: number;
+  failed_count: number;
+  more_pending: boolean;
+}
+
+export const bulkReprocessFailedMedia = async (): Promise<BulkReprocessResult> => {
   const response = await api.post(`/admin/media/bulk-reprocess`);
   return response.data;
+};
+
+export const bulkReprocessMessage = (result: BulkReprocessResult): string => {
+  const parts = [`${result.reprocessed_count} mídia(s) enviada(s) para reprocessamento.`];
+  if (result.failed_count) parts.push(`${result.failed_count} não puderam ser reenviadas.`);
+  if (result.more_pending) parts.push("Há mais mídias com falha: clique de novo para o próximo lote.");
+  return parts.join(" ");
 };
 

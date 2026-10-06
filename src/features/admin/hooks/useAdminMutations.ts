@@ -7,6 +7,7 @@ import {
   UserUpdatePayload,
   reprocessMedia,
   bulkReprocessFailedMedia,
+  bulkReprocessMessage,
 } from '../api';
 import { apiErrorMessage } from '@/lib/errors';
 import { removeFromCachedPages, restoreCachedPages } from '@/lib/optimistic';
@@ -90,7 +91,7 @@ export const useBulkReprocessMedia = () => {
   return useMutation({
     mutationFn: () => bulkReprocessFailedMedia(),
     onSuccess: (data) => {
-      toast.success(data.message || 'Reprocessamento em lote iniciado.');
+      toast.success(bulkReprocessMessage(data));
       queryClient.invalidateQueries({ queryKey: ['admin-all-media'] });
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
     },
