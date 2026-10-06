@@ -159,3 +159,15 @@ source_modules =
     src.text_analysis
 forbidden_modules =
     src.notifications
+
+[importlinter:contract:celery-sem-montagem-dos-workers]
+name = A configuração do Celery (usada pela API para enviar tarefas) não conhece a montagem dos workers
+type = forbidden
+source_modules =
+    src.celery_app
+    src.shared
+forbidden_modules =
+    src.worker_process
+    src.media_management.worker
+    src.media_processing.worker
+    src.notifications.worker

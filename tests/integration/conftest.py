@@ -78,6 +78,5 @@ def enable_lightweight_mode(monkeypatch) -> None:
     """Use lightweight bootstrap during integration tests to avoid real infra."""
     monkeypatch.setenv("LIGHTWEIGHT_BOOTSTRAP", "1")
     monkeypatch.setenv("CELERY_BROKER_URL", "memory://")
-    monkeypatch.setenv("CELERY_RESULT_BACKEND", "cache+memory://")
     monkeypatch.setenv("CELERY_TASK_ALWAYS_EAGER", "1")
     monkeypatch.setenv("CELERY_TASK_EAGER_PROPAGATES", "1")

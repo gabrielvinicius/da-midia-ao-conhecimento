@@ -76,8 +76,6 @@ class TranscriptionService:
                 file_size_bytes=command.file_size_bytes,
                 user_id=str(command.user_id) if command.user_id else None,
                 filename=command.filename,
-                triggered_by=command.triggered_by,
-                actor_id=command.actor_id,
                 correlation_id=command.correlation_id,
             )
             success = True

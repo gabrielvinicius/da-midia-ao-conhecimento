@@ -38,6 +38,14 @@ class ValidationError(DomainError):
         self.field = field
 
 
+def is_permanent_failure(exc: BaseException) -> bool:
+    """Outra tentativa daria o mesmo resultado: regra violada, recurso
+    ausente, arquivo inválido. A exceção é a dependência fora do ar
+    (TemporarilyUnavailableError), que pode voltar. Erros fora da hierarquia
+    (falta de memória na GPU, falha de leitura) também podem passar."""
+    return isinstance(exc, DomainError) and not isinstance(exc, TemporarilyUnavailableError)
+
+
 __all__ = [
     "AccessDeniedError",
     "ConflictError",
@@ -45,4 +53,5 @@ __all__ = [
     "NotFoundError",
     "TemporarilyUnavailableError",
     "ValidationError",
+    "is_permanent_failure",
 ]

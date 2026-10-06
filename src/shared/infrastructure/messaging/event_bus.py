@@ -148,58 +148,6 @@ class AsyncQueueBrokerPublisher:
         except asyncio.CancelledError:  # pragma: no cover - cooperative shutdown
             pass
 
-class InMemoryEventBus:
-    """Barramento síncrono simples, usado em testes."""
-
-    def __init__(self) -> None:
-        self._subscriptions: DefaultDict[
-            Type[DomainEvent],
-            List[EventHandler],
-        ] = defaultdict(list)
-        self._started: bool = False
-
-    async def publish(self, event: DomainEvent) -> None:
-        """Deliver an event to every registered handler."""
-        handlers = list(self._subscriptions.get(type(event), []))
-        for handler in handlers:
-            await handler(event)
-
-    async def publish_many(self, events: Iterable[DomainEvent]) -> None:
-        """Publish a batch of events preserving order."""
-        for event in events:
-            await self.publish(event)
-
-    def subscribe(self, event_type: Type[TEvent], handler: EventHandler) -> None:
-        """Register an asynchronous handler for the given event."""
-        self._subscriptions[event_type].append(handler)
-
-    def unsubscribe(self, event_type: Type[TEvent], handler: EventHandler) -> None:
-        """Unregister an event handler."""
-        handlers = self._subscriptions.get(event_type)
-        if not handlers:
-            return
-        try:
-            handlers.remove(handler)
-        except ValueError:  # pragma: no cover - defensive guard
-            pass
-
-        if not handlers:
-            self._subscriptions.pop(event_type, None)
-
-    def has_subscribers(self, event_type: Type[DomainEvent]) -> bool:
-        """Utility used in smoke tests to confirm registration."""
-        return bool(self._subscriptions.get(event_type))
-
-    async def start_listener(self) -> None:
-        """Hook invoked during application startup to activate the bus."""
-        self._started = True
-
-    async def stop_listener(self) -> None:
-        """Hook invoked during shutdown to flush subscriptions."""
-        self._subscriptions.clear()
-        self._started = False
-
-# --- From event_bus.py (top-level) ---
 class EventBus:
     """Coordinates event publishing and subscription management."""
 
@@ -298,7 +246,6 @@ __all__ = [
     "EventHandler",
     "SubscriptionManager",
     "SupportsEventBus",
-    "InMemoryEventBus",
     "EventBus",
     "create_inmemory_event_bus",
 ]

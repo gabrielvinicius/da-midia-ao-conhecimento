@@ -31,14 +31,6 @@ class RequestTranscriptionCommand(BaseModel):
         None,
         description="Original filename for context/audit.",
     )
-    triggered_by: Optional[str] = Field(
-        None,
-        description="Who triggered the processing (user/admin/system).",
-    )
-    actor_id: Optional[str] = Field(
-        None,
-        description="Actor identifier that triggered the event.",
-    )
     correlation_id: Optional[str] = Field(
         None,
         description="Correlation id propagated from MediaUploaded.",
@@ -58,12 +50,6 @@ class RequestTextExtractionCommand(BaseModel):
     )
     filename: Optional[str] = Field(
         None, description="Original filename for context/audit."
-    )
-    triggered_by: Optional[str] = Field(
-        None, description="Who triggered the processing (user/admin/system)."
-    )
-    actor_id: Optional[str] = Field(
-        None, description="Actor identifier that triggered the event."
     )
     correlation_id: Optional[str] = Field(
         None, description="Correlation id propagated from MediaUploaded."

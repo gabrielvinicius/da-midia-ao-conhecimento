@@ -11,7 +11,6 @@ from typing import Callable, Dict, Any
 
 import structlog
 
-from src.shared.application.event_bus import SupportsEventBus
 
 from src.media_processing.application.ports import (
     OCRProviderPort,
@@ -347,16 +346,6 @@ def list_ocr_providers(public_only: bool = True) -> list[str]:
 def ocr_provider_meta(name: str) -> Dict[str, Any]:
     return _OCR_META.get(name, {"label": name, "description": "", "public": True})
 
-def get_event_bus(event_bus: SupportsEventBus | None = None) -> SupportsEventBus:
-    """Retorna o event bus recebido do bootstrap; falha se não for fornecido."""
-    if event_bus is None:
-        raise RuntimeError(
-            "MediaProcessing event bus não foi fornecido. Passe via bootstrap/tasks "
-            "para evitar acoplamento a estado global."
-        )
-    return event_bus
-
-
 __all__ = [
     "get_speech_recognizer",
     "register_speech_recognizer",
@@ -371,5 +360,4 @@ __all__ = [
     "list_ocr_providers",
     "ocr_provider_meta",
     "get_visual_analyzer",
-    "get_event_bus",
 ]

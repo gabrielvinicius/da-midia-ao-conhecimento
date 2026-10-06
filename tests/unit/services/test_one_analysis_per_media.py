@@ -49,28 +49,15 @@ def test_a_bug_is_reported_at_once_instead_of_rerunning_the_pipeline(monkeypatch
     from src.text_analysis import tasks
     from tests.mocks.in_memory_event_bus import InMemoryEventBus
 
-    async def build(**_kwargs):
-        return object()
-
-    async def body(*_args):
+    async def analyze(*_args):
         raise TypeError("defeito no código")
 
-    monkeypatch.setattr(tasks, "_build_service", build)
-    monkeypatch.setattr(tasks, "_async_task_body", body)
-
-    class Session:
-        async def __aenter__(self):
-            return None
-
-        async def __aexit__(self, *exc):
-            return False
-
-    monkeypatch.setattr(tasks, "AsyncSessionLocal", Session)
+    monkeypatch.setattr(tasks, "_analyze", analyze)
     bus = InMemoryEventBus()
     with pytest.raises(TypeError):
-        tasks._task_body_with_retry_context(
+        tasks.run_analysis(
             {"user_id": str(uuid4()), "media_id": str(uuid4()), "correlation_id": "req-2"},
-            op_name="t", event_bus=bus, final_attempt=False,
+            bus=bus, final_attempt=False,
         )
     [failure] = [e for e in bus.events if isinstance(e, AnalysisFailed)]
     assert failure.correlation_id == "req-2" and "defeito" in failure.error_message

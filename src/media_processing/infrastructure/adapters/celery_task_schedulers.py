@@ -41,8 +41,6 @@ class CeleryTextTaskScheduler:
         storage_provider: str,
         user_id: str | None = None,
         filename: str | None = None,
-        triggered_by: str | None = None,
-        actor_id: str | None = None,
         correlation_id: str | None = None,
     ) -> Any:
         queue = QUEUE_TEXT_ANALYSIS
@@ -54,8 +52,6 @@ class CeleryTextTaskScheduler:
                 "storage_provider": storage_provider,
                 "user_id": user_id,
                 "filename": filename,
-                "triggered_by": triggered_by,
-                "actor_id": actor_id,
                 "correlation_id": correlation_id or str(media_id),
             },
             queue,
@@ -83,8 +79,6 @@ class CeleryTranscriptionTaskScheduler:
         file_size_bytes: int | None = None,
         user_id: Optional[str] = None,
         filename: Optional[str] = None,
-        triggered_by: Optional[str] = None,
-        actor_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
     ) -> Any:
         queue = QUEUE_TRANSCRIPTION
@@ -104,8 +98,6 @@ class CeleryTranscriptionTaskScheduler:
                 "correlation_id": correlation_id or str(media_id),
                 "user_id": user_id,
                 "filename": filename,
-                "triggered_by": triggered_by,
-                "actor_id": actor_id,
             },
             queue,
         )

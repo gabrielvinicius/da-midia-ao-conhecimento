@@ -9,7 +9,7 @@ from uuid import UUID
 import structlog
 
 from src.media_processing.application.ports import (
-    MetricsPort, # Add this
+    MetricsPort,
     OCRProviderPort,
     StoragePort,
     TextExtractionTaskSchedulerPort,
@@ -20,7 +20,7 @@ from src.media_processing.application.services.processing_job import announce_st
 from src.media_processing.domain import InvalidTranscriptionTransitionError, Transcription, TranscriptionStatus
 from src.media_processing.domain.errors import NoTextFoundError, UnsupportedFileTypeError
 from src.shared.application.ports import ProcessingStatsPort
-from src.shared.domain.errors import DomainError
+from src.shared.domain.errors import is_permanent_failure
 from src.shared.domain.events import (
     MediaProcessingCompleted,
     MediaProcessingFailed,
@@ -75,8 +75,6 @@ class TextExtractionService:
             storage_provider=command.storage_provider,
             user_id=str(command.user_id) if command.user_id else None,
             filename=command.filename,
-            triggered_by=command.triggered_by,
-            actor_id=command.actor_id,
             correlation_id=command.correlation_id,
         )
 
@@ -105,6 +103,7 @@ class TextExtractionService:
             return
         if transcription.is_finished:
             logger.warning("text_extraction.already_finished", media_id=str(media_id))
+            await self._reannounce(media_id, transcription, correlation_id)
             return
         await announce_started(self._event_bus, media_id, "text_extraction", correlation_id)
         transcription.mark_as_processing()
@@ -112,11 +111,7 @@ class TextExtractionService:
 
         mime_type = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
         suffix = Path(file_path).suffix
-        owner = user_id or getattr(transcription, "user_id", None)
-        context = {
-            "user_id": str(owner) if owner else None,
-            "filename": filename or getattr(transcription, "filename", None),
-        }
+        context = self._context(transcription, user_id, filename)
         started = time.perf_counter()
         provider_used, size = "text_extraction", 0
         try:
@@ -129,7 +124,7 @@ class TextExtractionService:
             await self._record_duration(time.perf_counter() - started, size, provider_used, "failed")
             # Arquivo ausente, tipo não suportado ou sem texto não mudam com
             # outra tentativa: a falha já é a definitiva.
-            final = final_attempt or isinstance(exc, DomainError)
+            final = final_attempt or is_permanent_failure(exc)
             await self._record_failure(media_id, transcription, exc, final, context, correlation_id)
             raise
         await self._record_duration(time.perf_counter() - started, size, provider_used, "success")
@@ -140,6 +135,31 @@ class TextExtractionService:
             return
         await self._repo.save(transcription)
         await self._announce_extracted(media_id, transcription, extracted_text, provider_used, context, correlation_id)
+
+    @staticmethod
+    def _context(transcription: Transcription, user_id: str | None, filename: str | None) -> Dict[str, Any]:
+        owner = user_id or transcription.user_id
+        return {"user_id": str(owner) if owner else None, "filename": filename or transcription.filename}
+
+    async def _reannounce(self, media_id: UUID, transcription: Transcription, correlation_id: str | None) -> None:
+        """Como na transcrição (TranscriptionRunner._reannounce): a tarefa voltou
+        depois de terminar, e só o anúncio do resultado gravado é repetido."""
+        context = self._context(transcription, None, None)
+        correlation_id = correlation_id or transcription.correlation_id
+        if transcription.status == TranscriptionStatus.COMPLETED:
+            await self._announce_extracted(
+                media_id, transcription, transcription.text, transcription.provider, context, correlation_id
+            )
+        elif self._event_bus:
+            await self._event_bus.publish(
+                MediaProcessingFailed(
+                    media_id=str(media_id),
+                    stage="text_extraction",
+                    error_message=transcription.error_message or "A extração do texto falhou.",
+                    user_id=context["user_id"],
+                    correlation_id=correlation_id,
+                )
+            )
 
     async def _extract(self, path: str, mime_type: str, suffix: str) -> tuple[str, str]:
         """Texto do arquivo e o método usado: leitura direta, OCR ou PDF (com OCR

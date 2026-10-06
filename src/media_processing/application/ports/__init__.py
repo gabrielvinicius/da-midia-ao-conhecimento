@@ -51,8 +51,6 @@ class TranscriptionTaskSchedulerPort(Protocol):
         file_size_bytes: int = 0,
         user_id: str | None = None,
         filename: str | None = None,
-        triggered_by: str | None = None,
-        actor_id: str | None = None,
         correlation_id: str | None = None,
     ):
         ...
@@ -67,8 +65,6 @@ class TextExtractionTaskSchedulerPort(Protocol):
         storage_provider: str,
         user_id: str | None = None,
         filename: str | None = None,
-        triggered_by: str | None = None,
-        actor_id: str | None = None,
         correlation_id: str | None = None,
     ):
         ...

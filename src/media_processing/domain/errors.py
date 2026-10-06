@@ -10,3 +10,10 @@ class UnsupportedFileTypeError(DomainError):
 class NoTextFoundError(DomainError):
     def __init__(self) -> None:
         super().__init__("Nenhum texto foi encontrado no arquivo.")
+
+
+class NoSpeechFoundError(DomainError):
+    """Gravação sem fala reconhecível (silêncio, só música): não há o que analisar."""
+
+    def __init__(self) -> None:
+        super().__init__("Nenhuma fala foi encontrada na gravação.")

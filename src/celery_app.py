@@ -1,7 +1,8 @@
-"""Central Celery application setup for the project.
+"""Aplicação Celery: configuração, agenda periódica, logs e métricas.
 
-This app replaces ad-hoc or missing Celery configuration and provides a
-single entry point for workers and autodiscovery across modules.
+A API e os adaptadores importam este módulo para enviar tarefas. A montagem
+de cada processo de worker (barramento e reações dos módulos) fica em
+src/worker_process.py, carregado só nos workers.
 """
 from __future__ import annotations
 
@@ -12,17 +13,12 @@ from celery.signals import (
     setup_logging,
     task_postrun,
     task_prerun,
-    worker_process_init,
     worker_process_shutdown,
     worker_ready,
 )
 
 def _default_broker() -> str:
     return os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-
-
-def _default_backend() -> str | None:
-    return os.getenv("CELERY_RESULT_BACKEND", os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/1"))
 
 
 # Folga além do prazo máximo de processamento antes de o Redis reentregar.
@@ -36,18 +32,15 @@ def visibility_timeout_seconds() -> int:
 
 
 def create_celery() -> Celery:
-    app = Celery(
-        "video_summarizer",
-        broker=_default_broker(),
-        backend=_default_backend(),
-        include=[],
-    )
+    # O nome vai como texto: só o worker carrega a sua montagem.
+    app = Celery("video_summarizer", broker=_default_broker(), include=["src.worker_process"])
 
-    # Basic, safe defaults. Modules can override via env/configmap.
     app.conf.update(
         task_serializer="json",
         accept_content=["json"],
-        result_serializer="json",
+        # Os resultados chegam pelos eventos e pelo banco; ninguém consulta o
+        # retorno das tarefas. Antes, eles eram gravados no Redis à toa.
+        task_ignore_result=True,
         timezone=os.getenv("CELERY_TIMEZONE", "UTC"),
         enable_utc=True,
         task_acks_late=True,
@@ -61,7 +54,6 @@ def create_celery() -> Celery:
     # reservada enquanto outra roda. Uma análise longa seria reprocessada na
     # GPU. O limite passa a cobrir o prazo máximo de processamento.
     app.conf.broker_transport_options = {"visibility_timeout": visibility_timeout_seconds()}
-    app.conf.result_backend_transport_options = {"visibility_timeout": visibility_timeout_seconds()}
 
     # Verificação periódica de mídias paradas. Roda no worker leve, iniciado
     # com --beat (docker-compose.yml): o pesado pode estar preso na tarefa.
@@ -86,16 +78,8 @@ def create_celery() -> Celery:
         },
     }
 
-    # Autodiscover tasks in namespaced packages
-    app.autodiscover_tasks(
-        [
-            # Cada módulo declara as tarefas no próprio tasks.py (montagem).
-            "src.media_management",
-            "src.media_processing",
-            "src.notifications",  # só assina eventos (avisos ao usuário)
-            "src.text_analysis",
-        ]
-    )
+    # Cada módulo declara as tarefas no próprio tasks.py (montagem).
+    app.autodiscover_tasks(["src.media_management", "src.media_processing", "src.text_analysis"])
 
     return app
 
@@ -126,28 +110,6 @@ def _clear_task_context(**_kwargs) -> None:
     import structlog
 
     structlog.contextvars.clear_contextvars()
-
-
-@worker_process_init.connect(weak=False)
-def _init_worker_tracing(**_kwargs) -> None:
-    """Ativa o tracing em cada processo do worker (após o fork).
-
-    Também recomeça o barramento de eventos do processo. Fica aqui, e não na
-    montagem de um módulo, porque este sinal é registrado antes dos outros:
-    se um módulo o recomeçasse, apagaria as inscrições feitas antes dele.
-    """
-    from src.shared.infrastructure.messaging.process_bus import reset_process_event_bus
-
-    reset_process_event_bus()
-    from src.shared.infrastructure.observability.tracing.tracer import configure_tracer
-
-    configure_tracer("video-summarizer-worker")
-    try:
-        from opentelemetry.instrumentation.celery import CeleryInstrumentor
-
-        CeleryInstrumentor().instrument()
-    except Exception:  # instrumentação é opcional
-        pass
 
 
 @worker_ready.connect(weak=False)

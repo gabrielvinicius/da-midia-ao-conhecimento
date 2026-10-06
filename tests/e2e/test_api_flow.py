@@ -214,7 +214,7 @@ def test_stalled_media_is_marked_failed_and_can_be_retried(client):
 
     async def sweep():
         bus = get_event_bus()
-        MediaWorkerApp(event_bus=bus).ensure_subscribers()  # como no worker
+        MediaWorkerApp(event_bus=bus).subscribe()  # como no worker
         bind_media_subscribers(bus)
         async with AsyncSessionLocal() as session:
             return await build_stalled_processing_monitor(session, bus).sweep()
@@ -276,7 +276,7 @@ def test_upload_without_processing_record_is_requeued_then_failed(client):
 
     async def recover():
         bus = get_event_bus()
-        MediaWorkerApp(event_bus=bus).ensure_subscribers()  # como no worker
+        MediaWorkerApp(event_bus=bus).subscribe()  # como no worker
         bind_media_subscribers(bus)
         async with AsyncSessionLocal() as session:
             return await build_unstarted_media_recovery(session, bus).sweep()

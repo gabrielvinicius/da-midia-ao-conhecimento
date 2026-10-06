@@ -25,10 +25,11 @@ from src.media_processing.application.services.processing_job import (
     announce_started,
     staged_file,
 )
-from src.media_processing.domain import InvalidTranscriptionTransitionError, Transcription
+from src.media_processing.domain import InvalidTranscriptionTransitionError, Transcription, TranscriptionStatus
+from src.media_processing.domain.errors import NoSpeechFoundError
 from src.shared.application.event_bus import SupportsEventBus
 from src.shared.application.ports import ProcessingStatsPort
-from src.shared.domain.errors import NotFoundError
+from src.shared.domain.errors import NotFoundError, is_permanent_failure
 from src.shared.domain.events import TranscriptionCompleted, TranscriptionFailed
 
 logger = structlog.get_logger(__name__)
@@ -81,6 +82,7 @@ class TranscriptionRunner:
         if transcription.is_finished:
             # Tarefa entregue de novo (fila) ou repetida: não refaz o trabalho na GPU.
             logger.warning("transcription.already_finished", transcription_id=str(transcription_id))
+            await self._reannounce(transcription, media_id, correlation_id)
             return {}
         await announce_started(self._event_bus, media_id, "transcription", correlation_id)
         transcription.mark_as_processing()
@@ -95,14 +97,20 @@ class TranscriptionRunner:
                 recognizer = self._speech_recognizer_factory(transcription_provider)
                 lang_for_model = None if not language or language.lower() == "auto" else language
                 result = await recognizer.transcribe(media_file.path, language=lang_for_model)
+                if not str((result or {}).get("text") or "").strip():
+                    # Antes, a mídia seguia "em análise" sem texto e só falhava
+                    # horas depois, quando o prazo da análise vencia.
+                    raise NoSpeechFoundError()
                 await self._record_duration(time.perf_counter() - started, size, result, recognizer, "success")
                 # Em vídeos, descreve alguns quadros com o arquivo ainda em disco.
                 visual_context = await self._describe_frames(result, media_file, transcription)
         except Exception as exc:
             await self._record_duration(time.perf_counter() - started, size, {}, transcription_provider, "failed")
+            # Um erro definitivo (ex.: mídia excluída) não passa com outra tentativa.
             await self.process_transcription_result(
                 transcription_id, media_id, {}, transcription_provider, success=False,
-                error_message=str(exc), final_attempt=final_attempt, correlation_id=correlation_id,
+                error_message=str(exc), final_attempt=final_attempt or is_permanent_failure(exc),
+                correlation_id=correlation_id,
             )
             raise
         await self.process_transcription_result(
@@ -176,6 +184,24 @@ class TranscriptionRunner:
                 error_message=error_message, provider=provider, correlation_id=correlation_id,
             )
         await self._event_bus.publish(event)
+
+    async def _reannounce(self, transcription: Transcription, media_id: UUID, correlation_id: Optional[str]) -> None:
+        """Repete só o anúncio do resultado já gravado.
+
+        A tarefa volta depois de terminar quando o worker caiu entre gravar e
+        anunciar, ou quando uma reação ao anúncio falhou. Antes, ela só
+        retornava: a transcrição ficava pronta, mas a mídia não avançava para a
+        análise. As reações são idempotentes. Uma mensagem antiga, de antes de
+        um reprocessamento, não anuncia nada: a mídia já tem outra transcrição.
+        """
+        latest = await self._repo.get_by_media_id(media_id)
+        if latest is not None and latest.id != transcription.id:
+            return
+        success = transcription.status == TranscriptionStatus.COMPLETED
+        await self._announce_result(
+            transcription, media_id, transcription.provider, success, transcription.error_message,
+            True, correlation_id or transcription.correlation_id,
+        )
 
     async def _describe_frames(
         self, result: Dict[str, Any], media_file: StagedFile, transcription: Transcription

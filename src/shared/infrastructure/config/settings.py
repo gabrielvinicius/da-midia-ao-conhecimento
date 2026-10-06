@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     # cache de contexto do Ollama ocupe GBs a mais da GPU de 12 GB.
     llm_context_tokens: int = 16384
     llm_timeout_seconds: int = 900
+    # Tempo máximo de uma análise no worker. Fica abaixo do prazo em que a
+    # mídia "em análise" é dada como falha (MEDIA_ANALYSIS_GIVE_UP_MINUTES,
+    # 180), para que a falha venha da própria análise, com o motivo.
+    analysis_time_limit_minutes: float = 150
     # Fatores opcionais da análise, separados por vírgula: sentiment, topics
     # (temas e seus títulos) e grounding (verificação de fidelidade).
     analysis_factors: str = "sentiment,topics,grounding"

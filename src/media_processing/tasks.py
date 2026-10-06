@@ -1,19 +1,21 @@
-"""Tarefas Celery do módulo (camada de montagem: liga serviços e adaptadores)."""
-import structlog
-from uuid import UUID
-from typing import Any, Dict, Optional
-from asgiref.sync import async_to_sync
-from celery import shared_task
-from celery.signals import worker_process_init
+"""Tarefas Celery do processamento (camada de montagem: liga serviços e adaptadores).
 
+As reações aos eventos são registradas uma vez por processo, em
+src/worker_subscriptions.py; aqui ficam só as tarefas.
+"""
+import asyncio
+from typing import Any, Dict, Optional
+from uuid import UUID
+
+import structlog
+from celery import shared_task
+
+from src.media_processing.config.settings import processing_settings
 from src.media_processing.infrastructure.dependencies.builders import (
     build_stalled_processing_monitor,
     build_text_extraction_service,
     build_transcription_runner,
 )
-from src.media_processing.worker import MediaWorkerApp
-from src.shared.domain.errors import DomainError
-from src.media_processing.infrastructure.dependencies.providers import get_event_bus
 from src.shared.events.integration_events import (
     TASK_MEDIA_SWEEP_STALLED,
     TASK_MEDIA_TEXT_EXTRACTION,
@@ -21,39 +23,25 @@ from src.shared.events.integration_events import (
 )
 from src.shared.infrastructure.database.db import AsyncSessionLocal
 from src.shared.infrastructure.messaging.process_bus import process_event_bus
+from src.shared.infrastructure.tasks.retry import (
+    PIPELINE_MAX_RETRIES,
+    is_final_attempt,
+    retry_unless_permanent,
+)
+
 logger = structlog.get_logger(__name__)
 
-def _ensure_event_bus(bus=None):
-    """Barramento deste processo (ver process_bus), salvo quando informado."""
-    if bus:
-        return get_event_bus(bus)
-    return process_event_bus()
-
-
-@worker_process_init.connect
-def setup_worker_subscribers(**kwargs):
-    """Registra, em cada processo do worker, as reações aos eventos."""
-    logger.info("media_processing.worker.init")
-    try:
-        MediaWorkerApp(event_bus=process_event_bus()).ensure_subscribers()
-        logger.info("media_processing.worker.subscribers_configured")
-    except Exception as exc:
-        logger.error("media_processing.worker.init_failed", error=str(exc))
-
-
-async def _run_with_session(coro_factory):
-    async with AsyncSessionLocal() as session:
-        return await coro_factory(session)
+# Salvaguarda: nenhuma tentativa passa do prazo máximo de processamento. A
+# verificação de mídias paradas encerra antes a que passou do prazo calculado
+# pela duração; este limite vale mesmo se a verificação não rodar.
+PROCESSING_TIME_LIMIT_SECONDS = int(processing_settings.stall_maximum_hours * 3600)
 
 
 @shared_task(
     bind=True,
     name=TASK_MEDIA_TEXT_EXTRACTION,
-    autoretry_for=(Exception,),
-    # Tipo não suportado ou arquivo sem texto: falha definitiva, sem repetir.
-    dont_autoretry_for=(DomainError,),
-    retry_backoff=True,
-    max_retries=5
+    max_retries=PIPELINE_MAX_RETRIES,
+    time_limit=PROCESSING_TIME_LIMIT_SECONDS,
 )
 def process_text_extraction_task(
     self,
@@ -62,43 +50,41 @@ def process_text_extraction_task(
     storage_provider: str,
     user_id: Optional[str] = None,
     filename: Optional[str] = None,
-    triggered_by: Optional[str] = None,
-    actor_id: Optional[str] = None,
     correlation_id: Optional[str] = None,
-    **kwargs
+    **_older_fields: Any,  # mensagens enfileiradas por versões anteriores
 ) -> None:
     logger.info("text_extraction.task_started", media_id=media_id)
-    final_attempt = (self.request.retries or 0) >= (self.max_retries or 0)
-    async def _run():
-        # Subscribers are bound at worker process init
-        
+
+    async def _run() -> None:
         async with AsyncSessionLocal() as session:
             service = build_text_extraction_service(
                 session=session,
-                event_bus=_ensure_event_bus(),
+                event_bus=process_event_bus(),
                 storage_provider=storage_provider,
             )
             await service.execute_text_extraction(
                 media_id=UUID(media_id),
                 file_path=file_path,
                 storage_provider=storage_provider,
-                final_attempt=final_attempt,
+                final_attempt=is_final_attempt(self),
                 correlation_id=correlation_id,
                 user_id=user_id,
                 filename=filename,
             )
+
     try:
-        async_to_sync(_run)()
-    except Exception as e:
-        logger.error("text_extraction.task_failed", error=str(e), media_id=media_id)
+        asyncio.run(_run())
+    except Exception as exc:
+        logger.error("text_extraction.task_failed", error=str(exc), media_id=media_id)
+        retry_unless_permanent(self, exc)
         raise
+
 
 @shared_task(
     bind=True,
     name=TASK_MEDIA_TRANSCRIPTION,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    max_retries=5
+    max_retries=PIPELINE_MAX_RETRIES,
+    time_limit=PROCESSING_TIME_LIMIT_SECONDS,
 )
 def process_transcription_task(
     self,
@@ -107,68 +93,54 @@ def process_transcription_task(
     storage_provider: str,
     transcription_provider: str,
     transcription_id: str,
-    language: str = "en",
-    file_size_bytes: Optional[int] = None,
+    language: str = "auto",
     correlation_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    filename: Optional[str] = None,
-    triggered_by: Optional[str] = None,
-    actor_id: Optional[str] = None,
-    **kwargs,
+    **_older_fields: Any,  # mensagens enfileiradas por versões anteriores
 ) -> Optional[Dict[str, Any]]:
     correlation_id = correlation_id or media_id
-    final_attempt = (self.request.retries or 0) >= (self.max_retries or 0)
-    logger.info(
-        "transcription.task_started",
-        media_id=media_id,
-        transcription_id=transcription_id,
-    )
+    logger.info("transcription.task_started", media_id=media_id, transcription_id=transcription_id)
 
-    async def _run():
-        # Subscribers are bound at worker process init
-
+    async def _run() -> None:
         async with AsyncSessionLocal() as session:
-            service = build_transcription_runner(
+            runner = build_transcription_runner(
                 session=session,
-                event_bus=_ensure_event_bus(),
+                event_bus=process_event_bus(),
                 storage_provider=storage_provider,
             )
-
-            return await service.execute_transcription(
+            await runner.execute_transcription(
                 transcription_id=UUID(transcription_id),
                 media_id=UUID(media_id),
                 file_path=file_path,
                 storage_provider=storage_provider,
                 transcription_provider=transcription_provider,
                 language=language,
-                final_attempt=final_attempt,
+                final_attempt=is_final_attempt(self),
                 correlation_id=correlation_id,
             )
 
     try:
-        result = async_to_sync(_run)()
-        return result
-    except Exception as e:
+        asyncio.run(_run())
+    except Exception as exc:
         logger.error(
             "transcription.task_failed",
             media_id=media_id,
-            error=str(e),
+            error=str(exc),
             correlation_id=correlation_id,
             exc_info=True,
         )
+        retry_unless_permanent(self, exc)
         raise
 
 
-@shared_task(name=TASK_MEDIA_SWEEP_STALLED, ignore_result=True)
-def sweep_stalled_processing_task() -> list:
+@shared_task(name=TASK_MEDIA_SWEEP_STALLED)
+def sweep_stalled_processing_task() -> None:
     """Periódica (Celery beat, fila leve): marca como falha as transcrições
     que passaram do prazo."""
 
     async def _run():
         async with AsyncSessionLocal() as session:
-            return await build_stalled_processing_monitor(session, _ensure_event_bus()).sweep()
+            return await build_stalled_processing_monitor(session, process_event_bus()).sweep()
 
-    failed = async_to_sync(_run)()
+    failed = asyncio.run(_run())
     if failed:
         logger.warning("stalled_monitor.sweep_done", failed_media=failed)
-    return failed

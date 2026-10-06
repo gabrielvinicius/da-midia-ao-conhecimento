@@ -16,7 +16,6 @@ from src.shared.domain.events import (
     TextContentReady,
 )
 from src.shared.infrastructure.database.db import AsyncSessionLocal
-from src.shared.infrastructure.messaging.event_bus_factory import get_event_bus
 from src.storage.infrastructure.dependencies import StorageServiceFactory
 
 logger = structlog.get_logger(__name__)
@@ -33,25 +32,19 @@ class MediaWorkerApp:
 
     def __init__(
         self,
-        event_bus: Optional[SupportsEventBus] = None,
+        event_bus: SupportsEventBus,
         analysis_requester: Optional[AnalysisRequestPort] = None,
     ):
-        self.event_bus = event_bus or get_event_bus()
+        # O barramento do processo, em que as tarefas publicam. Antes, sem ele
+        # era criado um barramento novo, em que ninguém publicava.
+        self.event_bus = event_bus
         # O pedido de análise segue pelo nome da tarefa, sem importar text_analysis.
         self.analysis_requester: AnalysisRequestPort = analysis_requester or CeleryAnalysisRequester()
-        self._subscribers_bound = False
 
-    def ensure_subscribers(self):
-        """Idempotently registers event subscribers for the worker process."""
-        if self._subscribers_bound:
-            return
-
+    def subscribe(self) -> None:
         # Mídia anunciada no worker (recuperação de envios que não começaram).
         self.event_bus.subscribe(MediaUploaded, self._on_media_uploaded)
         self.event_bus.subscribe(TextContentReady, self._on_text_content_ready)
-
-        self._subscribers_bound = True
-        logger.info("media_processing.worker.subscribers_bound")
 
     async def _on_media_uploaded(self, event: MediaUploaded) -> None:
         from src.media_processing.infrastructure.dependencies.builders import (
@@ -68,22 +61,19 @@ class MediaWorkerApp:
             await handlers.handle_media_uploaded(event)
 
     async def _on_text_content_ready(self, event: TextContentReady) -> None:
-        if not getattr(event, "text", None):
+        if not event.text:  # a transcrição e a extração já falham sem texto
+            logger.warning("text_analysis.empty_text_ignored", media_id=str(event.media_id))
             return
 
         # A mídia já passou a "em análise" ao receber TranscriptionCompleted.
         payload: Dict[str, Any] = {
             "media_id": str(event.media_id),
-            "transcription_id": (
-                str(event.transcription_id)
-                if getattr(event, "transcription_id", None)
-                else None
-            ),
-            "user_id": getattr(event, "user_id", None),
-            "filename": getattr(event, "filename", None),
-            "text_content": getattr(event, "text", None),
+            "transcription_id": str(event.transcription_id) if event.transcription_id else None,
+            "user_id": event.user_id,
+            "filename": event.filename,
+            "text_content": event.text,
             "language": event.language,
-            "correlation_id": getattr(event, "correlation_id", None),
+            "correlation_id": event.correlation_id,
         }
 
         try:
@@ -102,3 +92,10 @@ class MediaWorkerApp:
                     correlation_id=payload["correlation_id"],
                 )
             )
+
+
+def bind_processing_subscribers(event_bus: SupportsEventBus) -> None:
+    MediaWorkerApp(event_bus=event_bus).subscribe()
+
+
+__all__ = ["MediaWorkerApp", "bind_processing_subscribers"]

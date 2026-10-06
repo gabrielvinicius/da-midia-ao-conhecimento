@@ -7,7 +7,6 @@ from src.shared.infrastructure.model_cache import model_cache
 
 
 from src.text_analysis.application.config import AnalysisConfig
-from src.shared.application.event_bus import SupportsEventBus
 from src.text_analysis.infrastructure.adapters import (
     chunking_simple_adapter,
     embeddings_sentence_transformers_adapter,
@@ -90,23 +89,12 @@ def get_chunker_adapter(_: AnalysisConfig):
     return SimpleChunker()
 
 
-def get_event_bus(event_bus: SupportsEventBus | None = None) -> SupportsEventBus:
-    """Retorna o event bus recebido do bootstrap; falha se não for fornecido."""
-    if event_bus is None:
-        raise RuntimeError(
-            "TextAnalysis event bus não fornecido. Passe via bootstrap/tasks ou "
-            "use o barramento do processo (process_event_bus) nas tasks."
-        )
-    return event_bus
-
-
 __all__ = [
     "get_sentiment_adapter",
     "get_embedding_adapter",
     "get_topic_modeling_adapter",
     "get_text_generation_adapter",
     "get_chunker_adapter",
-    "get_event_bus",
 ]
 
 
