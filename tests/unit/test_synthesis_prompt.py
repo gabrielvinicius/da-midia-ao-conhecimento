@@ -4,7 +4,7 @@ import pytest
 
 from src.text_analysis.application.pipeline.synthesis import SynthesisStep
 from src.text_analysis.application.ports import TextGenerationUnavailableError
-from src.text_analysis.domain import Analysis, Document, TextChunk, Topic
+from src.text_analysis.domain import Analysis, Document, SummarySource, TextChunk, Topic
 
 
 def _analysis(text: str, chunks=None) -> Analysis:
@@ -28,7 +28,7 @@ def _text_gen(reply="# Resumo", reserve=False):
 async def test_synthesis_sends_full_transcript_when_it_fits():
     text_gen = _text_gen()
     analysis = _analysis("Transcrição completa da aula sobre derivadas.")
-    analysis.diagnostics["visual_context"] = ["[01:00] gráfico de uma parábola"]
+    analysis.visual_context = ["[01:00] gráfico de uma parábola"]
 
     step = SynthesisStep(text_gen, language="pt", max_full_transcript_chars=1000)
     await step.process(analysis)
@@ -40,7 +40,7 @@ async def test_synthesis_sends_full_transcript_when_it_fits():
     assert "gráfico de uma parábola" in prompt
     assert "português do Brasil" in prompt
     assert analysis.diagnostics["synthesis_input"] == "full_transcript"
-    assert analysis.diagnostics["summary_source"] == "llm"
+    assert analysis.summary_source == SummarySource.LLM
     assert analysis.summary.startswith("# Resumo")
 
 
@@ -74,7 +74,7 @@ async def test_long_recordings_are_summarized_in_sections_covering_every_chunk()
 async def test_summary_from_the_reserve_model_is_labeled_as_such():
     analysis = _analysis("Texto curto.")
     await SynthesisStep(_text_gen(reserve=True), language="pt").process(analysis)
-    assert analysis.diagnostics["summary_source"] == "reserve"
+    assert analysis.summary_source == SummarySource.RESERVE
 
 
 @pytest.mark.asyncio
@@ -85,7 +85,7 @@ async def test_synthesis_builds_simplified_summary_when_no_model_answers():
 
     await SynthesisStep(text_gen, language="pt", max_full_transcript_chars=1000).process(analysis)
 
-    assert analysis.diagnostics["summary_source"] == "simplified"
+    assert analysis.summary_source == SummarySource.SIMPLIFIED
     assert "**Topic A** (key1, key2)" in analysis.summary
     assert "> Evidence 1" in analysis.summary  # apêndice com os trechos
 
@@ -94,7 +94,7 @@ async def test_synthesis_builds_simplified_summary_when_no_model_answers():
 async def test_appendix_shows_when_each_excerpt_happens_and_what_was_on_screen():
     chunks = [TextChunk(id="a", text="Evidence 1", start=754.0, end=790.0)]
     analysis = _analysis("Evidence 1", chunks)
-    analysis.diagnostics["visual_context"] = ["[12:40] slide with the chain rule"]
+    analysis.visual_context = ["[12:40] slide with the chain rule"]
 
     await SynthesisStep(_text_gen(), language="pt").process(analysis)
 

@@ -63,10 +63,8 @@ class TFIDFTopicModelingAdapter(TopicModelingPort):
                         title=f"Tópico {idx+1}",
                         keywords=keywords,
                         snippets=[c.text for c in topic_chunks],
-                        summary="; ".join(keywords[:3]) or "Não informado",
                         size=len(indices),
                         chunk_indices=[int(i) for i in indices],
-                        diagnostics={"size": len(indices)},
                     )
                 )
             diagnostics = {"method": "tfidf-kmeans", "k": k}

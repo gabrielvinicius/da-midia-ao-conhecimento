@@ -171,12 +171,8 @@ class LocalStorageService(StorageRepositoryPort):
             raise Exception(f"Falha ao listar arquivos: {exc}") from exc
 
     def _resolve_path(self, file_path: FilePath) -> Path:
-        path = file_path.to_path()
-        if path.is_absolute():
-            # Security check: ensure it's within root if needed,
-            # but for now assuming trusted input or purely local
-            return path
-        return self._root / path
+        # FilePath já garante um caminho relativo, sem "..".
+        return self._root / file_path.to_path()
 
     @staticmethod
     def _write_file(path: Path, content: bytes) -> None:

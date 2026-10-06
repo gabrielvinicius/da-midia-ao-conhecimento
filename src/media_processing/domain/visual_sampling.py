@@ -24,10 +24,3 @@ def frame_timestamps(
         return []
     count = max(min_frames, min(max_frames, round(duration / seconds_per_frame)))
     return [duration * (i + 0.5) / count for i in range(count)]
-
-
-def format_timestamp(seconds: float) -> str:
-    seconds = int(max(0, seconds))
-    hours, rest = divmod(seconds, 3600)
-    minutes, secs = divmod(rest, 60)
-    return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes:02d}:{secs:02d}"

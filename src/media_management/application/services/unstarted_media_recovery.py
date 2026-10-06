@@ -21,6 +21,7 @@ from src.media_management.application.ports import (
 )
 from src.media_management.application.upload_events import upload_event_for
 from src.shared.domain.events import MediaFailed
+from src.shared.domain.time.clock import utcnow
 
 logger = structlog.get_logger(__name__)
 
@@ -56,7 +57,7 @@ class UnstartedMediaRecovery:
         self._give_up = give_up_seconds
 
     async def sweep(self, now: Optional[datetime.datetime] = None) -> RecoveryResult:
-        now = now or datetime.datetime.now(datetime.timezone.utc)
+        now = now or utcnow()
         result = RecoveryResult()
         # A folga evita disputar com um envio que ainda está sendo tratado.
         created_before = now - datetime.timedelta(seconds=self._grace)

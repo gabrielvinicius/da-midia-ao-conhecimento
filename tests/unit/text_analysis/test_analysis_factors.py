@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from src.text_analysis.application.config import OPTIONAL_FACTORS, AnalysisConfig
-from src.text_analysis.domain.entities.document import Analysis, Document
+from src.text_analysis.domain import Analysis, Document
 from src.text_analysis.infrastructure.adapters.chunking_simple_adapter import SimpleChunker
 from src.text_analysis.infrastructure.dependencies import pipeline_factory, providers
 
@@ -98,10 +98,10 @@ async def test_analysis_without_topics_and_sentiment_still_summarizes_and_checks
 
     result = await components.pipeline.run(analysis)
 
-    assert set(result.diagnostics["steps"].values()) == {"ok"}
+    assert set(result.step_status.values()) == {"ok"}
     assert result.summary and result.topics == [] and result.overall_sentiment is None
     assert result.diagnostics["indexed_chunks"] == len(result.chunks)
-    assert "grounding" in result.diagnostics
+    assert result.grounding is not None
 
 
 def test_factors_come_from_the_environment(monkeypatch):

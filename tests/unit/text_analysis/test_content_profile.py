@@ -40,3 +40,58 @@ def test_topics_follow_the_recording_with_weight_start_and_tone():
 
 def test_old_topics_without_chunks_have_no_weights():
     assert topic_profiles([Topic(id=0, keywords=["a"])], [TextChunk("1", "texto")]) is None
+
+
+def test_typed_fields_keep_the_stored_and_api_format():
+    """Os campos tipados saem e voltam pelas mesmas chaves de ``diagnostics``
+    que as análises gravadas e o frontend já usam."""
+    from src.text_analysis.application.mappers import analysis_diagnostics, restore_from_diagnostics
+    from src.text_analysis.domain import Analysis, Document, SummarySource
+    from src.text_analysis.domain.grounding import GroundingReport
+
+    analysis = Analysis.new(Document.from_payload("texto"))
+    analysis.set_language("EN")
+    analysis.visual_context = ["[00:10] slide"]
+    analysis.summary_source = SummarySource.RESERVE
+    analysis.grounding = GroundingReport(checked=2, supported=1, threshold=0.8)
+    analysis.record_step("synthesis", 1.23456)
+    analysis.record_step("sentiment", 0.5, error="sem GPU")
+    analysis.diagnostics = {"indexed_chunks": 3, "_embeddings": [1]}
+
+    data = analysis_diagnostics(analysis)
+    assert data["summary_source"] == "reserve" and data["language"] == "en"
+    assert data["steps"] == {"synthesis": "ok", "sentiment": "failed: sem GPU"}
+    assert "_embeddings" not in data
+
+    back = Analysis.new(Document.from_payload("texto"))
+    restore_from_diagnostics(back, data)
+    assert (back.summary_source, back.language, back.visual_context) == (SummarySource.RESERVE, "en", ["[00:10] slide"])
+    assert back.failed_steps == ["sentiment"] and back.step_seconds["synthesis"] == 1.235
+    assert back.grounding.ratio == 0.5 and back.diagnostics == {"indexed_chunks": 3}
+
+
+def test_unknown_language_values_are_not_a_language():
+    from src.text_analysis.domain import Analysis, Document
+
+    analysis = Analysis.new(Document.from_payload(""))
+    for value in ("auto", "unknown", "", None):
+        analysis.set_language(value)
+        assert analysis.language is None and analysis.language_or("pt") == "pt"
+
+
+def test_storage_paths_stay_inside_the_storage_root():
+    import pytest
+
+    from src.shared.domain.errors import ValidationError
+    from src.storage.domain import FilePath
+
+    assert str(FilePath.from_path("u/2026/10/m/aula.mp4")) == "u/2026/10/m/aula.mp4"
+    for bad in ("/etc/passwd", "u/../../segredo", "..", "", "..\\\\fora"):
+        with pytest.raises(ValidationError):
+            FilePath.from_path(bad)
+
+
+def test_one_timestamp_format_for_frames_and_summaries():
+    from src.shared.domain.time.timestamps import format_timestamp
+
+    assert [format_timestamp(s) for s in (None, -3, 65, 3725)] == [None, "00:00", "01:05", "1:02:05"]

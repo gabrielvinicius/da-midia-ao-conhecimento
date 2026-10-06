@@ -20,7 +20,7 @@ from src.media_processing.application.ports import (
 from src.media_processing.domain import Transcription, TranscriptionStatus
 from src.media_processing.domain.processing_deadline import expected_processing_seconds
 from src.shared.application.ports import ProcessingStatsPort
-from src.shared.domain.errors import ResourceNotFoundError
+from src.shared.domain.errors import NotFoundError
 
 from ..dtos import (
     GetTranscriptionByIdQuery,
@@ -121,7 +121,7 @@ class TranscriptionService:
         """Nomes dos falantes (para quando a transcrição os identificar)."""
         transcription = await self._repo.get_by_id(command.transcription_id)
         if not transcription:
-            raise ResourceNotFoundError("Transcription", str(command.transcription_id))
+            raise NotFoundError("Transcrição não encontrada")
         transcription.set_speaker_aliases(command.aliases)
         return await self._repo.save(transcription)
 

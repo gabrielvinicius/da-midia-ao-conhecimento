@@ -8,13 +8,15 @@ cria o evento.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import ClassVar, List, Optional
 from uuid import UUID, uuid4
 
+from src.shared.domain.time.clock import utcnow
+
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return utcnow()
 
 
 @dataclass

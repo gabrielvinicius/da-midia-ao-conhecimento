@@ -11,9 +11,10 @@ from typing import Optional, Sequence
 
 import structlog
 
+from src.shared.domain.time.timestamps import format_timestamp
 from src.text_analysis.application.pipeline.base import AnalysisStep
 from src.text_analysis.application.ports import TextGenerationPort
-from src.text_analysis.domain import Analysis, SentimentLabel
+from src.text_analysis.domain import Analysis, SentimentLabel, SummarySource
 from src.text_analysis.domain.content_profile import (
     SUMMARY_MAX_WORDS,
     Tone,
@@ -50,15 +51,6 @@ _TONE_NAMES = {
 
 def language_name(language: str) -> str:
     return _LANGUAGE_NAMES.get((language or "pt").lower(), language or "português do Brasil")
-
-
-def format_timestamp(seconds: Optional[float]) -> Optional[str]:
-    if seconds is None:
-        return None
-    total = int(seconds)
-    hours, rest = divmod(total, 3600)
-    minutes, secs = divmod(rest, 60)
-    return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes:02d}:{secs:02d}"
 
 
 def response_token_cap(words: int) -> int:
@@ -159,11 +151,11 @@ class SynthesisStep(AnalysisStep):
                     )
                 prompt = self.build_prompt(analysis, partials=list(zip(blocks, partials)), target_words=target)
             master_summary = await self._generate(prompt, max_tokens=response_token_cap(target))
-            analysis.diagnostics["summary_source"] = "reserve" if self._used_reserve else "llm"
+            analysis.summary_source = SummarySource.RESERVE if self._used_reserve else SummarySource.LLM
             analysis.summary = self._with_appendix(master_summary, analysis)
         except Exception as exc:  # inclui TextGenerationUnavailableError
             logger.error("synthesis.failed", error=str(exc))
-            analysis.diagnostics["summary_source"] = "simplified"
+            analysis.summary_source = SummarySource.SIMPLIFIED
             analysis.summary = self._with_appendix(self._simplified_summary(analysis), analysis)
         if self._prompt_tokens:
             analysis.diagnostics["synthesis_prompt_tokens"] = max(self._prompt_tokens)
@@ -286,7 +278,7 @@ class SynthesisStep(AnalysisStep):
         overall_tone = describe_tone(list(chunk_tones(analysis.chunks or [], analysis.sentiments or []).values()))
         if overall_tone:
             parts.append("<tom_geral>\n" + overall_tone + "\n</tom_geral>")
-        visual = analysis.diagnostics.get("visual_context") or []
+        visual = analysis.visual_context
         if visual:
             parts.append("<descricoes_visuais>\n" + "\n".join(visual) + "\n</descricoes_visuais>")
 
@@ -360,7 +352,7 @@ class SynthesisStep(AnalysisStep):
                 stamp = format_timestamp(starts.get(snippet))
                 lines.append(f"> {'[' + stamp + '] ' if stamp else ''}{snippet}")
             parts.append(f"### {t.title or 'Tema'}\n" + "\n>\n".join(lines))
-        visual = analysis.diagnostics.get("visual_context") or []
+        visual = analysis.visual_context
         if visual:
             parts.append(
                 "### O que aparecia na tela\n"

@@ -4,9 +4,47 @@ from __future__ import annotations
 
 from typing import List
 
-from ..domain import Analysis, SentimentLabel, TextChunk
+from ..domain import Analysis, SentimentLabel, SummarySource, TextChunk
+from ..domain.grounding import GroundingReport
 from .dtos import AnalysisResultDTO, SentimentItemDTO, TopicDTO
-from src.shared.utils.text import strip_markdown
+
+
+def analysis_diagnostics(analysis: Analysis) -> dict:
+    """Campos tipados da análise mais os detalhes técnicos, no formato que a
+    API e as análises gravadas sempre usaram (``diagnostics``). Chaves
+    iniciadas por "_" são temporárias do pipeline e ficam de fora."""
+    data = {k: v for k, v in (analysis.diagnostics or {}).items() if not str(k).startswith("_")}
+    data["steps"] = dict(analysis.step_status)
+    data["step_seconds"] = dict(analysis.step_seconds)
+    if analysis.language:
+        data["language"] = analysis.language
+    if analysis.visual_context:
+        data["visual_context"] = list(analysis.visual_context)
+    if analysis.summary_source:
+        data["summary_source"] = analysis.summary_source.value
+    if analysis.grounding:
+        data["grounding"] = analysis.grounding.to_dict()
+    return data
+
+
+def restore_from_diagnostics(analysis: Analysis, diagnostics: dict) -> None:
+    """Inverso de ``analysis_diagnostics``: separa os campos tipados dos detalhes."""
+    rest = dict(diagnostics or {})
+    analysis.step_status = dict(rest.pop("steps", None) or {})
+    analysis.step_seconds = dict(rest.pop("step_seconds", None) or {})
+    analysis.set_language(rest.pop("language", None))
+    analysis.visual_context = list(rest.pop("visual_context", None) or [])
+    analysis.summary_source = _summary_source(rest.pop("summary_source", None))
+    grounding = rest.pop("grounding", None)
+    analysis.grounding = GroundingReport.from_dict(grounding) if isinstance(grounding, dict) else None
+    analysis.diagnostics = rest
+
+
+def _summary_source(value) -> SummarySource | None:
+    try:
+        return SummarySource(value) if value else None
+    except ValueError:  # valor desconhecido de uma versão antiga
+        return None
 
 
 def _chunk_lookup(chunks: List[TextChunk]) -> dict[str, TextChunk]:
@@ -14,28 +52,12 @@ def _chunk_lookup(chunks: List[TextChunk]) -> dict[str, TextChunk]:
 
 
 def _map_topic(t) -> TopicDTO:
-    md = getattr(t, "summary_md", None)
-    legacy = getattr(t, "summary", "")
-    
-    # If summary_md is present, we assume 'summary' contains the plain text version (New Schema)
-    # If summary_md is missing, we assume 'summary' contains the Markdown version (Legacy Schema)
-    
-    if md:
-        final_md = md
-        final_plain = legacy
-    else:
-        final_md = legacy
-        final_plain = strip_markdown(legacy)
-
     return TopicDTO(
-        topic_id=getattr(t, "topic_id", getattr(t, "id", 0)),
+        topic_id=t.id,
         title=t.title,
         keywords=t.keywords,
-        summary_md=final_md,
-        summary=final_plain,
-        representative_snippets=getattr(t, "snippets", []),
-        size=getattr(t, "size", 0),
-        diagnostics=getattr(t, "diagnostics", {}) or {},
+        representative_snippets=list(t.snippets or []),
+        size=t.size,
     )
 
 
@@ -65,7 +87,7 @@ def analysis_to_dto(analysis: Analysis) -> AnalysisResultDTO:
         overall_sentiment=overall.value,
         sentiment_items=sentiments,
         topics=topics,
-        diagnostics=analysis.diagnostics,
+        diagnostics=analysis_diagnostics(analysis),
         media_id=str(analysis.media_id) if analysis.media_id else None,
         transcription_id=str(analysis.transcription_id) if analysis.transcription_id else None,
         user_id=str(analysis.user_id) if analysis.user_id else None,

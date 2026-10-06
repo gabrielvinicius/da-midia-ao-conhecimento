@@ -9,7 +9,6 @@ from src.shared.domain.errors import (
     AccessDeniedError,
     DomainError,
     NotFoundError,
-    ResourceNotFoundError,
 )
 from src.shared.infrastructure.exceptions.exception_handlers import register_exception_handlers
 
@@ -18,7 +17,7 @@ from src.shared.infrastructure.exceptions.exception_handlers import register_exc
     "error, status",
     [
         (NotFoundError("não existe"), 404),
-        (ResourceNotFoundError("Media", "1"), 404),
+        (NotFoundError("Mídia não encontrada"), 404),
         (AccessDeniedError("negado"), 403),
         (MediaNotReprocessableError("concluída"), 409),
         (MediaDataErasureError("tente de novo"), 503),

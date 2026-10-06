@@ -16,12 +16,9 @@ from src.media_processing.application.ports import (
     VideoFrameExtractorPort,
     VisualAnalysisPort,
 )
-from src.media_processing.domain.visual_sampling import (
-    format_timestamp,
-    frame_timestamps,
-    is_video_file,
-)
+from src.media_processing.domain.visual_sampling import frame_timestamps, is_video_file
 from src.shared.application.ports import ProcessingStatsPort
+from src.shared.domain.time.timestamps import format_timestamp
 
 logger = structlog.get_logger(__name__)
 

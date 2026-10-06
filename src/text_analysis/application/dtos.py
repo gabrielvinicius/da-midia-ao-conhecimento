@@ -68,11 +68,8 @@ class TopicDTO:
     topic_id: int
     title: Optional[str]
     keywords: list[str]
-    summary_md: Optional[str]
-    summary: Optional[str]
     representative_snippets: list[str]
     size: int
-    diagnostics: dict
 
 
 @dataclass(slots=True)

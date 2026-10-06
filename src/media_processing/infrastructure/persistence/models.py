@@ -29,7 +29,6 @@ class TranscriptionModel(Base):
     content = Column(Text, nullable=False, default="")
     language = Column(String, nullable=True)
     confidence_score = Column(Float, nullable=True)
-    speaker_labels = Column(JSON, nullable=True)
     segments = Column(JSON, nullable=True)
     status = Column(
         enum_column(TranscriptionStatus),
@@ -62,7 +61,6 @@ class TranscriptionModel(Base):
             text=self.content or "",
             language=self.language,
             confidence_score=self.confidence_score,
-            speaker_labels=self.speaker_labels,
             segments=self.segments,
             status=self.status,
             provider=self.provider,
@@ -86,7 +84,6 @@ class TranscriptionModel(Base):
             content=transcription.text,
             language=transcription.language,
             confidence_score=transcription.confidence_score,
-            speaker_labels=getattr(transcription, "speaker_labels", None),
             segments=transcription.segments,
             status=transcription.status,
             provider=transcription.provider,

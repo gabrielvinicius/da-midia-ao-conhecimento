@@ -28,7 +28,7 @@ from src.media_processing.application.services.processing_job import (
 from src.media_processing.domain import InvalidTranscriptionTransitionError, Transcription
 from src.shared.application.event_bus import SupportsEventBus
 from src.shared.application.ports import ProcessingStatsPort
-from src.shared.domain.errors import ResourceNotFoundError
+from src.shared.domain.errors import NotFoundError
 from src.shared.domain.events import TranscriptionCompleted, TranscriptionFailed
 
 logger = structlog.get_logger(__name__)
@@ -77,7 +77,7 @@ class TranscriptionRunner:
         """Baixa o arquivo para o disco, transcreve, descreve os quadros e publica."""
         transcription = await self._repo.get_by_id(transcription_id)
         if not transcription:
-            raise ResourceNotFoundError("Transcription", str(transcription_id))
+            raise NotFoundError(f"Transcrição não encontrada: {transcription_id}")
         if transcription.is_finished:
             # Tarefa entregue de novo (fila) ou repetida: não refaz o trabalho na GPU.
             logger.warning("transcription.already_finished", transcription_id=str(transcription_id))

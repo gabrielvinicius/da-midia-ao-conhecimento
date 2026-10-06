@@ -9,6 +9,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.shared.application.utils.serialization import to_json_serializable
+from src.text_analysis.application.mappers import analysis_diagnostics, restore_from_diagnostics
 from src.text_analysis.application.ports.repository import AnalysisRepositoryPort
 from src.text_analysis.domain import Analysis, Topic
 from src.text_analysis.infrastructure.persistence.feedback_models import FeedbackModel
@@ -40,11 +41,8 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
                 for c in (analysis.chunks or [])
             ],
             "topics": [t.__dict__ for t in analysis.topics],
-            # Chaves iniciadas por "_" são dados temporários do pipeline
-            # (ex.: embeddings) e não devem ser gravadas no JSON.
-            "diagnostics": {
-                k: v for k, v in (analysis.diagnostics or {}).items() if not str(k).startswith("_")
-            },
+            # Campos tipados e detalhes técnicos, no formato de sempre.
+            "diagnostics": analysis_diagnostics(analysis),
             "media_id": str(analysis.media_id) if analysis.media_id else None,
             "transcription_id": (
                 str(analysis.transcription_id) if analysis.transcription_id else None
@@ -242,8 +240,6 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
                     title=raw.get("title"),
                     keywords=list(raw.get("keywords", []) or []),
                     snippets=list(raw.get("snippets", []) or []),
-                    summary=raw.get("summary"),
-                    diagnostics=raw.get("diagnostics") or {},
                     size=int(raw.get("size") or 0),
                     chunk_indices=[int(i) for i in raw.get("chunk_indices") or []],
                 )
@@ -251,7 +247,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         analysis.topics = topics
 
         analysis.summary = payload.get("summary")
-        analysis.diagnostics = payload.get("diagnostics") or {}
+        restore_from_diagnostics(analysis, payload.get("diagnostics") or {})
         overall = payload.get("overall_sentiment")
         if overall:
             try:

@@ -83,4 +83,4 @@ async def test_frame_descriptions_from_processing_reach_the_summary(service, moc
     await service.analyze_text_content(command)
 
     analysis = mock_pipeline.run.call_args[0][0]
-    assert analysis.diagnostics["visual_context"] == ["[00:30] um slide com um gráfico"]
+    assert analysis.visual_context == ["[00:30] um slide com um gráfico"]

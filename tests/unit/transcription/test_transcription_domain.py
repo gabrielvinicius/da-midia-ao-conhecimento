@@ -22,7 +22,6 @@ class TestTranscriptionDomain:
             "language": "pt",
             "confidence_score": 0.95,
             "segments": [{"start": 0, "end": 1, "text": "Final"}],
-            "speaker_labels": []
         }
 
         t.mark_as_completed(result_payload)

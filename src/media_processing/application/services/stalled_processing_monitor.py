@@ -19,6 +19,7 @@ from src.media_processing.application.ports import (
 )
 from src.media_processing.domain import Transcription, TranscriptionStatus
 from src.media_processing.domain.processing_deadline import ProcessingDeadlinePolicy
+from src.shared.domain.time.clock import utcnow
 
 logger = structlog.get_logger(__name__)
 
@@ -46,7 +47,7 @@ class StalledProcessingMonitor:
         self._terminator = terminator
 
     async def sweep(self, now: Optional[datetime.datetime] = None) -> List[str]:
-        now = now or datetime.datetime.now(datetime.timezone.utc)
+        now = now or utcnow()
         # Nenhum prazo é menor que o mínimo: o banco devolve só as candidatas.
         candidates = await self._repo.list_unfinished(
             now - datetime.timedelta(seconds=self._policy.minimum_seconds)

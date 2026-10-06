@@ -56,6 +56,22 @@ class GroundingReport:
     def ratio(self) -> Optional[float]:
         return self.supported / self.checked if self.checked else None
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "GroundingReport":
+        return cls(
+            checked=int(data.get("checked") or 0),
+            supported=int(data.get("supported") or 0),
+            threshold=float(data.get("threshold") or 0.0),
+            unsupported=[
+                UnsupportedSentence(
+                    text=str(u.get("text", "")),
+                    best_score=float(u.get("best_score") or 0.0),
+                    closest_start=u.get("closest_start"),
+                )
+                for u in data.get("unsupported") or []
+            ],
+        )
+
     def to_dict(self) -> dict:
         return {
             "checked": self.checked,

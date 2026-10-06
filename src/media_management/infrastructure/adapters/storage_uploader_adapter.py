@@ -33,7 +33,10 @@ class StorageServiceFactoryUploader(StorageUploaderPort):
         content_type: str,
     ) -> UploadResult:
         now = datetime.now(timezone.utc)
-        safe_filename = os.path.basename(command.filename)
+        # Só o nome, sem pastas; "." e ".." não são nomes de arquivo.
+        safe_filename = os.path.basename(command.filename or "").strip()
+        if safe_filename in ("", ".", ".."):
+            safe_filename = "arquivo"
         destination_path = (
             f"{command.user_id}/{now.year}/{now.month:02d}/{media_id}/{safe_filename}"
         )

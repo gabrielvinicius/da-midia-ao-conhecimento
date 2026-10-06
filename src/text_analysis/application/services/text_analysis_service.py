@@ -167,11 +167,9 @@ class TextAnalysisService:
         analysis.diagnostics.update(media_info)
         # Idioma detectado na transcrição: palavras vazias e sentimento
         # seguem o idioma da gravação (o resumo continua em português).
-        if language and language.lower() not in ("auto", "unknown"):
-            analysis.diagnostics["language"] = language.lower()
+        analysis.set_language(language)
         # O que aparecia na tela, descrito no processamento do vídeo.
-        if visual_context:
-            analysis.diagnostics["visual_context"] = visual_context
+        analysis.visual_context = visual_context
         # Dispositivo e precisão em uso, informados pela montagem do módulo.
         analysis.diagnostics.update(self.runtime_diagnostics)
         return analysis
@@ -193,16 +191,14 @@ class TextAnalysisService:
         segments = analysis.document.segments or []
         media_seconds = segments[-1].get("end") if segments and isinstance(segments[-1], dict) else None
         text_size = len((analysis.document.text or "").encode("utf-8"))
-        statuses = analysis.diagnostics.get("steps", {})
         try:
             await self.stats_recorder.log_stat(
                 "text_analysis", total_seconds, text_size, media_seconds, self.config.llm_model
             )
-            for step, seconds in analysis.diagnostics.get("step_seconds", {}).items():
-                ok = statuses.get(step) == "ok"
+            for step, seconds in analysis.step_seconds.items():
                 await self.stats_recorder.log_stat(
                     f"analysis.{step}", seconds, text_size, media_seconds, None,
-                    "success" if ok else "failed",
+                    "success" if analysis.step_succeeded(step) else "failed",
                 )
         except Exception as exc:  # estatística nunca pode derrubar a análise
             logger.warning("text_analysis.stats_record_failed", error=str(exc))
@@ -213,16 +209,15 @@ class TextAnalysisService:
 
         Uma falha de quem reage não desfaz a análise já gravada.
         """
-        steps = analysis.diagnostics.get("steps", {})
         event = AnalysisCompleted(
             analysis_id=str(analysis.id),
             media_id=str(analysis.media_id) if analysis.media_id else None,
             transcription_id=str(analysis.transcription_id) if analysis.transcription_id else None,
             user_id=str(analysis.user_id) if analysis.user_id else None,
-            summary_source=analysis.diagnostics.get("summary_source"),
-            overall_sentiment=getattr(analysis.overall_sentiment, "value", analysis.overall_sentiment),
-            topic_titles=[t.title for t in analysis.topics if getattr(t, "id", 0) != -1 and t.title],
-            failed_steps=[name for name, status in steps.items() if str(status).startswith("failed")],
+            summary_source=analysis.summary_source.value if analysis.summary_source else None,
+            overall_sentiment=analysis.overall_sentiment.value if analysis.overall_sentiment else None,
+            topic_titles=[t.title for t in analysis.main_topics if t.title],
+            failed_steps=analysis.failed_steps,
             correlation_id=analysis.correlation_id,
         )
         try:

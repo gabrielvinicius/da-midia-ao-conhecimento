@@ -3,7 +3,7 @@
 Ordem (ver pipeline_factory): trechos → sentimento → temas → indexação →
 liberação de memória → títulos dos temas → síntese → verificação de
 fidelidade. As descrições dos quadros de vídeo chegam prontas, com a
-transcrição (media_processing), em diagnostics["visual_context"].
+transcrição (media_processing), em ``analysis.visual_context``.
 
 As etapas que usam modelos locais (no worker) vêm antes das que usam o modelo
 de linguagem (no Ollama), e a memória da GPU é devolvida entre os dois grupos:
@@ -28,7 +28,7 @@ from src.text_analysis.application.ports import (
     VectorIndexPort,
 )
 from src.text_analysis.application.pipeline.synthesis import APPENDIX_MARKER, language_name
-from src.text_analysis.domain import Analysis
+from src.text_analysis.domain import Analysis, SummarySource
 from src.text_analysis.domain.content_profile import main_topics, overall_sentiment, sentiment_distribution
 from src.text_analysis.domain.grounding import assess_grounding, split_sentences
 
@@ -36,7 +36,7 @@ logger = structlog.get_logger(__name__)
 
 def _analysis_language(analysis: Analysis, default: str) -> str:
     """Idioma detectado na transcrição (para palavras vazias e sentimento)."""
-    return str(analysis.diagnostics.get("language") or default or "pt")
+    return analysis.language_or(default)
 
 
 class ChunkingStep(AnalysisStep):
@@ -257,7 +257,7 @@ class GroundingCheckStep(AnalysisStep):
     async def process(self, analysis: Analysis) -> Analysis:
         if not analysis.summary or not analysis.chunks:
             return analysis
-        if analysis.diagnostics.get("summary_source") == "simplified":
+        if analysis.summary_source == SummarySource.SIMPLIFIED:
             return analysis  # montado dos próprios temas: não há o que verificar
         body = analysis.summary.split(APPENDIX_MARKER, 1)[0]
         sentences = split_sentences(body)
@@ -271,5 +271,5 @@ class GroundingCheckStep(AnalysisStep):
         report = assess_grounding(
             sentences, queries, passages, [c.start for c in analysis.chunks], self.threshold
         )
-        analysis.diagnostics["grounding"] = report.to_dict()
+        analysis.grounding = report
         return analysis

@@ -70,7 +70,7 @@ async def test_pipeline_times_steps_and_service_records_them():
     analysis = await pipeline.run(analysis)
     await service._record_durations(analysis, 1.5)
 
-    assert set(analysis.diagnostics["step_seconds"]) == {"chunking", "synthesis"}
+    assert set(analysis.step_seconds) == {"chunking", "synthesis"}
     assert recorder.rows == [
         ("text_analysis", 90.0, "success"),
         ("analysis.chunking", 90.0, "success"),

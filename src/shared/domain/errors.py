@@ -14,11 +14,6 @@ class NotFoundError(DomainError, LookupError):
     """O recurso não existe, ou não pertence a quem pediu (404)."""
 
 
-class ResourceNotFoundError(NotFoundError):
-    def __init__(self, resource_type: str, resource_id: str):
-        super().__init__(f"{resource_type} with id {resource_id} not found")
-
-
 class AccessDeniedError(DomainError, PermissionError):
     """Quem pediu não tem permissão para a operação (403)."""
 
@@ -36,8 +31,11 @@ class AuthenticationError(DomainError):
 
 
 class ValidationError(DomainError):
+    """Valor inválido num campo (400). A mensagem chega ao usuário."""
+
     def __init__(self, field: str, value: str, message: str):
-        super().__init__(f"Invalid value '{value}' for field '{field}': {message}")
+        super().__init__(f"Valor inválido para {field} ({value!r}): {message}.")
+        self.field = field
 
 
 __all__ = [
@@ -45,7 +43,6 @@ __all__ = [
     "ConflictError",
     "DomainError",
     "NotFoundError",
-    "ResourceNotFoundError",
     "TemporarilyUnavailableError",
     "ValidationError",
 ]

@@ -40,8 +40,8 @@ StepCallback = Callable[[Analysis, str], Awaitable[None]]
 class AnalysisPipeline:
     """Orquestrador sequencial de passos.
 
-    A falha de um passo não interrompe os seguintes: ela é registrada em
-    ``analysis.diagnostics["steps"]`` e o pipeline continua com o estado já
+    A falha de um passo não interrompe os seguintes: ela é registrada na
+    análise (``record_step``) e o pipeline continua com o estado já
     produzido. Se ``on_step_completed`` for informado, ele é chamado ao fim de
     cada passo (com sucesso ou falha), o que permite salvar os resultados
     parciais à medida que são gerados.
@@ -73,16 +73,12 @@ class AnalysisPipeline:
         analysis: Analysis,
         on_step_completed: Optional[StepCallback],
     ) -> Analysis:
-        statuses = analysis.diagnostics.setdefault("steps", {})
-        durations = analysis.diagnostics.setdefault("step_seconds", {})
         for step in self.steps:
             logger.info("pipeline.step_start", step=step.name, analysis_id=str(analysis.id))
             started = time.perf_counter()
+            error = None
             try:
                 analysis = await step.process(analysis)
-                statuses = analysis.diagnostics.setdefault("steps", statuses)
-                durations = analysis.diagnostics.setdefault("step_seconds", durations)
-                statuses[step.name] = "ok"
             except Exception as exc:
                 logger.error(
                     "pipeline.step_failed",
@@ -90,8 +86,8 @@ class AnalysisPipeline:
                     analysis_id=str(analysis.id),
                     error=str(exc),
                 )
-                statuses[step.name] = f"failed: {exc}"
-            durations[step.name] = round(time.perf_counter() - started, 3)
+                error = str(exc)
+            analysis.record_step(step.name, time.perf_counter() - started, error)
             if on_step_completed is not None:
                 try:
                     await on_step_completed(analysis, step.name)

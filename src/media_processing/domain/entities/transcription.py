@@ -46,7 +46,6 @@ class Transcription(BaseEntity):
     language: str
     text: str
     segments: list[Dict[str, Any]]
-    speaker_labels: list[Dict[str, Any]]
     confidence_score: Optional[float]
     provider: str
     status: TranscriptionStatus
@@ -69,7 +68,6 @@ class Transcription(BaseEntity):
         language: str = "auto",
         text: str = "",
         segments: Optional[list[Dict[str, Any]]] = None,
-        speaker_labels: Optional[list[Dict[str, Any]]] = None,
         confidence_score: Optional[float] = None,
         provider: str = "default",
         status: TranscriptionStatus = TranscriptionStatus.PENDING,
@@ -90,7 +88,6 @@ class Transcription(BaseEntity):
         self.language = language
         self.text = text or ""
         self.segments = segments or []
-        self.speaker_labels = speaker_labels or []
         self.confidence_score = confidence_score
         self.provider = provider
         self.status = status
@@ -121,7 +118,6 @@ class Transcription(BaseEntity):
         self._change_to(TranscriptionStatus.COMPLETED)
         self.text = result.get("text", "")
         self.segments = result.get("segments", [])
-        self.speaker_labels = result.get("speaker_labels", self.speaker_labels)
         self.language = result.get("language", self.language)
         self.confidence_score = result.get("confidence_score")
         if self.confidence_score is None:

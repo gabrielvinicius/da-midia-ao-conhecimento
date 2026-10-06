@@ -31,7 +31,7 @@ class FakeEmbeddings:
 
 class FakeTopics:
     async def model_topics(self, chunks, embeddings, language):
-        topic = Topic(id=0, keywords=["test"], summary="summary", diagnostics={}, snippets=["sample"], size=1, title="Tópico")
+        topic = Topic(id=0, keywords=["test"], snippets=["sample"], size=1, title="Tópico")
         return [topic], {}
 
 

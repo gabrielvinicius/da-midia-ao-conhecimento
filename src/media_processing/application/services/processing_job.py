@@ -16,7 +16,7 @@ from typing import AsyncIterator, Optional
 
 from src.media_processing.application.ports import StoragePort
 from src.shared.application.event_bus import SupportsEventBus
-from src.shared.domain.errors import ResourceNotFoundError
+from src.shared.domain.errors import NotFoundError
 from src.shared.domain.events import MediaProcessingStarted
 
 
@@ -33,7 +33,7 @@ async def staged_file(storage: StoragePort, file_path: str) -> AsyncIterator[Sta
     os.close(descriptor)
     try:
         if not await storage.download_to(file_path, local_path):
-            raise ResourceNotFoundError("File", file_path)
+            raise NotFoundError("Arquivo da mídia não encontrado no armazenamento.")
         yield StagedFile(local_path, os.path.getsize(local_path))
     finally:
         with suppress(FileNotFoundError):

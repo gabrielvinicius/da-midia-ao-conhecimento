@@ -203,7 +203,6 @@ class BERTopicAdapter(TopicModelingPort):
                             title=title.strip(),
                             size=len(members),
                             chunk_indices=members,
-                            diagnostics={"score": 1.0},
                         )
                     )
                 diagnostics = {
@@ -266,6 +265,5 @@ class BERTopicAdapter(TopicModelingPort):
             title=" e ".join(common[:2]).capitalize() if common else "Geral",
             size=len(chunks),
             chunk_indices=list(range(len(chunks))),
-            diagnostics={"method": "fallback"},
         )
         return [topic], {"method": "fallback"}

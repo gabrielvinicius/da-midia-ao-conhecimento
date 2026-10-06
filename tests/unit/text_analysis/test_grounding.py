@@ -4,7 +4,7 @@ import pytest
 
 from src.text_analysis.application.pipeline.steps import GroundingCheckStep
 from src.text_analysis.application.pipeline.synthesis import APPENDIX_MARKER
-from src.text_analysis.domain import Analysis, Document, TextChunk
+from src.text_analysis.domain import Analysis, Document, SummarySource, TextChunk
 from src.text_analysis.domain.grounding import assess_grounding, split_sentences
 
 
@@ -60,13 +60,13 @@ async def test_step_checks_only_the_summary_body_and_skips_simplified_summaries(
 
     await GroundingCheckStep(_Embedder(), threshold=0.8).process(analysis)
 
-    grounding = analysis.diagnostics["grounding"]
+    grounding = analysis.grounding.to_dict()
     assert grounding["checked"] == 2  # o apêndice não é verificado
     assert grounding["supported"] == 1
     assert "futebol" in grounding["unsupported"][0]["text"]
 
     simplified = Analysis.new(Document.from_payload("t"))
     simplified.chunks, simplified.summary = analysis.chunks, analysis.summary
-    simplified.diagnostics["summary_source"] = "simplified"
+    simplified.summary_source = SummarySource.SIMPLIFIED
     await GroundingCheckStep(_Embedder()).process(simplified)
-    assert "grounding" not in simplified.diagnostics
+    assert simplified.grounding is None

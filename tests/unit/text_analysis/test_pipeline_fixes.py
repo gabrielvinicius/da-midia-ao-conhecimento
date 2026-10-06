@@ -231,8 +231,8 @@ async def test_pipeline_records_status_and_checkpoints_each_step():
     analysis = await pipeline.run(Analysis.new(Document.from_payload("t")), on_step_completed=checkpoint)
 
     assert saved == [("ok_step", "parcial"), ("failing_step", "parcial")]
-    assert analysis.diagnostics["steps"]["ok_step"] == "ok"
-    assert analysis.diagnostics["steps"]["failing_step"].startswith("failed: sem memória")
+    assert analysis.step_status["ok_step"] == "ok"
+    assert analysis.step_status["failing_step"].startswith("failed: sem memória")
 
 
 class _Releasable:
