@@ -8,7 +8,7 @@ import structlog
 
 from src.shared.domain.errors import NotFoundError
 
-from ..access import Requester, ensure_can_access
+from src.shared.application.access import Requester, ensure_can_access
 from ..ports import AnalysisRepositoryPort, FeedbackRepositoryPort
 
 logger = structlog.get_logger(__name__)
@@ -37,4 +37,4 @@ class AnalysisReviewService:
         analysis = await self._analyses.get(str(analysis_id))
         if analysis is None:
             raise NotFoundError("Análise não encontrada")
-        ensure_can_access(analysis.user_id, requester)
+        ensure_can_access(analysis.user_id, requester, "Análise não encontrada")

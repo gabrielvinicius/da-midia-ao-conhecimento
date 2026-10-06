@@ -10,6 +10,7 @@ from uuid import UUID
 from fastapi import Depends, Query, WebSocketException, status
 
 from src.user_management.application.auth_queries import UserReadService
+from src.shared.application.access import Requester
 from src.shared.domain.errors import AccessDeniedError, AuthenticationError
 from src.user_management.application.services.auth_service import AuthService
 from src.user_management.application.services.login_throttle import LoginThrottle
@@ -79,6 +80,11 @@ async def get_current_user(
     return await auth.user_for_token(token, TokenPurpose.ACCESS)
 
 
+async def get_requester(current_user: Annotated[User, Depends(get_current_user)]) -> Requester:
+    """Quem pede (id e perfil), para as regras de acesso dos serviços."""
+    return Requester(current_user.id, current_user.role)
+
+
 async def get_current_user_for_media_stream(
     media_id: UUID,
     token: Annotated[str, Query(..., description="Token de reprodução (POST /auth/scoped-token).")],
@@ -113,6 +119,7 @@ __all__ = [
     "get_auth_queries",
     "get_auth_settings",
     "get_current_user",
+    "get_requester",
     "get_current_user_for_media_stream",
     "get_current_admin_user",
     "get_current_user_websocket",

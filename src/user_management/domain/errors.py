@@ -15,7 +15,10 @@ class UserNotFoundError(NotFoundError):
 
 
 class InvalidCredentialsError(AuthenticationError):
-    """Credenciais inválidas (401)."""
+    """Credenciais ou sessão inválidas (401)."""
+
+    def __init__(self, message: str = "E-mail ou senha incorretos") -> None:
+        super().__init__(message)
 
 
 class InvalidUserDataError(DomainError):

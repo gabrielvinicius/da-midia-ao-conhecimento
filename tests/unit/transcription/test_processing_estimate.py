@@ -8,6 +8,7 @@ from src.media_processing.application.services.transcription_service import (
     TranscriptionService,
 )
 from src.media_processing.domain import Transcription
+from src.shared.application.access import Requester
 from src.media_processing.domain.processing_deadline import expected_processing_seconds
 
 
@@ -32,14 +33,24 @@ def _service(transcription, factors):
 
 @pytest.mark.asyncio
 async def test_estimate_for_a_media_being_processed():
-    t = Transcription(media_id=uuid4(), media_duration_seconds=3600)
+    owner = Requester(uuid4())
+    t = Transcription(media_id=uuid4(), user_id=owner.user_id, media_duration_seconds=3600)
     service = _service(t, {"transcription": 0.1, "text_analysis": 0.05})
-    estimate = await service.estimate_processing(t.media_id)
+    estimate = await service.estimate_processing(t.media_id, owner)
     assert estimate == {"estimated_seconds": 540, "media_seconds": 3600, "includes_analysis": True}
 
 
 @pytest.mark.asyncio
 async def test_no_estimate_before_the_worker_reads_the_duration():
     service = _service(None, {"transcription": 0.1})
-    estimate = await service.estimate_processing(uuid4())
+    estimate = await service.estimate_processing(uuid4(), Requester(uuid4()))
     assert estimate["estimated_seconds"] is None
+
+
+@pytest.mark.asyncio
+async def test_other_users_get_no_estimate():
+    from src.shared.domain.errors import NotFoundError
+
+    t = Transcription(media_id=uuid4(), user_id=uuid4(), media_duration_seconds=3600)
+    with pytest.raises(NotFoundError):
+        await _service(t, {}).estimate_processing(t.media_id, Requester(uuid4()))

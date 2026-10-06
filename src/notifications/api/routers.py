@@ -6,7 +6,7 @@ a página durante o processamento os encontra aqui ao voltar.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from src.notifications.application.dtos import (
     GetUserNotificationsQuery,
@@ -50,9 +50,7 @@ async def mark_notification_as_read(
     service: NotificationService = Depends(get_notification_service),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    marked = await service.mark_notification_as_read(
+    # Inexistente ou de outro usuário: 404, sem revelar qual (pelo serviço).
+    await service.mark_notification_as_read(
         MarkNotificationAsReadCommand(notification_id=notification_id, user_id=current_user.id)
     )
-    if not marked:
-        # Inexistente ou de outro usuário: 404, sem revelar qual.
-        raise HTTPException(status_code=404, detail="Aviso não encontrado")

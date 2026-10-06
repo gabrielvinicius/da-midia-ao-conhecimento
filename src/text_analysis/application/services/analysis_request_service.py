@@ -13,7 +13,7 @@ import structlog
 
 from src.shared.domain.errors import ConflictError
 
-from ..access import Requester, ensure_can_access
+from src.shared.application.access import Requester, ensure_can_access
 from ..ports import AnalysisQueuePort, TranscriptionQueryPort
 
 logger = structlog.get_logger(__name__)
@@ -28,7 +28,7 @@ class AnalysisRequestService:
 
     async def request(self, media_id: UUID, requester: Requester, correlation_id: Optional[str] = None) -> None:
         owner = await self._sources.get_media_owner(media_id)
-        ensure_can_access(owner, requester, what="Mídia")
+        ensure_can_access(owner, requester, "Mídia não encontrada")
         source = await self._sources.get_text_source(media_id)
         if source is None or not (source.text or "").strip():
             raise ConflictError(TEXT_NOT_READY)

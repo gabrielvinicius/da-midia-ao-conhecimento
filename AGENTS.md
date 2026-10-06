@@ -33,7 +33,8 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 - **Time**: domain and application read the clock only through `shared/domain/time/clock.utcnow`; recording times are formatted by `shared/domain/time/timestamps.format_timestamp`.
 - **Authentication**: every token is checked by `AuthService.user_for_token(token, purpose, resource)`. Access tokens go only in the `Authorization` header; the video URL and the WebSocket use short scoped tokens (`POST /auth/scoped-token`, `application/tokens.TokenPurpose`). Refresh tokens rotate on use and are revoked on logout (`RevokedTokensPort`, Redis).
 - **API never runs models**: analysis requests from the API go to the queue (`AnalysisRequestService`); the API composes only read, review and request services of text_analysis.
-- **Access to analyses**: `text_analysis/application/access.ensure_can_access` answers 404 for other users' data, as media does.
+- **Access rule**: owner or admin, 404 for everyone else, in one place (`shared/application/access.py`: `Requester`, `ensure_can_access`), applied by the services of media, transcriptions, analyses and notices; routes get the `Requester` from `user_management.api.dependencies.get_requester` and never check ownership themselves.
+- **API responses**: typed schemas; lists use `shared/api/schemas.PaginatedResponse`.
 - **Logs**: no personal data (e-mails masked with `shared/application/privacy.masked_email`, search text never logged); Prometheus labels never carry media or user ids.
 - **Text generation**: only through Ollama (`OllamaTextGenerationAdapter`, main and reserve model from settings). There is no Transformers path for the LLM.
 - **Configuration**: environment-specific values (CORS origins in `CORS_ORIGINS`, hosts, models) come from settings, never hard-coded lists.

@@ -4,7 +4,7 @@ from typing import Any
 from src.shared.domain.errors import NotFoundError
 
 from ...domain import Analysis
-from ..access import Requester, ensure_can_access
+from src.shared.application.access import Requester, ensure_can_access
 from ..dtos import GetAnalysisByMediaIdQuery, GetAnalysisQuery, ListTopicsQuery
 from ..mappers import analysis_to_dto
 from ..ports import AnalysisRepositoryPort
@@ -32,5 +32,5 @@ class TextAnalysisReadService:
     async def _accessible(analysis: Analysis | None, requester: Requester) -> Analysis:
         if analysis is None:
             raise NotFoundError("Análise não encontrada")
-        ensure_can_access(analysis.user_id, requester)
+        ensure_can_access(analysis.user_id, requester, "Análise não encontrada")
         return analysis

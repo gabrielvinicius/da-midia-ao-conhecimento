@@ -20,7 +20,6 @@ from fastapi.responses import StreamingResponse
 
 from src.media_management.application.errors import InvalidRangeError, InvalidUploadError
 from src.media_management.config.settings import media_settings
-from src.shared.domain.errors import NotFoundError
 from src.media_management.application.dtos import (
     CreateMediaCommand,
     DeleteMediaCommand,
@@ -32,16 +31,13 @@ from src.media_management.application.dtos import (
 )
 from src.media_management.application.services.media_service import MediaService
 from src.shared.infrastructure.middleware.correlation_middleware import correlation_id_of
-from src.shared.application.schemas import (
-    BaseResponseSchema,
-    create_success_response,
-)
 from src.user_management.api.dependencies import get_current_user, get_current_user_for_media_stream
 from src.user_management.domain import User
-from src.user_management.domain import UserRole
 
 from .dependencies import get_media_service
-from .schemas import MediaResponse
+from src.shared.api.schemas import PaginatedResponse
+
+from .schemas import MediaResponse, MediaStatisticsResponse, media_page
 
 UPLOAD_CHUNK_BYTES = 1024 * 1024
 
@@ -79,7 +75,7 @@ router = APIRouter(
     "/",
     response_model=MediaResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Upload a new media file"
+    summary="Enviar uma mídia"
 )
 async def create_media(
     request: Request,
@@ -107,8 +103,8 @@ async def create_media(
 
 @router.get(
     "/",
-    response_model=dict,
-    summary="List all media for the current user",
+    response_model=PaginatedResponse[MediaResponse],
+    summary="Mídias do usuário",
 )
 async def list_user_media(
     current_user: User = Depends(get_current_user),
@@ -125,25 +121,13 @@ async def list_user_media(
         search=search,
         order=order,
     )
-    page_data = await service.list_media(query)
-
-    items = [
-        MediaResponse.from_domain(media)
-        for media in page_data.items
-    ]
-
-    return {
-        "items": items,
-        "total": page_data.total,
-        "page": page_data.page,
-        "pages": page_data.pages,
-        "limit": page_data.limit,
-    }
+    return media_page(await service.list_media(query), page, limit)
 
 
 @router.get(
     "/stats",
-    summary="Obter estatísticas das mídias do usuário atual",
+    response_model=MediaStatisticsResponse,
+    summary="Estatísticas das mídias do usuário",
 )
 async def media_stats(
     current_user: User = Depends(get_current_user),
@@ -157,24 +141,23 @@ async def media_stats(
 @router.get(
     "/{media_id}",
     response_model=MediaResponse,
-    summary="Get a media item by its ID",
+    summary="Uma mídia pelo id",
 )
 async def get_media_by_id(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
 ):
-    media = await service.get_media(GetMediaQuery(media_id=media_id))
-    # Mídia de outro usuário: 404, sem revelar que ela existe.
-    if not media or (media.user_id != current_user.id and current_user.role != UserRole.ADMIN):
-        raise NotFoundError("Mídia não encontrada")
+    media = await service.get_accessible_media(
+        GetMediaQuery(media_id=media_id), current_user.id, current_user.role
+    )
     return MediaResponse.from_domain(media)
 
 
 @router.delete(
     "/{media_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a media item",
+    summary="Excluir uma mídia",
 )
 async def delete_media(
     media_id: UUID,
@@ -187,7 +170,7 @@ async def delete_media(
     )
 
 
-@router.get("/{media_id}/stream", summary="Stream media bytes for playback")
+@router.get("/{media_id}/stream", summary="Bytes da mídia para o reprodutor (com Range)")
 async def stream_media(
     media_id: UUID,
     request: Request,
@@ -212,26 +195,23 @@ async def stream_media(
             headers=stream_dto.headers,
             status_code=stream_dto.status_code,
         )
-    except InvalidRangeError as exc:  # 416 é próprio do streaming
+    except InvalidRangeError as exc:  # 416 é próprio do HTTP de streaming, não um erro de negócio
         raise HTTPException(status_code=416, detail=str(exc))
 
 
 @router.post(
     "/{media_id}/reprocess",
-    response_model=BaseResponseSchema,
-    summary="Reprocess media item",
+    response_model=MediaResponse,
+    summary="Reprocessar uma mídia que falhou",
 )
 async def reprocess_media(
     media_id: UUID,
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
 ):
-    """Reprocess a media item (transcription, summarization, sentiment)."""
-    # Mídia de outro usuário: a política de acesso responde 404.
-    await service.reprocess_media(
+    """Apaga os resultados anteriores e processa a mídia de novo; devolve a
+    mídia já em processamento. Mídia de outro usuário: 404."""
+    media = await service.reprocess_media(
         ReprocessMediaCommand(media_id=media_id), user_id=current_user.id, user_role=current_user.role
     )
-    return create_success_response(
-        data={"media_id": str(media_id), "status": "processing", "message": "Media reprocessing initiated"},
-        message="Media reprocessing started successfully",
-    )
+    return MediaResponse.from_domain(media)

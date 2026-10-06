@@ -11,6 +11,7 @@ from uuid import UUID
 from src.notifications.application.ports import NotificationRepositoryPort
 from src.notifications.application.realtime import realtime_message
 from src.notifications.domain import Notification
+from src.shared.domain.errors import NotFoundError
 
 from ..dtos import GetUserNotificationsQuery, MarkNotificationAsReadCommand
 
@@ -27,14 +28,13 @@ class NotificationService:
             str(query.user_id), limit=query.limit, unread_only=not query.include_read
         )
 
-    async def mark_notification_as_read(self, command: MarkNotificationAsReadCommand) -> bool:
-        """Marca como lido; False se o aviso não existe ou é de outro usuário."""
+    async def mark_notification_as_read(self, command: MarkNotificationAsReadCommand) -> None:
+        """Marca como lido. Inexistente ou de outro usuário: NotFoundError (404)."""
         notification = await self.repo.find_by_id(command.notification_id)
         if not notification or notification.user_id != command.user_id:
-            return False
+            raise NotFoundError("Aviso não encontrado")
         notification.mark_as_opened()
         await self.repo.save(notification)
-        return True
 
     async def mark_all_as_read(self, user_id: UUID) -> int:
         """Marca como lidos todos os avisos do usuário; devolve quantos mudaram."""

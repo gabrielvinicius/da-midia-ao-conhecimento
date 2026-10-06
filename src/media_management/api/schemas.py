@@ -1,26 +1,12 @@
-# src/media_management/api/schemas.py
+"""Esquemas da API de mídias."""
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.media_management.domain.entities.media import Media, MediaStatus, MediaType
-
-
-class MediaCreate(BaseModel):
-    """Schema for creating a new media item."""
-
-    original_file_path: str = Field(
-        ...,
-        description="The path to the original file in storage.",
-        json_schema_extra={"example": "media/user1/video.mp4"},
-    )
-    media_type: MediaType = Field(
-        ...,
-        description="The type of the media file.",
-        json_schema_extra={"example": "VIDEO"},
-    )
+from src.shared.api.schemas import PaginatedResponse
 
 
 class MediaResponse(BaseModel):
@@ -67,16 +53,23 @@ class MediaResponse(BaseModel):
             transcription_provider=media.transcription_provider,
         )
 
-    @computed_field(return_type=List[str])
-    @property
-    def processing_pipeline(self) -> List[str]:
-        pipeline: List[str] = ["upload"]
-
-        if self.media_type in (MediaType.VIDEO, MediaType.AUDIO):
-            pipeline.append("transcription")
-        elif self.media_type == MediaType.TEXT:
-            pipeline.append("extract_text")
-
-        return pipeline
-
     model_config = ConfigDict(from_attributes=True)
+
+
+def media_page(page_data, page: int, limit: int) -> PaginatedResponse[MediaResponse]:
+    """Página de mídias no formato comum das listas."""
+    return PaginatedResponse[MediaResponse](
+        items=[MediaResponse.from_domain(media) for media in page_data.items],
+        total=page_data.total,
+        page=page_data.page or page,
+        limit=page_data.limit or limit,
+        pages=page_data.pages if page_data.pages is not None else PaginatedResponse.pages_for(page_data.total, limit),
+    )
+
+
+class MediaStatisticsResponse(BaseModel):
+    """Mídias por estado e por tipo (chaves em minúsculas, como nos enums)."""
+
+    total: int
+    by_status: Dict[str, int]
+    by_type: Dict[str, int]

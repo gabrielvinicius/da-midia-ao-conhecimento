@@ -5,8 +5,15 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.shared.infrastructure.exceptions.exception_handlers import (
+    register_exception_handlers,
+)
 from src.user_management.api import routers
-from src.user_management.api.dependencies import get_auth_service, get_auth_settings, get_login_throttle
+from src.user_management.api.dependencies import (
+    get_auth_service,
+    get_auth_settings,
+    get_login_throttle,
+)
 from src.user_management.application.services.login_throttle import LoginThrottle
 from src.user_management.domain.errors import InvalidCredentialsError
 from src.user_management.infrastructure.adapters.security.login_attempt_limiter import (
@@ -117,6 +124,7 @@ class FakeAuthService:
 
 def test_login_route_returns_429_after_repeated_failures():
     app = FastAPI()
+    register_exception_handlers(app)  # como na aplicação: credencial inválida vira 401
     app.include_router(routers.router)
     throttle = LoginThrottle(InMemoryLoginAttemptLimiter(), max_attempts_per_email=3, block_seconds=900)
     app.dependency_overrides[get_auth_service] = lambda: FakeAuthService()

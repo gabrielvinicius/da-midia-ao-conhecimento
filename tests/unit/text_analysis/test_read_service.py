@@ -5,7 +5,7 @@ import pytest
 
 from src.shared.domain.errors import NotFoundError
 from src.shared.domain.roles import UserRole
-from src.text_analysis.application.access import Requester
+from src.shared.application.access import Requester
 from src.text_analysis.application.dtos import (
     GetAnalysisByMediaIdQuery,
     GetAnalysisQuery,

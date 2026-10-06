@@ -20,6 +20,7 @@ from src.media_processing.application.ports import (
 from src.media_processing.domain import Transcription, TranscriptionStatus
 from src.media_processing.domain.processing_deadline import expected_processing_seconds
 from src.shared.application.ports import ProcessingStatsPort
+from src.shared.application.access import Requester, ensure_can_access
 from src.shared.domain.errors import NotFoundError
 
 from ..dtos import (
@@ -30,6 +31,8 @@ from ..dtos import (
 )
 
 logger = structlog.get_logger(__name__)
+
+NOT_FOUND = "Transcrição não encontrada"
 
 
 class TranscriptionService:
@@ -94,14 +97,17 @@ class TranscriptionService:
                 status="SCHEDULED" if success else "FAILED",
             )
 
-    async def estimate_processing(self, media_id: UUID) -> Dict[str, Any]:
+    async def estimate_processing(self, media_id: UUID, requester: Requester) -> Dict[str, Any]:
         """Estimativa do processamento completo de uma mídia.
 
         Usa a duração da gravação (lida pelo worker ao iniciar) e o tempo que
         as transcrições e análises anteriores levaram por segundo de gravação
-        nesta instalação (processing_stats).
+        nesta instalação (processing_stats). Sem registro ainda (logo após o
+        envio), não há estimativa.
         """
         transcription = await self._repo.get_by_media_id(media_id)
+        if transcription is not None:
+            ensure_can_access(transcription.user_id, requester, NOT_FOUND)
         media_seconds = transcription.media_duration_seconds if transcription else None
         factors: Dict[str, Optional[float]] = {"transcription": None, "text_analysis": None}
         if media_seconds and self._stats:
@@ -117,19 +123,27 @@ class TranscriptionService:
             "includes_analysis": factors["text_analysis"] is not None,
         }
 
-    async def set_speaker_aliases(self, command: SetSpeakerAliasesCommand) -> Transcription:
+    async def set_speaker_aliases(self, command: SetSpeakerAliasesCommand, requester: Requester) -> Transcription:
         """Nomes dos falantes (para quando a transcrição os identificar)."""
-        transcription = await self._repo.get_by_id(command.transcription_id)
-        if not transcription:
-            raise NotFoundError("Transcrição não encontrada")
+        transcription = await self._accessible(await self._repo.get_by_id(command.transcription_id), requester)
         transcription.set_speaker_aliases(command.aliases)
         return await self._repo.save(transcription)
 
-    async def get_transcription_by_media_id(self, query: GetTranscriptionByMediaIdQuery) -> Optional[Transcription]:
-        return await self._repo.get_by_media_id(query.media_id)
+    async def get_transcription_by_media_id(
+        self, query: GetTranscriptionByMediaIdQuery, requester: Requester
+    ) -> Transcription:
+        return await self._accessible(await self._repo.get_by_media_id(query.media_id), requester)
 
-    async def get_transcription_by_id(self, query: GetTranscriptionByIdQuery) -> Optional[Transcription]:
-        return await self._repo.get_by_id(query.transcription_id)
+    async def get_transcription_by_id(self, query: GetTranscriptionByIdQuery, requester: Requester) -> Transcription:
+        return await self._accessible(await self._repo.get_by_id(query.transcription_id), requester)
+
+    @staticmethod
+    async def _accessible(transcription: Optional[Transcription], requester: Requester) -> Transcription:
+        """Inexistente ou de outro usuário: 404 (o dono é o da mídia, gravado na transcrição)."""
+        if transcription is None:
+            raise NotFoundError(NOT_FOUND)
+        ensure_can_access(transcription.user_id, requester, NOT_FOUND)
+        return transcription
 
 
 __all__ = ["TranscriptionService"]

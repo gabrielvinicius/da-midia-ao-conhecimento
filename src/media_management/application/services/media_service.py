@@ -31,6 +31,7 @@ from src.media_management.application.use_cases import (
 )
 from src.media_management.domain import Media
 from src.shared.application.unit_of_work import UnitOfWorkPort
+from src.shared.domain.errors import NotFoundError
 from src.shared.domain.roles import UserRole
 
 from ..dtos import (
@@ -69,6 +70,7 @@ class MediaService:
         self.storage_uploader = storage_uploader
         self.storage_downloader = storage_downloader
         access_policy = access_policy or MediaAccessPolicy()
+        self._access = access_policy
         cleanup = MediaDataCleanup(data_erasers, storage_maintenance, unit_of_work)
         self.data_erasers = cleanup.data_erasers
 
@@ -123,6 +125,16 @@ class MediaService:
     # Consultas
     async def get_media(self, query: GetMediaQuery) -> Optional[Media]:
         return await self.media_read_service.get_media(query)
+
+    async def get_accessible_media(
+        self, query: GetMediaQuery, user_id: uuid.UUID, user_role: Optional[UserRole]
+    ) -> Media:
+        """A mídia, se quem pede é o dono ou administrador; senão, 404."""
+        media = await self.media_read_service.get_media(query)
+        if media is None:
+            raise NotFoundError("Mídia não encontrada")
+        self._access.ensure_can_access(media, user_id, user_role)
+        return media
 
     async def list_media(self, query: ListMediaQuery):
         return await self.media_read_service.list_media(query)

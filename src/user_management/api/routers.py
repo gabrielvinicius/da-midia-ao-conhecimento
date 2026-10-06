@@ -85,11 +85,9 @@ async def login_for_access_token(
             form_data.username,
             form_data.password,
         )
-    except InvalidCredentialsError as e:
+    except InvalidCredentialsError:
         await throttle.register_failure(form_data.username, client_ip)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e) or "Credenciais inválidas"
-        )
+        raise  # 401 pelo tratador global
 
     await throttle.register_success(form_data.username)
 
@@ -124,13 +122,8 @@ async def refresh_token(
 ):
     refresh_cookie = request.cookies.get("refresh_token")
     if not refresh_cookie:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token ausente")
-
-    try:
-        tokens = await auth_service.refresh(refresh_cookie)
-    except InvalidCredentialsError:
-        response.delete_cookie("refresh_token", path="/")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido")
+        raise InvalidCredentialsError("Sessão expirada; entre de novo.")
+    tokens = await auth_service.refresh(refresh_cookie)  # inválido ou revogado: 401
     new_access, new_refresh = tokens["access_token"], tokens["refresh_token"]
 
     cookie_secure = settings.cookie_secure

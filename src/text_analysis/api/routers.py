@@ -13,10 +13,8 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel, Field
 
 from src.shared.infrastructure.middleware.correlation_middleware import correlation_id_of
-from src.user_management.api.dependencies import get_current_user
-from src.user_management.domain import User
-
-from ..application.access import Requester
+from src.shared.application.access import Requester
+from src.user_management.api.dependencies import get_requester
 from ..application.dtos import GetAnalysisByMediaIdQuery, GetAnalysisQuery, ListTopicsQuery
 from ..application.services.analysis_request_service import AnalysisRequestService
 from ..application.services.analysis_review_service import AnalysisReviewService
@@ -33,19 +31,14 @@ from .schemas import AnalyzeRequest, AnalyzeResponse
 router = APIRouter(prefix="/text-analysis", tags=["text-analysis"])
 
 
-def _requester(user: User) -> Requester:
-    return Requester(user_id=user.id, role=user.role)
-
-
 @router.get("/search")
 async def semantic_search(
     query: str = Query(..., min_length=3),
     limit: int = Query(5, ge=1, le=20),
     service: KnowledgeBaseService = Depends(get_knowledge_service),
-    current_user: User = Depends(get_current_user),
+    requester: Requester = Depends(get_requester),
 ):
     """Busca semântica nas mídias do usuário (administradores veem todas)."""
-    requester = _requester(current_user)
     return await service.search(query, limit=limit, user_id=None if requester.is_admin else requester.user_id)
 
 
@@ -54,10 +47,10 @@ async def request_analysis(
     payload: AnalyzeRequest,
     request: Request,
     service: AnalysisRequestService = Depends(get_analysis_request_service),
-    current_user: User = Depends(get_current_user),
+    requester: Requester = Depends(get_requester),
 ):
     """Pede uma nova análise da mídia ao worker; o resultado chega pelos avisos."""
-    await service.request(payload.media_id, _requester(current_user), correlation_id_of(request))
+    await service.request(payload.media_id, requester, correlation_id_of(request))
     return {"media_id": str(payload.media_id), "status": "queued"}
 
 
@@ -65,10 +58,10 @@ async def request_analysis(
 async def get_analysis_by_media(
     media_id: UUID,
     service: TextAnalysisReadService = Depends(get_analysis_read_service),
-    current_user: User = Depends(get_current_user),
+    requester: Requester = Depends(get_requester),
 ):
     return await service.get_analysis_by_media_id(
-        GetAnalysisByMediaIdQuery(media_id=media_id), _requester(current_user)
+        GetAnalysisByMediaIdQuery(media_id=media_id), requester
     )
 
 
@@ -76,18 +69,18 @@ async def get_analysis_by_media(
 async def get_analysis_result(
     analysis_id: UUID,
     service: TextAnalysisReadService = Depends(get_analysis_read_service),
-    current_user: User = Depends(get_current_user),
+    requester: Requester = Depends(get_requester),
 ):
-    return await service.get_analysis(GetAnalysisQuery(analysis_id=analysis_id), _requester(current_user))
+    return await service.get_analysis(GetAnalysisQuery(analysis_id=analysis_id), requester)
 
 
 @router.get("/{analysis_id}/topics")
 async def get_topics(
     analysis_id: UUID,
     service: TextAnalysisReadService = Depends(get_analysis_read_service),
-    current_user: User = Depends(get_current_user),
+    requester: Requester = Depends(get_requester),
 ):
-    return await service.list_topics(ListTopicsQuery(analysis_id=analysis_id), _requester(current_user))
+    return await service.list_topics(ListTopicsQuery(analysis_id=analysis_id), requester)
 
 
 class FeedbackRequest(BaseModel):
@@ -100,10 +93,10 @@ async def submit_analysis_feedback(
     analysis_id: UUID,
     body: FeedbackRequest,
     service: AnalysisReviewService = Depends(get_analysis_review_service),
-    current_user: User = Depends(get_current_user),
+    requester: Requester = Depends(get_requester),
 ):
     """Registra a avaliação humana de uma análise (no corpo, não na URL)."""
-    await service.submit_feedback(analysis_id, _requester(current_user), body.score, body.comment)
+    await service.submit_feedback(analysis_id, requester, body.score, body.comment)
     return {"message": "Avaliação registrada."}
 
 
@@ -116,10 +109,10 @@ async def correct_analysis_summary(
     analysis_id: UUID,
     body: SummaryCorrection,
     service: AnalysisReviewService = Depends(get_analysis_review_service),
-    current_user: User = Depends(get_current_user),
+    requester: Requester = Depends(get_requester),
 ):
     """Corrige o resumo gerado pela IA, preservando o original."""
-    await service.correct_summary(analysis_id, _requester(current_user), body.summary)
+    await service.correct_summary(analysis_id, requester, body.summary)
     return {"message": "Resumo atualizado."}
 
 
