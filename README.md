@@ -30,6 +30,34 @@ As regras do projeto estão em `AGENTS.md`.
   Qwen3.5 9B e Gemma 4 de reserva (resumo), sentence-transformers e BERTopic
 - Docker Compose, com variantes para GPU NVIDIA (CUDA 12.4), AMD (ROCm) e CPU
 
+## Implantação
+
+```bash
+git clone --recurse-submodules <repositório>
+cp .env.example .env        # defina SECRET_KEY, DB_PASSWORD e o administrador
+docker compose up -d --build
+```
+
+- **Variantes**: sem GPU, `-f docker-compose.yml -f docker-compose.cpu.yml`;
+  GPU AMD, `-f docker-compose.yml -f docker-compose.rocm.yml`.
+- **Desenvolvimento** com o código do host (a API recarrega sozinha):
+  `-f docker-compose.yml -f docker-compose.dev.yml`.
+- **Cópia de segurança**: `sh scripts/ops/backup.sh` grava o banco e as mídias
+  em `backups/<data>`; `sh scripts/ops/restore.sh backups/<data>` restaura.
+- **Acesso pela rede**: a interface responde por HTTP na porta 3000. Para
+  HTTPS, coloque um proxy reverso com certificado na frente e defina
+  `USER_COOKIE_SECURE=true` no `.env`.
+
+**Instalações anteriores a esta versão**: o banco ficava num volume anônimo,
+que um `docker compose down` descartava. Para levá-lo ao volume correto:
+
+```bash
+git pull
+sh scripts/ops/backup.sh                 # com a versão antiga ainda no ar
+docker compose up -d --build             # sobe com o volume novo (banco vazio)
+sh scripts/ops/restore.sh backups/<data> # devolve banco e mídias
+```
+
 ## Dependências
 
 - `requirements.txt`: execução (API e workers), com as versões testadas.

@@ -119,34 +119,30 @@ def get_visual_analyzer(provider: str | None = None) -> VisualAnalysisPort:
 
 
 # ----------------- Speech recognizers -----------------
+_DEVELOPMENT_ENVS = ("dev", "development", "local")
+
+
 class BasicWhisperRecognizer:
-    """Stub recognizer to keep unit paths lightweight."""
+    """Transcritor de mentira (texto vazio), só para desenvolvimento sem os
+    modelos instalados. Fora de APP_ENV=development ele nem é registrado:
+    antes, o compose não definia APP_ENV, a produção rodava como
+    "development" e o stub podia ser escolhido no envio."""
 
     async def transcribe(self, path: str, language: str = "auto"):
-        # Em produção, não permitir uso do stub para evitar "sucesso" sem transcrição.
-        if settings.app_env.lower() not in ("dev", "development", "local"):
-            raise RuntimeError(
-                "Provider 'whisper' (stub) não está habilitado em produção. "
-                "Configure um provider real (ex.: 'fastwhisper')."
-            )
-        return {
-            "text": "",
-            "language": language,
-            "provider": "whisper",
-            "segments": [],
-        }
+        return {"text": "", "language": language, "provider": "whisper", "segments": []}
 
 
-_SPEECH_RECOGNIZERS: Dict[str, Callable[[], SpeechRecognizer]] = {
-    "whisper": lambda: BasicWhisperRecognizer(),
-}
-_SPEECH_META: Dict[str, Dict[str, Any]] = {
-    "whisper": {
+_SPEECH_RECOGNIZERS: Dict[str, Callable[[], SpeechRecognizer]] = {}
+_SPEECH_META: Dict[str, Dict[str, Any]] = {}
+if settings.app_env.lower() in _DEVELOPMENT_ENVS:
+    _SPEECH_RECOGNIZERS["whisper"] = lambda: BasicWhisperRecognizer()
+    _SPEECH_META["whisper"] = {
         "label": "Whisper (stub - dev only)",
-        "public": False,  # não expor no catálogo em produção
+        "public": False,
         "description": "Stub de desenvolvimento; não produz transcrição real.",
-    },
-}
+    }
+
+
 def _register_fastwhisper():
     try:
         cls = _load_fastwhisper()
@@ -176,7 +172,7 @@ def _register_openai_whisper():
 _register_fastwhisper()
 _register_openai_whisper()
 
-# definir default: prioriza fastwhisper, depois openai-whisper; se nada, mantém stub (não público)
+# Padrão: faster-whisper, depois openai-whisper; em desenvolvimento sem eles, o stub.
 if "fastwhisper" in _SPEECH_RECOGNIZERS:
     _SPEECH_RECOGNIZERS["default"] = _SPEECH_RECOGNIZERS["fastwhisper"]
     _SPEECH_META["default"] = {
@@ -191,7 +187,7 @@ elif "openai-whisper" in _SPEECH_RECOGNIZERS:
         "public": True,
         "description": "Provider padrão usando modelo oficial.",
     }
-else:
+elif "whisper" in _SPEECH_RECOGNIZERS:
     _SPEECH_RECOGNIZERS["default"] = _SPEECH_RECOGNIZERS["whisper"]
     _SPEECH_META["default"] = {
         "label": "Whisper (stub default)",
@@ -224,11 +220,9 @@ def get_speech_recognizer(provider: str | None) -> SpeechRecognizer:
     Antes, caía no stub "whisper", que devolvia uma transcrição vazia.
     """
     key = (provider or "default").lower()
-    factory = (
-        _SPEECH_RECOGNIZERS.get(key)
-        or _SPEECH_RECOGNIZERS.get("default")
-        or _SPEECH_RECOGNIZERS["whisper"]
-    )
+    factory = _SPEECH_RECOGNIZERS.get(key) or _SPEECH_RECOGNIZERS.get("default")
+    if factory is None:
+        raise RuntimeError("Nenhum modelo de transcrição instalado (faster-whisper ou openai-whisper).")
     if provider and key not in _SPEECH_RECOGNIZERS:
         logger.warning("speech_recognizer.unknown_provider_using_default", provider=provider)
     return factory()

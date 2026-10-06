@@ -7,12 +7,9 @@ class MediaSettings(BaseSettings):
     """Media-management specific settings."""
 
     storage_providers_allowed: List[str] = ["local", "s3"]
-    transcription_providers_allowed: List[str] = [
-        "whisper",
-        "fastwhisper",
-        "mock",
-        "mock_whisper",
-    ]
+    # Nomes do catálogo de transcrição (media_processing); um nome fora da
+    # lista só gera aviso, e o worker usa o padrão.
+    transcription_providers_allowed: List[str] = ["default", "fastwhisper", "openai-whisper"]
     media_min_file_size_bytes: int = 1
     media_max_file_size_bytes: int = 500 * 1024 * 1024
     media_allowed_audio_extensions: List[str] = [

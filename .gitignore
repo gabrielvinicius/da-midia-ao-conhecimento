@@ -45,3 +45,6 @@ celerybeat.pid
 .gemini/
 gha-creds-*.json
 /acli.exe
+
+# Cópias de segurança (scripts/ops/backup.sh)
+/backups/

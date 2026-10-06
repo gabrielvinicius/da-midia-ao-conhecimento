@@ -1,6 +1,5 @@
 """Application Configuration."""
 
-from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -8,19 +7,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Global application settings."""
 
-    # Application
+    # "production" no docker-compose; "development" libera o transcritor de
+    # mentira, usado só sem os modelos instalados.
     app_env: str = "development"
-    debug: bool = False
     LIGHTWEIGHT_BOOTSTRAP: bool = False
 
     # Database
     database_url: str = "sqlite+aiosqlite:///./app.db"
-
-    # Security
-    secret_key: str = "insecure-secret-key-for-dev"
-    algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
-    auth_password_min_length: int = 8
 
     # Origens aceitas pelo CORS, separadas por vírgula (CORS_ORIGINS). Em
     # produção o frontend chega pelo proxy do Nginx, na mesma origem.
@@ -35,9 +28,6 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
-
-    # Hugging Face
-    hf_token: Optional[str] = None
 
     # Ollama (LLM local): endereço do servidor e modelos padrão
     ollama_host: str = "http://localhost:11434"

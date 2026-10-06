@@ -88,6 +88,26 @@ jobs:
           alembic upgrade head
           pytest tests/e2e -q
 
+  # Os arquivos do Compose (padrão e variantes) e os scripts de implantação
+  # são válidos. Antes, um erro neles só aparecia na máquina de quem instalava.
+  deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compose files
+        run: |
+          cp .env.example .env
+          docker compose config -q
+          docker compose -f docker-compose.yml -f docker-compose.cpu.yml config -q
+          docker compose -f docker-compose.yml -f docker-compose.rocm.yml config -q
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml config -q
+
+      - name: Shell scripts
+        run: for f in docker/*.sh scripts/ops/*.sh; do sh -n "$f"; done
+
   # Garante que um banco novo é criado só pelas migrações (é o que o
   # entrypoint do contêiner executa) e que o esquema bate com os modelos.
   migrations:

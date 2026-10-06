@@ -21,7 +21,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-por \
     curl \
-    git \
     dumb-init \
     && rm -rf /var/lib/apt/lists/*
 
@@ -48,29 +47,31 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # --- Stage Final ---
 FROM base AS runtime
 
-LABEL org.opencontainers.image.title="Video Summarizer API" \
-      org.opencontainers.image.description="Enterprise Autonomous Media Intelligence" \
-      org.opencontainers.image.version="2.0.0" \
-      org.opencontainers.image.authors="Gemini Level 6.0 Agent"
+LABEL org.opencontainers.image.title="Video Summarizer" \
+      org.opencontainers.image.description="API e workers: transcrição, resumo e busca semântica de aulas gravadas" \
+      org.opencontainers.image.version="2.0.0"
 
 # Criar usuário não-root
 RUN groupadd -r appuser && useradd -m -r -g appuser appuser
 
 # Copiar dependências do builder
 COPY --from=builder /root/.local /home/appuser/.local
-ENV PATH=/home/appuser/.local/bin:$PATH
+ENV PATH=/home/appuser/.local/bin:$PATH \
+    XDG_CACHE_HOME=/app/.cache
+# Modelos baixados (Hugging Face, faster-whisper, torch) ficam em /app/.cache,
+# o volume ai_models_cache. Antes iam para /home/appuser/.cache, fora do
+# volume: cada recriação do contêiner baixava GBs de novo, e o sistema deixava
+# de funcionar sem internet.
 
 # Copiar código e configurar permissões
 COPY --chown=appuser:appuser . .
 RUN chmod +x /app/docker/*.sh
 
-# Persistência e Cache
-RUN mkdir -p /app/logs /app/media /app/storage /app/data /app/.cache && \
+# Mídias (armazenamento local) e modelos baixados; ambos viram volumes no compose.
+RUN mkdir -p /app/storage /app/.cache && \
     chown -R appuser:appuser /app /home/appuser
 
 USER appuser
-
-
 
 EXPOSE 8000
 

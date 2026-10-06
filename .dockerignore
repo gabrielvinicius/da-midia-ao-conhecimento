@@ -32,6 +32,7 @@ venv.bak/
 # IDE
 .vscode/
 .idea/
+.qwen/
 *.swp
 *.swo
 
@@ -98,3 +99,12 @@ logs/
 
 # A interface tem a própria imagem (contexto ./frontend); o backend não usa o código dela.
 frontend/
+
+# Dados locais de desenvolvimento: mídias enviadas e o banco SQLite. Antes,
+# o "COPY . ." os colocava dentro da imagem.
+storage/
+app.db
+*.db
+.coverage
+.ruff_cache/
+.import_linter_cache/

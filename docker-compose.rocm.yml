@@ -1,6 +1,8 @@
-# Uso: docker compose -f docker-compose.yml -f docker-compose.rocm.yml up -d
+# Uso: docker compose -f docker-compose.yml -f docker-compose.rocm.yml up -d --build
 # GPU AMD (ROCm): troca as reservas NVIDIA pelos dispositivos /dev/kfd e
-# /dev/dri (!reset exige Docker Compose 2.24 ou mais recente).
+# /dev/dri (!reset exige Docker Compose 2.24 ou mais recente). O PyTorch ROCm
+# usa o nome "cuda"; a transcrição (CTranslate2) não roda em GPU AMD e passa
+# sozinha para a CPU.
 services:
   ollama:
     image: ollama/ollama:0.35.1-rocm
@@ -16,22 +18,26 @@ services:
     image: video-summarizer-app:rocm
     build:
       args:
-        - PYTORCH_INDEX_URL=https://download.pytorch.org/whl/rocm6.2
-    environment:
-      - AI_DEVICE=cuda # PyTorch ROCm usa backend 'cuda'
+        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm6.2
 
   worker-heavy:
     image: video-summarizer-app:rocm
-    deploy: !reset {}
+    build:
+      args:
+        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm6.2
+    deploy: !override
+      resources:
+        limits:
+          memory: 12G
     devices:
       - "/dev/kfd:/dev/kfd"
       - "/dev/dri:/dev/dri"
     group_add:
       - video
       - render
+
+  worker-light:
+    image: video-summarizer-app:rocm
     build:
       args:
-        - PYTORCH_INDEX_URL=https://download.pytorch.org/whl/rocm6.2
-    environment:
-      - AI_DEVICE=cuda
-      - AI_COMPUTE_TYPE=float16
+        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm6.2

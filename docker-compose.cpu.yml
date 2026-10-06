@@ -1,7 +1,7 @@
-# Uso: docker compose -f docker-compose.yml -f docker-compose.cpu.yml up -d
-# Sem GPU: remove as reservas de placa NVIDIA do compose principal
-# (!reset exige Docker Compose 2.24 ou mais recente). Funciona, mas a
-# transcrição e o resumo ficam muitas vezes mais lentos.
+# Uso: docker compose -f docker-compose.yml -f docker-compose.cpu.yml up -d --build
+# Sem GPU: imagem com o PyTorch de CPU e sem as reservas de placa NVIDIA
+# (!reset e !override exigem Docker Compose 2.24 ou mais recente). Funciona,
+# mas a transcrição e o resumo ficam muitas vezes mais lentos.
 services:
   ollama:
     deploy: !reset {}
@@ -10,53 +10,26 @@ services:
     image: video-summarizer-app:cpu
     build:
       args:
-        - PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
     environment:
-      - AI_DEVICE=cpu
+      AI_DEVICE: cpu
 
   worker-heavy:
-    build:
-      context: .
-      target: runtime
-      args:
-        - PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
     image: video-summarizer-app:cpu
-    container_name: video_summarizer_worker_heavy
-    entrypoint: /app/docker/worker-entrypoint.sh
-    # Heavy tasks: Video, Audio, AI Text Analysis
+    build:
+      args:
+        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
     command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=2 -Q transcription_fast_lane,transcription_queue,text_analysis_queue
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
-      backend: { condition: service_healthy }
-    volumes:
-      - ./src:/app/src:ro
-      - media_data:/app/storage
-      - ai_models_cache:/app/.cache
-    networks:
-      - backend-net
-      - public-net
-    # !override: substitui o bloco do compose principal (sem a reserva NVIDIA)
     deploy: !override
       resources:
         limits:
           memory: 12G
     environment:
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
-      - STORAGE_S3_BUCKET=${STORAGE_S3_BUCKET:-video-summarizer}
-      - STORAGE_S3_ENDPOINT_URL=${STORAGE_S3_ENDPOINT_URL:-http://minio:9000}
-      - STORAGE_S3_ACCESS_KEY=${STORAGE_S3_ACCESS_KEY:-minio}
-      - STORAGE_S3_SECRET_KEY=${STORAGE_S3_SECRET_KEY:-minio123}
-      - HF_TOKEN=${HF_TOKEN}
-      - AI_DEVICE=cpu
-      - AI_COMPUTE_TYPE=int8
+      AI_DEVICE: cpu
+      AI_COMPUTE_TYPE: int8
 
   worker-light:
     image: video-summarizer-app:cpu
     build:
       args:
-        - PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
-    environment:
-      - AI_DEVICE=cpu
+        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/cpu

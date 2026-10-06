@@ -1,3 +1,44 @@
+# Instalação completa numa máquina com GPU NVIDIA:
+#   cp .env.example .env   (e ajuste SECRET_KEY, DB_PASSWORD e o administrador)
+#   docker compose up -d --build
+# Variantes: docker-compose.cpu.yml (sem GPU) e docker-compose.rocm.yml (GPU
+# AMD). Para desenvolver com o código do host: docker-compose.dev.yml.
+
+# Comum à API e aos workers. O .env vale para todos (antes, só para a API:
+# os workers ignoravam os prazos, o modelo de transcrição e o formato dos
+# logs definidos nele); as variáveis abaixo têm precedência sobre ele e
+# apontam para os serviços deste compose.
+x-app-environment: &app-environment
+  APP_ENV: production
+  REDIS_URL: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/0
+  DATABASE_URL: ${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-video_summarizer}
+  STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-video-summarizer}
+  STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-http://minio:9000}
+  STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-minio}
+  STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-minio123}
+  OLLAMA_HOST: http://ollama:11434
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+  # Métricas só na rede interna (coletadas pelo serviço prometheus).
+  METRICS_PORT: "9100"
+
+x-app: &app
+  build:
+    context: .
+    target: runtime
+  image: video-summarizer-app:latest
+  env_file: [.env]
+  restart: unless-stopped
+  networks:
+    - backend-net
+    - public-net
+
+x-gpu: &gpu
+  devices:
+    - driver: nvidia
+      count: all
+      capabilities: [gpu]
+
 services:
   postgres:
     image: pgvector/pgvector:pg17
@@ -7,7 +48,10 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-video_summarizer}
     volumes:
-      - postgres_data:/var/lib/postgresql
+      # Pasta de dados do PostgreSQL 17. Antes, o volume ia para a pasta-mãe
+      # (/var/lib/postgresql, caminho do PostgreSQL 18), e o banco ficava num
+      # volume anônimo que um "docker compose down" descartava.
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - backend-net
     restart: unless-stopped
@@ -20,6 +64,11 @@ services:
   redis:
     image: redis:8.8
     container_name: video_summarizer_redis
+    # Gravado em disco: a fila, os bloqueios de login e os tokens revogados no
+    # logout sobrevivem a uma recriação (antes, um token revogado voltava a valer).
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
     networks:
       - backend-net
     restart: unless-stopped
@@ -40,18 +89,18 @@ services:
       - minio_data:/data
     networks:
       - backend-net
+    restart: unless-stopped
 
   jaeger:
-    image: jaegertracing/all-in-one:1.76.0
+    image: jaegertracing/jaeger:2.22.0
     container_name: video_summarizer_jaeger
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
     ports:
       # Só na própria máquina: os rastros incluem dados das requisições.
       - "127.0.0.1:16686:16686"  # interface web do Jaeger
     networks:
       - backend-net
       - public-net
+    restart: unless-stopped
 
   prometheus:
     # Coleta as métricas da API e dos workers pela porta interna 9100.
@@ -64,6 +113,7 @@ services:
     networks:
       - backend-net
       - public-net
+    restart: unless-stopped
 
   ollama:
     # LLM local (Qwen3.5-9B por padrão). Os modelos são baixados pelo
@@ -87,11 +137,8 @@ services:
       - public-net
     deploy:
       resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+        reservations: *gpu
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 30s
@@ -116,10 +163,7 @@ services:
     restart: "no"
 
   backend:
-    build:
-      context: .
-      target: runtime
-    image: video-summarizer-app:latest
+    <<: *app
     container_name: video_summarizer_backend
     ports:
       # Só na própria máquina (documentação da API e depuração). O acesso
@@ -127,17 +171,12 @@ services:
       # no limite de tentativas de login; acessar a API direto permitiria
       # forjar esse cabeçalho.
       - "127.0.0.1:8000:8000"
-    env_file: [.env]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
     volumes:
-      - ./src:/app/src:ro
       - media_data:/app/storage
       - ai_models_cache:/app/.cache
-    networks:
-      - backend-net
-      - public-net
     deploy:
       resources:
         limits:
@@ -148,32 +187,14 @@ services:
       timeout: 10s
       retries: 3
     environment:
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
-      - STORAGE_S3_BUCKET=${STORAGE_S3_BUCKET:-video-summarizer}
-      - STORAGE_S3_ENDPOINT_URL=${STORAGE_S3_ENDPOINT_URL:-http://minio:9000}
-      - STORAGE_S3_ACCESS_KEY=${STORAGE_S3_ACCESS_KEY:-minio}
-      - STORAGE_S3_SECRET_KEY=${STORAGE_S3_SECRET_KEY:-minio123}
-      - HF_TOKEN=${HF_TOKEN}
-      - AI_DEVICE=cuda
-      - OLLAMA_HOST=http://ollama:11434
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
-      - LLM_MODEL=${LLM_MODEL:-qwen3.5:9b}
-      - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-gemma4:e4b}
-      - VISUAL_PROVIDER=${VISUAL_PROVIDER:-moondream}
-      - ANALYSIS_FACTORS=${ANALYSIS_FACTORS:-sentiment,topics,grounding}
-      # Métricas só na rede interna (coletadas pelo serviço prometheus).
-      - METRICS_PORT=9100
+      <<: *app-environment
+      AI_DEVICE: cuda
 
   worker-heavy:
-    build:
-      context: .
-      target: runtime
-    image: video-summarizer-app:latest
+    <<: *app
     container_name: video_summarizer_worker_heavy
     entrypoint: /app/docker/worker-entrypoint.sh
-    # Processa filas pesadas: Vídeo, Transcrição e Análise de Texto
+    # GPU, uma tarefa por vez: transcrição, extração de texto e análise.
     command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=1 -Q transcription_fast_lane,transcription_queue,text_analysis_queue
     depends_on:
       postgres: { condition: service_healthy }
@@ -181,82 +202,43 @@ services:
       backend: { condition: service_healthy }
       ollama: { condition: service_started }
     volumes:
-      - ./src:/app/src:ro
       - media_data:/app/storage
       - ai_models_cache:/app/.cache
-    networks:
-      - backend-net
-      - public-net
     deploy:
       resources:
         limits:
           memory: 12G
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+        reservations: *gpu
     environment:
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
-      - STORAGE_S3_BUCKET=${STORAGE_S3_BUCKET:-video-summarizer}
-      - STORAGE_S3_ENDPOINT_URL=${STORAGE_S3_ENDPOINT_URL:-http://minio:9000}
-      - STORAGE_S3_ACCESS_KEY=${STORAGE_S3_ACCESS_KEY:-minio}
-      - STORAGE_S3_SECRET_KEY=${STORAGE_S3_SECRET_KEY:-minio123}
-      - HF_TOKEN=${HF_TOKEN}
-      - AI_DEVICE=cuda
-      - OLLAMA_HOST=http://ollama:11434
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
-      - LLM_MODEL=${LLM_MODEL:-qwen3.5:9b}
-      - LLM_FALLBACK_MODEL=${LLM_FALLBACK_MODEL:-gemma4:e4b}
-      - VISUAL_PROVIDER=${VISUAL_PROVIDER:-moondream}
-      - ANALYSIS_FACTORS=${ANALYSIS_FACTORS:-sentiment,topics,grounding}
-      - METRICS_PORT=9100
-      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
+      <<: *app-environment
+      AI_DEVICE: cuda
+      AI_COMPUTE_TYPE: float16
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
 
   worker-light:
-    build:
-      context: .
-      target: runtime
-    image: video-summarizer-app:latest
+    <<: *app
     container_name: video_summarizer_worker_light
     entrypoint: /app/docker/worker-entrypoint.sh
-    # Processa fila default (notificações, IO)
-    # --beat agenda a verificação de mídias paradas (uma única instância).
+    # Tarefas curtas; --beat agenda as verificações periódicas (uma instância só).
     command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=4 -Q celery --beat --schedule /tmp/celerybeat-schedule
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       backend: { condition: service_healthy }
     volumes:
-      - ./src:/app/src:ro
       - media_data:/app/storage
-    networks:
-      - backend-net
-      - public-net
     deploy:
       resources:
         limits:
           memory: 2G
     environment:
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - DATABASE_URL=${DB_SCHEME:-postgresql+asyncpg}://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
-      - STORAGE_S3_BUCKET=${STORAGE_S3_BUCKET:-video-summarizer}
-      - STORAGE_S3_ENDPOINT_URL=${STORAGE_S3_ENDPOINT_URL:-http://minio:9000}
-      - STORAGE_S3_ACCESS_KEY=${STORAGE_S3_ACCESS_KEY:-minio}
-      - STORAGE_S3_SECRET_KEY=${STORAGE_S3_SECRET_KEY:-minio123}
-      - HF_TOKEN=${HF_TOKEN}
-      - AI_DEVICE=cpu
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
-      - METRICS_PORT=9100
-      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus
-
+      <<: *app-environment
+      AI_DEVICE: cpu
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
 
   frontend:
-    # Mesmo Dockerfile usado no deploy (submódulo frontend). Rode antes:
-    #   git submodule update --init frontend
+    # Submódulo frontend (git clone --recurse-submodules, ou
+    # git submodule update --init frontend).
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -265,9 +247,11 @@ services:
     depends_on: [backend]
     networks:
       - public-net
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+  redis_data:
   minio_data:
   media_data:
   ai_models_cache:
