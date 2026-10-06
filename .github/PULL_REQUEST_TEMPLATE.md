@@ -5,7 +5,7 @@
 - [ ] `ruff check`
 - [ ] `mypy`
 - [ ] `docker-compose up --build backend` (quando aplicável)
-- [ ] Documentação atualizada (`docs/architecture.md`, ADRs, diagramas)
+- [ ] Documentação atualizada (`AGENTS.md`, ADRs em `docs/adr`, README)
 - [ ] Plano de rollback descrito
 - [ ] Logs relevantes anexados (`uvicorn`, workers Celery, etc.)
 - [ ] Revisores de domínio confirmados

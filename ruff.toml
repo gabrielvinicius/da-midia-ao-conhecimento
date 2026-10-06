@@ -7,14 +7,11 @@ select = ["E", "F", "W", "I", "N"]
 # Excluir pastas/vendor e scripts utilitários
 exclude = [
     "alembic/versions/*",
-    "aiosqlite",
-    "aiosqlite/**",
     "docs",
     "scripts",
-    "verify_endpoints.py",
 ]
 # Permitir imports não usados em __init__.py
-per-file-ignores = {"__init__.py" = ["F401"], "tests/**" = ["E501"], "scripts/**" = ["E501"], "simple_app.py" = ["E501"]}
+per-file-ignores = {"__init__.py" = ["F401"], "tests/**" = ["E501"], "scripts/**" = ["E501"]}
 ignore = [
     "E402", # module import not at top (permitimos em __init__)
     "E722", # bare except
