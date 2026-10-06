@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { Notification } from '@/types';
 import { toast } from 'react-toastify';
-import authService from '@/services/auth.service';
+import { requestScopedToken } from '@/api/scopedToken';
 import { buildWsUrl } from '@/lib/api';
 import { refreshForNotification } from '@/lib/realtime';
 import {
@@ -62,13 +62,19 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
     [queryClient],
   );
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (socketRef.current || !isAuthenticated || !user) return;
 
-    const token = authService.getToken();
-    const baseUrl = buildWsUrl("/ws/notifications");
-    const wsUrl = token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
-    const ws = new WebSocket(wsUrl);
+    // Token de abertura, válido por 2 min: o token de acesso não vai na URL.
+    let token: string;
+    try {
+      token = await requestScopedToken("notifications");
+    } catch {
+      reconnectTimerRef.current = setTimeout(() => connect(), 5000);
+      return;
+    }
+    if (socketRef.current) return;
+    const ws = new WebSocket(`${buildWsUrl("/ws/notifications")}?token=${encodeURIComponent(token)}`);
     socketRef.current = ws;
 
     ws.onopen = () => {

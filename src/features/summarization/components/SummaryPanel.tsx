@@ -157,7 +157,7 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
   const handleFeedback = async (score: number) => {
     if (!analysis) return;
     try {
-      await api.post(`/text-analysis/${analysis.analysis_id}/feedback?score=${score}`);
+      await api.post(`/text-analysis/${analysis.analysis_id}/feedback`, { score });
       setFeedbackGiven(score);
       toast.success("Obrigado pelo feedback!");
     } catch (err) {

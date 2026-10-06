@@ -131,11 +131,12 @@ export const getAnalysisEstimation = async (mediaId: string): Promise<AnalysisEs
   return response.data;
 };
 
+/** Nível de carga para todos; os números só vêm para administradores. */
 export type SystemStatusResponse = {
   pressure: 'low' | 'moderate' | 'high' | 'critical';
-  cpu_usage: number;
-  ram_usage: number;
-  gpu_vram_usage: number | null;
+  cpu_usage?: number;
+  ram_usage?: number;
+  gpu_vram_usage?: number | null;
 };
 
 export const getSystemStatus = async (): Promise<SystemStatusResponse> => {

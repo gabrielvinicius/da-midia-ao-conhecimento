@@ -42,8 +42,8 @@ export const SystemHealthBanner = () => {
         <span className="hidden md:inline opacity-80">{config.message}</span>
       </div>
       <div className="flex items-center gap-4 font-mono text-[10px]">
-        <span>CPU: {status.cpu_usage.toFixed(0)}%</span>
-        {status.gpu_vram_usage !== null && (
+        {status.cpu_usage != null && <span>CPU: {status.cpu_usage.toFixed(0)}%</span>}
+        {status.gpu_vram_usage != null && (
           <span>GPU: {(status.gpu_vram_usage * 100).toFixed(0)}%</span>
         )}
       </div>

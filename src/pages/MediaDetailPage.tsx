@@ -20,7 +20,8 @@ import { useTranscription } from "@/features/transcription/hooks/useTranscriptio
 import { TranscriptionPanel } from "@/features/transcription/components/TranscriptionPanel";
 import { buildApiUrl } from "@/lib/api";
 import { SummaryPanel } from "@/features/summarization/components/SummaryPanel";
-import authService from "@/services/auth.service";
+import { useQuery } from "@tanstack/react-query";
+import { requestScopedToken } from "@/api/scopedToken";
 import { PredictiveInsight } from "@/components/PredictiveInsight";
 import { ProcessingTrace } from "@/components/ProcessingTrace";
 import { getStatusToken } from "@/features/media/lib/status-helpers";
@@ -53,6 +54,16 @@ const MediaDetailPage = () => {
   const { data: media, isLoading, isError } = useMediaByIdQuery(id ?? "");
   const reprocessMutation = useReprocessMediaCommand();
   const { data: textAnalysis } = useTextAnalysisByMediaIdQuery(id ?? "");
+  const isPlayableMedia = media?.media_type === MediaType.AUDIO || media?.media_type === MediaType.VIDEO;
+  // Token só desta mídia, válido por horas: a URL do vídeo não muda no meio
+  // da reprodução (antes, o token de acesso na URL expirava em 30 min).
+  const { data: streamToken } = useQuery({
+    queryKey: ["stream-token", id],
+    queryFn: () => requestScopedToken("media_stream", id),
+    enabled: Boolean(id && isPlayableMedia),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
 
   if (!id) {
     return <p className="text-destructive">Nenhum ID de mídia informado.</p>;
@@ -89,8 +100,9 @@ const MediaDetailPage = () => {
 
   const isPlayable = media.media_type === MediaType.AUDIO || media.media_type === MediaType.VIDEO;
   const isTextMedia = media.media_type === MediaType.TEXT;
-  const token = authService.getToken();
-  const streamUrl = buildApiUrl(`/media/${media.id}/stream${token ? `?token=${token}` : ''}`);
+  const streamUrl = streamToken
+    ? buildApiUrl(`/media/${media.id}/stream?token=${encodeURIComponent(streamToken)}`)
+    : "";
 
   const handleSeek = (time: number) => {
     if (playerRef.current) {
@@ -165,7 +177,9 @@ const MediaDetailPage = () => {
           {/* Media Player Card */}
           <Card className="border-none bg-black/5 overflow-hidden shadow-sm">
             <CardContent className="p-0">
-              {isPlayable ? (
+              {isPlayable && !streamUrl ? (
+                <Skeleton className="aspect-video w-full" />
+              ) : isPlayable ? (
                 <MediaPlayer
                   src={streamUrl}
                   mediaType={media.media_type as MediaType.AUDIO | MediaType.VIDEO}
