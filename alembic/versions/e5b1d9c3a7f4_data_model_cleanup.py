@@ -117,6 +117,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # "Em análise" não existe no tipo antigo: volta como "processando" (a
+    # mídia ainda não tinha terminado), em vez de quebrar a conversão.
+    op.execute("UPDATE media SET status = 'PROCESSING' WHERE status = 'ANALYZING'")
     for type_name, values in set(_ENUMS.values()):
         quoted = ", ".join(f"'{v}'" for v in values)
         op.execute(f"CREATE TYPE {type_name} AS ENUM ({quoted})")

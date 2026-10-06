@@ -18,6 +18,11 @@ T = TypeVar("T", bound=Analysis)
 class AnalysisStep(ABC, Generic[T]):
     """Contrato para um passo individual de análise."""
 
+    # Etapa sem a qual a análise não está pronta (trechos, vetores, índice da
+    # busca, resumo). A falha dela interrompe a análise; a de uma etapa
+    # opcional (sentimento, temas, fidelidade) só fica registrada.
+    required: bool = False
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -40,11 +45,13 @@ StepCallback = Callable[[Analysis, str], Awaitable[None]]
 class AnalysisPipeline:
     """Orquestrador sequencial de passos.
 
-    A falha de um passo não interrompe os seguintes: ela é registrada na
-    análise (``record_step``) e o pipeline continua com o estado já
-    produzido. Se ``on_step_completed`` for informado, ele é chamado ao fim de
-    cada passo (com sucesso ou falha), o que permite salvar os resultados
-    parciais à medida que são gerados.
+    A falha de um passo opcional não interrompe os seguintes: ela é
+    registrada na análise (``record_step``) e o pipeline continua com o estado
+    já produzido. A de um passo obrigatório é registrada, gravada e propagada:
+    antes, a análise era anunciada como concluída sem índice ou sem resumo.
+    Se ``on_step_completed`` for informado, ele é chamado ao fim de cada passo
+    (com sucesso ou falha), o que permite salvar os resultados parciais à
+    medida que são gerados.
     """
 
     def __init__(self, steps: list[AnalysisStep], release_after_run: Optional[list] = None):
@@ -76,10 +83,11 @@ class AnalysisPipeline:
         for step in self.steps:
             logger.info("pipeline.step_start", step=step.name, analysis_id=str(analysis.id))
             started = time.perf_counter()
-            error = None
+            error, failure = None, None
             try:
                 analysis = await step.process(analysis)
             except Exception as exc:
+                failure = exc
                 logger.error(
                     "pipeline.step_failed",
                     step=step.name,
@@ -93,4 +101,7 @@ class AnalysisPipeline:
                     await on_step_completed(analysis, step.name)
                 except Exception as exc:
                     logger.warning("pipeline.checkpoint_failed", step=step.name, error=str(exc))
+            if failure is not None and step.required:
+                # A tarefa decide: repete a falha passageira, anuncia a definitiva.
+                raise failure
         return analysis

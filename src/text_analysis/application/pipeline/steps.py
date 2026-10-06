@@ -40,6 +40,8 @@ def _analysis_language(analysis: Analysis, default: str) -> str:
 
 
 class ChunkingStep(AnalysisStep):
+    required = True
+
     def __init__(self, chunker: ChunkingServicePort, size: Optional[int] = None, overlap: Optional[int] = None):
         self.chunker = chunker
         self.size = size
@@ -77,6 +79,8 @@ class SentimentStep(AnalysisStep):
 
 class ChunkEmbeddingStep(AnalysisStep):
     """Calcula os vetores dos trechos uma vez, para os temas, a busca e a fidelidade."""
+
+    required = True
 
     def __init__(self, embedding_service: EmbeddingServicePort):
         self.embedding_service = embedding_service
@@ -122,6 +126,8 @@ class TopicModelingStep(AnalysisStep):
 
 class KnowledgeIndexingStep(AnalysisStep):
     """Grava trechos e vetores no pgvector para a busca semântica."""
+
+    required = True
 
     def __init__(self, vector_repository: VectorIndexPort):
         self.vector_repo = vector_repository

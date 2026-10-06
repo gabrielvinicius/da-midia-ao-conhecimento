@@ -85,11 +85,13 @@ class AuthService:
     async def refresh(self, refresh_token: str) -> dict[str, str]:
         """Novos tokens a partir do de renovação, só para usuário existente e ativo.
 
-        O token usado é revogado (rotação): copiado, ele só serve uma vez.
+        O token usado é consumido (rotação): copiado, ele só serve uma vez,
+        mesmo em duas renovações simultâneas (antes, as duas passavam pela
+        verificação antes de qualquer revogação).
         """
         payload = await self._valid_refresh(refresh_token)
+        await self._consume(payload)
         user = await self._active_user(payload.get("sub"))
-        await self._revoke(payload)
         return {
             "access_token": self._tokens.create_access_token(user.id),
             "refresh_token": self._tokens.create_refresh_token(user.id),
@@ -109,10 +111,19 @@ class AuthService:
             raise InvalidCredentialsError("Sessão inválida")
         return payload
 
+    async def _consume(self, payload: dict) -> None:
+        jti = payload.get("jti")
+        if jti and self._revoked and not await self._revoked.consume(jti, self._remaining(payload)):
+            raise InvalidCredentialsError("Sessão inválida")
+
+    @staticmethod
+    def _remaining(payload: dict) -> int:
+        return int(payload.get("exp", time.time()) - time.time())
+
     async def _revoke(self, payload: dict) -> None:
         jti = payload.get("jti")
         if jti and self._revoked:
-            await self._revoked.revoke(jti, int(payload.get("exp", time.time()) - time.time()))
+            await self._revoked.revoke(jti, self._remaining(payload))
 
     async def _active_user(self, user_id: Optional[str]) -> User:
         """Conta excluída ou desativada perde o acesso já na próxima requisição."""

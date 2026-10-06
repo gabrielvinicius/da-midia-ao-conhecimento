@@ -68,3 +68,58 @@ async def test_refresh_rotates_and_logout_revokes():
     await auth.logout(second)
     with pytest.raises(AuthenticationError):  # antes, valia por mais 7 dias
         await auth.refresh(second)
+
+
+class _SlowRedis:
+    """Redis falso com a semântica de SET NX e uma pausa por chamada, como a
+    ida e volta de rede que abre a janela da corrida."""
+
+    def __init__(self):
+        self.keys = {}
+
+    async def set(self, key, value, ex=None, nx=False):
+        import asyncio
+
+        await asyncio.sleep(0)
+        if nx and key in self.keys:
+            return None
+        self.keys[key] = value
+        return True
+
+    async def exists(self, key):
+        import asyncio
+
+        await asyncio.sleep(0)
+        return int(key in self.keys)
+
+
+@pytest.mark.asyncio
+async def test_a_refresh_token_used_twice_at_the_same_time_renews_only_once():
+    """Antes, as duas renovações passavam pela verificação antes de qualquer
+    revogação, e um token copiado sobrevivia à rotação."""
+    import asyncio
+
+    from src.user_management.domain.errors import InvalidCredentialsError
+    from src.user_management.infrastructure.adapters.security.revoked_tokens import RedisRevokedTokens
+
+    # Dois processos da API (cada um com a sua reserva em memória) e um Redis só.
+    redis = _SlowRedis()
+    first, user = _auth()
+    second, _ = _auth()
+    second.user_service = first.user_service
+    first._revoked = RedisRevokedTokens(redis)
+    second._revoked = RedisRevokedTokens(redis)
+    token = first._tokens.create_refresh_token(user.id)
+
+    results = await asyncio.gather(first.refresh(token), second.refresh(token), return_exceptions=True)
+
+    assert sum(isinstance(r, dict) for r in results) == 1
+    assert sum(isinstance(r, InvalidCredentialsError) for r in results) == 1
+
+
+@pytest.mark.asyncio
+async def test_in_memory_consume_is_first_come_only():
+    store = InMemoryRevokedTokens()
+    assert await store.consume("jti-1", 60) is True
+    assert await store.consume("jti-1", 60) is False
+    assert await store.is_revoked("jti-1") is True

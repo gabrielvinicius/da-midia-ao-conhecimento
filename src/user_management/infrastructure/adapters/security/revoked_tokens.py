@@ -19,7 +19,17 @@ class InMemoryRevokedTokens:
     async def revoke(self, token_id: str, ttl_seconds: int) -> None:
         self._until[token_id] = self._clock() + max(ttl_seconds, 1)
 
+    async def consume(self, token_id: str, ttl_seconds: int) -> bool:
+        # Leitura e escrita sem await entre elas: atômico no laço de eventos.
+        if self._active(token_id):
+            return False
+        self._until[token_id] = self._clock() + max(ttl_seconds, 1)
+        return True
+
     async def is_revoked(self, token_id: str) -> bool:
+        return self._active(token_id)
+
+    def _active(self, token_id: str) -> bool:
         until = self._until.get(token_id)
         if until is None:
             return False
@@ -45,6 +55,16 @@ class RedisRevokedTokens:
             await self._redis.set(f"{self.PREFIX}:{token_id}", 1, ex=max(ttl_seconds, 1))
         except Exception as exc:
             logger.warning("revoked_tokens.redis_unavailable", error=str(exc))
+
+    async def consume(self, token_id: str, ttl_seconds: int) -> bool:
+        """SET NX: só a primeira chamada grava; as seguintes recebem False."""
+        try:
+            first = await self._redis.set(f"{self.PREFIX}:{token_id}", 1, ex=max(ttl_seconds, 1), nx=True)
+        except Exception as exc:
+            logger.warning("revoked_tokens.redis_unavailable", error=str(exc))
+            return await self._fallback.consume(token_id, ttl_seconds)
+        await self._fallback.revoke(token_id, ttl_seconds)
+        return bool(first)
 
     async def is_revoked(self, token_id: str) -> bool:
         try:

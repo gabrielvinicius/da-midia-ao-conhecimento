@@ -42,6 +42,8 @@ def byte_range(range_header: Optional[str], size: int) -> Optional[Tuple[int, in
     if start >= size:
         raise InvalidRangeError("Intervalo fora do arquivo")
     end = int(match.group(2)) if match.group(2) is not None else size - 1
+    if end < start:  # ex.: bytes=90-10; antes virava um Content-Length negativo
+        raise InvalidRangeError("Intervalo invertido")
     return start, min(end, size - 1)
 
 

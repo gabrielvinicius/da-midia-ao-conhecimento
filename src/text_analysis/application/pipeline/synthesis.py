@@ -106,6 +106,8 @@ class SynthesisStep(AnalysisStep):
     e uma aula de duas horas pedia sete chamadas em vez de quatro.
     """
 
+    required = True
+
     def __init__(
         self,
         text_generation: TextGenerationPort,

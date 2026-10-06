@@ -17,7 +17,7 @@ def test_requested_interval_is_clamped_to_the_file(header, expected):
     assert byte_range(header, 100) == expected
 
 
-@pytest.mark.parametrize("header", ["itens=0-9", "bytes=100-", "bytes=abc"])
+@pytest.mark.parametrize("header", ["itens=0-9", "bytes=100-", "bytes=abc", "bytes=90-10"])
 def test_invalid_intervals_are_rejected(header):
     with pytest.raises(InvalidRangeError):
         byte_range(header, 100)

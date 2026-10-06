@@ -55,6 +55,11 @@ class RevokedTokensPort(Protocol):
 
     async def is_revoked(self, token_id: str) -> bool: ...
 
+    async def consume(self, token_id: str, ttl_seconds: int) -> bool:
+        """Revoga e diz se esta chamada foi a primeira, numa operação só: duas
+        renovações simultâneas com o mesmo token não podem passar as duas."""
+        ...
+
 
 class UserDataEraserPort(Protocol):
     """Apaga o que um módulo guarda de um usuário (mídias, avisos, avaliações).

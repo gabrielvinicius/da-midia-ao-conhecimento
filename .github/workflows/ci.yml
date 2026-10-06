@@ -139,8 +139,9 @@ jobs:
       - name: Migration dependencies
         run: |
           python -m pip install --upgrade pip
+          # numpy: os modelos importam o domínio da análise (verificação de fidelidade).
           pip install alembic "sqlalchemy[asyncio]" psycopg2-binary asyncpg aiosqlite pgvector \
-            pydantic pydantic-settings python-dotenv structlog
+            pydantic pydantic-settings python-dotenv structlog "numpy~=2.4.6"
 
       - name: Upgrade from an empty database
         run: alembic upgrade head

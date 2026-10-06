@@ -251,6 +251,40 @@ async def test_pipeline_releases_the_language_model_even_when_a_step_fails():
     assert llm.released == 1
 
 
+class _RequiredFailingStep(_FailingStep):
+    name = "required_step"
+    required = True
+
+
+@pytest.mark.asyncio
+async def test_a_required_step_failure_stops_the_analysis_after_recording_it():
+    """Antes, a falha da indexação ou da síntese ficava só registrada e a
+    análise era anunciada como concluída sem índice ou sem resumo."""
+    saved, llm = [], _Releasable()
+
+    async def checkpoint(analysis, step_name):
+        saved.append((step_name, analysis.step_status.get(step_name, "")))
+
+    pipeline = AnalysisPipeline(steps=[_OkStep(), _RequiredFailingStep(), _OkStep()], release_after_run=[llm])
+    with pytest.raises(RuntimeError, match="sem memória"):
+        await pipeline.run(Analysis.new(Document.from_payload("t")), on_step_completed=checkpoint)
+
+    assert [name for name, _ in saved] == ["ok_step", "required_step"]
+    assert saved[1][1].startswith("failed")
+    assert llm.released == 1
+
+
+def test_only_chunking_embedding_indexing_and_synthesis_are_required():
+    from src.text_analysis.application.pipeline import steps
+    from src.text_analysis.application.pipeline.synthesis import SynthesisStep
+
+    required = {steps.ChunkingStep, steps.ChunkEmbeddingStep, steps.KnowledgeIndexingStep, SynthesisStep}
+    optional = {steps.SentimentStep, steps.TopicModelingStep, steps.TopicTitleStep,
+                steps.GroundingCheckStep, steps.ReleaseMemoryStep}
+    assert all(cls.required for cls in required)
+    assert not any(cls.required for cls in optional)
+
+
 # --- busca semântica ----------------------------------------------------------
 
 def test_e5_prefixes_distinguish_queries_from_passages():
