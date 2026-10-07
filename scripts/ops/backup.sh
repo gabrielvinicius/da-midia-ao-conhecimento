@@ -22,7 +22,9 @@ docker compose exec -T postgres pg_dump -U "${DB_USER:-postgres}" -d "${DB_NAME:
   --clean --if-exists | gzip > "$DEST/banco.sql.gz"
 
 echo "[backup] mídias -> $DEST/midias.tar.gz"
-docker run --rm -v "$MEDIA_VOLUME":/dados:ro \
-  -v "$(cd "$DEST" && pwd)":/destino alpine tar czf /destino/midias.tar.gz -C /dados .
+# MSYS_NO_PATHCONV e pwd -W: no Git Bash (Windows), os caminhos do contêiner
+# não podem ser convertidos (ver restore.sh).
+MSYS_NO_PATHCONV=1 docker run --rm -v "$MEDIA_VOLUME":/dados:ro \
+  -v "$(cd "$DEST" && (pwd -W 2>/dev/null || pwd))":/destino alpine tar czf /destino/midias.tar.gz -C /dados .
 
 echo "[backup] pronto: $DEST"
