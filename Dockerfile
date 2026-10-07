@@ -30,11 +30,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ build-essential pkg-config libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Índice do PyTorch: cu124 (GPU NVIDIA, padrão), cpu ou rocm6.2 (GPU AMD).
+# Índice do PyTorch: cu126 (GPU NVIDIA, padrão), cpu ou rocm7.2 (GPU AMD).
+# CUDA 12, e não 13: a transcrição (CTranslate2) carrega o libcublas.so.12.
 # O torch é instalado primeiro, a partir desse índice; o restante das
 # dependências o reaproveita (a versão fixada vai como restrição: sem ela, o
 # pip o trocava por um torch mais novo do PyPI, de outra variante de CUDA).
-ARG PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu124
+ARG PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu126
 
 COPY requirements.txt .
 # Só o pip é atualizado fora do --user: setuptools e wheel (que traz o

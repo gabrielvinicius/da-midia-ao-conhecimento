@@ -2,7 +2,8 @@
 # GPU AMD (ROCm): troca as reservas NVIDIA pelos dispositivos /dev/kfd e
 # /dev/dri (!reset exige Docker Compose 2.24 ou mais recente). O PyTorch ROCm
 # usa o nome "cuda"; a transcrição (CTranslate2) não roda em GPU AMD e passa
-# sozinha para a CPU.
+# sozinha para a CPU. O torch 2.14 para AMD é o do ROCm 7.2: o driver do host
+# precisa ser compatível (não testado; a máquina de referência é NVIDIA).
 services:
   ollama:
     image: ollama/ollama:0.35.1-rocm
@@ -18,13 +19,13 @@ services:
     image: video-summarizer-app:rocm
     build:
       args:
-        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm6.2
+        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm7.2
 
   worker-heavy:
     image: video-summarizer-app:rocm
     build:
       args:
-        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm6.2
+        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm7.2
     deploy: !override
       resources:
         limits:
@@ -40,4 +41,4 @@ services:
     image: video-summarizer-app:rocm
     build:
       args:
-        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm6.2
+        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm7.2

@@ -373,3 +373,18 @@ def test_topic_excerpts_are_the_most_representative_in_time_order():
     # antes: sempre os primeiros, inclusive o atípico t0
     assert picked == ["t2", "t3", "t4"]
     assert representative_snippets(chunks, [0, 7], vectors) == ["t0", "t7"]
+
+
+def test_sentiment_without_the_model_fails_instead_of_guessing_by_keywords(monkeypatch):
+    """O modelo nunca carregou (faltava o sentencepiece) e o adaptador
+    classificava por palavras-chave sem avisar."""
+    from src.shared.domain.errors import TemporarilyUnavailableError
+    from src.text_analysis.infrastructure.adapters.sentiment_transformers_adapter import (
+        TransformersSentimentAdapter,
+    )
+
+    adapter = TransformersSentimentAdapter("modelo", device="cpu")
+    monkeypatch.setattr(adapter, "_get_pipeline", lambda: None)
+
+    with pytest.raises(TemporarilyUnavailableError):
+        adapter.analyze([TextChunk(id="a", text="uma aula muito boa")], "pt")

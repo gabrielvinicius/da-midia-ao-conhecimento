@@ -1,7 +1,16 @@
-"""Transformers-based sentiment adapter with graceful fallback."""
+"""Sentimento por trecho com um modelo do Transformers.
+
+Antes, se o modelo não carregasse, o adaptador classificava os trechos por
+palavras-chave ("bom", "ruim") sem avisar. Foi o que aconteceu em todas as
+análises: faltava o pacote sentencepiece, que o tokenizador do XLM-RoBERTa
+exige, e o "tom" das análises vinha das palavras-chave. Agora, sem o modelo,
+o adaptador lança o erro: a etapa (opcional) fica registrada como falha e as
+demais seguem sem o tom.
+"""
 
 from __future__ import annotations
 
+from src.shared.domain.errors import TemporarilyUnavailableError
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.shared.infrastructure.config.settings import settings
 from src.text_analysis.application.ports.sentiment import SentimentServicePort
@@ -22,33 +31,22 @@ class TransformersSentimentAdapter(SentimentServicePort):
             try:
                 from transformers import pipeline
 
-                # Map 'cpu' or device ID
-                device_idx = -1 if self.device == "cpu" else 0
-                
                 self._pipeline = pipeline(
-                    "sentiment-analysis", 
-                    model=self.model_name, 
+                    "sentiment-analysis",
+                    model=self.model_name,
                     top_k=None,
-                    device=device_idx
+                    device=-1 if self.device == "cpu" else 0,
                 )
             except Exception as exc:  # pragma: no cover
-                logger.warning(
-                    "Sentiment model unavailable", error=str(exc)
-                )
+                logger.error("sentiment.model_unavailable", model=self.model_name, error=str(exc))
             self._initialized = True
         return self._pipeline
 
     def analyze(self, chunks: list[TextChunk], language: str) -> list[Sentiment]:
         pipe = self._get_pipeline()
         if not pipe:
-            return self._rule_based(chunks)
-
-        texts = [chunk.text for chunk in chunks]
-        try:
-            results = pipe(texts, truncation=True)
-        except Exception as exc:  # pragma: no cover - runtime failure
-            logger.error("Transformer pipeline failed", error=str(exc))
-            return self._rule_based(chunks)
+            raise TemporarilyUnavailableError(f"Modelo de sentimento indisponível ({self.model_name}).")
+        results = pipe([chunk.text for chunk in chunks], truncation=True)
 
         sentiments: list[Sentiment] = []
         for chunk, result in zip(chunks, results):
@@ -56,28 +54,6 @@ class TransformersSentimentAdapter(SentimentServicePort):
                 result = result[0]
             label = SentimentLabel.normalize(result.get("label", "neu"))
             score = float(result.get("score", 0.5))
-            sentiments.append(
-                Sentiment(
-                    chunk_id=chunk.id, label=label, score=score, text=chunk.text
-                )
-            )
-        return sentiments
-
-    def _rule_based(self, chunks: list[TextChunk]) -> list[Sentiment]:
-        sentiments: list[Sentiment] = []
-        for chunk in chunks:
-            lowered = chunk.text.lower()
-            if any(word in lowered for word in ["bom", "excelente", "good", "ótimo"]):
-                label = SentimentLabel.POSITIVE
-                score = 0.7
-            elif any(
-                word in lowered for word in ["ruim", "bad", "pior", "terrível"]
-            ):
-                label = SentimentLabel.NEGATIVE
-                score = 0.7
-            else:
-                label = SentimentLabel.NEUTRAL
-                score = 0.5
             sentiments.append(
                 Sentiment(
                     chunk_id=chunk.id, label=label, score=score, text=chunk.text
