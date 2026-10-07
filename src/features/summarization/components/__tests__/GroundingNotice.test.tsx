@@ -21,6 +21,32 @@ describe("GroundingNotice", () => {
     expect(screen.getByText(/trecho mais próximo em 12:34/)).toBeInTheDocument();
   });
 
+  it("shows parts of the recording the summary skips and numbers to check", () => {
+    // Caso da avaliação: 57 de 57 frases apoiadas num resumo sem a conclusão
+    // e com um ano deslocado para outro fato.
+    render(
+      <GroundingNotice
+        truncated
+        report={{
+          checked: 57,
+          supported: 57,
+          ratio: 1,
+          threshold: 0.8,
+          unsupported: [],
+          windows: 12,
+          coverage: 0.917,
+          gaps: [{ start: 1609, end: 1755 }],
+          number_issues: [{ text: "Em 1999, C# da Microsoft respondeu ao Java.", numbers: ["1999"] }],
+        }}
+      />
+    );
+    expect(screen.getByText(/O resumo ficou incompleto/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Partes da gravação que o resumo não menciona \(1\)/));
+    expect(screen.getByText("26:49 a 29:15")).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Números a conferir \(1\)/));
+    expect(screen.getByText(/1999 não aparece no trecho do assunto/)).toBeInTheDocument();
+  });
+
   it("says when every sentence is supported and hides without a report", () => {
     const { rerender, container } = render(
       <GroundingNotice report={{ checked: 7, supported: 7, ratio: 1, threshold: 0.8, unsupported: [] }} />

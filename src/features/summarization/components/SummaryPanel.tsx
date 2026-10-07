@@ -342,7 +342,10 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
       <CardContent className="space-y-4 text-slate-900">
         {renderContent()}
         {analysis && !analysis.diagnostics?.original_ai_summary && (
-          <GroundingNotice report={analysis.diagnostics?.grounding as GroundingReport | undefined} />
+          <GroundingNotice
+            report={analysis.diagnostics?.grounding as GroundingReport | undefined}
+            truncated={analysis.diagnostics?.summary_truncated === true}
+          />
         )}
       </CardContent>
     </Card>

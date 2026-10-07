@@ -8,9 +8,15 @@ type NumberTickerProps = {
   suffix?: string;
 };
 
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 /**
  * Pequeno componente inspirado no "number-ticker" do Magic UI.
- * Faz a contagem animada de um número até o valor informado.
+ * Faz a contagem animada de um número até o valor informado. Quem pediu ao
+ * sistema para reduzir movimentos vê o valor final direto.
  */
 export const NumberTicker = ({
   value,
@@ -23,6 +29,10 @@ export const NumberTicker = ({
   const rafRef = useRef<number>();
 
   useEffect(() => {
+    if (prefersReducedMotion()) {
+      setDisplayValue(value);
+      return;
+    }
     const start = performance.now();
 
     const animate = (timestamp: number) => {

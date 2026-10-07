@@ -65,12 +65,28 @@ describe('DashboardPage', () => {
         HttpResponse.json({ total: 10, by_status: { completed: 5 }, by_type: { video: 10 } }),
       ),
     );
-    render(<DashboardPage />);
-    const card = (await screen.findByText(/Taxa de conclusão/i)).closest('div')?.parentElement;
-    // O número é animado (NumberTicker, 1,2 s): espera o valor final e confere
-    // que ele fica ali, e não sobe até 500% como no cálculo antigo.
-    await waitFor(() => expect(card?.textContent).toContain('Taxa de conclusão50%'), { timeout: 3000 });
-    await new Promise((resolve) => setTimeout(resolve, 1300));
-    expect(card?.textContent).toContain('Taxa de conclusão50%');
+    // Sem animação (preferência "reduzir movimento"), o contador mostra o valor
+    // final direto. Antes o teste esperava a animação de 1,2 s acabar e falhava
+    // com a máquina carregada (a suíte inteira em paralelo).
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+    try {
+      render(<DashboardPage />);
+      const card = (await screen.findByText(/Taxa de conclusão/i)).closest('div')?.parentElement;
+      // Com o cálculo antigo, a taxa ficava em 500%.
+      await waitFor(() => expect(card?.textContent).toContain('Taxa de conclusão50%'));
+      expect(card?.textContent).not.toMatch(/500/);
+    } finally {
+      window.matchMedia = original;
+    }
   });
 });
