@@ -54,7 +54,8 @@ class _FakeVision:
         self.calls += 1
         if self.fail:
             raise RuntimeError("sem memória")
-        return "Visual description unavailable." if self.calls == 1 else "um slide com um gráfico"
+        scenes = ["Visual description unavailable.", "um slide com um gráfico de barras", "a professora aponta o gráfico no quadro"]
+        return scenes[(self.calls - 1) % len(scenes)]
 
     async def release(self):
         self.released = True
@@ -186,3 +187,18 @@ def test_typed_fields_round_trip_through_their_columns():
     assert back.media_duration_seconds == 600.0  # não se perde ao concluir
     assert back.visual_context == ["[05:00] slide"]
     assert not hasattr(TranscriptionModel, "result")
+
+
+def test_consecutive_descriptions_of_the_same_scene_are_kept_once():
+    """Descrições reais de um vídeo com uma pessoa falando para a câmera: a
+    cena repetida sai; o quadro com texto e o livro na tela ficam."""
+    from src.media_processing.domain.visual_sampling import is_same_scene
+
+    talking = "A man in a black shirt and glasses is speaking into a microphone, with a bookshelf and figurines in the background."
+    again = "A man in a black shirt and glasses is speaking into a microphone, with a shelf of books and a figurine in the background."
+    gesture = "A man in a black shirt and glasses is gesturing with his hand in front of a microphone, with a shelf of books and figurines in the background."
+    book = 'A man in a suit is standing on a stage, speaking into a microphone, with a blue and white book titled "Domain-Driven Design".'
+
+    assert is_same_scene(talking, again) and is_same_scene(talking, gesture)
+    assert not is_same_scene(talking, book)
+    assert not is_same_scene(None, talking)

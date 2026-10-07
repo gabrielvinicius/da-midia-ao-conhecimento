@@ -121,7 +121,7 @@ async def test_short_material_gets_a_short_summary_with_a_response_cap():
     prompt = text_gen.summarize_topic.call_args.args[1]
     assert "cerca de 120 palavras" in prompt
     assert "## [Título de cada assunto principal" not in prompt  # formato curto
-    assert text_gen.summarize_topic.call_args.kwargs["max_tokens"] == int(120 * 2.2) + 150
+    assert text_gen.summarize_topic.call_args.kwargs["max_tokens"] == int(120 * 2.2 * 1.6) + 150
     assert analysis.diagnostics["synthesis_target_words"] == 120
 
 
@@ -182,7 +182,7 @@ def test_blocks_have_similar_sizes():
     chunks = [TextChunk(id=str(i), text="y" * 999, start=i * 30.0, end=i * 30.0 + 30) for i in range(110)]
     analysis = _analysis(" ".join(c.text for c in chunks), chunks)
 
-    blocks = SynthesisStep(_text_gen(), language="pt").split_blocks(analysis)
+    blocks = SynthesisStep(_text_gen(), language="pt", block_chars=36000).split_blocks(analysis)
 
     sizes = [len(b["text"]) for b in blocks]
     assert len(blocks) == 4
@@ -294,3 +294,76 @@ async def test_without_sentiment_the_prompt_has_no_tone():
     await SynthesisStep(text_gen, language="pt").process(_weighted_analysis())
     prompt = text_gen.summarize_topic.call_args.args[1]
     assert "<tom_geral>" not in prompt and "; tom:" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_prompt_asks_to_cover_until_the_end_and_to_attribute_opinions():
+    """Avaliação: o resumo de um vídeo opinativo de 30 min pulou a conclusão e
+    afirmava as teses do apresentador como fatos."""
+    text_gen = _text_gen()
+    await SynthesisStep(text_gen, language="pt").process(_analysis("Uma fala curta. " * 20))
+
+    prompt = text_gen.summarize_topic.call_args.args[1]
+    assert "do início ao fim" in prompt and "inclusive o final" in prompt
+    assert "atribua teses, críticas e previsões a quem as expressa" in prompt
+    assert "Datas e números ficam ligados ao fato" in prompt
+
+
+@pytest.mark.asyncio
+async def test_a_30_minute_recording_is_summarized_in_parts():
+    """Com 36 mil caracteres numa chamada só, uma aula de 30 min (32 mil
+    caracteres) perdia um trecho do meio; agora vai em partes."""
+    chunks = [TextChunk(id=str(i), text="palavra " * 60, start=i * 27.0, end=i * 27.0 + 26) for i in range(66)]
+    text_gen = _text_gen()
+    analysis = _analysis(" ".join(c.text for c in chunks), chunks)
+    assert 30000 < len(analysis.document.text) < 36000
+
+    await SynthesisStep(text_gen, language="pt").process(analysis)
+
+    assert analysis.diagnostics["synthesis_input"] == "sections"
+    assert analysis.diagnostics["synthesis_sections"] == 2
+
+
+@pytest.mark.asyncio
+async def test_a_summary_cut_by_the_response_cap_is_flagged():
+    text_gen = _text_gen()
+    text_gen.last_response_truncated = True
+    analysis = _analysis("Uma fala curta. " * 20)
+
+    await SynthesisStep(text_gen, language="pt").process(analysis)
+
+    assert analysis.diagnostics["summary_truncated"] is True
+
+
+@pytest.mark.asyncio
+async def test_appendix_keeps_two_excerpts_per_topic_in_whole_sentences():
+    """Com cinco trechos cortados no meio de frases, o apêndice ocupava ~60%
+    do texto entregue."""
+    analysis = _analysis("Texto.")
+    analysis.topics = [
+        Topic(
+            id=0,
+            title="Tema",
+            keywords=["k"],
+            snippets=[
+                "fim de uma frase anterior. Primeira frase inteira. Segunda frase inteira. começo de outra",
+                "Outro trecho completo.",
+                "terceiro trecho",
+            ],
+        )
+    ]
+
+    await SynthesisStep(_text_gen(), language="pt").process(analysis)
+
+    appendix = analysis.summary.split("Apêndice", 1)[1]
+    assert "> Primeira frase inteira. Segunda frase inteira." in appendix
+    assert "fim de uma frase anterior" not in appendix and "começo de outra" not in appendix
+    assert "Outro trecho completo." in appendix
+    assert "terceiro trecho" not in appendix
+
+
+def test_whole_sentences_keeps_a_snippet_without_any_complete_sentence():
+    from src.text_analysis.application.pipeline.synthesis import whole_sentences
+
+    assert whole_sentences("um pedaço sem ponto") == "um pedaço sem ponto"
+    assert whole_sentences("Frase única.") == "Frase única."

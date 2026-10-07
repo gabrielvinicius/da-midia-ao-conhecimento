@@ -23,6 +23,10 @@ class TextGenerationPort(ABC):
     last_prompt_tokens: Optional[int] = None
     #: True se o último prompt pode ter sido cortado por exceder a janela.
     last_prompt_truncated: bool = False
+    #: True se a última resposta bateu no teto (``max_tokens``) mesmo depois de
+    #: o adaptador pedir a continuação; o texto devolvido termina na última
+    #: frase completa, sem o que faltou.
+    last_response_truncated: bool = False
 
     @abstractmethod
     async def summarize_topic(

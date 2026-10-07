@@ -29,10 +29,35 @@ from src.text_analysis.domain.content_profile import (
 logger = structlog.get_logger(__name__)
 
 APPENDIX_MARKER = "\n\n---\n# Apêndice"
+# Trechos por tema no apêndice. Com cinco, o apêndice ocupava ~60% do texto
+# entregue; dois, os mais próximos do centro do tema, bastam para conferência.
+APPENDIX_SNIPPETS = 2
+
+_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?…])\s+")
+
+
+def whole_sentences(snippet: str) -> str:
+    """O trecho sem a frase cortada do começo e a do fim.
+
+    Os trechos são janelas de tamanho fixo da transcrição e começam e terminam
+    no meio de frases. Se não sobrar nenhuma frase inteira, fica o original.
+    """
+    sentences = [s for s in _SENTENCE_BOUNDARY.split((snippet or "").strip()) if s]
+    if len(sentences) < 2:
+        return (snippet or "").strip()
+    if not (sentences[0][:1].isupper() or sentences[0][:1].isdigit() or sentences[0][:1] in "\"“("):
+        sentences = sentences[1:]
+    if sentences and not re.search(r"[.!?…][\"”')]*$", sentences[-1]):
+        sentences = sentences[:-1]
+    return " ".join(sentences) or (snippet or "").strip()
 
 # Teto da resposta em tokens: no Qwen, o português gasta ~1,8 token por
-# palavra; a margem cobre títulos e marcação.
+# palavra; a margem cobre títulos e marcação. O modelo não obedece o número
+# de palavras com precisão (numa aula de 30 min, pedidas 627, escreveu 960),
+# por isso a folga: com o teto justo, o resumo era cortado antes da conclusão.
+# Se ainda assim bater no teto, o adaptador pede a continuação.
 TOKENS_PER_WORD = 2.2
+RESPONSE_SLACK = 1.6
 TOKEN_MARGIN = 150
 
 _LANGUAGE_NAMES = {
@@ -54,7 +79,7 @@ def language_name(language: str) -> str:
 
 
 def response_token_cap(words: int) -> int:
-    return int(words * TOKENS_PER_WORD) + TOKEN_MARGIN
+    return int(words * TOKENS_PER_WORD * RESPONSE_SLACK) + TOKEN_MARGIN
 
 
 def tone_text(tone: Optional[Tone]) -> Optional[str]:
@@ -96,14 +121,15 @@ class SynthesisStep(AnalysisStep):
       blocos consecutivos; cada bloco é resumido e os resumos parciais são
       unidos numa segunda chamada.
     - O tamanho pedido acompanha o tamanho do material (``summary_target_words``),
-      e a resposta tem teto de tokens.
+      e a resposta tem teto de tokens (com folga; ver ``RESPONSE_SLACK``).
     - Se nenhum modelo responder: resumo simplificado com os temas.
 
-    Os limites vêm de medições com o tokenizador do Qwen (~3,5 caracteres por
-    token em português falado): 36 mil caracteres com temas e quadros somam
-    ~11,2 mil tokens, o que deixa espaço para a resposta na janela de 16.384.
-    Os blocos usam o mesmo limite; com 20 mil, cada um ocupava só 35% da janela
-    e uma aula de duas horas pedia sete chamadas em vez de quatro.
+    O limite de 18 mil caracteres (~20 min de fala) vem da avaliação: com a
+    transcrição inteira de uma aula de 30 min (32 mil caracteres) numa só
+    chamada, o modelo pulou um trecho do meio e a conclusão. Em blocos, cada
+    parte chega ao resumo final já resumida e em ordem. O custo é uma chamada
+    a mais a cada ~20 min de gravação. Com o tokenizador do Qwen (~3,5
+    caracteres por token), cada bloco ocupa ~5,5 mil tokens da janela de 16.384.
     """
 
     required = True
@@ -112,8 +138,8 @@ class SynthesisStep(AnalysisStep):
         self,
         text_generation: TextGenerationPort,
         language: str,
-        max_full_transcript_chars: int = 36000,
-        block_chars: int = 36000,
+        max_full_transcript_chars: int = 18000,
+        block_chars: int = 18000,
     ):
         self.text_generation = text_generation
         self.language = language
@@ -134,6 +160,7 @@ class SynthesisStep(AnalysisStep):
         self._used_reserve = False
         self._prompt_tokens: list[int] = []
         self._truncated = False
+        self._response_truncated = False
         try:
             if len(transcript) <= self.max_full_transcript_chars:
                 analysis.diagnostics["synthesis_input"] = "full_transcript"
@@ -163,6 +190,9 @@ class SynthesisStep(AnalysisStep):
             analysis.diagnostics["synthesis_prompt_tokens"] = max(self._prompt_tokens)
         if self._truncated:
             analysis.diagnostics["synthesis_prompt_truncated"] = True
+        if self._response_truncated:
+            # O texto termina na última frase completa, mas faltou conteúdo.
+            analysis.diagnostics["summary_truncated"] = True
         return analysis
 
     async def _generate(self, prompt: str, max_tokens: Optional[int] = None) -> str:
@@ -174,6 +204,9 @@ class SynthesisStep(AnalysisStep):
         if isinstance(tokens, int):
             self._prompt_tokens.append(tokens)
         self._truncated = self._truncated or getattr(self.text_generation, "last_prompt_truncated", False) is True
+        self._response_truncated = (
+            self._response_truncated or getattr(self.text_generation, "last_response_truncated", False) is True
+        )
         return text
 
     @staticmethod
@@ -235,7 +268,13 @@ class SynthesisStep(AnalysisStep):
             "4. Transcrições automáticas podem ter erros; se um trecho estiver confuso, não preencha a lacuna.\n"
             "5. O tom (quando houver) foi classificado automaticamente por trecho. Mencione-o só se for "
             "positivo ou negativo de forma predominante, e sem atribuir emoções ou intenções que não foram ditas.\n"
-            f"6. Escreva em {language_name(self.language)}.\n"
+            "6. Distinga fatos de opiniões. Em conteúdo opinativo (ensaio, crítica, debate, entrevista), "
+            "atribua teses, críticas e previsões a quem as expressa (\"o apresentador argumenta que…\", "
+            "\"segundo a palestrante…\"), em vez de afirmá-las como fatos.\n"
+            "7. Datas e números ficam ligados ao fato a que se referem no material; não os desloque "
+            "para a frase vizinha. Não junte numa mesma frase fatos que o material apresenta "
+            "separados: cada ideia, obra ou data continua com a pessoa ou o evento a que pertence.\n"
+            f"8. Escreva em {language_name(self.language)}.\n"
             "<<<END_SYSTEM>>>"
         )
 
@@ -312,9 +351,15 @@ class SynthesisStep(AnalysisStep):
                 "## Pontos-chave\n"
                 "[Lista com 3 a 7 itens.]\n\n"
             )
+        coverage = (
+            "Cubra o material do início ao fim, na ordem: cada parte dos resumos parciais precisa aparecer"
+            if partials is not None
+            else "Cubra o material do início ao fim, na ordem, sem pular trechos"
+        ) + ", inclusive o final, com as conclusões ou recomendações de quem fala, se houver.\n"
         instructions = (
             "Resuma o material abaixo.\n\n"
             "--- MATERIAL ---\n" + "\n\n".join(parts) + "\n--- FIM DO MATERIAL ---\n\n"
+            + coverage
             + response_format
             + "Não comente estas instruções na resposta."
         )
@@ -350,9 +395,9 @@ class SynthesisStep(AnalysisStep):
             if t.id == -1:
                 continue
             lines = []
-            for snippet in (t.snippets or [])[:5]:
+            for snippet in (t.snippets or [])[:APPENDIX_SNIPPETS]:
                 stamp = format_timestamp(starts.get(snippet))
-                lines.append(f"> {'[' + stamp + '] ' if stamp else ''}{snippet}")
+                lines.append(f"> {'[' + stamp + '] ' if stamp else ''}{whole_sentences(snippet)}")
             parts.append(f"### {t.title or 'Tema'}\n" + "\n>\n".join(lines))
         visual = analysis.visual_context
         if visual:

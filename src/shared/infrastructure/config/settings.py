@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     ai_compute_type: str = "default"
     # Modelo de transcrição (Faster-Whisper ou openai-whisper).
     whisper_model: str = "large-v3-turbo"
+    # Termos do domínio (separados por vírgula) que orientam a transcrição.
+    # O Whisper acerta a fala comum e erra justo o jargão: numa aula de
+    # engenharia de software, "overengineering" saiu "o Wolverine de Neil" e
+    # "KISS, DRY e YAGNI" saiu "Keys, Draw e Agni". Vazio: sem glossário.
+    whisper_hotwords: str = ""
 
     @property
     def resolved_device(self) -> str:

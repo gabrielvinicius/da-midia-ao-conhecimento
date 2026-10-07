@@ -192,6 +192,19 @@ async def test_topic_titles_are_replaced_by_llm_titles():
     assert analysis.diagnostics["topic_titles_source"] == "llm"
 
 
+def test_long_titles_are_not_cut_in_the_middle():
+    """O corte exato em 8 palavras deixava "A regressão disfarçada de
+    produtividade na era da"."""
+    step = TopicTitleStep(_TitleGen(""), language="pt", max_words=8)
+
+    assert step.shortened("A regressão disfarçada de produtividade na era da inteligência artificial") == (
+        "A regressão disfarçada de produtividade na era da inteligência artificial"
+    )
+    long_title = "Um título bem longo que passa muito do limite de palavras e termina na frase de"
+    # 12 palavras (8 + folga de 4), sem terminar em "e".
+    assert step.shortened(long_title) == "Um título bem longo que passa muito do limite de palavras"
+
+
 @pytest.mark.asyncio
 async def test_topic_titles_kept_when_no_model_answers():
     gen = _TitleGen("", unavailable=True)

@@ -70,3 +70,60 @@ async def test_step_checks_only_the_summary_body_and_skips_simplified_summaries(
     simplified.summary_source = SummarySource.SIMPLIFIED
     await GroundingCheckStep(_Embedder()).process(simplified)
     assert simplified.grounding is None
+
+
+def test_parts_of_the_recording_the_summary_never_mentions_are_reported():
+    """Avaliação: 57 de 57 frases apoiadas num resumo sem a conclusão da aula.
+    Toda frase apontava para a primeira metade; a segunda vira lacuna."""
+    starts = [i * 60.0 for i in range(40)]  # 40 trechos, um por minuto
+    passages = np.eye(40).tolist()
+    sentences = [f"frase {i} sobre o começo da aula" for i in range(16)]
+    vectors = [np.eye(40)[i].tolist() for i in range(16)]  # trechos 0 a 15
+
+    report = assess_grounding(sentences, vectors, passages, starts, threshold=0.8)
+
+    assert report.windows == 4  # 16 frases / 4 por janela
+    assert [(round(g.start), round(g.end)) for g in report.gaps] == [(1170, 1755), (1755, 2340)]
+    assert report.coverage == 0.5
+    assert report.to_dict()["gaps"][0] == {"start": 1170.0, "end": 1755.0}
+
+
+def test_documents_have_no_timeline_to_cover():
+    report = assess_grounding(["uma frase com apoio"], [[1, 0]], [[1, 0]], [None], threshold=0.8)
+    assert (report.windows, report.gaps, report.coverage) == (0, [], None)
+
+
+def test_numbers_missing_from_the_passages_of_the_same_subject_are_reported():
+    """O resumo trouxe "Em 1999, C# da Microsoft respondeu ao Java"; o
+    apresentador situa o C# nos anos 2000."""
+    passages = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    texts = ["nos anos 2000 nascia o C Sharp da Microsoft", "em 1995 nascia o Java", "uma tela com 18 camadas"]
+    sentences = ["Em 1999, C# da Microsoft respondeu ao Java.", "Uma tela de login tinha 18 camadas no total."]
+    vectors = [[1, 0.1, 0], [0, 0, 1]]
+
+    report = assess_grounding(sentences, vectors, passages, [0, 60, 120], 0.8, passage_texts=texts)
+
+    assert [(n.text, n.numbers) for n in report.number_issues] == [(sentences[0], ["1999"])]
+    restored = type(report).from_dict(report.to_dict())
+    assert restored.number_issues == report.number_issues and restored.gaps == report.gaps
+
+
+def test_reports_saved_before_the_new_checks_still_load():
+    from src.text_analysis.domain.grounding import GroundingReport
+
+    old = GroundingReport.from_dict({"checked": 3, "supported": 3, "threshold": 0.8, "unsupported": []})
+    assert (old.windows, old.gaps, old.number_issues, old.coverage) == (0, [], [], None)
+
+
+def test_decades_and_sentences_with_several_facts_do_not_raise_false_alarms():
+    """Na avaliação, "década de 1960" (resumo) contra "década de 60" (fala) e
+    uma frase com cinco datas viravam números "a conferir"."""
+    passages = np.eye(6).tolist()
+    texts = ["voltamos para o fim da década de 60", "em 2001 o manifesto", "em 2003 o DDD", "em 2008 o Clean Code",
+             "outra coisa", "mais outra"]
+    sentences = ["O relato começa no fim da década de 1960.", "Vieram o Manifesto em 2001, o DDD em 2003 e o Clean Code em 2008."]
+    vectors = [[1, 0, 0, 0, 0, 0], [0, 0.9, 0.8, 0.7, 0, 0]]
+
+    report = assess_grounding(sentences, vectors, passages, [0, 60, 120, 180, 240, 300], 0.5, passage_texts=texts)
+
+    assert report.number_issues == []

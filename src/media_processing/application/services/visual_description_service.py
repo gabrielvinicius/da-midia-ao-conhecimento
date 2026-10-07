@@ -16,7 +16,7 @@ from src.media_processing.application.ports import (
     VideoFrameExtractorPort,
     VisualAnalysisPort,
 )
-from src.media_processing.domain.visual_sampling import frame_timestamps, is_video_file
+from src.media_processing.domain.visual_sampling import frame_timestamps, is_same_scene, is_video_file
 from src.shared.application.ports import ProcessingStatsPort
 from src.shared.domain.time.timestamps import format_timestamp
 
@@ -72,14 +72,20 @@ class VisualDescriptionService:
         if not timestamps:
             return []
         descriptions: List[str] = []
+        previous: Optional[str] = None
         try:
             frames = await self._extractor.extract_frames(video_path, timestamps)
             for ts, frame in zip(timestamps, frames):
                 if not frame:
                     continue
                 text = await self._analyzer.describe_frame(frame, prompt=PROMPT)
-                if text and "unavailable" not in text.lower():
-                    descriptions.append(f"[{format_timestamp(ts)}] {text.strip()}")
+                if not text or "unavailable" in text.lower():
+                    continue
+                text = text.strip()
+                if is_same_scene(previous, text):
+                    continue  # a mesma cena descrita de novo
+                descriptions.append(f"[{format_timestamp(ts)}] {text}")
+                previous = text
         except Exception as exc:
             logger.warning("visual_description.failed", error=str(exc), described=len(descriptions))
         finally:

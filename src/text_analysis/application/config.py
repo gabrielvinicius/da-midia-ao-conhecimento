@@ -22,11 +22,12 @@ class AnalysisConfig:
     # Nome do modelo servido pelo Ollama (ex.: "qwen3.5:9b").
     # A montagem do módulo (build_analysis_config) usa o valor das configurações.
     llm_model: str = "qwen3.5:9b"
-    # Transcrições até este tamanho vão inteiras à síntese (~12 mil tokens,
-    # dentro da janela de 16k do Ollama); acima, a síntese resume blocos de
-    # synthesis_block_chars e une os resumos parciais.
-    max_full_transcript_chars: int = 36000
-    synthesis_block_chars: int = 36000
+    # Transcrições até este tamanho (~20 min de fala) vão inteiras à síntese;
+    # acima, a síntese resume blocos de synthesis_block_chars e une os resumos
+    # parciais. Com 36 mil, uma aula de 30 min ia numa chamada só e o resumo
+    # pulava partes (ver SynthesisStep).
+    max_full_transcript_chars: int = 18000
+    synthesis_block_chars: int = 18000
     # Similaridade mínima (cosseno, multilingual-e5) entre uma frase do resumo
     # e algum trecho da transcrição para a frase contar como apoiada.
     grounding_threshold: float = 0.80
