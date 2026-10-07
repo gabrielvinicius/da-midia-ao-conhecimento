@@ -34,8 +34,10 @@ MIN_WORDS = 6  # frases menores (títulos, rótulos) não são verificadas
 SENTENCES_PER_WINDOW = 4
 MIN_WINDOWS = 4
 MAX_WINDOWS = 12
-# Números: trechos mais parecidos com a frase em que o número deve aparecer.
+# Números: trechos mais parecidos (com o contexto do número) em que ele deve
+# aparecer, e quantas palavras de cada lado formam esse contexto.
 NUMBER_PASSAGES = 3
+CONTEXT_WORDS = 8
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
 _HEADING = re.compile(r"^\s{0,3}#{1,6}\s")
@@ -149,9 +151,11 @@ def assess_grounding(
     passage_starts: Sequence[Optional[float]],
     threshold: float,
     passage_texts: Optional[Sequence[str]] = None,
+    context_vectors: Optional[Sequence[Sequence[float]]] = None,
 ) -> GroundingReport:
     """Compara cada frase com todos os trechos (vetores normalizados: o produto
-    escalar é a similaridade do cosseno)."""
+    escalar é a similaridade do cosseno). ``context_vectors``: ver
+    ``number_issues``."""
     if not sentences or not len(passage_vectors):
         return GroundingReport(checked=0, supported=0, threshold=threshold)
     s = _normalized(sentence_vectors)
@@ -179,7 +183,9 @@ def assess_grounding(
         unsupported=unsupported,
         windows=windows,
         gaps=gaps,
-        number_issues=number_issues(sentences, similarity, passage_texts) if passage_texts else [],
+        number_issues=(
+            number_issues(sentences, similarity, passage_texts, p, context_vectors) if passage_texts else []
+        ),
     )
 
 
@@ -205,29 +211,75 @@ def coverage_gaps(
     ]
 
 
+def number_contexts(sentence: str) -> list[tuple[str, str]]:
+    """Cada número da frase com as palavras em volta dele.
+
+    Um resumo junta vários fatos numa frase ("Dijkstra em 1970... Parnas em
+    1972... Java em 1995"); comparada inteira, ela não traz o trecho de cada
+    fato. O número é conferido no trecho mais parecido com o seu contexto.
+    """
+    words = sentence.split()
+    contexts, seen = [], set()
+    for i, word in enumerate(words):
+        for number in sorted(_numbers(word)):
+            if number not in seen:
+                seen.add(number)
+                contexts.append((number, " ".join(words[max(0, i - CONTEXT_WORDS): i + CONTEXT_WORDS + 1])))
+    return contexts
+
+
 def number_issues(
-    sentences: Sequence[str], similarity: np.ndarray, passage_texts: Sequence[str]
+    sentences: Sequence[str],
+    similarity: np.ndarray,
+    passage_texts: Sequence[str],
+    passage_matrix: Optional[np.ndarray] = None,
+    context_vectors: Optional[Sequence[Sequence[float]]] = None,
 ) -> list[NumberIssue]:
-    """Frases com números ausentes dos trechos mais parecidos com elas."""
-    issues = []
-    order = np.argsort(-similarity, axis=1)
-    for i, sentence in enumerate(sentences):
-        numbers = _numbers(sentence)
-        if not numbers:
+    """Frases com números ausentes dos trechos do mesmo assunto.
+
+    Com ``context_vectors`` (um vetor por contexto de ``number_contexts``, na
+    ordem das frases), cada número é conferido nos trechos mais parecidos com
+    o seu contexto; sem eles, nos trechos mais parecidos com a frase inteira.
+    """
+    contexts = [(i, n, c) for i, s in enumerate(sentences) for n, c in number_contexts(s)]
+    tops = _number_passages(contexts, similarity, passage_matrix, context_vectors)
+    # Décadas ("década de 1960", "anos 70") situam um período inteiro: valem se
+    # aparecem em qualquer parte da gravação, não só no trecho mais parecido.
+    everywhere: set[str] = set().union(*(_numbers(t) for t in passage_texts))
+    missing: dict[int, list[str]] = {}
+    for (i, number, _), top in zip(contexts, tops):
+        nearby: set[str] = set().union(*(_numbers(passage_texts[int(j)]) for j in top))
+        if _found(number, nearby) or (number in _decades(sentences[i]) and _found(number, everywhere)):
             continue
-        # Uma frase do resumo que junta vários fatos precisa de mais trechos.
-        nearby: set[str] = set()
-        for j in order[i][: NUMBER_PASSAGES + len(numbers)]:
-            nearby |= _numbers(passage_texts[int(j)])
-        missing = sorted((n for n in numbers if not _found(n, nearby)), key=sentence.find)
-        if missing:
-            issues.append(NumberIssue(text=sentence, numbers=missing))
-    return issues
+        missing.setdefault(i, []).append(number)
+    return [NumberIssue(text=sentences[i], numbers=missing[i]) for i in sorted(missing)]
+
+
+def _number_passages(contexts, similarity, passage_matrix, context_vectors) -> list:
+    """Índices dos trechos onde cada número deve aparecer."""
+    if context_vectors is not None and passage_matrix is not None and len(context_vectors) == len(contexts):
+        if not contexts:
+            return []
+        order = np.argsort(-(_normalized(context_vectors) @ passage_matrix.T), axis=1)
+        return [order[k][:NUMBER_PASSAGES] for k in range(len(contexts))]
+    order = np.argsort(-similarity, axis=1)
+    per_sentence: dict[int, int] = {}
+    for i, _, _ in contexts:
+        per_sentence[i] = per_sentence.get(i, 0) + 1
+    # Uma frase que junta vários fatos precisa de mais trechos.
+    return [order[i][: NUMBER_PASSAGES + per_sentence[i]] for i, _, _ in contexts]
 
 
 def _numbers(text: str) -> set[str]:
     """Números do texto sem separadores (1.000 e 1000 são o mesmo)."""
     return {re.sub(r"[.,]", "", n) for n in _NUMBER.findall(text or "")}
+
+
+_DECADE = re.compile(r"(?:década|décadas|anos)\s+(?:de\s+)?(\d{2,4})", re.IGNORECASE)
+
+
+def _decades(text: str) -> set[str]:
+    return set(_DECADE.findall(text or ""))
 
 
 def _found(number: str, nearby: set[str]) -> bool:

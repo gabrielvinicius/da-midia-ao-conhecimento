@@ -308,9 +308,26 @@ def test_e5_prefixes_distinguish_queries_from_passages():
     assert other._with_prefix("texto", "query") == "texto"
 
 
-def test_hash_fallback_matches_vector_column_size():
+def test_without_the_model_embeddings_fail_instead_of_returning_meaningless_vectors(monkeypatch):
+    """Na API sem GPU, o modelo não carregava e a busca recebia vetores de
+    reserva feitos das letras do texto: os resultados eram aleatórios."""
+    from src.shared.domain.errors import TemporarilyUnavailableError
+
     adapter = SentenceTransformerEmbeddingAdapter("x", device="cpu")
-    assert len(adapter._hash_vector("abc")) == 384
+    monkeypatch.setattr(adapter, "_get_model", lambda: None)
+
+    with pytest.raises(TemporarilyUnavailableError):
+        adapter.embed(["abc"])
+
+
+def test_a_gpu_request_without_a_gpu_runs_on_the_cpu(monkeypatch):
+    import torch
+
+    from src.shared.infrastructure.config.settings import Settings
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    assert Settings(ai_device="cuda").resolved_device == "cpu"
+    assert Settings(ai_device="cpu").resolved_device == "cpu"
 
 
 class _SyncEmbedder:

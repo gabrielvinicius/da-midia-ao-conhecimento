@@ -61,10 +61,19 @@ LABEL org.opencontainers.image.title="Video Summarizer" \
 # Criar usuário não-root
 RUN groupadd -r appuser && useradd -m -r -g appuser appuser
 
-# Copiar dependências do builder
-COPY --from=builder /root/.local /home/appuser/.local
+# Copiar dependências do builder, já com o dono certo. Antes, um "chown -R"
+# depois de copiar o código percorria esses GB a cada mudança de código (~10
+# min por imagem).
+COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
 ENV PATH=/home/appuser/.local/bin:$PATH \
     XDG_CACHE_HOME=/app/.cache
+# A transcrição (CTranslate2) carrega o cuBLAS e o cuDNN pelo nome. Eles vêm
+# nos pacotes nvidia-* que o torch de CUDA instala, fora do caminho padrão:
+# antes, só eram achados se algum módulo tivesse importado o torch antes da
+# transcrição. Com a descrição dos quadros pelo Ollama, ninguém importava, e
+# toda transcrição falhava ("libcublas.so.12 is not found"). Nas variantes CPU
+# e ROCm as pastas não existem e a variável não tem efeito.
+ENV LD_LIBRARY_PATH=/home/appuser/.local/lib/python3.12/site-packages/nvidia/cublas/lib:/home/appuser/.local/lib/python3.12/site-packages/nvidia/cudnn/lib
 # Modelos baixados (Hugging Face, faster-whisper, torch) ficam em /app/.cache,
 # o volume ai_models_cache. Antes iam para /home/appuser/.cache, fora do
 # volume: cada recriação do contêiner baixava GBs de novo, e o sistema deixava
@@ -76,7 +85,7 @@ RUN chmod +x /app/docker/*.sh
 
 # Mídias (armazenamento local) e modelos baixados; ambos viram volumes no compose.
 RUN mkdir -p /app/storage /app/.cache && \
-    chown -R appuser:appuser /app /home/appuser
+    chown appuser:appuser /app /app/storage /app/.cache
 
 USER appuser
 

@@ -127,3 +127,36 @@ def test_decades_and_sentences_with_several_facts_do_not_raise_false_alarms():
     report = assess_grounding(sentences, vectors, passages, [0, 60, 120, 180, 240, 300], 0.5, passage_texts=texts)
 
     assert report.number_issues == []
+
+
+def test_decades_count_anywhere_in_the_recording_but_new_numbers_are_still_flagged():
+    """Avaliação: "Na década de 1970..." (a fala diz "década de 70" em outro
+    trecho) era falso alarme; "COVID-19" (a fala só diz "um vírus") é real."""
+    passages = np.eye(8).tolist()
+    texts = ["um vírus fechou tudo"] + [f"assunto {i}" for i in range(6)] + ["voltamos para a década de 70"]
+    sentences = ["Na década de 1970, houve urgência técnica.", "A crise da COVID-19 fechou empresas."]
+    # A frase da década aponta para trechos sem o "70" (o da década fica longe).
+    vectors = [[0.1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0], [1, 0, 0, 0, 0, 0, 0, 0]]
+
+    report = assess_grounding(sentences, vectors, passages, [i * 60.0 for i in range(8)], 0.5, passage_texts=texts)
+
+    assert [(n.text, n.numbers) for n in report.number_issues] == [(sentences[1], ["19"])]
+
+
+def test_each_number_is_checked_in_the_passage_of_its_own_context():
+    """Avaliação: frases do resumo com vários fatos ("Dijkstra em 1970...
+    Parnas em 1972") geravam falsos alarmes; cada número agora é conferido no
+    trecho mais parecido com as palavras em volta dele."""
+    from src.text_analysis.domain.grounding import number_contexts
+
+    sentence = "Em 1970 Dijkstra criticou o GoTo, e em 1972 Parnas propôs o encapsulamento de decisões."
+    assert [n for n, _ in number_contexts(sentence)] == ["1970", "1972"]
+    passages = np.eye(6).tolist()
+    texts = ["em 1970 Dijkstra publica o artigo", "outra", "mais outra", "nada", "nada", "em 1972 David Parnas"]
+    # A frase inteira aponta para os primeiros trechos; o contexto de 1972, para o último.
+    context_vectors = [[1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1]]
+    report = assess_grounding(
+        [sentence], [[0.9, 0.8, 0.7, 0.1, 0.1, 0]], passages, [0, 60, 120, 180, 240, 300], 0.5,
+        passage_texts=texts, context_vectors=context_vectors,
+    )
+    assert report.number_issues == []

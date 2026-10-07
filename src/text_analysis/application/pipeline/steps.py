@@ -30,7 +30,7 @@ from src.text_analysis.application.ports import (
 from src.text_analysis.application.pipeline.synthesis import APPENDIX_MARKER, language_name
 from src.text_analysis.domain import Analysis, SummarySource
 from src.text_analysis.domain.content_profile import main_topics, overall_sentiment, sentiment_distribution
-from src.text_analysis.domain.grounding import assess_grounding, split_sentences
+from src.text_analysis.domain.grounding import assess_grounding, number_contexts, split_sentences
 
 logger = structlog.get_logger(__name__)
 
@@ -295,6 +295,9 @@ class GroundingCheckStep(AnalysisStep):
         if len(passages) != len(analysis.chunks):
             passages = self.embedding_service.embed([c.text for c in analysis.chunks])
         queries = self.embedding_service.embed(sentences, kind="query")
+        # Contexto de cada número (as palavras em volta), para conferi-lo no
+        # trecho do fato a que se refere, e não no da frase inteira.
+        contexts = [context for s in sentences for _, context in number_contexts(s)]
         report = assess_grounding(
             sentences,
             queries,
@@ -302,6 +305,7 @@ class GroundingCheckStep(AnalysisStep):
             [c.start for c in analysis.chunks],
             self.threshold,
             passage_texts=[c.text for c in analysis.chunks],
+            context_vectors=self.embedding_service.embed(contexts, kind="query") if contexts else [],
         )
         analysis.grounding = report
         return analysis
