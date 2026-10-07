@@ -27,6 +27,11 @@ from src.shared.infrastructure.messaging.process_bus import (
     process_event_bus,
 )
 
+# media e notifications têm chave estrangeira para users. Sem o modelo
+# carregado, o SQLAlchemy não resolvia a chave ao gravar ("could not find
+# table 'users'") e a mídia parava em "uploaded" depois da transcrição.
+import src.user_management.infrastructure.persistence.models  # noqa: E402,F401  isort: skip
+
 logger = structlog.get_logger(__name__)
 
 # A ordem importa: a mídia muda de estado antes de o aviso chegar ao usuário,

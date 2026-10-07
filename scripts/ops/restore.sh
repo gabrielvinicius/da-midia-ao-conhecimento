@@ -21,8 +21,12 @@ gunzip -c "$SRC/banco.sql.gz" | docker compose exec -T postgres \
   psql -q -v ON_ERROR_STOP=1 -U "${DB_USER:-postgres}" -d "${DB_NAME:-video_summarizer}"
 
 echo "[restore] mídias <- $SRC/midias.tar.gz"
-docker run --rm -v "$MEDIA_VOLUME":/dados \
-  -v "$(cd "$SRC" && pwd)":/origem:ro alpine sh -c 'rm -rf /dados/* && tar xzf /origem/midias.tar.gz -C /dados'
+# No Git Bash (Windows), sem MSYS_NO_PATHCONV o caminho do contêiner virava
+# "C:/Program Files/Git/origem"; pwd -W dá o caminho que o Docker entende.
+# O arquivo é conferido antes de apagar as mídias atuais.
+MSYS_NO_PATHCONV=1 docker run --rm -v "$MEDIA_VOLUME":/dados \
+  -v "$(cd "$SRC" && (pwd -W 2>/dev/null || pwd))":/origem:ro alpine sh -c \
+  'tar tzf /origem/midias.tar.gz >/dev/null && rm -rf /dados/* && tar xzf /origem/midias.tar.gz -C /dados'
 
 docker compose start worker-heavy worker-light
 echo "[restore] pronto"

@@ -47,6 +47,10 @@ services:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_NAME:-video_summarizer}
+      # O banco fica numa subpasta do volume. Instalações antigas montavam o
+      # volume na pasta-mãe e deixaram nele uma pasta "data" vazia; sem a
+      # subpasta, o initdb recusava o volume "não vazio" e o banco não subia.
+      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       # Pasta de dados do PostgreSQL 17. Antes, o volume ia para a pasta-mãe
       # (/var/lib/postgresql, caminho do PostgreSQL 18), e o banco ficava num

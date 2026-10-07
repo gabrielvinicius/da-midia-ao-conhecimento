@@ -1,0 +1,5 @@
+# Scripts executados dentro dos contêineres (Linux) precisam de LF. Num clone
+# no Windows com core.autocrlf=true, eles iam para a imagem com CRLF e o
+# entrypoint falhava com "/app/docker/backend-entrypoint.sh: No such file or
+# directory" (o interpretador lido era "/bin/sh\r").
+*.sh text eol=lf

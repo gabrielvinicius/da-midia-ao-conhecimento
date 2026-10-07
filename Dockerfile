@@ -37,8 +37,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ARG PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu124
 
 COPY requirements.txt .
+# Só o pip é atualizado fora do --user: setuptools e wheel (que traz o
+# packaging) instalados no sistema do builder "satisfaziam" essas dependências,
+# o pip --user as pulava, e a imagem final, que copia só /root/.local, ficava
+# sem elas (a API não subia: "No module named 'packaging'"). Pacotes compilados
+# do código-fonte recebem o setuptools pelo isolamento de build.
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --upgrade pip setuptools wheel && \
+    pip install --upgrade pip && \
     TORCH_PIN="$(grep -E '^torch==' requirements.txt)" && \
     pip install --user --no-warn-script-location \
     --index-url ${PYTORCH_INDEX_URL} "${TORCH_PIN}" && \
