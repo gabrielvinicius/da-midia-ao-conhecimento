@@ -89,12 +89,25 @@ def get_chunker_adapter(_: AnalysisConfig):
     return SimpleChunker()
 
 
+def get_reranker_adapter(model_name: str):
+    """Reranqueador da busca (SEARCH_RERANKER_MODEL); None se desligado."""
+    model_name = (model_name or "").strip()
+    if not model_name:
+        return None
+    from src.text_analysis.infrastructure.adapters.reranker_cross_encoder_adapter import (
+        CrossEncoderRerankerAdapter,
+    )
+
+    return model_cache.get_or_create(("reranker", model_name), lambda: CrossEncoderRerankerAdapter(model_name))
+
+
 __all__ = [
     "get_sentiment_adapter",
     "get_embedding_adapter",
     "get_topic_modeling_adapter",
     "get_text_generation_adapter",
     "get_chunker_adapter",
+    "get_reranker_adapter",
 ]
 
 

@@ -13,6 +13,7 @@ import structlog
 
 from src.shared.domain.time.timestamps import format_timestamp
 from src.text_analysis.application.pipeline.base import AnalysisStep
+from src.text_analysis.application.pipeline.genre import genre_focus
 from src.text_analysis.application.ports import TextGenerationPort
 from src.text_analysis.domain import Analysis, SentimentLabel, SummarySource
 from src.text_analysis.domain.content_profile import (
@@ -285,10 +286,12 @@ class SynthesisStep(AnalysisStep):
         span = ""
         if block.get("start") is not None and block.get("end") is not None:
             span = f", de {format_timestamp(block['start'])} a {format_timestamp(block['end'])}"
+        focus = genre_focus(analysis.genre) if analysis is not None else None
         return (
             self._system() + "\n"
             f"Este é o trecho {index} de {total} de {kind}{span}. "
-            f"Resuma somente este trecho, em uma lista de até {items} itens, com os conceitos, "
+            + (focus + " " if focus else "")
+            + f"Resuma somente este trecho, em uma lista de até {items} itens, com os conceitos, "
             "exemplos, dados e conclusões que ele contém, na ordem em que aparecem. "
             "Não tire conclusões sobre o restante do material.\n\n"
             "<trecho>\n" + block["text"] + "\n</trecho>"
@@ -356,9 +359,11 @@ class SynthesisStep(AnalysisStep):
             if partials is not None
             else "Cubra o material do início ao fim, na ordem, sem pular trechos"
         ) + ", inclusive o final, com as conclusões ou recomendações de quem fala, se houver.\n"
+        focus = genre_focus(analysis.genre)
         instructions = (
             "Resuma o material abaixo.\n\n"
             "--- MATERIAL ---\n" + "\n\n".join(parts) + "\n--- FIM DO MATERIAL ---\n\n"
+            + (focus + "\n" if focus else "")
             + coverage
             + response_format
             + "Não comente estas instruções na resposta."

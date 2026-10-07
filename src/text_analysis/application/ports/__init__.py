@@ -2,6 +2,7 @@ from .analysis_queue import AnalysisQueuePort
 from .chunking import ChunkingServicePort
 from .embeddings import EmbeddingServicePort
 from .repository import AnalysisRepositoryPort, FeedbackRepositoryPort
+from .reranking import RerankerPort
 from .resources import ReleasablePort
 from .sentiment import SentimentServicePort
 from .text_generation import TextGenerationPort, TextGenerationUnavailableError
@@ -19,6 +20,7 @@ __all__ = [
     "AnalysisRepositoryPort",
     "FeedbackRepositoryPort",
     "ReleasablePort",
+    "RerankerPort",
     "ChunkingServicePort",
     "TranscriptionQueryPort",
     "VectorIndexPort",

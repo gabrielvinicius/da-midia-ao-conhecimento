@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import List
 
 from ..domain import Analysis, SentimentLabel, SummarySource, TextChunk
+from ..domain.chapters import Chapter, ReviewQuestion
+from ..domain.content_genre import parse_genre
 from ..domain.grounding import GroundingReport
 from .dtos import AnalysisResultDTO, SentimentItemDTO, TopicDTO
 
@@ -24,6 +26,14 @@ def analysis_diagnostics(analysis: Analysis) -> dict:
         data["summary_source"] = analysis.summary_source.value
     if analysis.grounding:
         data["grounding"] = analysis.grounding.to_dict()
+    if analysis.genre:
+        data["genre"] = analysis.genre.value
+    if analysis.chapters:
+        data["chapters"] = [{"start": c.start, "end": c.end, "title": c.title} for c in analysis.chapters]
+    if analysis.review_questions:
+        data["review_questions"] = [
+            {"question": q.question, "answer": q.answer, "start": q.start} for q in analysis.review_questions
+        ]
     return data
 
 
@@ -37,6 +47,15 @@ def restore_from_diagnostics(analysis: Analysis, diagnostics: dict) -> None:
     analysis.summary_source = _summary_source(rest.pop("summary_source", None))
     grounding = rest.pop("grounding", None)
     analysis.grounding = GroundingReport.from_dict(grounding) if isinstance(grounding, dict) else None
+    analysis.genre = parse_genre(rest.pop("genre", None))
+    analysis.chapters = [
+        Chapter(start=float(c["start"]), end=float(c["end"]), title=str(c.get("title", "")))
+        for c in rest.pop("chapters", None) or []
+    ]
+    analysis.review_questions = [
+        ReviewQuestion(question=str(q.get("question", "")), answer=str(q.get("answer", "")), start=q.get("start"))
+        for q in rest.pop("review_questions", None) or []
+    ]
     analysis.diagnostics = rest
 
 

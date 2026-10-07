@@ -13,6 +13,8 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID, uuid4
 
+from src.text_analysis.domain.chapters import Chapter, ReviewQuestion
+from src.text_analysis.domain.content_genre import ContentGenre
 from src.text_analysis.domain.content_profile import main_topics
 from src.text_analysis.domain.entities.document import Document
 from src.text_analysis.domain.entities.sentiment import Sentiment, SentimentLabel, TextChunk
@@ -47,6 +49,12 @@ class Analysis:
     # O que aparecia na tela ("[mm:ss] descrição"), vindo do processamento do vídeo.
     visual_context: list[str] = field(default_factory=list)
     grounding: Optional[GroundingReport] = None
+    # O que a mídia é (aula, reunião, documento...): orienta o resumo.
+    genre: Optional[ContentGenre] = None
+    # Capítulos da gravação (cortes pelos temas, títulos pelo modelo) e
+    # perguntas de revisão com o momento da resposta.
+    chapters: list[Chapter] = field(default_factory=list)
+    review_questions: list[ReviewQuestion] = field(default_factory=list)
     # Resultado e duração de cada etapa: "ok" ou "failed: motivo".
     step_status: dict[str, str] = field(default_factory=dict)
     step_seconds: dict[str, float] = field(default_factory=dict)

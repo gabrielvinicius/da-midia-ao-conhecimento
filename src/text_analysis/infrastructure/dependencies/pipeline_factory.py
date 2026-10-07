@@ -6,6 +6,8 @@ from typing import Any
 
 from src.text_analysis.application.config import AnalysisConfig
 from src.text_analysis.application.pipeline.base import AnalysisPipeline
+from src.text_analysis.application.pipeline.genre import ContentGenreStep
+from src.text_analysis.application.pipeline.study import ChapterStep, ReviewQuestionsStep
 from src.text_analysis.application.pipeline.steps import (
     ChunkEmbeddingStep,
     ChunkingStep,
@@ -69,6 +71,8 @@ def build_analysis_pipeline(config: AnalysisConfig, session: Any) -> PipelineCom
     steps += [KnowledgeIndexingStep(vector_repo), ReleaseMemoryStep([TorchCacheReleaser()])]
     if "topics" in factors:
         steps.append(TopicTitleStep(gen_adapter, language=config.language))
+    # Gênero do conteúdo (aula, reunião, documento...): orienta o resumo.
+    steps.append(ContentGenreStep(gen_adapter))
     steps.append(
         SynthesisStep(
             gen_adapter,
@@ -77,6 +81,12 @@ def build_analysis_pipeline(config: AnalysisConfig, session: Any) -> PipelineCom
             block_chars=config.synthesis_block_chars,
         )
     )
+    # Capítulos (cortes pelos temas; sem temas, a cada ~5 min) e perguntas de
+    # revisão, que apontam o capítulo da resposta.
+    if "chapters" in factors:
+        steps.append(ChapterStep(gen_adapter, language=config.language))
+    if "questions" in factors:
+        steps.append(ReviewQuestionsStep(gen_adapter, language=config.language))
     if "grounding" in factors:
         steps.append(GroundingCheckStep(embedding_adapter, threshold=config.grounding_threshold))
 

@@ -36,7 +36,10 @@ TASK_LABELS = {
     "analysis.topic_titles": "Títulos dos temas",
     "analysis.knowledge_indexing": "Indexação semântica",
     "analysis.release_memory": "Liberação de memória da GPU",
+    "analysis.content_genre": "Tipo de conteúdo",
     "analysis.synthesis": "Resumo final",
+    "analysis.chapters": "Capítulos",
+    "analysis.review_questions": "Perguntas de revisão",
     "analysis.grounding_check": "Verificação de fidelidade",
 }
 
