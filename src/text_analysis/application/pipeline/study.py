@@ -52,14 +52,15 @@ class ChapterStep(AnalysisStep):
         if not spans:
             return analysis  # documento, gravação curta ou sem horários
         titles: dict[int, str] = {}
+        unavailable: Optional[TextGenerationUnavailableError] = None
         try:
             titles = self.parse_titles(
                 await self.text_generation.summarize_topic(
                     "Capítulos", self.build_prompt(analysis, spans), [], self.language
                 )
             )
-        except TextGenerationUnavailableError:
-            logger.warning("chapters.titles_unavailable")
+        except TextGenerationUnavailableError as exc:
+            unavailable = exc
         chunks = analysis.chunks
         analysis.chapters = [
             Chapter(
@@ -71,6 +72,10 @@ class ChapterStep(AnalysisStep):
             )
             for n, (a, b) in enumerate(spans, start=1)
         ]
+        if unavailable is not None:
+            # Os cortes valem sem o modelo ("Parte n"), mas a etapa fica
+            # registrada como falha, em vez de sair "ok" sem os títulos.
+            raise unavailable
         return analysis
 
     def build_prompt(self, analysis: Analysis, spans: list[tuple[int, int]]) -> str:
@@ -112,13 +117,9 @@ class ReviewQuestionsStep(AnalysisStep):
         if not material:
             return analysis
         count = self.count_for(analysis)
-        try:
-            answer = await self.text_generation.summarize_topic(
-                "Perguntas de revisão", self.build_prompt(analysis, material, count), [], self.language
-            )
-        except TextGenerationUnavailableError:
-            logger.warning("review_questions.unavailable")
-            return analysis
+        answer = await self.text_generation.summarize_topic(
+            "Perguntas de revisão", self.build_prompt(analysis, material, count), [], self.language
+        )
         analysis.review_questions = self.parse(answer, analysis)[:count]
         return analysis
 

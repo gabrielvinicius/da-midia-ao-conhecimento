@@ -152,6 +152,7 @@ def assess_grounding(
     threshold: float,
     passage_texts: Optional[Sequence[str]] = None,
     context_vectors: Optional[Sequence[Sequence[float]]] = None,
+    recording_end: Optional[float] = None,
 ) -> GroundingReport:
     """Compara cada frase com todos os trechos (vetores normalizados: o produto
     escalar é a similaridade do cosseno). ``context_vectors``: ver
@@ -174,7 +175,10 @@ def assess_grounding(
         if not supported[i]
     ]
     windows, gaps = coverage_gaps(
-        [int(best_idx[i]) for i in range(len(sentences)) if supported[i]], passage_starts, len(sentences)
+        [int(best_idx[i]) for i in range(len(sentences)) if supported[i]],
+        passage_starts,
+        len(sentences),
+        recording_end,
     )
     return GroundingReport(
         checked=len(sentences),
@@ -190,17 +194,27 @@ def assess_grounding(
 
 
 def coverage_gaps(
-    supported_passages: Sequence[int], passage_starts: Sequence[Optional[float]], sentence_count: int
+    supported_passages: Sequence[int],
+    passage_starts: Sequence[Optional[float]],
+    sentence_count: int,
+    recording_end: Optional[float] = None,
 ) -> tuple[int, list[CoverageGap]]:
     """Janelas de tempo sem nenhuma frase apoiada (trecho mais parecido nela).
 
-    Documentos (trechos sem horário) não têm linha do tempo: (0, []).
+    A linha do tempo vai até o fim da gravação (``recording_end``, o fim do
+    último trecho): medida até o início do último trecho, ela cortava o final
+    e escondia uma conclusão omitida, e uma gravação de um trecho só (início
+    0) passava por documento. Documentos (sem horários) não têm linha do
+    tempo: (0, []).
     """
     times = [t for t in passage_starts if t is not None]
-    if not times or max(times) <= 0:
+    if not times:
+        return 0, []
+    end = max([*times, recording_end or 0.0])
+    if end <= 0:
         return 0, []
     windows = max(MIN_WINDOWS, min(MAX_WINDOWS, sentence_count // SENTENCES_PER_WINDOW))
-    width = max(times) / windows
+    width = end / windows
     covered = {
         min(int(passage_starts[i] // width), windows - 1)
         for i in supported_passages

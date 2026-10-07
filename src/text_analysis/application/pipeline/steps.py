@@ -306,6 +306,7 @@ class GroundingCheckStep(AnalysisStep):
             self.threshold,
             passage_texts=[c.text for c in analysis.chunks],
             context_vectors=self.embedding_service.embed(contexts, kind="query") if contexts else [],
+            recording_end=max((c.end for c in analysis.chunks if c.end is not None), default=None),
         )
         analysis.grounding = report
         return analysis

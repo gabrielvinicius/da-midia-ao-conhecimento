@@ -4,7 +4,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.text_analysis.application.mappers import analysis_diagnostics, restore_from_diagnostics
+from src.text_analysis.application.pipeline.base import AnalysisPipeline
 from src.text_analysis.application.pipeline.study import ChapterStep, ReviewQuestionsStep
+from src.text_analysis.application.ports import TextGenerationUnavailableError
 from src.text_analysis.domain import Analysis, Document, TextChunk, Topic
 from src.text_analysis.domain.chapters import Chapter, chapter_spans
 
@@ -64,6 +66,23 @@ async def test_chapter_step_titles_each_part_in_one_call():
         (900.0, 1800.0, "A era da IA generativa"),
     ]
     assert "2 (15:00)" in gen.summarize_topic.call_args.args[1]
+
+
+@pytest.mark.asyncio
+async def test_without_the_model_chapters_and_questions_are_recorded_as_failed():
+    """Antes, as duas etapas saíam "ok" sem títulos nem perguntas. Os cortes
+    dos capítulos continuam valendo, com títulos genéricos."""
+    analysis = Analysis.new(Document.from_payload("O manifesto ágil teve 17 autores. " * 30, []))
+    analysis.chunks = _chunks(30)
+    analysis.topics = [Topic(id=0, keywords=[], chunk_indices=list(range(15))), Topic(id=1, keywords=[], chunk_indices=list(range(15, 30)))]
+    gen = AsyncMock()
+    gen.summarize_topic.side_effect = TextGenerationUnavailableError("sem modelo")
+
+    await AnalysisPipeline([ChapterStep(gen, language="pt"), ReviewQuestionsStep(gen, language="pt")]).run(analysis)
+
+    assert analysis.failed_steps == ["chapters", "review_questions"]
+    assert [c.title for c in analysis.chapters] == ["Parte 1", "Parte 2"]
+    assert analysis.review_questions == []
 
 
 @pytest.mark.asyncio

@@ -88,6 +88,23 @@ def test_parts_of_the_recording_the_summary_never_mentions_are_reported():
     assert report.to_dict()["gaps"][0] == {"start": 1170.0, "end": 1755.0}
 
 
+def test_the_timeline_goes_to_the_end_of_the_recording():
+    """Medida até o início do último trecho, a linha do tempo cortava o final
+    (a conclusão omitida não aparecia), e uma gravação de um trecho só, com
+    início 0, passava por documento."""
+    starts = [0.0, 60.0, 120.0, 180.0]  # o último trecho vai até 1200 s
+    passages = np.eye(4).tolist()
+    sentences = [f"frase {i}" for i in range(16)]
+    vectors = [np.eye(4)[i % 3].tolist() for i in range(16)]  # trechos 0 a 2
+
+    report = assess_grounding(sentences, vectors, passages, starts, 0.8, recording_end=1200.0)
+
+    assert [(round(g.start), round(g.end)) for g in report.gaps] == [(300, 600), (600, 900), (900, 1200)]
+
+    single = assess_grounding(["frase"], [[1, 0]], [[1, 0]], [0.0], 0.8, recording_end=300.0)
+    assert single.windows == 4 and single.gaps[-1].end == 300.0
+
+
 def test_documents_have_no_timeline_to_cover():
     report = assess_grounding(["uma frase com apoio"], [[1, 0]], [[1, 0]], [None], threshold=0.8)
     assert (report.windows, report.gaps, report.coverage) == (0, [], None)

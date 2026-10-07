@@ -12,7 +12,7 @@ from typing import Optional
 import structlog
 
 from src.text_analysis.application.pipeline.base import AnalysisStep
-from src.text_analysis.application.ports import TextGenerationPort, TextGenerationUnavailableError
+from src.text_analysis.application.ports import TextGenerationPort
 from src.text_analysis.domain import Analysis, ContentGenre
 from src.text_analysis.domain.content_genre import parse_genre
 
@@ -83,12 +83,11 @@ class ContentGenreStep(AnalysisStep):
         text = (analysis.document.text or "").strip() if analysis.document else ""
         if not text:
             return analysis
-        try:
-            answer = await self.text_generation.summarize_topic(
-                "Gênero do conteúdo", self.build_prompt(analysis, text), [], "pt", max_tokens=10
-            )
-        except TextGenerationUnavailableError:
-            return analysis
+        # Sem modelo, o erro chega ao pipeline, que registra a etapa como falha
+        # (antes ela saía "ok" e o resumo perdia a orientação sem aviso).
+        answer = await self.text_generation.summarize_topic(
+            "Gênero do conteúdo", self.build_prompt(analysis, text), [], "pt", max_tokens=10
+        )
         analysis.genre = parse_genre(answer)
         logger.info("content_genre.identified", genre=analysis.genre.value if analysis.genre else None)
         return analysis

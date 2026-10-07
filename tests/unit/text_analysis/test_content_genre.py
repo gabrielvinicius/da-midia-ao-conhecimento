@@ -56,7 +56,9 @@ async def test_genre_is_identified_from_samples_of_start_middle_and_end_plus_sig
 @pytest.mark.asyncio
 async def test_without_a_model_or_a_valid_answer_the_genre_stays_empty():
     analysis = _recording()
-    await ContentGenreStep(_gen(unavailable=True)).process(analysis)
+    # Sem modelo, o erro chega ao pipeline, que registra a etapa como falha.
+    with pytest.raises(TextGenerationUnavailableError):
+        await ContentGenreStep(_gen(unavailable=True)).process(analysis)
     assert analysis.genre is None
     await ContentGenreStep(_gen("hmm")).process(analysis)
     assert analysis.genre is None
