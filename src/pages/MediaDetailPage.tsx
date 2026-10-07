@@ -207,7 +207,7 @@ const MediaDetailPage = () => {
           </Card>
 
           {/* MAIN INSIGHT: Interpretative Article */}
-          <SummaryPanel mediaId={id} mediaStatus={media.status} />
+          <SummaryPanel mediaId={id} mediaStatus={media.status} onSeek={isPlayable ? handleSeek : undefined} />
 
           {/* Interactive Transcription */}
           <div className="min-h-[400px]">

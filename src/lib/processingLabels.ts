@@ -12,7 +12,10 @@ const TASK_LABELS: Record<string, string> = {
   // Execuções anteriores, quando a descrição dos quadros fazia parte da análise.
   "analysis.visual_insight": "Descrição dos quadros (análise)",
   "analysis.release_memory": "Liberação de memória da GPU",
+  "analysis.content_genre": "Tipo de conteúdo",
   "analysis.synthesis": "Resumo final",
+  "analysis.chapters": "Capítulos",
+  "analysis.review_questions": "Perguntas de revisão",
   "analysis.grounding_check": "Verificação de fidelidade",
 };
 

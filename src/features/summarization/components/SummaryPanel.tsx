@@ -1,4 +1,5 @@
 import { GroundingNotice, type GroundingReport } from "./GroundingNotice";
+import { StudyAids, type Chapter, type ReviewQuestion } from "./StudyAids";
 import { useState } from 'react';
 import { saveAs } from 'file-saver';
 import { useTextAnalysisByMediaIdQuery } from "../hooks/useAnalysisQuery";
@@ -47,6 +48,8 @@ const SUMMARY_PROVIDER_META: Record<string, { label: string; description: string
 interface SummaryPanelProps {
   mediaId: string;
   mediaStatus?: MediaStatus;
+  /** Leva o reprodutor a um momento (capítulos e respostas das perguntas). */
+  onSeek?: (time: number) => void;
 }
 
 const buildSummaryText = (analysis: TextAnalysisResponse): string => {
@@ -145,7 +148,21 @@ export const summarySourceLabel = (source?: unknown): string | null => {
   }
 };
 
-export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
+/** Gênero do conteúdo identificado pela análise (diagnostics.genre), que orienta o resumo. */
+const GENRE_LABELS: Record<string, string> = {
+  aula: "Aula",
+  palestra: "Palestra",
+  opiniao: "Opinião / ensaio",
+  reuniao: "Reunião",
+  entrevista: "Entrevista / podcast",
+  tutorial: "Tutorial",
+  documento: "Documento",
+};
+
+export const genreLabel = (genre?: unknown): string | null =>
+  typeof genre === "string" ? GENRE_LABELS[genre] ?? null : null;
+
+export const SummaryPanel = ({ mediaId, mediaStatus, onSeek }: SummaryPanelProps) => {
   const { data: analysis, isLoading, isError, refetch } = useTextAnalysisByMediaIdQuery(mediaId);
   const [isEditing, setIsEditing] = useState(false);
   const [editedText, setEditedText] = useState("");
@@ -337,6 +354,15 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
               {summarySourceLabel(analysis.diagnostics?.summary_source)}
             </Badge>
           )}
+          {analysis && genreLabel(analysis.diagnostics?.genre) && (
+            <Badge
+              variant="outline"
+              title="Tipo de conteúdo identificado pela análise; orienta o que o resumo destaca."
+              className="rounded-full border border-[#f2eadf] bg-[#fdfbf6] text-slate-800"
+            >
+              {genreLabel(analysis.diagnostics?.genre)}
+            </Badge>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4 text-slate-900">
@@ -345,6 +371,13 @@ export const SummaryPanel = ({ mediaId, mediaStatus }: SummaryPanelProps) => {
           <GroundingNotice
             report={analysis.diagnostics?.grounding as GroundingReport | undefined}
             truncated={analysis.diagnostics?.summary_truncated === true}
+          />
+        )}
+        {analysis && (
+          <StudyAids
+            chapters={analysis.diagnostics?.chapters as Chapter[] | undefined}
+            questions={analysis.diagnostics?.review_questions as ReviewQuestion[] | undefined}
+            onSeek={onSeek}
           />
         )}
       </CardContent>

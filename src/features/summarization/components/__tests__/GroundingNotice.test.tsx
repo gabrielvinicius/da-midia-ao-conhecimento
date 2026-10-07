@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { GroundingNotice } from "@/features/summarization/components/GroundingNotice";
-import { summarySourceLabel } from "@/features/summarization/components/SummaryPanel";
+import { genreLabel, summarySourceLabel } from "@/features/summarization/components/SummaryPanel";
 
 describe("GroundingNotice", () => {
   it("lists the sentences without support, with the closest moment", () => {
@@ -54,6 +54,15 @@ describe("GroundingNotice", () => {
     expect(screen.getByText(/As 7 frases verificadas têm apoio/)).toBeInTheDocument();
     rerender(<GroundingNotice report={null} />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("genreLabel", () => {
+  it("names the content genre and hides unknown or missing values", () => {
+    expect(genreLabel("opiniao")).toBe("Opinião / ensaio");
+    expect(genreLabel("reuniao")).toBe("Reunião");
+    expect(genreLabel("outro")).toBeNull(); // sem selo para "outro"
+    expect(genreLabel(undefined)).toBeNull();
   });
 });
 
