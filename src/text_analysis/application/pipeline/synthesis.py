@@ -403,7 +403,7 @@ class SynthesisStep(AnalysisStep):
         if visual:
             parts.append(
                 "### O que aparecia na tela\n"
-                "_Descrições automáticas de alguns quadros do vídeo (em inglês), usadas como contexto._\n\n"
+                "_Descrições automáticas de alguns quadros do vídeo, usadas como contexto._\n\n"
                 + "\n".join(f"- {v}" for v in visual)
             )
         if not parts:

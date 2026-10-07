@@ -44,9 +44,13 @@ class Settings(BaseSettings):
     # Fatores opcionais da análise, separados por vírgula: sentiment, topics
     # (temas e seus títulos) e grounding (verificação de fidelidade).
     analysis_factors: str = "sentiment,topics,grounding"
-    # Descrição de quadros de vídeo: "moondream" (padrão), "ollama" (usa o
-    # modelo multimodal definido em visual_ollama_model) ou "none" (desligada).
-    visual_provider: str = "moondream"
+    # Descrição de quadros de vídeo: "ollama" (padrão; o mesmo Qwen3.5 do
+    # resumo, que aceita imagens), "moondream" ou "none" (desligada).
+    # Comparados nos mesmos quadros de uma aula: o Qwen3.5 descreve em
+    # português e transcreve os textos da tela (nomes, títulos de livros), o
+    # Moondream só dizia "um homem fala ao microfone"; e não carrega um
+    # segundo modelo de ~4 GB na GPU. Custa ~4 s por quadro (Moondream, ~2 s).
+    visual_provider: str = "ollama"
     visual_ollama_model: str = "qwen3.5:9b"
 
     # AI / Machine Learning Hardware

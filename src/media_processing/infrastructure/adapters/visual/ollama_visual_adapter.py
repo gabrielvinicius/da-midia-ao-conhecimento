@@ -9,9 +9,13 @@ import structlog
 logger = structlog.get_logger(__name__)
 
 DEFAULT_PROMPT = (
-    "Descreva de forma objetiva, em português, o que aparece nesta imagem de um vídeo: "
-    "textos, gráficos, fórmulas, slides, pessoas e ações. Não invente o que não estiver visível."
+    "Descreva em até três frases, em português, o que aparece neste quadro de vídeo. "
+    "Transcreva os textos legíveis (títulos, nomes, fórmulas, rótulos de gráficos) exatamente como "
+    "aparecem e diga o que as pessoas fazem. Descreva só o que está visível: não suponha o "
+    "significado, a origem nem o contexto do que aparece."
 )
+# Teto da resposta: sem ele, um quadro com texto rendia uma lista longa.
+MAX_TOKENS = 200
 
 
 class OllamaVisualAdapter:
@@ -25,6 +29,7 @@ class OllamaVisualAdapter:
         self.model = model
         self.host = host.rstrip("/")
         self.timeout = timeout
+        self.model_label = f"ollama {model}"  # nas estatísticas de tempo
 
     async def describe_frame(self, frame_bytes: bytes, prompt: str = DEFAULT_PROMPT) -> str:
         # O prompt padrão do pipeline é em inglês (pensado para o Moondream);
@@ -42,7 +47,7 @@ class OllamaVisualAdapter:
                     "images": [base64.b64encode(frame_bytes).decode("ascii")],
                 }
             ],
-            "options": {"temperature": 0.1},
+            "options": {"temperature": 0.1, "num_predict": MAX_TOKENS},
         }
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
