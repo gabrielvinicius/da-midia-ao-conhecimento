@@ -1,8 +1,10 @@
 # Video Summarizer (backend)
 
-Plataforma que transcreve aulas gravadas e documentos, resume o conteúdo,
-identifica temas e tom, e permite buscar trechos pelo significado. Roda
-inteira numa única máquina, sem enviar dados para fora.
+Plataforma que transcreve aulas gravadas e documentos, descreve o que aparece
+na tela, resume o conteúdo conforme o tipo (aula, palestra, reunião...),
+divide a gravação em capítulos, propõe perguntas de revisão, identifica temas
+e tom, e permite buscar trechos pelo significado. Roda inteira numa única
+máquina, sem enviar dados para fora.
 
 ## Arquitetura
 
@@ -11,24 +13,32 @@ Monólito modular em DDD hexagonal: cada módulo (`media_management`,
 `storage`, `admin`) tem domínio, aplicação, infraestrutura e API, e as
 fronteiras são verificadas pelo `lint-imports` (`.importlinter`).
 
-- **API** (FastAPI): recebe envios, consultas e revisões; nunca roda modelos.
+- **API** (FastAPI): recebe envios, consultas e revisões. Não roda os modelos
+  da análise; na busca, calcula na CPU o vetor da pergunta e reordena os
+  trechos com um reranqueador.
 - **Workers** (Celery + Redis): o pesado (GPU, uma tarefa por vez) transcreve,
-  extrai texto e analisa; o leve roda as verificações periódicas.
+  descreve os quadros, extrai texto e analisa; o leve roda as verificações
+  periódicas.
   A configuração fica em `src/celery_app.py`; a montagem de cada processo de
   worker, em `src/worker_process.py`.
 - **Eventos**: dentro de cada processo, um barramento em memória liga os
   módulos; entre processos, as tarefas seguem pela fila e os avisos ao
   usuário pelo Redis. Varreduras periódicas recuperam o que se perder.
 
-As regras do projeto estão em `AGENTS.md`.
+As regras do projeto estão em `AGENTS.md`; as decisões de arquitetura, em
+`docs/adr/decisions.md`; os modelos de cada etapa, com tempos e memória
+medidos, em `docs/summarization_providers.md`.
 
 ## Tecnologias
 
 - Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL 17 com pgvector
 - Celery 5 e Redis 8
-- faster-whisper (transcrição), Moondream 2 (quadros de vídeo), Ollama com
-  Qwen3.5 9B e Gemma 4 de reserva (resumo), sentence-transformers e BERTopic
-- Docker Compose, com variantes para GPU NVIDIA (CUDA 12.4), AMD (ROCm) e CPU
+- faster-whisper `large-v3-turbo` (transcrição, com glossário do domínio),
+  Ollama com Qwen3.5 9B e Gemma 4 de reserva (resumo, gênero, capítulos,
+  perguntas e descrição dos quadros), sentence-transformers (`multilingual-e5-small`
+  e o reranqueador `bge-reranker-v2-m3`), XLM-RoBERTa (sentimento) e BERTopic
+- PyTorch 2.14; Docker Compose, com variantes para GPU NVIDIA (CUDA 12.6),
+  AMD (ROCm 7.2) e CPU
 
 ## Implantação
 
