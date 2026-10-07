@@ -44,11 +44,10 @@ COPY requirements.txt .
 # do código-fonte recebem o setuptools pelo isolamento de build.
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip && \
-    TORCH_PIN="$(grep -E '^torch==' requirements.txt)" && \
+    grep -E '^(torch|torchvision)==' requirements.txt > /tmp/torch-constraint.txt && \
     pip install --user --no-warn-script-location \
-    --index-url ${PYTORCH_INDEX_URL} "${TORCH_PIN}" && \
-    grep -vE '^torch==' requirements.txt > /tmp/requirements-sem-torch.txt && \
-    echo "${TORCH_PIN}" > /tmp/torch-constraint.txt && \
+    --index-url ${PYTORCH_INDEX_URL} -r /tmp/torch-constraint.txt && \
+    grep -vE '^(torch|torchvision)==' requirements.txt > /tmp/requirements-sem-torch.txt && \
     pip install --user --no-warn-script-location \
     -r /tmp/requirements-sem-torch.txt -c /tmp/torch-constraint.txt
 
