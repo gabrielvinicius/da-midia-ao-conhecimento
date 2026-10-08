@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
 import { cn } from "@/lib/utils";
 import { getProviders, getUrlImportOptions, ProvidersResponse } from "../api";
-import { linkProblem, useUploadQueue, type UploadItem } from "../hooks/useUploadQueue";
+import { isYoutubeLink, linkProblem, useUploadQueue, type UploadItem } from "../hooks/useUploadQueue";
 import { ACCEPTED_EXTENSIONS, MAX_FILE_SIZE_MB, formatFileSize, type UploadKind } from "../uploadFile";
 import { ProviderSelect } from "./ProviderSelect";
 
@@ -133,17 +133,17 @@ export const UploadForm = () => {
 
       {urlImport.data?.enabled && (
         <div className="space-y-1.5">
-          <Label htmlFor="youtube-link" className="text-sm text-slate-700">
-            Ou importe um vídeo do YouTube
+          <Label htmlFor="media-link" className="text-sm text-slate-700">
+            Ou importe por link
           </Label>
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
-                id="youtube-link"
+                id="media-link"
                 type="url"
                 inputMode="url"
-                placeholder="https://www.youtube.com/watch?v=..."
+                placeholder="https://... (YouTube ou link direto para o arquivo)"
                 value={link}
                 onChange={(e) => {
                   setLink(e.target.value);
@@ -166,7 +166,7 @@ export const UploadForm = () => {
             <p className="text-xs text-red-700">{linkError}</p>
           ) : (
             <p className="text-xs text-slate-500">
-              O servidor baixa o vídeo (até {urlImport.data.max_minutes} min); só use vídeos que você tem direito de usar.
+              Vídeo do YouTube (até {urlImport.data.max_minutes} min) ou link direto para vídeo, áudio, PDF, documento ou imagem; links do Google Drive e do Dropbox precisam estar abertos a qualquer pessoa. Só use conteúdos que você tem direito de usar.
             </p>
           )}
         </div>
@@ -281,10 +281,10 @@ const QueueRow = ({
         <p className="text-xs text-slate-500">
           {item.url
             ? item.status === "sending"
-              ? "Baixando do YouTube... pode levar alguns minutos"
+              ? `Baixando ${isYoutubeLink(item.url) ? "do YouTube" : "o arquivo"}... pode levar alguns minutos`
               : item.status === "sent"
-                ? "Vídeo do YouTube"
-                : "Link do YouTube"
+                ? `${kind ? kind.label : "Arquivo"} importado por link`
+                : isYoutubeLink(item.url) ? "Vídeo do YouTube" : "Link direto"
             : `${kind ? `${kind.label} · ` : ""}${formatFileSize(item.file?.size ?? 0)}${item.status === "sending" ? ` · ${item.progress}%` : ""}`}
         </p>
         {item.status === "sending" && (

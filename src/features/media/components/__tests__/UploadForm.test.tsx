@@ -97,9 +97,9 @@ describe('UploadForm', () => {
     importMediaFromUrl.mockResolvedValue({ id: 'yt1', filename: 'Me at the zoo.mp4' });
     renderForm();
 
-    const field = await screen.findByLabelText('Ou importe um vídeo do YouTube');
-    await userEvent.type(field, 'https://vimeo.com/123{enter}');
-    expect(screen.getByText(/Cole o link de um vídeo do YouTube/)).toBeInTheDocument();
+    const field = await screen.findByLabelText('Ou importe por link');
+    await userEvent.type(field, 'arquivo.pdf{enter}');
+    expect(screen.getByText(/Cole um link completo/)).toBeInTheDocument();
 
     await userEvent.clear(field);
     await userEvent.type(field, 'https://youtu.be/jNQXAC9IVRw{enter}');
@@ -110,11 +110,23 @@ describe('UploadForm', () => {
     expect(screen.getByRole('link', { name: 'Abrir' })).toHaveAttribute('href', '/media/yt1');
   });
 
+  it('importa um link direto para um PDF', async () => {
+    urlImportEnabled = true;
+    importMediaFromUrl.mockResolvedValue({ id: 'doc1', filename: 'Lei Geral.pdf', media_type: 'text' });
+    renderForm();
+    const field = await screen.findByLabelText('Ou importe por link');
+    await userEvent.type(field, 'https://www2.camara.leg.br/lei.pdf{enter}');
+    expect(screen.getByText('Link direto')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+    await waitFor(() => expect(screen.getByText('Lei Geral.pdf')).toBeInTheDocument());
+    expect(screen.getByText('Documento importado por link')).toBeInTheDocument();
+  });
+
   it('esconde o campo do link quando o servidor não permite', async () => {
     urlImportEnabled = false;
     renderForm();
     await waitFor(() => expect(screen.getByText(/Arraste os arquivos/)).toBeInTheDocument());
-    expect(screen.queryByLabelText('Ou importe um vídeo do YouTube')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Ou importe por link')).not.toBeInTheDocument();
     urlImportEnabled = true;
   });
 });

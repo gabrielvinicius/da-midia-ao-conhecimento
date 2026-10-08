@@ -29,9 +29,11 @@ let counter = 0;
 
 const YOUTUBE_LINK = /^https?:\/\/(www\.|m\.|music\.)?(youtube\.com|youtu\.be)\//i;
 
-/** Mensagem de erro de um link, ou null se ele parece de um vídeo do YouTube. */
+export const isYoutubeLink = (url: string) => YOUTUBE_LINK.test(url.trim());
+
+/** Mensagem de erro de um link, ou null se ele pode ser importado (o servidor confere o resto). */
 export const linkProblem = (url: string): string | null =>
-  YOUTUBE_LINK.test(url.trim()) ? null : "Cole o link de um vídeo do YouTube (youtube.com ou youtu.be).";
+  /^https?:\/\/[^\s/]+\.[^\s]+$/i.test(url.trim()) ? null : "Cole um link completo, começando com http:// ou https://.";
 
 /**
  * Fila de envio: vários arquivos (e links do YouTube) de uma vez, enviados um
@@ -81,7 +83,15 @@ export const useUploadQueue = () => {
     (url: string) =>
       update((list) => [
         ...list,
-        { id: `up-${++counter}`, url: url.trim(), name: url.trim(), kind: "video", status: "waiting", progress: 0 },
+        {
+          id: `up-${++counter}`,
+          url: url.trim(),
+          name: url.trim(),
+          // Pelo final do endereço (".../aula.mp3"); sem extensão, o tipo só se sabe depois.
+          kind: isYoutubeLink(url) ? "video" : uploadKind({ name: url.trim().split(/[?#]/)[0] }),
+          status: "waiting",
+          progress: 0,
+        },
       ]),
     [update],
   );
@@ -125,6 +135,7 @@ export const useUploadQueue = () => {
               progress: 100,
               mediaId: media.id,
               name: next.url ? media.filename || next.name : next.name,
+              kind: next.url ? (media.media_type as UploadKind) ?? next.kind : next.kind,
             });
             queryClient.invalidateQueries({ queryKey: ["media"] });
             queryClient.invalidateQueries({ queryKey: ["media-list"] });
