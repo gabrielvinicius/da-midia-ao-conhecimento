@@ -48,3 +48,6 @@ gha-creds-*.json
 
 # Cópias de segurança (scripts/ops/backup.sh)
 /backups/
+
+# Relatório do TCC: repositório próprio (gabrielvinicius/relatorio_tcc), clonado à parte nesta pasta.
+/relatorio_tcc/

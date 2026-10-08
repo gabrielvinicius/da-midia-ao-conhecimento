@@ -244,8 +244,7 @@ services:
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
 
   frontend:
-    # Submódulo frontend (git clone --recurse-submodules, ou
-    # git submodule update --init frontend).
+    # Interface web (pasta frontend/), servida pelo nginx da própria imagem.
     build:
       context: ./frontend
       dockerfile: Dockerfile
