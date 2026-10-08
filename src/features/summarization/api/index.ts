@@ -13,7 +13,7 @@ export interface SemanticSearchResult {
   /** Título do resumo da mídia (o assunto), quando ela já foi analisada. */
   title?: string | null;
   /** Proximidade dada pelo reranqueador; null quando a busca usou só os vetores. */
-  match?: "strong" | "related" | "weak" | null;
+  match?: "strong" | "related" | "weak" | "unrecognized" | null;
 }
 
 /** Análise da mídia, ou null enquanto ela ainda não existe (404). */

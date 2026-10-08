@@ -73,6 +73,14 @@ describe("SearchPage", () => {
     await waitFor(() => expect(screen.getByText("Nenhum trecho das suas mídias trata disso.")).toBeInTheDocument());
   });
 
+  it("warns when no passage clearly answers, but still lists the closest ones", async () => {
+    respond([{ ...RESULTS[0], relevance: 1.3, match: "unrecognized" }]);
+    renderPage("/busca?q=ordem%20dos%20fatores");
+    await waitFor(() => expect(screen.getByText("Nenhum trecho trata claramente disso.")).toBeInTheDocument());
+    expect(screen.getByText("Pouca relação")).toBeInTheDocument();
+    expect(screen.getByText(/funções compostas/)).toBeInTheDocument();
+  });
+
   it("remembers recent searches and offers examples before searching", async () => {
     respond(RESULTS);
     renderPage();

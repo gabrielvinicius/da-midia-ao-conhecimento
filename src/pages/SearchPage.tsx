@@ -24,6 +24,7 @@ const MATCH: Record<string, { label: string; className: string }> = {
   strong: { label: "Trata disso", className: "bg-emerald-50 text-emerald-800" },
   related: { label: "Relacionado", className: "bg-sky-50 text-sky-800" },
   weak: { label: "Pode ter relação", className: "bg-slate-100 text-slate-600" },
+  unrecognized: { label: "Pouca relação", className: "bg-amber-50 text-amber-800" },
 };
 
 const TYPE_ICON: Record<string, ReactNode> = {
@@ -165,6 +166,17 @@ const SearchPage = () => {
           </div>
         ) : (
           <section aria-label="Resultados" className="space-y-4">
+            {/* O reranqueador não reconheceu nenhum trecho. Os mais próximos
+                continuam na lista: com outras palavras, o trecho certo também
+                pode receber nota baixa. */}
+            {data.every((r) => r.match === "unrecognized") && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
+                <p className="font-medium">Nenhum trecho trata claramente disso.</p>
+                <p className="mt-1">
+                  Estes são os mais próximos; confira se algum responde. Se não, tente outras palavras ou uma pergunta mais específica.
+                </p>
+              </div>
+            )}
             <p className="text-sm text-slate-500" aria-live="polite">
               {data.length} {data.length === 1 ? "trecho" : "trechos"} em {groups.length} {groups.length === 1 ? "mídia" : "mídias"}
             </p>
