@@ -46,7 +46,7 @@ class UserSettings(BaseSettings):
     smtp_port: int = Field(default=587, validation_alias=AliasChoices("SMTP_PORT"))
     smtp_username: str = Field(default="", validation_alias=AliasChoices("SMTP_USERNAME"))
     smtp_password: str = Field(default="", validation_alias=AliasChoices("SMTP_PASSWORD"))
-    # Remetente, ex.: "Video Summarizer <no-reply@seudominio>".
+    # Remetente, ex.: "Síntese <no-reply@seudominio>".
     smtp_from: str = Field(default="", validation_alias=AliasChoices("SMTP_FROM"))
     # starttls (porta 587), ssl (465) ou none (servidor local de testes).
     smtp_security: str = Field(default="starttls", validation_alias=AliasChoices("SMTP_SECURITY"))

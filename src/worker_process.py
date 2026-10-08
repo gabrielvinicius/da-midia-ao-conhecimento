@@ -63,7 +63,7 @@ def init_worker_process(**_kwargs) -> None:
 
     from src.shared.infrastructure.observability.tracing.tracer import configure_tracer
 
-    configure_tracer("video-summarizer-worker")
+    configure_tracer("sintese-worker")
     try:
         from opentelemetry.instrumentation.celery import CeleryInstrumentor
 

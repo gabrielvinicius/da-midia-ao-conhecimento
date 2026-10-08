@@ -11,14 +11,12 @@ DEST="${1:-backups}/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$DEST"
 DB_USER="$(grep -E '^DB_USER=' .env | cut -d= -f2-)"
 DB_NAME="$(grep -E '^DB_NAME=' .env | cut -d= -f2-)"
-# Volume das mídias, achado pelos rótulos do Compose (não exige o backend no ar).
-PROJECT="$(docker compose config | sed -n 's/^name: //p')"
-MEDIA_VOLUME="$(docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT" \
-  --filter label=com.docker.compose.volume=media_data)"
-[ -n "$MEDIA_VOLUME" ] || { echo "volume media_data do projeto $PROJECT não encontrado" >&2; exit 1; }
+# Volume das mídias, pelo nome fixado no docker-compose.yml (não exige o backend no ar).
+MEDIA_VOLUME="$(docker compose config | sed -n '/^volumes:/,$p' | sed -n '/^  media_data:/{n;s/^ *name: //p;}')"
+docker volume inspect "$MEDIA_VOLUME" >/dev/null 2>&1 || { echo "volume das mídias ($MEDIA_VOLUME) não encontrado" >&2; exit 1; }
 
-echo "[backup] banco ${DB_NAME:-video_summarizer} -> $DEST/banco.sql.gz"
-docker compose exec -T postgres pg_dump -U "${DB_USER:-postgres}" -d "${DB_NAME:-video_summarizer}" \
+echo "[backup] banco ${DB_NAME:-sintese} -> $DEST/banco.sql.gz"
+docker compose exec -T postgres pg_dump -U "${DB_USER:-postgres}" -d "${DB_NAME:-sintese}" \
   --clean --if-exists | gzip > "$DEST/banco.sql.gz"
 
 echo "[backup] mídias -> $DEST/midias.tar.gz"

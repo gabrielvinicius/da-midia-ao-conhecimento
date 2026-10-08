@@ -1,4 +1,4 @@
-# Video Summarizer (backend)
+# Síntese (backend)
 
 Plataforma que transcreve aulas gravadas e documentos, descreve o que aparece
 na tela, resume o conteúdo conforme o tipo (aula, palestra, reunião...),

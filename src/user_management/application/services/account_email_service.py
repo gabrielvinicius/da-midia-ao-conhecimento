@@ -94,7 +94,7 @@ class AccountEmailService:
             await self._send(
                 user,
                 "Redefinir a senha",
-                "Recebemos um pedido para redefinir a senha da sua conta no Video Summarizer.\n\n"
+                "Recebemos um pedido para redefinir a senha da sua conta no Síntese.\n\n"
                 f"Para escolher uma nova senha, abra o link abaixo (vale por {self._settings.password_reset_minutes} minutos "
                 f"e uma única vez):\n\n{self._link('redefinir-senha', token)}\n\n"
                 "Se você não pediu, ignore este e-mail: a senha atual continua valendo.",
@@ -123,7 +123,7 @@ class AccountEmailService:
         await self._send(
             user,
             "Confirme seu e-mail",
-            "Sua conta no Video Summarizer foi criada.\n\n"
+            "Sua conta no Síntese foi criada.\n\n"
             f"Para ativá-la, confirme o e-mail pelo link abaixo (vale por {self._settings.email_verification_hours} horas):"
             f"\n\n{self._link('confirmar-email', token)}\n\n"
             "Se você não criou esta conta, ignore este e-mail.",

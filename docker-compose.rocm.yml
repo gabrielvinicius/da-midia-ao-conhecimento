@@ -16,13 +16,13 @@ services:
       - render
 
   backend:
-    image: video-summarizer-app:rocm
+    image: sintese-app:rocm
     build:
       args:
         PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm7.2
 
   worker-heavy:
-    image: video-summarizer-app:rocm
+    image: sintese-app:rocm
     build:
       args:
         PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm7.2
@@ -38,7 +38,7 @@ services:
       - render
 
   worker-light:
-    image: video-summarizer-app:rocm
+    image: sintese-app:rocm
     build:
       args:
         PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm7.2

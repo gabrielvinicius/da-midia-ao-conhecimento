@@ -33,7 +33,7 @@ def visibility_timeout_seconds() -> int:
 
 def create_celery() -> Celery:
     # O nome vai como texto: só o worker carrega a sua montagem.
-    app = Celery("video_summarizer", broker=_default_broker(), include=["src.worker_process"])
+    app = Celery("sintese", broker=_default_broker(), include=["src.worker_process"])
 
     app.conf.update(
         task_serializer="json",
@@ -89,7 +89,7 @@ def _configure_worker_logging(**_kwargs) -> None:
     """Workers usam o mesmo log estruturado da API (o Celery não o sobrescreve)."""
     from src.shared.infrastructure.observability.logging.logging_config import configure_logging
 
-    configure_logging("video-summarizer-worker")
+    configure_logging("sintese-worker")
 
 
 @task_prerun.connect(weak=False)

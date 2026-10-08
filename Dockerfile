@@ -55,7 +55,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # --- Stage Final ---
 FROM base AS runtime
 
-LABEL org.opencontainers.image.title="Video Summarizer" \
+LABEL org.opencontainers.image.title="Síntese" \
       org.opencontainers.image.description="API e workers: transcrição, resumo e busca semântica de aulas gravadas" \
       org.opencontainers.image.version="2.0.0"
 

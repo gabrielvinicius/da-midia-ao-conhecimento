@@ -12,8 +12,8 @@ x-app-environment: &app-environment
   APP_ENV: production
   REDIS_URL: redis://redis:6379/0
   CELERY_BROKER_URL: redis://redis:6379/0
-  DATABASE_URL: ${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-video_summarizer}
-  STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-video-summarizer}
+  DATABASE_URL: ${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-sintese}
+  STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-sintese}
   STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-http://minio:9000}
   STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-minio}
   STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-minio123}
@@ -26,7 +26,7 @@ x-app: &app
   build:
     context: .
     target: runtime
-  image: video-summarizer-app:latest
+  image: sintese-app:latest
   env_file: [.env]
   restart: unless-stopped
   networks:
@@ -42,11 +42,11 @@ x-gpu: &gpu
 services:
   postgres:
     image: pgvector/pgvector:pg17
-    container_name: video_summarizer_postgres
+    container_name: sintese_postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-video_summarizer}
+      POSTGRES_DB: ${DB_NAME:-sintese}
       # O banco fica numa subpasta do volume. Instalações antigas montavam o
       # volume na pasta-mãe e deixaram nele uma pasta "data" vazia; sem a
       # subpasta, o initdb recusava o volume "não vazio" e o banco não subia.
@@ -60,14 +60,14 @@ services:
       - backend-net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-video_summarizer}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-sintese}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:8.8
-    container_name: video_summarizer_redis
+    container_name: sintese_redis
     # Gravado em disco: a fila, os bloqueios de login e os tokens revogados no
     # logout sobrevivem a uma recriação (antes, um token revogado voltava a valer).
     command: ["redis-server", "--appendonly", "yes"]
@@ -84,7 +84,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: video_summarizer_minio
+    container_name: sintese_minio
     environment:
       MINIO_ROOT_USER: ${STORAGE_S3_ACCESS_KEY:-minio}
       MINIO_ROOT_PASSWORD: ${STORAGE_S3_SECRET_KEY:-minio123}
@@ -97,7 +97,7 @@ services:
 
   jaeger:
     image: jaegertracing/jaeger:2.22.0
-    container_name: video_summarizer_jaeger
+    container_name: sintese_jaeger
     ports:
       # Só na própria máquina: os rastros incluem dados das requisições.
       - "127.0.0.1:16686:16686"  # interface web do Jaeger
@@ -109,7 +109,7 @@ services:
   prometheus:
     # Coleta as métricas da API e dos workers pela porta interna 9100.
     image: prom/prometheus:v3.15.0
-    container_name: video_summarizer_prometheus
+    container_name: sintese_prometheus
     volumes:
       - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
@@ -123,7 +123,7 @@ services:
     # LLM local (Qwen3.5-9B por padrão). Os modelos são baixados pelo
     # serviço ollama-models na primeira inicialização.
     image: ollama/ollama:0.35.1
-    container_name: video_summarizer_ollama
+    container_name: sintese_ollama
     volumes:
       - ollama_models:/root/.ollama
     environment:
@@ -153,7 +153,7 @@ services:
     # Roda uma vez a cada "up": baixa o modelo principal e o reserva, se ainda
     # não estiverem no volume ollama_models (downloads seguintes são rápidos).
     image: ollama/ollama:0.35.1
-    container_name: video_summarizer_ollama_models
+    container_name: sintese_ollama_models
     depends_on:
       ollama: { condition: service_healthy }
     environment:
@@ -168,7 +168,7 @@ services:
 
   backend:
     <<: *app
-    container_name: video_summarizer_backend
+    container_name: sintese_backend
     ports:
       # Só na própria máquina (documentação da API e depuração). O acesso
       # externo passa pelo Nginx do frontend, que define o X-Real-IP usado
@@ -199,7 +199,7 @@ services:
 
   worker-heavy:
     <<: *app
-    container_name: video_summarizer_worker_heavy
+    container_name: sintese_worker_heavy
     entrypoint: /app/docker/worker-entrypoint.sh
     # GPU, uma tarefa por vez: transcrição, extração de texto e análise.
     command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=1 -Q transcription_fast_lane,transcription_queue,text_analysis_queue
@@ -224,7 +224,7 @@ services:
 
   worker-light:
     <<: *app
-    container_name: video_summarizer_worker_light
+    container_name: sintese_worker_light
     entrypoint: /app/docker/worker-entrypoint.sh
     # Tarefas curtas; --beat agenda as verificações periódicas (uma instância só).
     command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=4 -Q celery --beat --schedule /tmp/celerybeat-schedule
@@ -249,7 +249,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: video_summarizer_frontend
+    image: sintese-frontend:latest
+    container_name: sintese_frontend
     ports: ["3000:80"]
     depends_on: [backend]
     networks:
@@ -262,7 +263,7 @@ services:
     # vem do painel da Cloudflare (Zero Trust > Networks > Tunnels), com o
     # hostname público apontando para http://frontend:80.
     image: cloudflare/cloudflared:2026.9.3
-    container_name: video_summarizer_cloudflared
+    container_name: sintese_cloudflared
     command: tunnel --no-autoupdate run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
@@ -272,17 +273,25 @@ services:
     restart: unless-stopped
     profiles: ["internet"]
 
+# Nomes fixos, do tempo em que o projeto se chamava video-summarizer: sem eles,
+# o nome viria da pasta, e renomeá-la apontaria para volumes novos e vazios.
 volumes:
   postgres_data:
+    name: video-summarizer_postgres_data
   redis_data:
+    name: video-summarizer_redis_data
   minio_data:
+    name: video-summarizer_minio_data
   media_data:
+    name: video-summarizer_media_data
   ai_models_cache:
+    name: video-summarizer_ai_models_cache
   ollama_models:
+    name: video-summarizer_ollama_models
 
 networks:
   public-net:
-    name: video_summarizer_public
+    name: sintese_public
   backend-net:
-    name: video_summarizer_backend
+    name: sintese_backend
     internal: true

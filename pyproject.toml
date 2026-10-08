@@ -1,7 +1,7 @@
 # Dependências: requirements.txt (execução) e requirements-dev.txt (testes).
 # Antes, uma lista do Poetry repetia as dependências com versões diferentes.
 [project]
-name = "video-summarizer"
+name = "sintese"
 version = "2.0.0"
 description = "Plataforma de transcrição, resumo e busca semântica de aulas gravadas"
 readme = "README.md"

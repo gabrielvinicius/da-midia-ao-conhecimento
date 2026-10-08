@@ -91,7 +91,7 @@ class DirectLinkFetcherAdapter:
         return await asyncio.to_thread(self._fetch, url, target_dir)
 
     def _fetch(self, url: str, target_dir: str) -> FetchedMedia:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; VideoSummarizer/2.0)"}
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; Sintese/2.0)"}
         with httpx.Client(transport=self._transport, timeout=self._timeout, headers=headers) as client:
             for _ in range(MAX_REDIRECTS + 1):
                 self._check_public(url)
