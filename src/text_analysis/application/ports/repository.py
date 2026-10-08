@@ -32,6 +32,11 @@ class AnalysisRepositoryPort(ABC):
         """Grava o resumo corrigido pelo usuário, guardando o original. False se não existir."""
         ...
 
+    @abstractmethod
+    async def summaries_by_media(self, media_ids: set[str]) -> dict[str, str]:
+        """Só o texto do resumo de cada mídia (sem carregar a análise inteira)."""
+        ...
+
 
 class FeedbackRepositoryPort(Protocol):
     """Avaliações dos usuários sobre os resultados da análise."""

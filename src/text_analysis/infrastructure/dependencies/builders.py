@@ -129,6 +129,7 @@ def build_knowledge_service(session) -> KnowledgeBaseService:
         vector_repo=VectorRepository(session),
         embedding_service=get_embedding_adapter(build_analysis_config()),
         reranker=get_reranker_adapter(settings.search_reranker_model),
+        analyses=SqlAlchemyAnalysisRepository(session),
     )
 
 
