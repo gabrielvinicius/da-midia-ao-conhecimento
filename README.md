@@ -1,4 +1,4 @@
-# 🎥 Video Summarizer - Frontend
+# Síntese - Frontend
 
 Projeto frontend moderno para a aplicação de sumarização de vídeos.
 

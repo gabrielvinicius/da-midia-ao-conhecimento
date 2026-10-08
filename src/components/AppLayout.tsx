@@ -45,7 +45,7 @@ const AppLayout = () => {
             </button>
             {!isSidebarCollapsed && (
               <Link to="/" className="ml-3 flex items-center gap-2 font-semibold">
-                <span>Video Summarizer</span>
+                <span>Síntese</span>
               </Link>
             )}
           </div>
