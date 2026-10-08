@@ -2,14 +2,19 @@ import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { apiErrorMessage } from "@/lib/errors";
-import { uploadMedia } from "../api";
+import type { Media } from "@/types";
+import { importMediaFromUrl, uploadMedia } from "../api";
 import { fileProblem, uploadKind, type UploadKind } from "../uploadFile";
 
 export type UploadStatus = "invalid" | "waiting" | "sending" | "sent" | "failed";
 
 export type UploadItem = {
   id: string;
-  file: File;
+  /** Arquivo do computador, ou ``url`` de um vídeo do YouTube. */
+  file?: File;
+  url?: string;
+  /** Nome mostrado: o do arquivo, o link e, depois da importação, o título do vídeo. */
+  name: string;
   kind: UploadKind | null;
   status: UploadStatus;
   progress: number;
@@ -22,10 +27,16 @@ export type UploadOptions = { storageProvider: string; transcriptionProvider?: s
 
 let counter = 0;
 
+const YOUTUBE_LINK = /^https?:\/\/(www\.|m\.|music\.)?(youtube\.com|youtu\.be)\//i;
+
+/** Mensagem de erro de um link, ou null se ele parece de um vídeo do YouTube. */
+export const linkProblem = (url: string): string | null =>
+  YOUTUBE_LINK.test(url.trim()) ? null : "Cole o link de um vídeo do YouTube (youtube.com ou youtu.be).";
+
 /**
- * Fila de envio: vários arquivos de uma vez, enviados um por um (o
- * processamento também é um por vez), com o progresso de cada um. Arquivos
- * recusados ficam na lista com o motivo, sem bloquear os demais.
+ * Fila de envio: vários arquivos (e links do YouTube) de uma vez, enviados um
+ * por um (o processamento também é um por vez), com o progresso de cada um.
+ * Itens recusados ficam na lista com o motivo, sem bloquear os demais.
  */
 export const useUploadQueue = () => {
   const queryClient = useQueryClient();
@@ -55,6 +66,7 @@ export const useUploadQueue = () => {
           return {
             id: `up-${++counter}`,
             file,
+            name: file.name,
             kind: uploadKind(file),
             status: problem ? "invalid" : "waiting",
             progress: 0,
@@ -65,11 +77,36 @@ export const useUploadQueue = () => {
     [update],
   );
 
+  const addLink = useCallback(
+    (url: string) =>
+      update((list) => [
+        ...list,
+        { id: `up-${++counter}`, url: url.trim(), name: url.trim(), kind: "video", status: "waiting", progress: 0 },
+      ]),
+    [update],
+  );
+
   const remove = useCallback((id: string) => update((list) => list.filter((i) => i.id !== id)), [update]);
 
   const clearFinished = useCallback(
     () => update((list) => list.filter((i) => i.status === "waiting" || i.status === "sending")),
     [update],
+  );
+
+  const send = useCallback(
+    (item: UploadItem, options: UploadOptions): Promise<Media> =>
+      item.url
+        ? importMediaFromUrl(item.url, options.storageProvider, options.transcriptionProvider)
+        : uploadMedia(
+            {
+              file: item.file!,
+              storageProvider: options.storageProvider,
+              // A escolha do transcritor só vale para o que tem fala.
+              transcriptionProvider: item.kind === "text" ? undefined : options.transcriptionProvider,
+            },
+            { onProgress: (percent) => patch(item.id, { progress: percent }) },
+          ),
+    [patch],
   );
 
   const start = useCallback(
@@ -82,30 +119,27 @@ export const useUploadQueue = () => {
           if (!next) break;
           patch(next.id, { status: "sending", progress: 0, message: undefined });
           try {
-            const media = await uploadMedia(
-              {
-                file: next.file,
-                storageProvider: options.storageProvider,
-                // A escolha do transcritor só vale para o que tem fala.
-                transcriptionProvider: next.kind === "text" ? undefined : options.transcriptionProvider,
-              },
-              { onProgress: (percent) => patch(next.id, { progress: percent }) },
-            );
-            patch(next.id, { status: "sent", progress: 100, mediaId: media.id });
+            const media = await send(next, options);
+            patch(next.id, {
+              status: "sent",
+              progress: 100,
+              mediaId: media.id,
+              name: next.url ? media.filename || next.name : next.name,
+            });
             queryClient.invalidateQueries({ queryKey: ["media"] });
             queryClient.invalidateQueries({ queryKey: ["media-list"] });
           } catch (error) {
-            patch(next.id, { status: "failed", message: apiErrorMessage(error, "Não foi possível enviar o arquivo.") });
+            patch(next.id, { status: "failed", message: apiErrorMessage(error, "Não foi possível enviar.") });
           }
         }
       } finally {
         setRunning(false);
       }
     },
-    [patch, queryClient, running],
+    [patch, queryClient, running, send],
   );
 
   const retry = useCallback((id: string) => patch(id, { status: "waiting", progress: 0, message: undefined }), [patch]);
 
-  return { items, running, add, remove, retry, clearFinished, start };
+  return { items, running, add, addLink, remove, retry, clearFinished, start };
 };

@@ -7,8 +7,12 @@ import { renderWithQuery } from '@/test/fixtures';
 import { UploadForm } from '../UploadForm';
 
 const uploadMedia = vi.fn();
+const importMediaFromUrl = vi.fn();
+let urlImportEnabled = true;
 vi.mock('../../api', () => ({
   uploadMedia: (...args: unknown[]) => uploadMedia(...args),
+  importMediaFromUrl: (...args: unknown[]) => importMediaFromUrl(...args),
+  getUrlImportOptions: () => Promise.resolve({ enabled: urlImportEnabled, max_minutes: 240 }),
   getProviders: () =>
     Promise.resolve({
       stages: {
@@ -36,9 +40,9 @@ describe('UploadForm', () => {
 
     expect(screen.getByText('aula.mp4')).toBeInTheDocument();
     expect(screen.getByText(/Documento · 10 Bytes/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Enviar 2 arquivos' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar 2 mídias' }));
 
-    await waitFor(() => expect(screen.getByText(/2 arquivos enviados/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/2 mídias enviadas/)).toBeInTheDocument());
     expect(uploadMedia).toHaveBeenCalledTimes(2);
     expect(uploadMedia.mock.calls[0][0]).toMatchObject({ storageProvider: 'local', transcriptionProvider: undefined });
     expect(uploadMedia.mock.calls[1][0].file.name).toBe('notas.pdf');
@@ -53,7 +57,7 @@ describe('UploadForm', () => {
       dataTransfer: { files: [pick('podcast.mp3')] },
     });
     expect(screen.getByText('podcast.mp3')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Enviar arquivo' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Enviar' })).toBeEnabled();
   });
 
   it('recusa um tipo não aceito sem bloquear os demais', async () => {
@@ -63,7 +67,7 @@ describe('UploadForm', () => {
     });
 
     expect(screen.getByText(/Tipo de arquivo não aceito \(\.xlsx\)/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Enviar arquivo' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }));
     await waitFor(() => expect(uploadMedia).toHaveBeenCalledTimes(1));
     expect(uploadMedia.mock.calls[0][0].file.name).toBe('aula.mp4');
   });
@@ -72,12 +76,12 @@ describe('UploadForm', () => {
     uploadMedia.mockRejectedValueOnce(new Error('rede'));
     renderForm();
     await userEvent.upload(screen.getByLabelText('Escolher arquivos'), pick('aula.mp4'));
-    await userEvent.click(screen.getByRole('button', { name: 'Enviar arquivo' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }));
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Tentar enviar aula.mp4 de novo' })).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Tentar enviar aula.mp4 de novo' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Enviar arquivo' }));
-    await waitFor(() => expect(screen.getByText(/Arquivo enviado/)).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+    await waitFor(() => expect(screen.getByText(/Mídia enviada/)).toBeInTheDocument());
   });
 
   it('só mostra a escolha do transcritor quando há fala', async () => {
@@ -86,5 +90,31 @@ describe('UploadForm', () => {
     expect(screen.queryByLabelText(/Modelo de transcrição/)).not.toBeInTheDocument();
     await userEvent.upload(screen.getByLabelText('Escolher arquivos'), pick('aula.mp4'));
     expect(screen.getByLabelText(/Modelo de transcrição/)).toBeInTheDocument();
+  });
+
+  it('importa um link do YouTube pela mesma fila e mostra o título do vídeo', async () => {
+    urlImportEnabled = true;
+    importMediaFromUrl.mockResolvedValue({ id: 'yt1', filename: 'Me at the zoo.mp4' });
+    renderForm();
+
+    const field = await screen.findByLabelText('Ou importe um vídeo do YouTube');
+    await userEvent.type(field, 'https://vimeo.com/123{enter}');
+    expect(screen.getByText(/Cole o link de um vídeo do YouTube/)).toBeInTheDocument();
+
+    await userEvent.clear(field);
+    await userEvent.type(field, 'https://youtu.be/jNQXAC9IVRw{enter}');
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    await waitFor(() => expect(screen.getByText('Me at the zoo.mp4')).toBeInTheDocument());
+    expect(importMediaFromUrl).toHaveBeenCalledWith('https://youtu.be/jNQXAC9IVRw', 'local', undefined);
+    expect(screen.getByRole('link', { name: 'Abrir' })).toHaveAttribute('href', '/media/yt1');
+  });
+
+  it('esconde o campo do link quando o servidor não permite', async () => {
+    urlImportEnabled = false;
+    renderForm();
+    await waitFor(() => expect(screen.getByText(/Arraste os arquivos/)).toBeInTheDocument());
+    expect(screen.queryByLabelText('Ou importe um vídeo do YouTube')).not.toBeInTheDocument();
+    urlImportEnabled = true;
   });
 });

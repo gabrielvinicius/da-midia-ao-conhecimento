@@ -5,6 +5,7 @@ import {
   AlertCircle,
   CheckCircle2,
   FileText,
+  Link2,
   Loader2,
   Music,
   RotateCcw,
@@ -17,8 +18,8 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
 import { cn } from "@/lib/utils";
-import { getProviders, ProvidersResponse } from "../api";
-import { useUploadQueue, type UploadItem } from "../hooks/useUploadQueue";
+import { getProviders, getUrlImportOptions, ProvidersResponse } from "../api";
+import { linkProblem, useUploadQueue, type UploadItem } from "../hooks/useUploadQueue";
 import { ACCEPTED_EXTENSIONS, MAX_FILE_SIZE_MB, formatFileSize, type UploadKind } from "../uploadFile";
 import { ProviderSelect } from "./ProviderSelect";
 
@@ -45,6 +46,15 @@ export const UploadForm = () => {
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
+  // A importação por link pode estar desligada no servidor: sem ela, o campo some.
+  const urlImport = useQuery({
+    queryKey: ["url-import-options"],
+    queryFn: getUrlImportOptions,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const [link, setLink] = React.useState("");
+  const [linkError, setLinkError] = React.useState<string | null>(null);
   const stages = providers.isError ? undefined : providers.data?.stages;
   const storageOptions = React.useMemo(() => stages?.storage ?? [], [stages]);
   const transcriptionOptions = stages?.transcription ?? [];
@@ -65,6 +75,14 @@ export const UploadForm = () => {
     event.preventDefault();
     setDragging(false);
     if (event.dataTransfer.files?.length) queue.add(event.dataTransfer.files);
+  };
+
+  const addLink = () => {
+    const problem = linkProblem(link);
+    setLinkError(problem);
+    if (problem) return;
+    queue.addLink(link);
+    setLink("");
   };
 
   const onSubmit = (event: React.FormEvent) => {
@@ -112,6 +130,47 @@ export const UploadForm = () => {
           }}
         />
       </label>
+
+      {urlImport.data?.enabled && (
+        <div className="space-y-1.5">
+          <Label htmlFor="youtube-link" className="text-sm text-slate-700">
+            Ou importe um vídeo do YouTube
+          </Label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                id="youtube-link"
+                type="url"
+                inputMode="url"
+                placeholder="https://www.youtube.com/watch?v=..."
+                value={link}
+                onChange={(e) => {
+                  setLink(e.target.value);
+                  setLinkError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault(); // não envia o formulário
+                    addLink();
+                  }
+                }}
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <Button type="button" variant="outline" onClick={addLink} disabled={!link.trim()}>
+              Adicionar
+            </Button>
+          </div>
+          {linkError ? (
+            <p className="text-xs text-red-700">{linkError}</p>
+          ) : (
+            <p className="text-xs text-slate-500">
+              O servidor baixa o vídeo (até {urlImport.data.max_minutes} min); só use vídeos que você tem direito de usar.
+            </p>
+          )}
+        </div>
+      )}
 
       {queue.items.length > 0 && (
         <ul className="space-y-2" aria-label="Arquivos para enviar">
@@ -169,7 +228,7 @@ export const UploadForm = () => {
       {finished && sent.length > 0 ? (
         <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900" role="status">
           <p className="font-medium">
-            {sent.length === 1 ? "Arquivo enviado." : `${sent.length} arquivos enviados.`} O processamento segue em segundo plano;
+            {sent.length === 1 ? "Mídia enviada." : `${sent.length} mídias enviadas.`} O processamento segue em segundo plano;
             o sino avisa quando cada análise terminar.
           </p>
           <div className="flex flex-wrap gap-2">
@@ -188,9 +247,9 @@ export const UploadForm = () => {
               <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enviando...
             </>
           ) : waiting > 1 ? (
-            `Enviar ${waiting} arquivos`
+            `Enviar ${waiting} mídias`
           ) : (
-            "Enviar arquivo"
+            "Enviar"
           )}
         </Button>
       )}
@@ -213,20 +272,28 @@ const QueueRow = ({
   return (
     <li className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
       <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", kind?.color ?? "bg-red-50 text-red-600")}>
-        {kind?.icon ?? <AlertCircle className="h-5 w-5" />}
+        {item.url ? <Link2 className="h-5 w-5" /> : kind?.icon ?? <AlertCircle className="h-5 w-5" />}
       </span>
       <div className="min-w-0 flex-1 space-y-1">
-        <p className="truncate text-sm font-medium text-slate-900" title={item.file.name}>
-          {item.file.name}
+        <p className="truncate text-sm font-medium text-slate-900" title={item.name}>
+          {item.name}
         </p>
         <p className="text-xs text-slate-500">
-          {kind ? `${kind.label} · ` : ""}
-          {formatFileSize(item.file.size)}
-          {item.status === "sending" && ` · ${item.progress}%`}
+          {item.url
+            ? item.status === "sending"
+              ? "Baixando do YouTube... pode levar alguns minutos"
+              : item.status === "sent"
+                ? "Vídeo do YouTube"
+                : "Link do YouTube"
+            : `${kind ? `${kind.label} · ` : ""}${formatFileSize(item.file?.size ?? 0)}${item.status === "sending" ? ` · ${item.progress}%` : ""}`}
         </p>
         {item.status === "sending" && (
-          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuenow={item.progress} aria-valuemin={0} aria-valuemax={100} aria-label={`Envio de ${item.file.name}`}>
-            <div className="h-full bg-amber-500 transition-all duration-150" style={{ width: `${item.progress}%` }} />
+          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuenow={item.url ? undefined : item.progress} aria-valuemin={0} aria-valuemax={100} aria-label={`Envio de ${item.name}`}>
+            {item.url ? (
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-amber-500" />
+            ) : (
+              <div className="h-full bg-amber-500 transition-all duration-150" style={{ width: `${item.progress}%` }} />
+            )}
           </div>
         )}
         {item.message && <p className="text-xs text-red-700">{item.message}</p>}
@@ -255,11 +322,11 @@ const RowStatus = ({ item, onRemove, onRetry, busy }: { item: UploadItem; onRemo
   return (
     <div className="flex shrink-0 items-center gap-1">
       {item.status === "failed" && (
-        <Button type="button" variant="ghost" size="icon" onClick={onRetry} disabled={busy} aria-label={`Tentar enviar ${item.file.name} de novo`}>
+        <Button type="button" variant="ghost" size="icon" onClick={onRetry} disabled={busy} aria-label={`Tentar enviar ${item.name} de novo`}>
           <RotateCcw className="h-4 w-4" />
         </Button>
       )}
-      <Button type="button" variant="ghost" size="icon" onClick={onRemove} disabled={busy} aria-label={`Remover ${item.file.name}`}>
+      <Button type="button" variant="ghost" size="icon" onClick={onRemove} disabled={busy} aria-label={`Remover ${item.name}`}>
         <X className="h-4 w-4" />
       </Button>
     </div>
