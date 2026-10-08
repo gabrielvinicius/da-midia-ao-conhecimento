@@ -1,6 +1,3 @@
-[submodule "frontend"]
-	path = frontend
-	url = https://github.com/gabrielvinicius/da-midia-ao-conhecimento-frontend.git
 [submodule "relatorio_tcc"]
 	path = relatorio_tcc
 	url = https://github.com/gabrielvinicius/relatorio_tcc.git
