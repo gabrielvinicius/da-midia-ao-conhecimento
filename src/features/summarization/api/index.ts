@@ -10,6 +10,10 @@ export interface SemanticSearchResult {
   relevance: number;
   start?: number | null;
   end?: number | null;
+  /** Título do resumo da mídia (o assunto), quando ela já foi analisada. */
+  title?: string | null;
+  /** Proximidade dada pelo reranqueador; null quando a busca usou só os vetores. */
+  match?: "strong" | "related" | "weak" | null;
 }
 
 /** Análise da mídia, ou null enquanto ela ainda não existe (404). */

@@ -22,7 +22,7 @@ describe("fileProblem", () => {
   it("recusa ausente, grande demais ou de tipo não aceito", () => {
     expect(fileProblem(undefined)).toMatch(/obrigatório/);
     expect(fileProblem({ name: "aula.mp4", size: MAX_FILE_SIZE + 1 })).toMatch(/500 MB/);
-    expect(fileProblem({ name: "planilha.xlsx", size: 10 })).toMatch(/Tipos aceitos/);
+    expect(fileProblem({ name: "planilha.xlsx", size: 10 })).toMatch(/Tipo de arquivo não aceito \(\.xlsx\)/);
   });
 });
 

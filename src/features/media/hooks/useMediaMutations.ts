@@ -1,36 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import { apiErrorMessage } from '@/lib/errors';
 import { removeFromCachedPages, restoreCachedPages } from '@/lib/optimistic';
-import { deleteMedia, reprocessMedia, uploadMedia, UploadMediaRequest } from '../api';
+import { deleteMedia, reprocessMedia } from '../api';
 
-export const useUploadMediaMutation = () => {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [progress, setProgress] = useState(0);
-
-  const mutation = useMutation({
-    mutationFn: (request: UploadMediaRequest) =>
-      uploadMedia(request, { onProgress: (percent) => setProgress(percent) }),
-    onMutate: () => setProgress(0),
-    onSuccess: (data) => {
-      toast.success(`Arquivo "${data.filename || 'arquivo'}" enviado. Você será avisado quando o processamento terminar.`);
-      setProgress(100);
-      queryClient.invalidateQueries({ queryKey: ['media'] });
-      queryClient.invalidateQueries({ queryKey: ['media-list'] });
-      navigate('/dashboard');
-    },
-    onError: (error) => {
-      setProgress(0);
-      toast.error(apiErrorMessage(error, 'Erro ao fazer upload do arquivo'));
-    },
-  });
-
-  return { ...mutation, progress };
-};
+// O envio fica em useUploadQueue (vários arquivos, um por vez).
 
 export const useReprocessMediaMutation = () => {
   const queryClient = useQueryClient();

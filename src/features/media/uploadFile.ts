@@ -26,7 +26,10 @@ export function uploadKind(file: Pick<File, "name">): UploadKind | null {
 export function fileProblem(file: Pick<File, "name" | "size"> | undefined): string | null {
   if (!file) return "Arquivo é obrigatório.";
   if (file.size > MAX_FILE_SIZE) return `Tamanho máximo do arquivo é ${MAX_FILE_SIZE_MB} MB.`;
-  if (!uploadKind(file)) return `Tipos aceitos: ${ACCEPTED_EXTENSIONS.join(", ")}`;
+  if (!uploadKind(file)) {
+    const ext = /\.[^.]+$/.exec(file.name)?.[0] ?? "";
+    return `Tipo de arquivo não aceito${ext ? ` (${ext})` : ""}. Envie vídeo, áudio, PDF, DOCX, TXT ou imagem.`;
+  }
   return null;
 }
 
