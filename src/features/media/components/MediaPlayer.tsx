@@ -31,7 +31,8 @@ export const MediaPlayer = ({ src, mediaType, onTimeUpdate, playerRef, startAt }
         ref={playerRef as React.RefObject<HTMLVideoElement>}
         src={src}
         controls
-        className="w-full rounded-lg bg-black"
+        preload="metadata"
+        className="aspect-video w-full bg-black"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
       />
@@ -44,7 +45,8 @@ export const MediaPlayer = ({ src, mediaType, onTimeUpdate, playerRef, startAt }
         ref={playerRef as React.RefObject<HTMLAudioElement>}
         src={src}
         controls
-        className="w-full"
+        preload="metadata"
+        className="w-full p-3"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
       />

@@ -9,6 +9,7 @@ import { ptBR } from "date-fns/locale";
 import { useDeleteMediaMutation, useReprocessMediaMutation } from "../hooks/useMediaMutations";
 import { useQueryClient } from "@tanstack/react-query";
 import { getMedia } from "../api";
+import { friendlyError } from "../lib/friendlyError";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -78,7 +79,9 @@ export const MediaCard = ({ media }: MediaCardProps) => {
               {typeIcon}
             </div>
             <div className="min-w-0 flex-1">
-              <CardTitle className="text-base truncate" title={filename}>
+              {/* Duas linhas: nomes longos de vídeo ("a-história-não-contada-...")
+                  ficavam iguais quando cortados numa linha só. */}
+              <CardTitle className="text-base leading-snug line-clamp-2 [overflow-wrap:anywhere]" title={filename}>
                 {filename}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -135,7 +138,7 @@ export const MediaCard = ({ media }: MediaCardProps) => {
       </CardHeader>
       
       <CardContent className="pt-0">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <MediaStatusBadge status={media.status} />
           
           {/* Só mídias que falharam podem ser reprocessadas (regra da API).
@@ -154,8 +157,9 @@ export const MediaCard = ({ media }: MediaCardProps) => {
         </div>
 
         {media.status === MediaStatus.FAILED && media.error_message && (
+          // Motivo em linguagem simples; o texto técnico fica na dica e na página da mídia.
           <p className="text-xs text-red-700 line-clamp-2" title={media.error_message}>
-            {media.error_message}
+            {friendlyError(media.error_message)}
           </p>
         )}
 

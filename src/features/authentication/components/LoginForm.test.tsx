@@ -6,12 +6,16 @@ import { render } from '../../../test/test-utils'; // Use our custom render
 
 // Mock the custom hook that handles the mutation
 const mockLogin = vi.fn();
+let loginError: unknown = null;
 vi.mock('../hooks/useAuthMutations', () => ({
   useLogin: () => ({
     mutate: mockLogin,
     isPending: false,
+    error: loginError,
   }),
 }));
+const mockResend = vi.fn().mockResolvedValue(undefined);
+vi.mock('../api', () => ({ resendVerification: (...a: unknown[]) => mockResend(...a) }));
 
 describe('LoginForm Component', () => {
   it('should allow a user to fill out and submit the form', async () => {
@@ -53,5 +57,17 @@ describe('LoginForm Component', () => {
     // Assert: Check for validation messages
     expect(await screen.findByText(/email inválido/i)).toBeInTheDocument();
     expect(await screen.findByText(/senha é obrigatória/i)).toBeInTheDocument();
+  });
+  it('offers to resend the confirmation link when the e-mail is not confirmed', async () => {
+    const user = userEvent.setup();
+    loginError = { isAxiosError: true, response: { status: 403, data: { detail: 'Confirme seu e-mail antes de entrar.' } } };
+    render(<LoginForm />);
+    await user.type(screen.getByLabelText(/email/i), 'ana@exemplo.com');
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Confirme seu e-mail antes de entrar.');
+    await user.click(screen.getByRole('button', { name: /Reenviar o link/ }));
+    expect(mockResend).toHaveBeenCalledWith('ana@exemplo.com');
+    expect(screen.getByText(/Link reenviado/)).toBeInTheDocument();
+    loginError = null;
   });
 });

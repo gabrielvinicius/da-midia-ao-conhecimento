@@ -1,248 +1,287 @@
-import { useState, useRef } from "react";
-import { UserRole } from "@/types";
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useSearchParams } from "react-router-dom";
-import { useMediaByIdQuery } from "@/features/media/hooks/useMediaQueries";
-import { useTextAnalysisByMediaIdQuery } from "@/features/summarization/hooks/useAnalysisQuery";
-import { useReprocessMediaMutation } from "@/features/media/hooks/useMediaMutations";
-import { InteractiveTranscriptionPanel } from "@/features/transcription/components/InteractiveTranscriptionPanel";
-import { TopicModelingResultPanel } from "@/features/topic_modeling/components/TopicModelingResultPanel";
-import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Card, CardContent } from "@/components/ui/Card";
-import { MagicSurface } from "@/components/ui/MagicSurface";
-import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { MediaStatus, MediaType, isInProgress } from "@/types";
-import { MediaPlayer } from "@/features/media/components/MediaPlayer";
-import { useTranscription } from "@/features/transcription/hooks/useTranscription";
-import { TranscriptionPanel } from "@/features/transcription/components/TranscriptionPanel";
-import { buildApiUrl } from "@/lib/api";
-import { SummaryPanel } from "@/features/summarization/components/SummaryPanel";
-import { useQuery } from "@tanstack/react-query";
-import { requestScopedToken } from "@/features/authentication/api/scopedToken";
+import { CalendarDays, Clock, FileText, Loader2, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
+
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Markdown } from "@/components/ui/Markdown";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { Tabs, type TabItem } from "@/components/ui/Tabs";
 import { PredictiveInsight } from "@/components/PredictiveInsight";
 import { ProcessingTrace } from "@/components/ProcessingTrace";
-import { getStatusToken } from "@/features/media/lib/status-helpers";
-import { mediaPipelineSteps } from "@/features/media/lib/pipelineSteps";
-import { MediaSystemCard } from "@/features/media/components/MediaSystemCard";
-import { TextPreview } from "@/features/media/components/TextPreview";
-
+import { useAuth } from "@/contexts/AuthContext";
+import { requestScopedToken } from "@/features/authentication/api/scopedToken";
+import { ExportMenu } from "@/features/media/components/ExportMenu";
+import { MediaPlayer } from "@/features/media/components/MediaPlayer";
+import { ScreenPanel } from "@/features/media/components/ScreenPanel";
+import { useReprocessMediaMutation } from "@/features/media/hooks/useMediaMutations";
+import { useMediaByIdQuery } from "@/features/media/hooks/useMediaQueries";
 import {
-  CalendarDays,
-  Loader2,
-  Info,
-  RefreshCw,
-} from "lucide-react";
+  chaptersOf,
+  questionsOf,
+  screenMomentsOf,
+  summaryTitle,
+  topicsInOrder,
+} from "@/features/media/lib/analysisContent";
+import { studyGuideMarkdown } from "@/features/media/lib/exporters";
+import { friendlyError } from "@/features/media/lib/friendlyError";
+import { getStatusToken } from "@/features/media/lib/status-helpers";
+import { SentimentResultPanel } from "@/features/sentiment_analysis/components/SentimentResultPanel";
+import { ChapterNav } from "@/features/summarization/components/ChapterNav";
+import type { GroundingReport } from "@/features/summarization/components/GroundingNotice";
+import { StudyAids } from "@/features/summarization/components/StudyAids";
+import { SummaryPanel, genreLabel } from "@/features/summarization/components/SummaryPanel";
+import { useTextAnalysisByMediaIdQuery } from "@/features/summarization/hooks/useAnalysisQuery";
+import { TopicModelingResultPanel } from "@/features/topic_modeling/components/TopicModelingResultPanel";
+import { InteractiveTranscriptionPanel } from "@/features/transcription/components/InteractiveTranscriptionPanel";
+import { useTranscription } from "@/features/transcription/hooks/useTranscription";
+import { buildApiUrl } from "@/lib/api";
+import { formatClock } from "@/lib/time";
+import { MediaStatus, MediaType, UserRole, isInProgress } from "@/types";
 
+const MEDIA_TYPE_LABELS: Record<string, string> = { video: "Vídeo", audio: "Áudio", text: "Documento", image: "Imagem" };
+
+/**
+ * Página de uma mídia: o reprodutor e os capítulos ficam à esquerda (fixos ao
+ * rolar), e o que a análise extraiu fica em abas à direita (resumo, estudo,
+ * transcrição, temas e o que aparecia na tela). Antes, tudo ficava empilhado
+ * numa página de ~12 telas, com os capítulos no fim.
+ */
 const MediaDetailPage = () => {
-  const { id } = useParams<{ id: string }>();
-  // ?t=SEGUNDOS: a busca abre a mídia no momento do trecho encontrado.
-  const [searchParams] = useSearchParams();
+  const { id = "" } = useParams<{ id: string }>();
+  // ?t=SEGUNDOS: a busca abre a mídia no momento do trecho; ?aba=: a aba aberta.
+  const [searchParams, setSearchParams] = useSearchParams();
   const startAt = Number(searchParams.get("t")) || undefined;
   const { user } = useAuth();
   const playerRef = useRef<HTMLMediaElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
-  const {
-    data: transcriptionData,
-    isLoading: isTranscriptionLoading,
-    isError: isTranscriptionError,
-  } = useTranscription(id ?? "");
 
-  // Hooks sempre na mesma ordem: o retorno antecipado vem depois deles.
-  const { data: media, isLoading, isError } = useMediaByIdQuery(id ?? "");
-  const reprocessMutation = useReprocessMediaMutation();
-  const { data: textAnalysis } = useTextAnalysisByMediaIdQuery(id ?? "");
-  const isPlayableMedia = media?.media_type === MediaType.AUDIO || media?.media_type === MediaType.VIDEO;
-  // Token só desta mídia, válido por horas: a URL do vídeo não muda no meio
-  // da reprodução (antes, o token de acesso na URL expirava em 30 min).
+  const { data: media, isLoading, isError } = useMediaByIdQuery(id);
+  const transcriptionQuery = useTranscription(id);
+  const analysisQuery = useTextAnalysisByMediaIdQuery(id);
+  const reprocess = useReprocessMediaMutation();
+  const isPlayable = media?.media_type === MediaType.AUDIO || media?.media_type === MediaType.VIDEO;
+  // Token só desta mídia, válido por horas: a URL do vídeo não muda no meio da reprodução.
   const { data: streamToken } = useQuery({
     queryKey: ["stream-token", id],
     queryFn: () => requestScopedToken("media_stream", id),
-    enabled: Boolean(id && isPlayableMedia),
+    enabled: Boolean(id && isPlayable),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
 
-  if (!id) {
-    return <p className="text-destructive">Nenhum ID de mídia informado.</p>;
-  }
+  if (!id) return <p className="text-destructive">Nenhuma mídia informada.</p>;
+  if (isLoading) return <PageSkeleton />;
+  if (isError || !media) return <p className="text-destructive">Não foi possível carregar a mídia.</p>;
 
-  const handleReprocess = () => {
-    if (media) {
-      reprocessMutation.mutate(media.id);
-    }
-  };
+  const analysis = analysisQuery.data;
+  const transcription = transcriptionQuery.data;
+  const canEdit = user?.role === UserRole.ADMIN || media.user_id === user?.id;
+  const chapters = chaptersOf(analysis);
+  const questions = questionsOf(analysis);
+  const topics = topicsInOrder(analysis);
+  const screen = screenMomentsOf(analysis);
+  const duration =
+    transcription?.duration ?? media.duration ?? transcription?.segments?.[transcription.segments.length - 1]?.end ?? null;
+  const title = summaryTitle(analysis?.summary) ?? media.filename ?? media.id;
+  const status = getStatusToken(media.status);
+  const genre = genreLabel(analysis?.diagnostics?.genre);
+  const grounding = analysis?.diagnostics?.grounding as GroundingReport | undefined;
+  const exportInput = { media, analysis, transcription };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-3/4" />
-        <Skeleton className="h-4 w-1/2" />
-        <div className="mt-6 grid gap-8 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-8">
-            <Skeleton className="h-96 w-full" />
-          </div>
-          <div className="lg:col-span-1 space-y-8">
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-48 w-full" />
-          </div>
-        </div>
-      </div>
+  const seek = isPlayable
+    ? (time: number) => {
+        const player = playerRef.current;
+        if (!player) return;
+        player.currentTime = time;
+        void player.play().catch(() => undefined);
+      }
+    : undefined;
+
+  const tabs: TabItem[] = [
+    { id: "resumo", label: "Resumo" },
+    { id: "estudo", label: "Estudo", count: questions.length || undefined },
+    { id: "transcricao", label: isPlayable ? "Transcrição" : "Texto extraído" },
+    { id: "temas", label: "Temas e tom", count: topics.length || undefined },
+    ...(screen.length ? [{ id: "tela", label: "Na tela", count: screen.length }] : []),
+  ];
+  const requested = searchParams.get("aba");
+  const activeTab = tabs.some((t) => t.id === requested) ? requested! : "resumo";
+  const changeTab = (tab: string) =>
+    setSearchParams(
+      (params) => {
+        params.set("aba", tab);
+        return params;
+      },
+      { replace: true },
     );
-  }
 
-  if (isError || !media) {
-    return <p className="text-destructive">Não foi possível carregar os detalhes da mídia.</p>;
-  }
-
-  const isPlayable = media.media_type === MediaType.AUDIO || media.media_type === MediaType.VIDEO;
-  const isTextMedia = media.media_type === MediaType.TEXT;
   const streamUrl = streamToken
-    ? buildApiUrl(`/media/${media.id}/stream?token=${encodeURIComponent(streamToken)}`)
+    ? buildApiUrl(`/media/${media.id}/stream?token=${encodeURIComponent(streamToken)}`) + (startAt ? "" : "#t=0.5")
     : "";
+  const hasSideColumn = isPlayable || chapters.length > 0;
 
-  const handleSeek = (time: number) => {
-    if (playerRef.current) {
-      playerRef.current.currentTime = time;
-      playerRef.current.play();
-    }
-  };
-
-  const formattedDate = format(new Date(media.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR });
-  const displayName = media.filename || media.id;
-  const rawFileSize = media.size ?? null;
-  const fileSizeMb = rawFileSize ? rawFileSize / (1024 * 1024) : undefined;
-  const formattedFileSize = fileSizeMb ? `${fileSizeMb.toFixed(2)} MB` : "Indisponível";
-  const derivedLanguage = media.language || transcriptionData?.language;
-  const languageLabel = derivedLanguage ? derivedLanguage.toUpperCase() : "Indefinido";
-  
   return (
-    <div className="space-y-6 h-full flex flex-col pb-12">
-      {/* Header Section */}
-      <MagicSurface title="Detalhes da mídia" description="Análise completa do conhecimento extraído.">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-semibold leading-tight text-slate-900 break-words">{displayName}</h1>
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <CalendarDays className="h-3.5 w-3.5" /> {formattedDate}
-              </span>
-              <Badge variant="secondary" className="bg-white text-slate-900 capitalize">
-                {media.media_type}
-              </Badge>
-              <Badge className={getStatusToken(media.status).badge}>{getStatusToken(media.status).label}</Badge>
-              
-              <ProcessingTrace media={media} analysis={textAnalysis} transcriptionStatus={transcriptionData?.status} />
-            </div>
+    <div className="mx-auto w-full min-w-0 max-w-[1400px] space-y-6 pb-16">
+      <header className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 space-y-2">
+            <h1 className="text-2xl font-semibold leading-tight tracking-tight text-slate-950 sm:text-3xl">{title}</h1>
+            {title !== media.filename && media.filename && (
+              <p className="flex min-w-0 items-center gap-1.5 text-sm text-slate-500" title={media.filename}>
+                <FileText className="h-3.5 w-3.5 shrink-0" />
+                <span className="min-w-0 truncate">{media.filename}</span>
+              </p>
+            )}
           </div>
-          <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground">
-            <div className="flex items-center gap-3">
-               {(user?.role === UserRole.ADMIN || media.user_id === user?.id) && media.status === MediaStatus.FAILED && (
-                <Button
-                  onClick={handleReprocess}
-                  disabled={reprocessMutation.isPending}
-                  variant="outline"
-                  size="sm"
-                >
-                  {reprocessMutation.isPending ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Reprocessando...
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <RefreshCw className="h-4 w-4" />
-                      Reprocessar
-                    </span>
-                  )}
-                </Button>
-              )}
-            </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {canEdit && media.status === MediaStatus.FAILED && (
+              <Button onClick={() => reprocess.mutate(media.id)} disabled={reprocess.isPending} variant="outline" size="sm" className="gap-2">
+                {reprocess.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {reprocess.isPending ? "Reprocessando..." : "Reprocessar"}
+              </Button>
+            )}
+            <ExportMenu input={exportInput} onPrint={() => window.print()} />
           </div>
         </div>
-        {media.status === MediaStatus.FAILED && media.error_message && (
-          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            <p className="font-semibold">Falha no processamento</p>
-            <p>{media.error_message}</p>
+
+        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+          <Badge className={status.badge}>{status.label}</Badge>
+          {genre && <Badge variant="outline" title="Tipo de conteúdo identificado; orienta o que o resumo destaca.">{genre}</Badge>}
+          <Badge variant="outline">{MEDIA_TYPE_LABELS[media.media_type] ?? media.media_type}</Badge>
+          {duration ? (
+            <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {formatClock(duration)}</span>
+          ) : null}
+          <span className="inline-flex items-center gap-1">
+            <CalendarDays className="h-3.5 w-3.5" /> {format(new Date(media.created_at), "dd 'de' MMM 'de' yyyy", { locale: ptBR })}
+          </span>
+          {grounding?.checked ? <FidelityChip report={grounding} onClick={() => changeTab("resumo")} /> : null}
+          <ProcessingTrace media={media} analysis={analysis} transcriptionStatus={transcription?.status} />
+        </div>
+
+        {media.status === MediaStatus.FAILED && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+            <p className="font-medium">{friendlyError(media.error_message)}</p>
+            <p className="mt-1">{canEdit ? "Você pode tentar de novo com o botão Reprocessar." : "Peça ao dono da mídia para reprocessá-la."}</p>
+            {media.error_message && (
+              <details className="mt-2 text-xs text-red-700/80">
+                <summary className="cursor-pointer">Detalhes técnicos</summary>
+                <p className="mt-1 break-words font-mono">{media.error_message}</p>
+              </details>
+            )}
           </div>
         )}
-      </MagicSurface>
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Player & Interpretative Summary */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Media Player Card */}
-          <Card className="border-none bg-black/5 overflow-hidden shadow-sm">
-            <CardContent className="p-0">
-              {isPlayable && !streamUrl ? (
-                <Skeleton className="aspect-video w-full" />
-              ) : isPlayable ? (
-                <MediaPlayer
-                  src={streamUrl}
-                  mediaType={media.media_type as MediaType.AUDIO | MediaType.VIDEO}
-                  playerRef={playerRef}
-                  onTimeUpdate={setCurrentTime}
-                  startAt={startAt}
-                />
-              ) : isTextMedia ? (
-                  <div className="p-6">
-                    <TextPreview
-                      isLoading={isTranscriptionLoading}
-                      isError={isTranscriptionError}
-                      transcription={transcriptionData?.text || ""}
-                      status={transcriptionData?.status}
-                    />
-                  </div>
-              ) : (
-                <div className="p-12 text-center text-muted-foreground">
-                  <Info className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>Prévia indisponível para este tipo de arquivo.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+      <PredictiveInsight mediaId={id} isEnabled={media.status === MediaStatus.UPLOADED || isInProgress(media.status)} />
 
-          {/* MAIN INSIGHT: Interpretative Article */}
-          <SummaryPanel mediaId={id} mediaStatus={media.status} />
-
-          {/* Interactive Transcription */}
-          <div className="min-h-[400px]">
-             {isPlayable && (
-              <InteractiveTranscriptionPanel mediaId={id} currentTime={currentTime} onSeek={handleSeek} />
+      <div className={hasSideColumn ? "grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]" : ""}>
+        {hasSideColumn && (
+          <aside className="space-y-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto">
+            {isPlayable && (
+              <div className="overflow-hidden rounded-2xl bg-black">
+                {streamUrl ? (
+                  <MediaPlayer
+                    src={streamUrl}
+                    mediaType={media.media_type as MediaType.AUDIO | MediaType.VIDEO}
+                    playerRef={playerRef}
+                    onTimeUpdate={setCurrentTime}
+                    startAt={startAt}
+                  />
+                ) : (
+                  <Skeleton className="aspect-video w-full" />
+                )}
+              </div>
             )}
-            {!isPlayable && isTextMedia && <TranscriptionPanel mediaId={id} />}
-          </div>
-        </div>
+            <ChapterNav chapters={chapters} currentTime={currentTime} duration={duration} onSeek={seek} />
+            {analysis && (analysis.sentiment_items?.length ?? 0) > 0 && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <h2 className="mb-2 text-sm font-semibold text-slate-900">Tom ao longo da gravação</h2>
+                <SentimentResultPanel analysis={analysis} onSeek={seek} compact />
+              </div>
+            )}
+          </aside>
+        )}
 
-        {/* Right Column: Index & Technical Meta */}
-        <div className="space-y-6">
-          {/* Predictive Insight */}
-          <PredictiveInsight 
-            mediaId={id} 
-            isEnabled={media.status === MediaStatus.UPLOADED || isInProgress(media.status)} 
-          />
-
-          {/* Topics Index */}
-          <TopicModelingResultPanel mediaId={id} mediaStatus={media.status} />
-
-          {/* Tom predominante (análise de sentimento) */}
-          <SentimentResultPanel mediaId={id} mediaStatus={media.status} />
-
-          <MediaSystemCard
-            filename={displayName}
-            fileSize={formattedFileSize}
-            storage={media.storage_provider ?? "Local"}
-            language={languageLabel}
-            steps={mediaPipelineSteps(media, transcriptionData?.status, textAnalysis)}
-          />
-        </div>
+        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+          <Tabs tabs={tabs} active={activeTab} onChange={changeTab} label="Conteúdo extraído">
+            {activeTab === "resumo" && (
+              <SummaryPanel
+                analysis={analysis}
+                isLoading={analysisQuery.isLoading}
+                isError={analysisQuery.isError}
+                mediaStatus={media.status}
+                onSeek={seek}
+                canEdit={canEdit}
+                hideTitle
+              />
+            )}
+            {activeTab === "estudo" && <StudyAids analysis={analysis} onSeek={seek} canEdit={canEdit} />}
+            {activeTab === "transcricao" && (
+              <InteractiveTranscriptionPanel
+                transcription={transcription}
+                isLoading={transcriptionQuery.isLoading}
+                currentTime={currentTime}
+                onSeek={seek}
+                canEdit={canEdit}
+              />
+            )}
+            {activeTab === "temas" && (
+              <div className="space-y-8">
+                <TopicModelingResultPanel analysis={analysis} onSeek={seek} canEdit={canEdit} />
+                <div>
+                  <h3 className="mb-3 text-base font-semibold text-slate-900">Tom</h3>
+                  <SentimentResultPanel analysis={analysis} onSeek={seek} />
+                </div>
+              </div>
+            )}
+            {activeTab === "tela" && <ScreenPanel analysis={analysis} onSeek={seek} />}
+          </Tabs>
+        </section>
       </div>
+
+      {analysis?.summary &&
+        createPortal(
+          <article className="print-only">
+            <Markdown text={studyGuideMarkdown(exportInput)} />
+          </article>,
+          document.body,
+        )}
     </div>
   );
 };
+
+const FidelityChip = ({ report, onClick }: { report: GroundingReport; onClick: () => void }) => {
+  const issues = report.unsupported.length + (report.gaps?.length ?? 0) + (report.number_issues?.length ?? 0);
+  const Icon = issues ? ShieldAlert : ShieldCheck;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Verificação automática do resumo contra a transcrição"
+      className={
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium " +
+        (issues ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800")
+      }
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {report.supported}/{report.checked} frases conferidas{issues ? ` · ${issues} a revisar` : ""}
+    </button>
+  );
+};
+
+const PageSkeleton = () => (
+  <div className="mx-auto max-w-[1400px] space-y-6">
+    <Skeleton className="h-32 w-full rounded-2xl" />
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      <Skeleton className="aspect-video w-full rounded-2xl" />
+      <Skeleton className="h-96 w-full rounded-2xl" />
+    </div>
+  </div>
+);
 
 export default MediaDetailPage;

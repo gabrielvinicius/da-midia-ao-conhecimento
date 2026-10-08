@@ -84,6 +84,26 @@ export const uploadMedia = async (
   return response.data;
 };
 
+export type UrlImportOptions = { enabled: boolean; max_minutes: number };
+
+/** Se o servidor aceita links do YouTube (pode estar desligado). */
+export const getUrlImportOptions = async (): Promise<UrlImportOptions> =>
+  (await api.get<UrlImportOptions>('/media/import')).data;
+
+/** O servidor baixa o vídeo e o registra como um envio comum. */
+export const importMediaFromUrl = async (
+  url: string,
+  storageProvider: string,
+  transcriptionProvider?: string,
+): Promise<Media> =>
+  (
+    await api.post<Media>(
+      '/media/import',
+      { url, storage_provider: storageProvider, transcription_provider: transcriptionProvider || null },
+      { timeout: 15 * 60 * 1000 }, // o download pode levar minutos
+    )
+  ).data;
+
 export const reprocessMedia = async (mediaId: string): Promise<{ message: string }> =>
   (await api.post<{ message: string }>(`/media/${mediaId}/reprocess`)).data;
 

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { GroundingNotice } from "@/features/summarization/components/GroundingNotice";
-import { summarySourceLabel } from "@/features/summarization/components/SummaryPanel";
+import { genreLabel, summarySourceLabel } from "@/features/summarization/components/SummaryPanel";
 
 describe("GroundingNotice", () => {
   it("lists the sentences without support, with the closest moment", () => {
@@ -21,6 +21,32 @@ describe("GroundingNotice", () => {
     expect(screen.getByText(/trecho mais próximo em 12:34/)).toBeInTheDocument();
   });
 
+  it("shows parts of the recording the summary skips and numbers to check", () => {
+    // Caso da avaliação: 57 de 57 frases apoiadas num resumo sem a conclusão
+    // e com um ano deslocado para outro fato.
+    render(
+      <GroundingNotice
+        truncated
+        report={{
+          checked: 57,
+          supported: 57,
+          ratio: 1,
+          threshold: 0.8,
+          unsupported: [],
+          windows: 12,
+          coverage: 0.917,
+          gaps: [{ start: 1609, end: 1755 }],
+          number_issues: [{ text: "Em 1999, C# da Microsoft respondeu ao Java.", numbers: ["1999"] }],
+        }}
+      />
+    );
+    expect(screen.getByText(/O resumo ficou incompleto/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Partes da gravação que o resumo não menciona \(1\)/));
+    expect(screen.getByText("26:49 a 29:15")).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Números a conferir \(1\)/));
+    expect(screen.getByText(/1999 não aparece no trecho do assunto/)).toBeInTheDocument();
+  });
+
   it("says when every sentence is supported and hides without a report", () => {
     const { rerender, container } = render(
       <GroundingNotice report={{ checked: 7, supported: 7, ratio: 1, threshold: 0.8, unsupported: [] }} />
@@ -28,6 +54,15 @@ describe("GroundingNotice", () => {
     expect(screen.getByText(/As 7 frases verificadas têm apoio/)).toBeInTheDocument();
     rerender(<GroundingNotice report={null} />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("genreLabel", () => {
+  it("names the content genre and hides unknown or missing values", () => {
+    expect(genreLabel("opiniao")).toBe("Opinião / ensaio");
+    expect(genreLabel("reuniao")).toBe("Reunião");
+    expect(genreLabel("outro")).toBeNull(); // sem selo para "outro"
+    expect(genreLabel(undefined)).toBeNull();
   });
 });
 

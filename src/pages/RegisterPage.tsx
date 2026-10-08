@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
+import { BrandHeader } from "@/components/Brand";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { RegisterForm } from "../features/authentication/components/RegisterForm";
 
 const RegisterPage = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white px-4 py-12">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4 py-12">
+      <BrandHeader />
       <Card className="w-full max-w-md border border-[#ede4d5] bg-white">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Criar conta</CardTitle>
