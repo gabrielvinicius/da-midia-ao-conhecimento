@@ -67,6 +67,7 @@ class MediaService:
         unit_of_work: UnitOfWorkPort | None = None,
         access_policy: MediaAccessPolicy | None = None,
         url_fetcher: RemoteMediaFetcherPort | None = None,
+        direct_link_fetcher: RemoteMediaFetcherPort | None = None,
         url_import_enabled: bool = False,
     ) -> None:
         self.media_repository = media_repository
@@ -89,7 +90,7 @@ class MediaService:
         self.reprocessing = ReprocessMedia(
             media_repository, cleanup, access_policy, event_bus=event_bus, metrics=metrics_service
         )
-        self.url_import = ImportMediaFromUrl(url_fetcher, self.upload, url_import_enabled)
+        self.url_import = ImportMediaFromUrl(url_fetcher, direct_link_fetcher, self.upload, url_import_enabled)
         self.lifecycle = MediaLifecycle(media_repository)
         self.streaming = StreamMedia(media_repository, access_policy, storage_downloader)
 

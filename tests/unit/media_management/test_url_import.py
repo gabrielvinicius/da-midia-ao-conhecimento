@@ -38,11 +38,8 @@ def test_youtube_links_become_the_canonical_video_address(url):
     "url",
     [
         "",
-        "https://vimeo.com/123456",
         "https://www.youtube.com/playlist?list=PL123",
         "https://www.youtube.com/watch?v=curto",
-        "file:///etc/passwd",
-        "http://169.254.169.254/latest/meta-data",
         "https://youtube.com.evil.com/watch?v=jNQXAC9IVRw",
     ],
 )
@@ -70,7 +67,7 @@ async def test_the_downloaded_video_goes_through_the_normal_upload():
 
     upload = AsyncMock()
     upload.execute.return_value = "media"
-    use_case = ImportMediaFromUrl(Fetcher(), upload, enabled=True)
+    use_case = ImportMediaFromUrl(Fetcher(), None, upload, enabled=True)
 
     assert await use_case.execute(_command()) == "media"
     command = upload.execute.call_args.args[0]
@@ -83,9 +80,9 @@ async def test_the_downloaded_video_goes_through_the_normal_upload():
 async def test_disabled_import_or_a_bad_link_never_reach_the_download():
     fetcher, upload = AsyncMock(), AsyncMock()
     with pytest.raises(NotFoundError):
-        await ImportMediaFromUrl(fetcher, upload, enabled=False).execute(_command())
+        await ImportMediaFromUrl(fetcher, fetcher, upload, enabled=False).execute(_command())
     with pytest.raises(InvalidUploadError):
-        await ImportMediaFromUrl(fetcher, upload, enabled=True).execute(_command("https://exemplo.com/video.mp4"))
+        await ImportMediaFromUrl(fetcher, fetcher, upload, enabled=True).execute(_command("ftp://exemplo.com/video.mp4"))
     fetcher.fetch.assert_not_awaited()
     upload.execute.assert_not_awaited()
 

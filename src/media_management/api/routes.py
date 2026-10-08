@@ -104,7 +104,7 @@ async def create_media(
 
 
 class MediaImportRequest(BaseModel):
-    url: str = Field(..., min_length=10, max_length=500, description="Link de um vídeo do YouTube.")
+    url: str = Field(..., min_length=10, max_length=500, description="Vídeo do YouTube ou link direto para um arquivo.")
     storage_provider: str = "local"
     transcription_provider: Optional[str] = None
 
@@ -121,7 +121,7 @@ async def media_import_options(
     "/import",
     response_model=MediaResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Importar um vídeo do YouTube",
+    summary="Importar uma mídia por link",
 )
 async def import_media(
     body: MediaImportRequest,
@@ -129,7 +129,7 @@ async def import_media(
     current_user: User = Depends(get_current_user),
     service: MediaService = Depends(get_media_service),
 ):
-    """Baixa o vídeo e segue como um envio comum (pode levar alguns minutos)."""
+    """Baixa o arquivo (ou o vídeo do YouTube) e segue como um envio comum; pode levar minutos."""
     media = await service.import_media_from_url(
         ImportMediaCommand(
             user_id=current_user.id,

@@ -23,6 +23,7 @@ from src.media_management.infrastructure.adapters.storage_uploader_adapter impor
     DefaultUploadMetadataMapper,
     StorageServiceFactoryUploader,
 )
+from src.media_management.infrastructure.adapters.direct_link_fetcher_adapter import DirectLinkFetcherAdapter
 from src.media_management.infrastructure.adapters.youtube_fetcher_adapter import YoutubeFetcherAdapter
 from src.media_management.infrastructure.dependencies.data_erasers import (
     build_media_data_erasers,
@@ -74,6 +75,14 @@ def build_media_service(
         url_fetcher=YoutubeFetcherAdapter(
             max_bytes=media_settings.media_max_file_size_bytes,
             max_seconds=media_settings.media_url_import_max_minutes * 60,
+        ),
+        direct_link_fetcher=DirectLinkFetcherAdapter(
+            max_bytes=media_settings.media_max_file_size_bytes,
+            allowed_extensions=[
+                *media_settings.media_allowed_video_extensions,
+                *media_settings.media_allowed_audio_extensions,
+                *media_settings.media_allowed_text_extensions,
+            ],
         ),
         url_import_enabled=media_settings.media_url_import_enabled,
     )
