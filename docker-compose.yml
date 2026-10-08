@@ -192,7 +192,10 @@ services:
       retries: 3
     environment:
       <<: *app-environment
-      AI_DEVICE: cuda
+      # A API não tem GPU: o vetor da pergunta e o reranqueador da busca rodam
+      # na CPU. Com "cuda" aqui, o modelo de vetores não carregava e a busca
+      # devolvia trechos aleatórios (vetores de reserva, sem sentido).
+      AI_DEVICE: cpu
 
   worker-heavy:
     <<: *app

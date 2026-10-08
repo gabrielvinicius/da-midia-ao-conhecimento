@@ -18,8 +18,12 @@ para o banco usado nas medições.
    tabela LaTeX:
 
    ```bash
-   PYTHONPATH=. python scripts/evaluation/export_timings.py --vram vram.csv
+   PYTHONPATH=. python scripts/evaluation/export_timings.py --vram vram.csv --since <início, UTC>
    ```
+
+   `--since` deixa de fora testes e tentativas anteriores à avaliação. As
+   etapas da análise saem uma por linha (tipo de conteúdo, resumo, capítulos,
+   perguntas, verificação de fidelidade...).
 
 4. Para a qualidade da transcrição, digite à mão a transcrição de um trecho
    (ou de toda a gravação) em `referencia.txt` e calcule o WER:
@@ -45,5 +49,12 @@ para o banco usado nas medições.
    ```
 
    Compare com a nota de fidelidade do questionário: a verificação aponta
-   assuntos que não estão na gravação, mas não um número ou nome trocado.
-   O limiar (0,80) pode ser calibrado olhando as frases apontadas.
+   assuntos que não estão na gravação, partes da gravação sem nenhuma frase
+   do resumo (lacunas) e números ausentes do trecho do assunto, mas não um
+   nome trocado. O limiar (0,80) pode ser calibrado olhando as frases
+   apontadas.
+
+7. Para a busca, escreva três perguntas por mídia com outras palavras que
+   não as ditas, anote o horário do trecho que responde a cada uma e conte
+   em quantas ele aparece entre os cinco primeiros resultados da busca
+   (com o reranqueador, a configuração padrão).

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from typing import Optional
@@ -24,6 +25,43 @@ SYSTEM_END = "<<<END_SYSTEM>>>"
 # Fração da janela a partir da qual o prompt é tratado como possivelmente cortado.
 TRUNCATION_RATIO = 0.97
 DEFAULT_SYSTEM_PROMPT = "Você é um assistente que resume conteúdos com fidelidade, sem inventar fatos."
+# Quando a resposta bate no teto (done_reason "length"), pede a continuação
+# até este número de vezes. Antes, o resumo era entregue cortado no meio de
+# uma frase e sem a conclusão, e nada indicava isso.
+MAX_CONTINUATIONS = 2
+CONTINUE_PROMPT = (
+    "Continue o texto exatamente de onde parou, sem repetir o que já escreveu "
+    "e sem comentar a interrupção. Conclua as seções que faltam."
+)
+_SENTENCE_END = re.compile(r"[.!?…][\"”')\]]*(?=\s|$)")
+_ENDS_SENTENCE = re.compile(r"[.!?…][\"”')\]]*$")
+
+
+def trim_incomplete_ending(text: str) -> str:
+    """Corta a frase inacabada do fim (resposta interrompida pelo teto).
+
+    Mantém até o último ponto final, ou até a última linha completa de uma
+    lista; títulos que ficariam sem conteúdo também saem.
+    """
+    text = text.rstrip()
+    if not text or _ENDS_SENTENCE.search(text):
+        return text
+    ends = [m.end() for m in _SENTENCE_END.finditer(text)]
+    last_line = text.rfind("\n")
+    cut = max(ends[-1] if ends else -1, last_line)
+    if cut <= 0:
+        return text
+    lines = text[:cut].rstrip().splitlines()
+    while lines and (not lines[-1].strip() or lines[-1].lstrip().startswith("#")):
+        lines.pop()
+    return "\n".join(lines).rstrip()
+
+
+def _joined(previous: str, continuation: str) -> str:
+    """Emenda a continuação depois de uma frase completa."""
+    continuation = continuation.strip()
+    starts_block = continuation[:1] in {"#", "-", "*", "|", ">"} or continuation[:2].rstrip(".").isdigit()
+    return previous + ("\n\n" if starts_block else " ") + continuation
 
 
 @dataclass(slots=True)
@@ -107,6 +145,7 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
         self.last_used_reserve = False
         self.last_prompt_tokens = None
         self.last_prompt_truncated = False
+        self.last_response_truncated = False
         self._m_attempts.labels(model=self.config.model).inc()
         # tenta reativar se estava indisponível e o cooldown já passou
         if not self._available and self._last_failure_ts:
@@ -129,7 +168,7 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
             for model in models:
                 for attempt in range(self._retries + 1):
                     try:
-                        text = await self._chat(client, model, messages, max_tokens)
+                        text = await self._complete(client, model, messages, max_tokens)
                         self._available = True
                         self.last_model_used = model
                         self.last_used_reserve = model != self.config.model
@@ -152,9 +191,43 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
             f"Nenhum modelo de linguagem respondeu ({', '.join(models)}): {last_exc}"
         )
 
-    async def _chat(
+    async def _complete(
         self, client: httpx.AsyncClient, model: str, messages: list[dict], max_tokens: Optional[int] = None
     ) -> str:
+        """Resposta inteira: se bater no teto, pede a continuação.
+
+        Cada continuação parte da última frase completa, para a emenda não
+        cair no meio de uma palavra. Se ainda faltar texto depois de
+        ``MAX_CONTINUATIONS`` pedidos, devolve até a última frase completa e
+        marca ``last_response_truncated``.
+        """
+        text, reason = await self._chat(client, model, messages, max_tokens)
+        continuations = 0
+        while reason == "length" and max_tokens and continuations < MAX_CONTINUATIONS:
+            continuations += 1
+            text = trim_incomplete_ending(text)
+            follow_up = messages + [
+                {"role": "assistant", "content": text},
+                {"role": "user", "content": CONTINUE_PROMPT},
+            ]
+            try:
+                more, reason = await self._chat(client, model, follow_up, max_tokens)
+            except ValueError:  # continuação vazia: o modelo considerou o texto pronto
+                reason = "stop"
+                break
+            text = _joined(text, more)
+        if reason == "length":
+            self.last_response_truncated = True
+            text = trim_incomplete_ending(text)
+            logger.warning("ollama.response_truncated", model=model, max_tokens=max_tokens)
+        elif continuations:
+            logger.info("ollama.response_continued", model=model, continuations=continuations)
+        return text
+
+    async def _chat(
+        self, client: httpx.AsyncClient, model: str, messages: list[dict], max_tokens: Optional[int] = None
+    ) -> tuple[str, Optional[str]]:
+        """Texto da resposta e o motivo do fim ("stop" ou "length", o teto)."""
         options: dict = {"num_ctx": self.config.context_tokens, "temperature": self.config.temperature}
         if max_tokens:
             options["num_predict"] = max_tokens
@@ -176,7 +249,7 @@ class OllamaTextGenerationAdapter(TextGenerationPort):
         text = text.strip()
         if not text:
             raise ValueError("resposta vazia do Ollama")
-        return text
+        return text, data.get("done_reason")
 
     def _check_prompt_size(self, model: str, prompt_tokens: Optional[int]) -> None:
         """O Ollama corta, sem erro, o prompt que não cabe na janela (num_ctx).

@@ -9,7 +9,10 @@ Com --grounding, lista por mídia o resultado da verificação automática de
 fidelidade dos resumos (frases com apoio na transcrição).
 
 Uso:
-    python scripts/evaluation/export_timings.py [--days 7] [--vram vram.csv] [--grounding]
+    python scripts/evaluation/export_timings.py [--days 7 | --since 2026-10-07T12:47] [--vram vram.csv] [--grounding]
+
+--since (UTC) deixa de fora o que rodou antes da avaliação, como testes e
+tentativas que falharam por configuração.
 
 Para registrar a memória da GPU enquanto as mídias são processadas:
     nvidia-smi --query-gpu=timestamp,memory.used --format=csv -l 1 > vram.csv
@@ -33,7 +36,10 @@ TASK_LABELS = {
     "analysis.topic_titles": "Títulos dos temas",
     "analysis.knowledge_indexing": "Indexação semântica",
     "analysis.release_memory": "Liberação de memória da GPU",
+    "analysis.content_genre": "Tipo de conteúdo",
     "analysis.synthesis": "Resumo final",
+    "analysis.chapters": "Capítulos",
+    "analysis.review_questions": "Perguntas de revisão",
     "analysis.grounding_check": "Verificação de fidelidade",
 }
 
@@ -87,6 +93,9 @@ def grounding_rows(results: list[tuple[str, dict]]) -> list[str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--days", type=int, help="considera só os últimos N dias")
+    parser.add_argument(
+        "--since", type=datetime.fromisoformat, help="considera só o que rodou a partir deste instante (UTC)"
+    )
     parser.add_argument("--vram", type=Path, help="CSV gerado pelo nvidia-smi")
     parser.add_argument("--grounding", action="store_true", help="fidelidade dos resumos por mídia")
     args = parser.parse_args()
@@ -98,9 +107,10 @@ def main() -> None:
     from src.shared.infrastructure.persistence.processing_stats_model import ProcessingStatModel
     from src.shared.infrastructure.repositories.processing_stats_repository import summarize_rows
 
+    since = args.since or (datetime.utcnow() - timedelta(days=args.days) if args.days else None)
     stmt = select(ProcessingStatModel)
-    if args.days:
-        stmt = stmt.where(ProcessingStatModel.created_at >= datetime.utcnow() - timedelta(days=args.days))
+    if since:
+        stmt = stmt.where(ProcessingStatModel.created_at >= since)
     with Session(create_engine(settings.sync_database_url)) as session:
         rows = session.execute(stmt).scalars().all()
 
@@ -118,10 +128,12 @@ def main() -> None:
 
         query = text(
             "SELECT m.filename, a.payload -> 'diagnostics' FROM text_analysis_results a "
-            "JOIN media m ON m.id = a.media_id ORDER BY a.created_at"
+            "JOIN media m ON m.id = a.media_id "
+            "WHERE CAST(:since AS timestamptz) IS NULL OR a.created_at >= CAST(:since AS timestamptz) "
+            "ORDER BY a.created_at"
         )
         with Session(create_engine(settings.sync_database_url)) as session:
-            results = [(name or "", diag) for name, diag in session.execute(query)]
+            results = [(name or "", diag) for name, diag in session.execute(query, {"since": since})]
         print("% Mídia & Frases verificadas & Com apoio & Proporção")
         for line in grounding_rows(results):
             print(line)

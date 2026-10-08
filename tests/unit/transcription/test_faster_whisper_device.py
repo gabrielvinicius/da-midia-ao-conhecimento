@@ -48,11 +48,17 @@ async def test_adapter_returns_the_format_the_service_expects(monkeypatch):
 
     monkeypatch.setattr(faster_whisper, "WhisperModel", FakeModel)
 
-    adapter = mod.FasterWhisperAdapter(model_size="large-v3-turbo", device="cuda")
+    adapter = mod.FasterWhisperAdapter(model_size="large-v3-turbo", device="cuda", hotwords=" SOLID, YAGNI ")
     result = await adapter.transcribe("/tmp/aula.mp4", language="pt")
 
     assert calls["init"] == ("large-v3-turbo", "cpu", "int8")
     assert calls["kwargs"]["language"] == "pt" and calls["kwargs"]["vad_filter"] is True
+    # Glossário do domínio (WHISPER_HOTWORDS) chega ao modelo como frase
+    # pontuada e sem condicionar cada trecho no anterior (evita laços).
+    assert calls["kwargs"]["hotwords"] == "Nesta gravação, falamos de SOLID, YAGNI."
+    assert calls["kwargs"]["condition_on_previous_text"] is False
+    plain = mod.FasterWhisperAdapter(model_size="tiny", hotwords="")
+    assert plain.hotwords is None
     assert result["text"] == "Olá turma. Hoje: derivadas."
     assert result["segments"][1] == {"start": 2.5, "end": 6.0, "text": "Hoje: derivadas.", "confidence": -0.3}
     assert result["language"] == "pt" and result["duration"] == 6.0

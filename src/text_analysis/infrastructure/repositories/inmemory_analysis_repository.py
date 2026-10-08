@@ -29,6 +29,11 @@ class InMemoryAnalysisRepository(AnalysisRepositoryPort):
                 return analysis
         return None
 
+    async def summaries_by_media(self, media_ids: set[str]) -> dict[str, str]:
+        return {
+            str(a.media_id): a.summary or "" for a in self._store.values() if str(a.media_id) in media_ids
+        }
+
     async def update_summary(self, analysis_id: str, new_summary: str) -> bool:
         analysis = self._store.get(str(analysis_id))
         if analysis is None:

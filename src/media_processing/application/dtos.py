@@ -68,6 +68,15 @@ class SetSpeakerAliasesCommand(BaseModel):
     )
 
 
+class CorrectSegmentCommand(BaseModel):
+    """Correção humana do texto de um trecho da transcrição."""
+
+    model_config = ConfigDict(frozen=True)
+    transcription_id: UUID
+    index: int = Field(..., ge=0, description="Posição do trecho na transcrição.")
+    text: str = Field(..., min_length=1, max_length=5000)
+
+
 # --- Queries ---
 
 class GetTranscriptionByMediaIdQuery(BaseModel):

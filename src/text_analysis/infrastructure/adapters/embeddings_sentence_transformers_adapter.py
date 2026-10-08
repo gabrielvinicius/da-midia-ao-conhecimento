@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import math
-
+from src.shared.domain.errors import TemporarilyUnavailableError
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.shared.infrastructure.config.settings import settings
 from src.text_analysis.application.ports.embeddings import EmbeddingServicePort
@@ -34,15 +33,18 @@ class SentenceTransformerEmbeddingAdapter(EmbeddingServicePort):
         return self._get_model()
 
     def embed(self, texts: list[str], kind: str = "passage") -> list[list[float]]:
+        """Vetores dos textos. Sem o modelo, lança TemporarilyUnavailableError.
+
+        Antes, devolvia vetores de reserva calculados das letras do texto: a
+        busca respondia com trechos aleatórios (caso visto com a API sem GPU) e
+        a análise indexava vetores sem sentido, sem nenhum aviso.
+        """
         model = self._get_model()
-        if model:
-            try:
-                inputs = [self._with_prefix(text, kind) for text in texts]
-                vectors = model.encode(inputs, normalize_embeddings=True)
-                return [[float(v) for v in vec] for vec in vectors]
-            except Exception as exc:  # pragma: no cover
-                logger.error("Embedding encode failed", error=str(exc))
-        return [self._hash_vector(text) for text in texts]
+        if model is None:
+            raise TemporarilyUnavailableError(f"Modelo de vetores indisponível ({self.model_name}).")
+        inputs = [self._with_prefix(text, kind) for text in texts]
+        vectors = model.encode(inputs, normalize_embeddings=True)
+        return [[float(v) for v in vec] for vec in vectors]
 
     def _with_prefix(self, text: str, kind: str) -> str:
         """Modelos E5 foram treinados com os prefixos "query: " e "passage: "."""
@@ -50,11 +52,3 @@ class SentenceTransformerEmbeddingAdapter(EmbeddingServicePort):
             return text
         prefix = "query: " if kind == "query" else "passage: "
         return text if text.startswith(prefix) else prefix + text
-
-    def _hash_vector(self, text: str, dim: int = 384) -> list[float]:
-        # Mesmo tamanho da coluna knowledge_chunks.embedding, para não quebrar a gravação.
-        values = [0.0] * dim
-        for idx, ch in enumerate(text):
-            values[idx % dim] += (ord(ch) % 31) / 100.0
-        norm = math.sqrt(sum(v * v for v in values)) or 1.0
-        return [v / norm for v in values]

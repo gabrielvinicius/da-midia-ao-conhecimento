@@ -36,6 +36,19 @@ def resolve_device_and_compute(
     return device, compute
 
 
+def glossary_prompt(terms: str | None) -> str | None:
+    """O glossário como frase pontuada, ou None se não houver termos.
+
+    O Whisper imita o estilo do texto que recebe como contexto. Medido numa
+    aula de 30 min: a lista crua de termos derrubou os pontos finais de 315
+    para 211 e criou 14 laços de repetição ("em 2021, em 2021, …"); escrita
+    como frase, e sem condicionar cada trecho no anterior, ficaram 253 pontos e
+    nenhum laço, com os termos do glossário escritos certo.
+    """
+    terms = (terms or "").strip().rstrip(".")
+    return f"Nesta gravação, falamos de {terms}." if terms else None
+
+
 def _cuda_device_count() -> int:
     try:
         import ctranslate2
@@ -51,8 +64,12 @@ class FasterWhisperAdapter(SpeechRecognizer):
         model_size: str | None = None,
         device: str | None = None,
         compute_type: str | None = None,
+        hotwords: str | None = None,
     ) -> None:
         self.model_size = model_size or settings.whisper_model
+        # Glossário do domínio (WHISPER_HOTWORDS): favorece a grafia certa dos
+        # termos técnicos que o modelo erra.
+        self.hotwords = glossary_prompt(hotwords if hotwords is not None else settings.whisper_hotwords)
         self.device, self.compute_type = resolve_device_and_compute(
             device or settings.ai_device,
             compute_type or settings.ai_compute_type,
@@ -81,6 +98,10 @@ class FasterWhisperAdapter(SpeechRecognizer):
             beam_size=5,
             # Pula trechos sem fala; reduz textos inventados em silêncios.
             vad_filter=True,
+            hotwords=self.hotwords,
+            # Com glossário, um trecho errado contaminava os seguintes (laços de
+            # repetição); sem glossário, mantém o padrão do modelo.
+            condition_on_previous_text=self.hotwords is None,
         )
         items = [
             {

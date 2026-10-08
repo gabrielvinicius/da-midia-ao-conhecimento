@@ -30,11 +30,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ build-essential pkg-config libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Índice do PyTorch: cu124 (GPU NVIDIA, padrão), cpu ou rocm6.2 (GPU AMD).
+# Índice do PyTorch: cu126 (GPU NVIDIA, padrão), cpu ou rocm7.2 (GPU AMD).
+# CUDA 12, e não 13: a transcrição (CTranslate2) carrega o libcublas.so.12.
 # O torch é instalado primeiro, a partir desse índice; o restante das
 # dependências o reaproveita (a versão fixada vai como restrição: sem ela, o
 # pip o trocava por um torch mais novo do PyPI, de outra variante de CUDA).
-ARG PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu124
+ARG PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu126
 
 COPY requirements.txt .
 # Só o pip é atualizado fora do --user: setuptools e wheel (que traz o
@@ -44,11 +45,10 @@ COPY requirements.txt .
 # do código-fonte recebem o setuptools pelo isolamento de build.
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip && \
-    TORCH_PIN="$(grep -E '^torch==' requirements.txt)" && \
+    grep -E '^(torch|torchvision)==' requirements.txt > /tmp/torch-constraint.txt && \
     pip install --user --no-warn-script-location \
-    --index-url ${PYTORCH_INDEX_URL} "${TORCH_PIN}" && \
-    grep -vE '^torch==' requirements.txt > /tmp/requirements-sem-torch.txt && \
-    echo "${TORCH_PIN}" > /tmp/torch-constraint.txt && \
+    --index-url ${PYTORCH_INDEX_URL} -r /tmp/torch-constraint.txt && \
+    grep -vE '^(torch|torchvision)==' requirements.txt > /tmp/requirements-sem-torch.txt && \
     pip install --user --no-warn-script-location \
     -r /tmp/requirements-sem-torch.txt -c /tmp/torch-constraint.txt
 
@@ -62,10 +62,19 @@ LABEL org.opencontainers.image.title="Video Summarizer" \
 # Criar usuário não-root
 RUN groupadd -r appuser && useradd -m -r -g appuser appuser
 
-# Copiar dependências do builder
-COPY --from=builder /root/.local /home/appuser/.local
+# Copiar dependências do builder, já com o dono certo. Antes, um "chown -R"
+# depois de copiar o código percorria esses GB a cada mudança de código (~10
+# min por imagem).
+COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
 ENV PATH=/home/appuser/.local/bin:$PATH \
     XDG_CACHE_HOME=/app/.cache
+# A transcrição (CTranslate2) carrega o cuBLAS e o cuDNN pelo nome. Eles vêm
+# nos pacotes nvidia-* que o torch de CUDA instala, fora do caminho padrão:
+# antes, só eram achados se algum módulo tivesse importado o torch antes da
+# transcrição. Com a descrição dos quadros pelo Ollama, ninguém importava, e
+# toda transcrição falhava ("libcublas.so.12 is not found"). Nas variantes CPU
+# e ROCm as pastas não existem e a variável não tem efeito.
+ENV LD_LIBRARY_PATH=/home/appuser/.local/lib/python3.12/site-packages/nvidia/cublas/lib:/home/appuser/.local/lib/python3.12/site-packages/nvidia/cudnn/lib
 # Modelos baixados (Hugging Face, faster-whisper, torch) ficam em /app/.cache,
 # o volume ai_models_cache. Antes iam para /home/appuser/.cache, fora do
 # volume: cada recriação do contêiner baixava GBs de novo, e o sistema deixava
@@ -77,7 +86,7 @@ RUN chmod +x /app/docker/*.sh
 
 # Mídias (armazenamento local) e modelos baixados; ambos viram volumes no compose.
 RUN mkdir -p /app/storage /app/.cache && \
-    chown -R appuser:appuser /app /home/appuser
+    chown appuser:appuser /app /app/storage /app/.cache
 
 USER appuser
 

@@ -36,10 +36,23 @@ pymupdf~=1.28.2
 python-docx~=1.2.0
 pytesseract~=0.3.13
 
-# Modelos de IA. O torch fica fixo: o Dockerfile e a CI o instalam do
-# índice da variante (CUDA 12.4, ROCm ou CPU).
-torch==2.5.1
-transformers>=4.46,<5
+# Modelos de IA. torch e torchvision ficam fixos e casados: o Dockerfile e a
+# CI os instalam do índice da variante (CUDA 12.6, ROCm 7.2 ou CPU). Avaliado
+# na RTX 3060 contra o 2.5.1: mesmos resultados e tempos em todos os modelos,
+# 429 testes passando; o 2.5 já não carrega pesos .bin com bibliotecas novas
+# (CVE-2025-32434). CUDA 12.6, e não 13: a transcrição (CTranslate2 4.8) usa
+# as bibliotecas do CUDA 12.
+torch==2.14.1
+torchvision==0.29.1  # Moondream 2
+# O código do Moondream 2 (revisão 2024-08-26) não funciona com o
+# transformers 4.50+ ("'PhiForCausalLM' object has no attribute 'generate'");
+# junto com o torchvision e o einops ausentes, a descrição dos quadros falhava
+# em silêncio em todo vídeo.
+transformers>=4.46,<4.50
+einops~=0.8.1  # Moondream 2
+# Tokenizador do modelo de sentimento (XLM-RoBERTa). Sem ele, o modelo nunca
+# carregou e o "tom" das análises vinha de palavras-chave.
+sentencepiece~=0.2.2
 sentence-transformers>=3.0,<6
 accelerate>=1.0,<2  # device_map do Moondream
 faster-whisper~=1.2.1

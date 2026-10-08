@@ -42,11 +42,16 @@ class Settings(BaseSettings):
     # 180), para que a falha venha da própria análise, com o motivo.
     analysis_time_limit_minutes: float = 150
     # Fatores opcionais da análise, separados por vírgula: sentiment, topics
-    # (temas e seus títulos) e grounding (verificação de fidelidade).
-    analysis_factors: str = "sentiment,topics,grounding"
-    # Descrição de quadros de vídeo: "moondream" (padrão), "ollama" (usa o
-    # modelo multimodal definido em visual_ollama_model) ou "none" (desligada).
-    visual_provider: str = "moondream"
+    # (temas e seus títulos), grounding (verificação de fidelidade), chapters
+    # (capítulos com horário) e questions (perguntas de revisão).
+    analysis_factors: str = "sentiment,topics,grounding,chapters,questions"
+    # Descrição de quadros de vídeo: "ollama" (padrão; o mesmo Qwen3.5 do
+    # resumo, que aceita imagens), "moondream" ou "none" (desligada).
+    # Comparados nos mesmos quadros de uma aula: o Qwen3.5 descreve em
+    # português e transcreve os textos da tela (nomes, títulos de livros), o
+    # Moondream só dizia "um homem fala ao microfone"; e não carrega um
+    # segundo modelo de ~4 GB na GPU. Custa ~4 s por quadro (Moondream, ~2 s).
+    visual_provider: str = "ollama"
     visual_ollama_model: str = "qwen3.5:9b"
 
     # AI / Machine Learning Hardware
@@ -56,6 +61,16 @@ class Settings(BaseSettings):
     ai_compute_type: str = "default"
     # Modelo de transcrição (Faster-Whisper ou openai-whisper).
     whisper_model: str = "large-v3-turbo"
+    # Termos do domínio (separados por vírgula) que orientam a transcrição.
+    # O Whisper acerta a fala comum e erra justo o jargão: numa aula de
+    # engenharia de software, "overengineering" saiu "o Wolverine de Neil" e
+    # "KISS, DRY e YAGNI" saiu "Keys, Draw e Agni". Vazio: sem glossário.
+    whisper_hotwords: str = ""
+    # Reranqueador da busca semântica: reordena os 20 trechos mais parecidos
+    # lendo pergunta e trecho juntos. Numa aula de 30 min, o trecho certo
+    # ficou em 1º em 7 de 8 perguntas (4 de 8 só com os vetores). Roda na CPU
+    # da API (~2 GB de memória). Vazio: só os vetores.
+    search_reranker_model: str = "BAAI/bge-reranker-v2-m3"
 
     @property
     def resolved_device(self) -> str:
@@ -65,6 +80,10 @@ class Settings(BaseSettings):
             if torch.cuda.is_available():
                 return "cuda"
             # ROCm typically maps to 'cuda' in torch if properly installed
+            return "cpu"
+        if self.ai_device in ("cuda", "rocm") and not torch.cuda.is_available():
+            # GPU pedida num contêiner sem GPU (era o caso da API): na CPU os
+            # modelos funcionam; com "cuda", não carregavam.
             return "cpu"
         return self.ai_device
 

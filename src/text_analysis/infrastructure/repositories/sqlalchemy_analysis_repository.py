@@ -103,6 +103,15 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         # Add future migrations here: if from_version == 2: ...
         return updated
 
+    async def summaries_by_media(self, media_ids: set[str]) -> dict[str, str]:
+        keys = [k for k in (_uuid_or_none(m) for m in media_ids) if k is not None]
+        if not keys:
+            return {}
+        stmt = select(AnalysisModel.media_id, AnalysisModel.payload["summary"].astext).where(
+            AnalysisModel.media_id.in_(keys)
+        )
+        return {str(media_id): summary or "" for media_id, summary in (await self.session.execute(stmt)).all()}
+
     async def update_summary(self, analysis_id: str, new_summary: str) -> bool:
         """Updates the summary with a human-corrected version."""
         key = _uuid_or_none(analysis_id)
@@ -242,6 +251,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
                     snippets=list(raw.get("snippets", []) or []),
                     size=int(raw.get("size") or 0),
                     chunk_indices=[int(i) for i in raw.get("chunk_indices") or []],
+                    original_title=raw.get("original_title"),
                 )
             )
         analysis.topics = topics

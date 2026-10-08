@@ -166,3 +166,68 @@ async def test_response_cap_and_prompt_size_reach_ollama(monkeypatch):
     assert sent["options"]["num_predict"] == 400
     assert adapter.last_prompt_tokens == 16000
     assert adapter.last_prompt_truncated is True  # 16000 >= 97% de 16384
+
+
+class SequenceClient(DummyAsyncClient):
+    """Devolve as respostas em ordem e guarda as mensagens de cada chamada."""
+
+    def __init__(self, responses):
+        super().__init__(responses)
+        self.bodies = []
+
+    async def post(self, url, json=None, **_):
+        self.bodies.append(json)
+        return next(self.side_effects)
+
+
+def _reply(content, reason):
+    return DummyResponse(True, {"message": {"content": content}, "done_reason": reason})
+
+
+@pytest.mark.asyncio
+async def test_a_reply_cut_by_the_cap_is_continued(monkeypatch):
+    """Antes, o resumo era entregue cortado no meio da frase, sem a conclusão."""
+    client = SequenceClient([
+        _reply("# Resumo\n\nPrimeira parte completa. O Vibe Coding transforma superficialidade", "length"),
+        _reply("O Vibe Coding transforma a superficialidade em virtude.\n\n## Conclusão\nFim.", "stop"),
+    ])
+    import src.text_analysis.infrastructure.adapters.text_generation_ollama_adapter as mod
+
+    monkeypatch.setattr(mod.httpx, "AsyncClient", lambda *a, **k: client)
+    adapter = OllamaTextGenerationAdapter(model="m")
+
+    out = await adapter.summarize_topic("t", "texto", [], "pt", max_tokens=100)
+
+    assert out == (
+        "# Resumo\n\nPrimeira parte completa. O Vibe Coding transforma a superficialidade em virtude."
+        "\n\n## Conclusão\nFim."
+    )
+    assert adapter.last_response_truncated is False
+    follow_up = client.bodies[1]["messages"]
+    # A continuação parte da última frase completa, não do meio dela.
+    assert follow_up[-2] == {"role": "assistant", "content": "# Resumo\n\nPrimeira parte completa."}
+    assert follow_up[-1]["role"] == "user" and "Continue" in follow_up[-1]["content"]
+
+
+@pytest.mark.asyncio
+async def test_a_reply_still_cut_after_the_continuations_ends_at_a_whole_sentence(monkeypatch):
+    client = SequenceClient([_reply("Frase um. Frase dois cortad", "length")] * 3)
+    import src.text_analysis.infrastructure.adapters.text_generation_ollama_adapter as mod
+
+    monkeypatch.setattr(mod.httpx, "AsyncClient", lambda *a, **k: client)
+    adapter = OllamaTextGenerationAdapter(model="m")
+
+    out = await adapter.summarize_topic("t", "texto", [], "pt", max_tokens=100)
+
+    assert len(client.bodies) == 1 + mod.MAX_CONTINUATIONS
+    assert adapter.last_response_truncated is True
+    assert out.endswith("Frase um.") and "cortad" not in out
+
+
+def test_trim_incomplete_ending_drops_the_unfinished_sentence_and_empty_headings():
+    from src.text_analysis.infrastructure.adapters.text_generation_ollama_adapter import trim_incomplete_ending
+
+    assert trim_incomplete_ending("Uma frase. Outra inacaba") == "Uma frase."
+    assert trim_incomplete_ending("Texto completo.") == "Texto completo."
+    assert trim_incomplete_ending("Parágrafo.\n\n## Seção nova\nComeço sem") == "Parágrafo."
+    assert trim_incomplete_ending("- item um\n- item dois incomp") == "- item um"

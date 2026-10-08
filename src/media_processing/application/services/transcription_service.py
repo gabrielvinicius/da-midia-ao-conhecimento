@@ -26,6 +26,7 @@ from src.shared.domain.errors import NotFoundError
 from ..dtos import (
     GetTranscriptionByIdQuery,
     GetTranscriptionByMediaIdQuery,
+    CorrectSegmentCommand,
     RequestTranscriptionCommand,
     SetSpeakerAliasesCommand,
 )
@@ -126,6 +127,14 @@ class TranscriptionService:
         transcription = await self._accessible(await self._repo.get_by_id(command.transcription_id), requester)
         transcription.set_speaker_aliases(command.aliases)
         return await self._repo.save(transcription)
+
+    async def correct_segment(self, command: CorrectSegmentCommand, requester: Requester) -> Transcription:
+        """Corrige um trecho; o texto do modelo fica guardado no próprio trecho."""
+        transcription = await self._accessible(await self._repo.get_by_id(command.transcription_id), requester)
+        transcription.correct_segment(command.index, command.text)
+        saved = await self._repo.save(transcription)
+        logger.info("transcription.segment_corrected", transcription_id=str(command.transcription_id))
+        return saved
 
     async def get_transcription_by_media_id(
         self, query: GetTranscriptionByMediaIdQuery, requester: Requester

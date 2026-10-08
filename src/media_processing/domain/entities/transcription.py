@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 from src.media_processing.domain.transcript_confidence import transcript_confidence
 from src.shared.domain.base_entity import BaseEntity
-from src.shared.domain.errors import ConflictError
+from src.shared.domain.errors import ConflictError, ValidationError
 from src.shared.domain.time.clock import utcnow
 
 
@@ -161,3 +161,25 @@ class Transcription(BaseEntity):
     def set_speaker_aliases(self, aliases: Dict[str, str]) -> None:
         self.speaker_aliases = aliases
         self.updated_at = utcnow()
+
+    def correct_segment(self, index: int, text: str) -> None:
+        """Correção humana de um trecho. O texto do modelo fica em
+        ``original_text`` (só na primeira correção), e o texto completo é
+        refeito a partir dos trechos: uma nova análise já usa a correção."""
+        if self.status != TranscriptionStatus.COMPLETED:
+            raise ConflictError("Só uma transcrição concluída pode ser corrigida.")
+        if not 0 <= index < len(self.segments):
+            raise ValidationError("trecho", str(index), "não existe na transcrição")
+        cleaned = " ".join((text or "").split())
+        if not cleaned:
+            raise ValidationError("texto", text, "o trecho corrigido não pode ficar vazio")
+        segment = dict(self.segments[index])
+        segment.setdefault("original_text", segment.get("text", ""))
+        segment["text"] = cleaned
+        self.segments = [*self.segments[:index], segment, *self.segments[index + 1:]]
+        self.text = " ".join(str(s.get("text", "")).strip() for s in self.segments if isinstance(s, dict))
+        self.updated_at = utcnow()
+
+    @property
+    def corrected_segments(self) -> int:
+        return sum(1 for s in self.segments if isinstance(s, dict) and "original_text" in s)

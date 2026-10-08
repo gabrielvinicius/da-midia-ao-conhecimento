@@ -30,6 +30,7 @@ from src.text_analysis.infrastructure.dependencies.pipeline_factory import (
 from src.text_analysis.infrastructure.dependencies.providers import (
     build_analysis_config,
     get_embedding_adapter,
+    get_reranker_adapter,
     runtime_diagnostics,
 )
 from src.text_analysis.infrastructure.repositories.feedback_repository import FeedbackRepository
@@ -120,10 +121,15 @@ def build_analysis_request_service(
 
 
 def build_knowledge_service(session) -> KnowledgeBaseService:
-    """Busca semântica: vetor da pergunta e trechos do próprio usuário."""
+    """Busca semântica: vetor da pergunta, trechos do próprio usuário e, se
+    configurado, o reranqueador que os ordena."""
+    from src.shared.infrastructure.config.settings import settings
+
     return KnowledgeBaseService(
         vector_repo=VectorRepository(session),
         embedding_service=get_embedding_adapter(build_analysis_config()),
+        reranker=get_reranker_adapter(settings.search_reranker_model),
+        analyses=SqlAlchemyAnalysisRepository(session),
     )
 
 

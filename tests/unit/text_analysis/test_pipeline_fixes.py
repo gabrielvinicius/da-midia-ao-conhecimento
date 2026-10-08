@@ -192,6 +192,19 @@ async def test_topic_titles_are_replaced_by_llm_titles():
     assert analysis.diagnostics["topic_titles_source"] == "llm"
 
 
+def test_long_titles_are_not_cut_in_the_middle():
+    """O corte exato em 8 palavras deixava "A regressão disfarçada de
+    produtividade na era da"."""
+    step = TopicTitleStep(_TitleGen(""), language="pt", max_words=8)
+
+    assert step.shortened("A regressão disfarçada de produtividade na era da inteligência artificial") == (
+        "A regressão disfarçada de produtividade na era da inteligência artificial"
+    )
+    long_title = "Um título bem longo que passa muito do limite de palavras e termina na frase de"
+    # 12 palavras (8 + folga de 4), sem terminar em "e".
+    assert step.shortened(long_title) == "Um título bem longo que passa muito do limite de palavras"
+
+
 @pytest.mark.asyncio
 async def test_topic_titles_kept_when_no_model_answers():
     gen = _TitleGen("", unavailable=True)
@@ -295,9 +308,26 @@ def test_e5_prefixes_distinguish_queries_from_passages():
     assert other._with_prefix("texto", "query") == "texto"
 
 
-def test_hash_fallback_matches_vector_column_size():
+def test_without_the_model_embeddings_fail_instead_of_returning_meaningless_vectors(monkeypatch):
+    """Na API sem GPU, o modelo não carregava e a busca recebia vetores de
+    reserva feitos das letras do texto: os resultados eram aleatórios."""
+    from src.shared.domain.errors import TemporarilyUnavailableError
+
     adapter = SentenceTransformerEmbeddingAdapter("x", device="cpu")
-    assert len(adapter._hash_vector("abc")) == 384
+    monkeypatch.setattr(adapter, "_get_model", lambda: None)
+
+    with pytest.raises(TemporarilyUnavailableError):
+        adapter.embed(["abc"])
+
+
+def test_a_gpu_request_without_a_gpu_runs_on_the_cpu(monkeypatch):
+    import torch
+
+    from src.shared.infrastructure.config.settings import Settings
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    assert Settings(ai_device="cuda").resolved_device == "cpu"
+    assert Settings(ai_device="cpu").resolved_device == "cpu"
 
 
 class _SyncEmbedder:
@@ -343,3 +373,18 @@ def test_topic_excerpts_are_the_most_representative_in_time_order():
     # antes: sempre os primeiros, inclusive o atípico t0
     assert picked == ["t2", "t3", "t4"]
     assert representative_snippets(chunks, [0, 7], vectors) == ["t0", "t7"]
+
+
+def test_sentiment_without_the_model_fails_instead_of_guessing_by_keywords(monkeypatch):
+    """O modelo nunca carregou (faltava o sentencepiece) e o adaptador
+    classificava por palavras-chave sem avisar."""
+    from src.shared.domain.errors import TemporarilyUnavailableError
+    from src.text_analysis.infrastructure.adapters.sentiment_transformers_adapter import (
+        TransformersSentimentAdapter,
+    )
+
+    adapter = TransformersSentimentAdapter("modelo", device="cpu")
+    monkeypatch.setattr(adapter, "_get_pipeline", lambda: None)
+
+    with pytest.raises(TemporarilyUnavailableError):
+        adapter.analyze([TextChunk(id="a", text="uma aula muito boa")], "pt")
