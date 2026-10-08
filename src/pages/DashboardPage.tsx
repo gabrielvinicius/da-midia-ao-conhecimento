@@ -12,6 +12,7 @@ import { PaginationState } from "@tanstack/react-table";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { useAuth } from "../contexts/AuthContext";
+import { getStatusToken } from "@/features/media/lib/status-helpers";
 import { UserRole, MediaType, MediaStatus, isInProgress } from "@/types";
 import {
   Upload,
@@ -304,7 +305,7 @@ const DashboardPage = () => {
                   <div className="space-y-2 text-sm">
                     <p className="font-semibold text-foreground">{lastUpload.filename ?? "Arquivo sem nome"}</p>
                     <p className="text-muted-foreground">
-                      Status: <span className="font-medium text-foreground">{lastUpload.status}</span>
+                      Situação: <span className="font-medium text-foreground">{getStatusToken(lastUpload.status).label}</span>
                     </p>
                     <p className="text-muted-foreground">
                       Enviado em {new Date(lastUpload.created_at ?? Date.now()).toLocaleString("pt-BR")}

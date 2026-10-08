@@ -73,7 +73,7 @@ const AppLayout = () => {
           </div>
         </div>
       </div>
-      <div className="flex flex-col">
+      <div className="flex min-w-0 flex-col">
         <SystemHealthBanner />
         <header className="flex h-14 items-center gap-4 border-b border-[#f2eadf] bg-white/70 px-4 backdrop-blur lg:h-[60px] lg:px-6">
           <div className="w-full flex-1"></div>
@@ -113,7 +113,7 @@ const AppLayout = () => {
             </DropdownMenu>
           </div>
         </header>
-        <main className="flex flex-1 flex-col gap-4 bg-transparent p-4 lg:gap-6 lg:p-6">
+        <main className="flex min-w-0 flex-1 flex-col gap-4 bg-transparent p-4 lg:gap-6 lg:p-6">
           <Outlet />
         </main>
       </div>

@@ -32,9 +32,12 @@ const formatTime = (seconds: number | null) => {
 export const GroundingNotice = ({
   report,
   truncated = false,
+  onSeek,
 }: {
   report?: GroundingReport | null;
   truncated?: boolean;
+  /** Leva o reprodutor ao início de uma parte não mencionada. */
+  onSeek?: (time: number) => void;
 }) => {
   if (!report || !report.checked) return null;
   const gaps = report.gaps ?? [];
@@ -57,7 +60,7 @@ export const GroundingNotice = ({
       </p>
       {truncated && (
         <p className="mt-1 text-xs font-medium">
-          O resumo ficou incompleto: o modelo parou antes de terminar. Use os trechos do apêndice para o restante.
+          O resumo ficou incompleto: o modelo parou antes de terminar. Veja os temas e a transcrição para o restante.
         </p>
       )}
       {!allSupported && (
@@ -83,7 +86,19 @@ export const GroundingNotice = ({
           <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
             {gaps.map((gap, index) => (
               <li key={index}>
-                {formatTime(gap.start)} a {formatTime(gap.end)}
+                {onSeek ? (
+                  <button
+                    type="button"
+                    onClick={() => onSeek(gap.start)}
+                    className="font-mono underline-offset-2 hover:underline"
+                  >
+                    {formatTime(gap.start)} a {formatTime(gap.end)}
+                  </button>
+                ) : (
+                  <>
+                    {formatTime(gap.start)} a {formatTime(gap.end)}
+                  </>
+                )}
               </li>
             ))}
           </ul>

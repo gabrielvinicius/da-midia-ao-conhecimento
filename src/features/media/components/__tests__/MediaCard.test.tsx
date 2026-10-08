@@ -38,7 +38,8 @@ describe("MediaCard", () => {
     post.mockResolvedValue({ data: { message: "ok" } });
     renderCard(media(MediaStatus.FAILED, { error_message: "Modelo de linguagem indisponível" }));
 
-    expect(screen.getByText("Modelo de linguagem indisponível")).toBeInTheDocument();
+    // Em linguagem simples; o texto técnico fica na dica (title).
+    expect(screen.getByText("O modelo de linguagem não respondeu.")).toHaveAttribute("title", "Modelo de linguagem indisponível");
     fireEvent.click(screen.getByRole("button", { name: /tentar novamente/i }));
 
     await waitFor(() => expect(post).toHaveBeenCalledWith("/media/m1/reprocess"));

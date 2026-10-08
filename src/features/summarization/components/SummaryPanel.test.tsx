@@ -1,93 +1,57 @@
-/// <reference types="vitest/globals" />
-import { screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { vi } from 'vitest';
-import { saveAs } from 'file-saver';
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { vi } from "vitest";
 
-import { SummaryPanel } from './SummaryPanel';
-import { render } from '@/test/test-utils';
-import type { TextAnalysisResponse } from '@/types';
-import { useTextAnalysisByMediaIdQuery } from '@/features/summarization/hooks/useAnalysisQuery';
+import { SummaryPanel } from "./SummaryPanel";
+import { SUMMARY_APPENDIX, SUMMARY_BODY, analysis, renderWithQuery } from "@/test/fixtures";
+import { MediaStatus } from "@/types";
 
-// Mock the file-saver library
-vi.mock('file-saver', () => ({
-  saveAs: vi.fn(),
+const correctSummary = vi.fn().mockResolvedValue(undefined);
+vi.mock("../api", () => ({
+  correctSummary: (...args: unknown[]) => correctSummary(...args),
+  submitAnalysisFeedback: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock("react-toastify", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-vi.mock('@/features/summarization/hooks/useAnalysisQuery', () => ({
-  useTextAnalysisByMediaIdQuery: vi.fn(),
-}));
-
-describe('SummaryPanel Component', () => {
-  it('should allow downloading the summary when completed', async () => {
-    const user = userEvent.setup();
-    const mockAnalysis = {
-      analysis_id: 'analysis123',
-      document_id: 'doc123',
-      overall_sentiment: 'NEUTRAL',
-      sentiment_items: [],
-      topics: [
-        {
-          topic_id: 1,
-          title: 'Tópico 1',
-          keywords: ['a', 'b'],
-          representative_snippets: ['This is the summary text.'],
-          size: 1,
-        },
-      ],
-      diagnostics: {},
-      media_id: 'media123',
-      transcription_id: null,
-      provider: 'test',
-      user_id: 'user123',
-    } as unknown as TextAnalysisResponse;
-
-    // Arrange: Mock the hook to return a completed summary
-    (useTextAnalysisByMediaIdQuery as vi.Mock).mockReturnValue({
-      data: mockAnalysis,
-      isLoading: false,
-      isError: false,
-    });
-
-    render(<SummaryPanel mediaId="media123" />);
-
-    // Act: Find and click the download button
-    const downloadButton = screen.getByRole('button', { name: /exportar/i });
-    expect(downloadButton).not.toBeDisabled(); // Button should be enabled
-    await user.click(downloadButton);
-
-    // Assert: Check if saveAs was called correctly
-    expect(saveAs).toHaveBeenCalledTimes(1);
-    const callArgs = (saveAs as vi.Mock).mock.calls[0];
-    const blob = callArgs[0];
-    const filename = callArgs[1];
-
-    // Verify the blob content by checking its constructor arguments
-    expect(blob).toBeInstanceOf(Blob);
-    expect(blob.type).toBe('text/plain;charset=utf-8');
-    expect(filename).toBe(`summary-media123.txt`);
-    
-    // Read the blob content properly in test environment
-    const blobText = await new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.readAsText(blob);
-    });
-    expect(blobText).toBe('This is the summary text.');
+describe("SummaryPanel", () => {
+  it("shows the summary without the appendix and with the fidelity check", () => {
+    renderWithQuery(<SummaryPanel analysis={analysis()} />);
+    expect(screen.getByRole("heading", { name: "A crise da engenharia de software" })).toBeInTheDocument();
+    expect(screen.queryByText(/Apêndice/)).not.toBeInTheDocument();
+    expect(screen.queryByText("---")).not.toBeInTheDocument();
+    expect(screen.getByText("As 3 frases verificadas têm apoio na transcrição.")).toBeInTheDocument();
   });
 
-  it('should have a disabled download button when summary is not completed', () => {
-    // Arrange: sem análise => botão desabilitado
-    (useTextAnalysisByMediaIdQuery as vi.Mock).mockReturnValue({
-      data: null,
-      isLoading: false,
-      isError: false,
+  it("edits with a preview and saves the body with the appendix the search uses", async () => {
+    renderWithQuery(<SummaryPanel analysis={analysis()} />);
+    fireEvent.click(screen.getByRole("button", { name: /Corrigir resumo/ }));
+
+    const editor = screen.getByLabelText("Texto do resumo");
+    expect(editor).toHaveValue(SUMMARY_BODY);
+    fireEvent.change(editor, { target: { value: "# Novo título\n\nTexto revisado." } });
+    expect(screen.getByLabelText("Pré-visualização")).toHaveTextContent("Novo título");
+    fireEvent.click(screen.getByRole("button", { name: /Salvar correção/ }));
+
+    await waitFor(() =>
+      expect(correctSummary).toHaveBeenCalledWith("a1", "# Novo título\n\nTexto revisado." + SUMMARY_APPENDIX),
+    );
+  });
+
+  it("compares a corrected summary with the AI version", () => {
+    const corrected = analysis({
+      summary: "# Revisado\n\nTexto do usuário." + SUMMARY_APPENDIX,
+      diagnostics: { ...analysis().diagnostics, original_ai_summary: SUMMARY_BODY + SUMMARY_APPENDIX },
     });
+    renderWithQuery(<SummaryPanel analysis={corrected} />);
+    expect(screen.getByText("Resumo corrigido por você.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Ver versão da IA/ }));
+    expect(screen.getByRole("heading", { name: "A crise da engenharia de software" })).toBeInTheDocument();
+  });
 
-    render(<SummaryPanel mediaId="media123" />);
+  it("explains what happens before the analysis exists and hides editing from viewers", () => {
+    renderWithQuery(<SummaryPanel analysis={null} mediaStatus={MediaStatus.ANALYZING} />);
+    expect(screen.getByText("O resumo aparece aqui assim que a análise terminar.")).toBeInTheDocument();
 
-    // Assert: The download button should be disabled
-    const downloadButton = screen.getByRole('button', { name: /exportar/i });
-    expect(downloadButton).toBeDisabled();
+    renderWithQuery(<SummaryPanel analysis={analysis()} canEdit={false} />);
+    expect(screen.queryByRole("button", { name: /Corrigir resumo/ })).not.toBeInTheDocument();
   });
 });

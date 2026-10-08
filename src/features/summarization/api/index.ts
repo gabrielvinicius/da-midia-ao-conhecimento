@@ -31,5 +31,20 @@ export const correctSummary = async (analysisId: string, summary: string): Promi
   await api.put(`/text-analysis/${analysisId}/summary`, { summary });
 };
 
-export const semanticSearch = async (query: string, limit = 10): Promise<SemanticSearchResult[]> =>
+/** Corrige o título de um tema; o título da IA fica guardado. */
+export const renameTopic = async (analysisId: string, topicId: number, title: string): Promise<void> => {
+  await api.put(`/text-analysis/${analysisId}/topics/${topicId}`, { title });
+};
+
+export interface StudyAidsPayload {
+  chapters: { start: number; end: number; title: string }[];
+  review_questions: { question: string; answer: string; start: number | null }[];
+}
+
+/** Substitui capítulos e perguntas pela versão revisada; a da IA fica guardada. */
+export const correctStudyAids = async (analysisId: string, payload: StudyAidsPayload): Promise<void> => {
+  await api.put(`/text-analysis/${analysisId}/study`, payload);
+};
+
+export const semanticSearch =async (query: string, limit = 10): Promise<SemanticSearchResult[]> =>
   (await api.get<SemanticSearchResult[]>('/text-analysis/search', { params: { query, limit } })).data;

@@ -8,6 +8,7 @@ interface RawTranscriptionSegment {
   end?: number;
   text?: string;
   speaker?: string | null;
+  original_text?: string | null;
 }
 
 interface RawTranscriptionResponse {
@@ -23,6 +24,8 @@ interface RawTranscriptionResponse {
   confidence_score?: number | null;
   segments?: RawTranscriptionSegment[] | null;
   speaker_aliases?: Record<string, string>;
+  duration?: number | null;
+  corrected_segments?: number;
 }
 
 const normalizeSegments = (segments: RawTranscriptionSegment[] = []): TranscriptionSegment[] =>
@@ -31,6 +34,7 @@ const normalizeSegments = (segments: RawTranscriptionSegment[] = []): Transcript
     end: Number(segment.end ?? 0),
     text: segment.text ?? "",
     speaker: segment.speaker ?? undefined,
+    original_text: segment.original_text ?? undefined,
   }));
 
 const adaptTranscription = (payload: RawTranscriptionResponse): Transcription => {
@@ -48,6 +52,8 @@ const adaptTranscription = (payload: RawTranscriptionResponse): Transcription =>
     confidence_score: payload.confidence_score ?? null,
     segments,
     speaker_aliases: payload.speaker_aliases ?? {},
+    duration: payload.duration ?? null,
+    corrected_segments: payload.corrected_segments ?? 0,
   };
 };
 
@@ -67,6 +73,19 @@ export const updateSpeakerAliases = async (transcriptionId: string, aliases: Rec
   const response = await api.put<RawTranscriptionResponse>(
     `/transcriptions/${transcriptionId}/speaker-aliases`,
     { aliases }
+  );
+  return adaptTranscription(response.data);
+};
+
+/** Corrige o texto de um trecho; o texto do modelo fica guardado no backend. */
+export const correctTranscriptionSegment = async (
+  transcriptionId: string,
+  index: number,
+  text: string,
+): Promise<Transcription> => {
+  const response = await api.put<RawTranscriptionResponse>(
+    `/transcriptions/${transcriptionId}/segments/${index}`,
+    { text },
   );
   return adaptTranscription(response.data);
 };

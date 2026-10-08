@@ -77,6 +77,8 @@ export interface TranscriptionSegment {
   end: number;
   text: string;
   speaker?: string;
+  /** Texto do modelo, quando o usuário corrigiu o trecho. */
+  original_text?: string;
 }
 
 // Alinhado com o backend (TranscriptionResponse)
@@ -93,6 +95,9 @@ export interface Transcription {
   speaker_aliases: Record<string, string>;
   language?: string | null;
   confidence_score?: number | null;
+  /** Duração lida do arquivo; a fala pode terminar antes. */
+  duration?: number | null;
+  corrected_segments?: number;
 }
 
 export interface Notification {
@@ -135,6 +140,10 @@ export interface TextAnalysisTopic {
   keywords: string[];
   representative_snippets: string[];
   size: number;
+  /** Momento em que o tema aparece pela primeira vez (gravações). */
+  start?: number | null;
+  /** Título dado pela IA, quando o usuário o corrigiu. */
+  original_title?: string | null;
 }
 
 export interface TextAnalysisResponse {

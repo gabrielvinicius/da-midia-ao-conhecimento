@@ -68,3 +68,23 @@
     background-color: #ffffff;
   }
 }
+
+/* Imprimir ou salvar em PDF: só o guia de estudo (PrintableStudyGuide),
+   sem menu, cabeçalho nem reprodutor. */
+.print-only {
+  display: none;
+}
+
+@media print {
+  body > #root {
+    display: none !important;
+  }
+  .print-only {
+    display: block;
+    padding: 0 8mm;
+  }
+  .print-only h2,
+  .print-only h3 {
+    break-after: avoid;
+  }
+}
