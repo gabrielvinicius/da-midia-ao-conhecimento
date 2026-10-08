@@ -6,6 +6,7 @@ import { Button } from './ui/Button';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 import { SystemHealthBanner } from './SystemHealthBanner';
+import { APP_NAME } from './Brand';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,7 +46,7 @@ const AppLayout = () => {
             </button>
             {!isSidebarCollapsed && (
               <Link to="/" className="ml-3 flex items-center gap-2 font-semibold">
-                <span>Síntese</span>
+                <span className="leading-tight">{APP_NAME}</span>
               </Link>
             )}
           </div>

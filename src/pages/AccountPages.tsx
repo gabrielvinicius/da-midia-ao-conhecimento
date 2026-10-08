@@ -2,6 +2,7 @@ import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CheckCircle2, Loader2, MailCheck, XCircle } from "lucide-react";
 
+import { BrandHeader } from "@/components/Brand";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -10,7 +11,8 @@ import { apiErrorMessage } from "@/lib/errors";
 import { forgotPassword, resendVerification, resetPassword, verifyEmail } from "@/features/authentication/api";
 
 const Shell = ({ title, description, children }: { title: string; description?: string; children: ReactNode }) => (
-  <div className="flex min-h-screen items-center justify-center bg-white px-4 py-12">
+  <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4 py-12">
+    <BrandHeader />
     <Card className="w-full max-w-md border border-[#ede4d5] bg-white">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">{title}</CardTitle>

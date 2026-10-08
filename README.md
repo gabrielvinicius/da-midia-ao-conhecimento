@@ -1,4 +1,4 @@
-# Síntese - Frontend
+# Da Mídia ao Conhecimento (frontend)
 
 Projeto frontend moderno para a aplicação de sumarização de vídeos.
 
