@@ -57,8 +57,9 @@ async def test_reranker_orders_the_candidates_brought_by_the_vectors():
 
 
 @pytest.mark.asyncio
-async def test_passages_the_reranker_finds_unrelated_are_dropped_and_the_rest_get_a_level():
-    """Uma pergunta sem relação ("receita de bolo") devolvia 10 trechos com 0%."""
+async def test_every_passage_stays_with_a_level_even_the_unrecognized_ones():
+    """Descartar os de nota baixa deixava sem resultado perguntas com outras
+    palavras, cujo trecho certo também recebia nota perto de 0."""
 
     class Scores(RerankerPort):
         def score(self, query, passages):
@@ -71,8 +72,9 @@ async def test_passages_the_reranker_finds_unrelated_are_dropped_and_the_rest_ge
         ("forte", "strong"),
         ("médio", "related"),
         ("fraco", "weak"),
+        ("nada", "unrecognized"),
     ]
-    assert match_level(50) == "strong" and match_level(14.9) == "weak"
+    assert match_level(50) == "strong" and match_level(14.9) == "weak" and match_level(4.9) == "unrecognized"
 
 
 @pytest.mark.asyncio

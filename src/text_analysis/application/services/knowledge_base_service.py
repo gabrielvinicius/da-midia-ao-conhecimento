@@ -17,9 +17,13 @@ logger = structlog.get_logger(__name__)
 # 20 primeiros.
 RERANK_CANDIDATES = 20
 
-# Abaixo disso o reranqueador diz que o trecho não trata da pergunta: uma
-# pergunta sem relação ("receita de bolo") devolvia 10 trechos com 0%.
-MIN_RERANK_RELEVANCE = 5.0
+# Abaixo disso, o reranqueador não reconhece o trecho como resposta. Os trechos
+# não são descartados: na avaliação (21 perguntas em 7 mídias), o trecho
+# certo de perguntas com outras palavras ("ordem dos fatores" para a
+# comutatividade) também recebia 0 a 1,4, como os de uma pergunta sem relação.
+# Descartá-los deixava 4 perguntas sem nenhum resultado; a interface avisa
+# quando nenhum trecho passa deste valor.
+LOW_RELEVANCE = 5.0
 
 
 def match_level(relevance: float) -> str:
@@ -28,7 +32,9 @@ def match_level(relevance: float) -> str:
         return "strong"
     if relevance >= 15:
         return "related"
-    return "weak"
+    if relevance >= LOW_RELEVANCE:
+        return "weak"
+    return "unrecognized"
 
 
 def summary_title(summary: Optional[str]) -> Optional[str]:
@@ -86,8 +92,7 @@ class KnowledgeBaseService:
         return results
 
     async def _reranked(self, query: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Ordena pelo reranqueador e descarta o que não trata da pergunta; se
-        ele falhar, mantém a ordem dos vetores."""
+        """Ordena pelo reranqueador; se ele falhar, mantém a ordem dos vetores."""
         try:
             scores = await asyncio.to_thread(self._reranker.score, query, [i["content"] for i in items])
         except Exception as exc:
@@ -97,8 +102,7 @@ class KnowledgeBaseService:
             # A relevância mostrada passa a ser a do reranqueador (0 a 100).
             item["relevance"] = round(float(score) * 100, 1)
             item["match"] = match_level(item["relevance"])
-        kept = [i for i in items if i["relevance"] >= MIN_RERANK_RELEVANCE]
-        return sorted(kept, key=lambda i: i["relevance"], reverse=True)
+        return sorted(items, key=lambda i: i["relevance"], reverse=True)
 
     async def _attach_titles(self, results: List[Dict[str, Any]]) -> None:
         """Título do resumo de cada mídia, para o resultado dizer de onde vem."""
