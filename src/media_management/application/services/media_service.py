@@ -16,6 +16,7 @@ from src.media_management.application.ports import (
     MediaDataEraserPort,
     MediaMetricsPort,
     MediaRepositoryPort,
+    RemoteMediaFetcherPort,
     StorageDownloaderPort,
     StorageUploaderPort,
     StoredFileRemoverPort,
@@ -23,6 +24,7 @@ from src.media_management.application.ports import (
 )
 from src.media_management.application.use_cases import (
     DeleteMedia,
+    ImportMediaFromUrl,
     MediaDataCleanup,
     MediaLifecycle,
     ReprocessMedia,
@@ -40,6 +42,7 @@ from ..dtos import (
     GetMediaQuery,
     GetMediaStatisticsQuery,
     GetMediaStreamQuery,
+    ImportMediaCommand,
     ListMediaQuery,
     MediaStreamDTO,
     ReprocessMediaCommand,
@@ -63,6 +66,9 @@ class MediaService:
         storage_downloader: StorageDownloaderPort | None = None,
         unit_of_work: UnitOfWorkPort | None = None,
         access_policy: MediaAccessPolicy | None = None,
+        url_fetcher: RemoteMediaFetcherPort | None = None,
+        direct_link_fetcher: RemoteMediaFetcherPort | None = None,
+        url_import_enabled: bool = False,
     ) -> None:
         self.media_repository = media_repository
         self.media_read_service = media_read_service
@@ -84,12 +90,16 @@ class MediaService:
         self.reprocessing = ReprocessMedia(
             media_repository, cleanup, access_policy, event_bus=event_bus, metrics=metrics_service
         )
+        self.url_import = ImportMediaFromUrl(url_fetcher, direct_link_fetcher, self.upload, url_import_enabled)
         self.lifecycle = MediaLifecycle(media_repository)
         self.streaming = StreamMedia(media_repository, access_policy, storage_downloader)
 
     # Comandos
     async def create_media(self, command: CreateMediaCommand) -> Media:
         return await self.upload.execute(command)
+
+    async def import_media_from_url(self, command: ImportMediaCommand) -> Media:
+        return await self.url_import.execute(command)
 
     async def delete_media(
         self,

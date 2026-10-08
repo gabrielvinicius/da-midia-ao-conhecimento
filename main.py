@@ -136,7 +136,7 @@ async def lifespan(app: FastAPI):
 
     lightweight_mode = os.getenv("LIGHTWEIGHT_BOOTSTRAP", "0") == "1"
 
-    configure_logging("video-summarizer-api")
+    configure_logging("api")
     logger = get_logger("main")
 
     if not lightweight_mode:
@@ -145,7 +145,7 @@ async def lifespan(app: FastAPI):
         ensure_secure_secret(user_settings)
 
     # Configurar tracing
-    configure_tracer("video-summarizer-api")
+    configure_tracer("api")
     # Métricas numa porta interna, fora da API pública (METRICS_PORT).
     start_metrics_server()
 

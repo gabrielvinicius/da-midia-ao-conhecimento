@@ -27,6 +27,18 @@ class CreateMediaCommand(BaseModel):
     )
 
 
+class ImportMediaCommand(BaseModel):
+    """Mídia a partir de um link (YouTube)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    user_id: str | UUID
+    url: str = Field(..., max_length=500)
+    storage_provider: str = "local"
+    transcription_provider: Optional[str] = None
+    correlation_id: Optional[str] = None
+
+
 class DeleteMediaCommand(BaseModel):
     """Command para excluir um media."""
 

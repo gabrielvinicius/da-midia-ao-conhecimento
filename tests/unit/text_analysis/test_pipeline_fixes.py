@@ -375,6 +375,29 @@ def test_topic_excerpts_are_the_most_representative_in_time_order():
     assert representative_snippets(chunks, [0, 7], vectors) == ["t0", "t7"]
 
 
+def test_long_passages_are_cut_to_what_the_sentiment_model_accepts(monkeypatch):
+    """Na avaliação, um trecho da LGPD (879 tokens) passou dos 512 do modelo e
+    derrubou a etapa: só truncation=True não cortava, o tokenizador não
+    declara limite."""
+    from src.text_analysis.infrastructure.adapters.sentiment_transformers_adapter import (
+        MAX_TOKENS,
+        TransformersSentimentAdapter,
+    )
+
+    calls = {}
+
+    def pipe(texts, **kwargs):
+        calls.update(kwargs)
+        return [[{"label": "neutral", "score": 0.6}] for _ in texts]
+
+    adapter = TransformersSentimentAdapter("modelo", device="cpu")
+    monkeypatch.setattr(adapter, "_get_pipeline", lambda: pipe)
+    result = adapter.analyze([TextChunk(id="a", text="Art. 5º " * 900)], "pt")
+
+    assert calls == {"truncation": True, "max_length": MAX_TOKENS} and MAX_TOKENS == 512
+    assert result[0].label == SentimentLabel.NEUTRAL
+
+
 def test_sentiment_without_the_model_fails_instead_of_guessing_by_keywords(monkeypatch):
     """O modelo nunca carregou (faltava o sentencepiece) e o adaptador
     classificava por palavras-chave sem avisar."""

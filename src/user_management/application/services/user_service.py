@@ -11,6 +11,7 @@ from src.user_management.application.ports import (
 )
 from src.user_management.config.settings import UserSettings, user_settings
 from src.user_management.domain.errors import (
+    EmailNotVerifiedError,
     InvalidCredentialsError,
     InvalidUserDataError,
     UserAlreadyExistsError,
@@ -48,7 +49,7 @@ class UserService:
         self.settings = settings or user_settings
         self.data_erasers = list(data_erasers)
 
-    async def create_user(self, command: CreateUserCommand) -> User:
+    async def create_user(self, command: CreateUserCommand, email_verified: bool = True) -> User:
         email = normalize_email(command.email)
         await self._ensure_email_available(email)
         self._validate_password_strength(command.password)
@@ -58,6 +59,7 @@ class UserService:
             email=email,
             password_hash=self.password_hasher.hash(command.password),
             role=normalised_role,
+            email_verified=email_verified,
         )
         return await self.user_repository.save(user)
 
@@ -182,6 +184,8 @@ class UserService:
         if not user.is_active:
             # A senha confere; dizer que a conta está desativada não expõe nada.
             raise InvalidCredentialsError("Conta desativada")
+        if not user.email_verified:
+            raise EmailNotVerifiedError()
         access_token = self.token_provider.create_access_token(user.id)
         refresh_token = self.token_provider.create_refresh_token(user.id)
         return {

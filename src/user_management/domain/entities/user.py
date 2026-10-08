@@ -14,6 +14,9 @@ class User:
     password_hash: str
     role: UserRole
     is_active: bool = True
+    # Falso só para quem se cadastrou com o envio de e-mail ligado e ainda
+    # não clicou no link; contas antigas e as criadas pelo admin valem como confirmadas.
+    email_verified: bool = True
 
     @classmethod
     def create(
@@ -21,13 +24,23 @@ class User:
         email: str,
         password_hash: str,
         role: UserRole | str = UserRole.USER,
+        email_verified: bool = True,
     ) -> "User":
         """E-mail e perfil passam pelas mesmas regras da alteração: antes, um
         perfil inválido virava USER sem aviso aqui e era recusado na alteração."""
-        return cls(id=uuid4(), email=validate_email(email), password_hash=password_hash, role=parse_role(role))
+        return cls(
+            id=uuid4(),
+            email=validate_email(email),
+            password_hash=password_hash,
+            role=parse_role(role),
+            email_verified=email_verified,
+        )
 
     def activate(self) -> None:
         self.is_active = True
+
+    def confirm_email(self) -> None:
+        self.email_verified = True
 
     def deactivate(self) -> None:
         self.is_active = False

@@ -36,6 +36,7 @@ READ_ELSEWHERE = {
     "OTEL_EXPORTER_OTLP_ENDPOINT",  # OpenTelemetry
     "LOG_FORMAT", "LOG_LEVEL", "METRICS_PORT",  # observabilidade
     "DEFAULT_ADMIN_EMAIL", "DEFAULT_ADMIN_PASSWORD", "DEFAULT_ADMIN_FORCE_PASSWORD",  # main.py
+    "CLOUDFLARE_TUNNEL_TOKEN",  # docker-compose.yml, serviço cloudflared
 }
 
 

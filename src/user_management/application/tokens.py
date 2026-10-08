@@ -16,6 +16,9 @@ class TokenPurpose(str, Enum):
     REFRESH = "refresh"
     MEDIA_STREAM = "media_stream"  # reprodução de uma mídia
     NOTIFICATIONS = "notifications"  # abertura do WebSocket de avisos
+    # Links enviados por e-mail (não são emitidos pela rota /scoped-token).
+    EMAIL_VERIFICATION = "email_verification"
+    PASSWORD_RESET = "password_reset"
 
 
 SCOPED_PURPOSES = frozenset({TokenPurpose.MEDIA_STREAM, TokenPurpose.NOTIFICATIONS})

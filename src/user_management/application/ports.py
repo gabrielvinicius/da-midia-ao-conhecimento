@@ -73,6 +73,15 @@ class UserDataEraserPort(Protocol):
     async def erase(self, user_id: UUID) -> None: ...
 
 
+class EmailSenderPort(Protocol):
+    """Envio de e-mails da conta (confirmação e nova senha). Opcional: sem
+    servidor configurado, ``enabled`` é falso e nada é enviado."""
+
+    enabled: bool
+
+    async def send(self, to: str, subject: str, body: str) -> None: ...
+
+
 class PermissionServicePort(Protocol):
     def require_admin(self, admin_user: User) -> None: ...
     def validate_admin_operation(self, admin_user: User, target_user_id: UUID) -> None: ...

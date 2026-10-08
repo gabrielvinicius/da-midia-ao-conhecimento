@@ -18,6 +18,9 @@ from src.text_analysis.domain import Sentiment, SentimentLabel, TextChunk
 
 logger = get_logger(__name__)
 
+# Tamanho máximo de entrada do XLM-RoBERTa (514 posições, 2 reservadas).
+MAX_TOKENS = 512
+
 
 class TransformersSentimentAdapter(SentimentServicePort):
     def __init__(self, model_name: str, device: str | None = None) -> None:
@@ -46,7 +49,10 @@ class TransformersSentimentAdapter(SentimentServicePort):
         pipe = self._get_pipeline()
         if not pipe:
             raise TemporarilyUnavailableError(f"Modelo de sentimento indisponível ({self.model_name}).")
-        results = pipe([chunk.text for chunk in chunks], truncation=True)
+        # O tokenizador deste modelo não declara limite: só truncation=True não
+        # cortava, e um trecho longo de documento (879 tokens, na LGPD) passava
+        # dos 512 que o modelo aceita e derrubava a etapa inteira.
+        results = pipe([chunk.text for chunk in chunks], truncation=True, max_length=MAX_TOKENS)
 
         sentiments: list[Sentiment] = []
         for chunk, result in zip(chunks, results):
