@@ -1,4 +1,4 @@
-# Da Mídia ao Conhecimento (backend)
+# Da Mídia ao Conhecimento
 
 Plataforma que transcreve aulas gravadas e documentos, descreve o que aparece
 na tela, resume o conteúdo conforme o tipo (aula, palestra, reunião...),
@@ -25,6 +25,11 @@ fronteiras são verificadas pelo `lint-imports` (`.importlinter`).
   módulos; entre processos, as tarefas seguem pela fila e os avisos ao
   usuário pelo Redis. Varreduras periódicas recuperam o que se perder.
 
+O repositório reúne tudo o que se implanta junto: a API e os workers
+(`src/`), a interface web em React (`frontend/`, com o próprio README) e a
+implantação (arquivos do Compose, `docker/`, `scripts/ops/`). O relatório do
+TCC fica num repositório à parte (`relatorio_tcc`).
+
 As regras do projeto estão em `AGENTS.md`; as decisões de arquitetura, em
 `docs/adr/decisions.md`; os modelos de cada etapa, com tempos e memória
 medidos, em `docs/summarization_providers.md`.
@@ -43,7 +48,7 @@ medidos, em `docs/summarization_providers.md`.
 ## Implantação
 
 ```bash
-git clone --recurse-submodules <repositório>
+git clone https://github.com/gabrielvinicius/da-midia-ao-conhecimento.git
 cp .env.example .env        # defina SECRET_KEY, DB_PASSWORD e o administrador
 docker compose up -d --build
 ```
