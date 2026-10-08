@@ -7,7 +7,7 @@ services:
     deploy: !reset {}
 
   backend:
-    image: sintese-app:cpu
+    image: app:cpu
     build:
       args:
         PYTORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
@@ -15,7 +15,7 @@ services:
       AI_DEVICE: cpu
 
   worker-heavy:
-    image: sintese-app:cpu
+    image: app:cpu
     build:
       args:
         PYTORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
@@ -29,7 +29,7 @@ services:
       AI_COMPUTE_TYPE: int8
 
   worker-light:
-    image: sintese-app:cpu
+    image: app:cpu
     build:
       args:
         PYTORCH_INDEX_URL: https://download.pytorch.org/whl/cpu

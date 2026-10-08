@@ -16,13 +16,13 @@ services:
       - render
 
   backend:
-    image: sintese-app:rocm
+    image: app:rocm
     build:
       args:
         PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm7.2
 
   worker-heavy:
-    image: sintese-app:rocm
+    image: app:rocm
     build:
       args:
         PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm7.2
@@ -38,7 +38,7 @@ services:
       - render
 
   worker-light:
-    image: sintese-app:rocm
+    image: app:rocm
     build:
       args:
         PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm7.2

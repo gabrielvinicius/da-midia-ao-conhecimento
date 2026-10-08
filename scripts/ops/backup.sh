@@ -15,8 +15,8 @@ DB_NAME="$(grep -E '^DB_NAME=' .env | cut -d= -f2-)"
 MEDIA_VOLUME="$(docker compose config | sed -n '/^volumes:/,$p' | sed -n '/^  media_data:/{n;s/^ *name: //p;}')"
 docker volume inspect "$MEDIA_VOLUME" >/dev/null 2>&1 || { echo "volume das mídias ($MEDIA_VOLUME) não encontrado" >&2; exit 1; }
 
-echo "[backup] banco ${DB_NAME:-sintese} -> $DEST/banco.sql.gz"
-docker compose exec -T postgres pg_dump -U "${DB_USER:-postgres}" -d "${DB_NAME:-sintese}" \
+echo "[backup] banco ${DB_NAME:-app} -> $DEST/banco.sql.gz"
+docker compose exec -T postgres pg_dump -U "${DB_USER:-postgres}" -d "${DB_NAME:-app}" \
   --clean --if-exists | gzip > "$DEST/banco.sql.gz"
 
 echo "[backup] mídias -> $DEST/midias.tar.gz"

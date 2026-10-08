@@ -1,4 +1,4 @@
-# Architecture Decision Records (ADR) - Síntese
+# Architecture Decision Records (ADR) - Da Mídia ao Conhecimento
 
 Decisões de arquitetura do sistema e o motivo de cada uma. As regras do dia a dia estão em `AGENTS.md`.
 

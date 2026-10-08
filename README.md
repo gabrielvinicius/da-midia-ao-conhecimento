@@ -1,4 +1,4 @@
-# Síntese (backend)
+# Da Mídia ao Conhecimento (backend)
 
 Plataforma que transcreve aulas gravadas e documentos, descreve o que aparece
 na tela, resume o conteúdo conforme o tipo (aula, palestra, reunião...),

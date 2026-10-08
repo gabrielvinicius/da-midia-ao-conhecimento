@@ -120,7 +120,7 @@ async def test_a_failed_delivery_does_not_undo_the_registration():
 def test_the_sender_is_on_only_with_server_and_sender_address():
     off = SimpleNamespace(smtp_host="", smtp_from="", smtp_port=587, smtp_username="", smtp_password="", smtp_security="starttls")
     assert isinstance(build_email_sender(off), DisabledEmailSender)
-    on = SimpleNamespace(**{**vars(off), "smtp_host": "smtp.resend.com", "smtp_from": "Síntese <no-reply@exemplo.dev>"})
+    on = SimpleNamespace(**{**vars(off), "smtp_host": "smtp.resend.com", "smtp_from": "Da Mídia ao Conhecimento <no-reply@exemplo.dev>"})
     sender = build_email_sender(on)
     assert isinstance(sender, SmtpEmailSender) and sender.enabled
 

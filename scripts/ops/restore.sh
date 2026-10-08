@@ -16,7 +16,7 @@ docker compose stop worker-heavy worker-light
 
 echo "[restore] banco <- $SRC/banco.sql.gz"
 gunzip -c "$SRC/banco.sql.gz" | docker compose exec -T postgres \
-  psql -q -v ON_ERROR_STOP=1 -U "${DB_USER:-postgres}" -d "${DB_NAME:-sintese}"
+  psql -q -v ON_ERROR_STOP=1 -U "${DB_USER:-postgres}" -d "${DB_NAME:-app}"
 
 echo "[restore] mídias <- $SRC/midias.tar.gz"
 # No Git Bash (Windows), sem MSYS_NO_PATHCONV o caminho do contêiner virava
