@@ -242,6 +242,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
                     snippets=list(raw.get("snippets", []) or []),
                     size=int(raw.get("size") or 0),
                     chunk_indices=[int(i) for i in raw.get("chunk_indices") or []],
+                    original_title=raw.get("original_title"),
                 )
             )
         analysis.topics = topics

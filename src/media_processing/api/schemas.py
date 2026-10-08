@@ -23,6 +23,10 @@ class TranscriptionResponse(BaseModel):
     confidence_score: Optional[float] = None
     segments: List[Dict[str, Any]] = Field(default_factory=list)
     speaker_aliases: Dict[str, str] = Field(default_factory=dict)
+    # Duração lida do arquivo (o último trecho de fala termina antes do fim).
+    duration: Optional[float] = None
+    # Trechos corrigidos pelo usuário (o texto do modelo fica em original_text).
+    corrected_segments: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -41,6 +45,10 @@ class TranscriptionResponse(BaseModel):
         if value is None:
             return {}
         return value
+
+
+class SegmentCorrectionRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=5000, description="Texto corrigido do trecho.")
 
 
 class SpeakerAliasesUpdateRequest(BaseModel):

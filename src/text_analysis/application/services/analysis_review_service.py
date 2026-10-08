@@ -9,6 +9,8 @@ import structlog
 from src.shared.domain.errors import NotFoundError
 
 from src.shared.application.access import Requester, ensure_can_access
+from ...domain import Analysis
+from ...domain.chapters import Chapter, ReviewQuestion
 from ..ports import AnalysisRepositoryPort, FeedbackRepositoryPort
 
 logger = structlog.get_logger(__name__)
@@ -33,8 +35,28 @@ class AnalysisReviewService:
             raise NotFoundError("Análise não encontrada")
         logger.info("text_analysis.summary_corrected_by_human", analysis_id=str(analysis_id))
 
-    async def _ensure_access(self, analysis_id: UUID, requester: Requester) -> None:
+    async def rename_topic(self, analysis_id: UUID, requester: Requester, topic_id: int, title: str) -> None:
+        analysis = await self._ensure_access(analysis_id, requester)
+        analysis.rename_topic(topic_id, title.strip())
+        await self._analyses.save(analysis)
+        logger.info("text_analysis.topic_renamed_by_human", analysis_id=str(analysis_id))
+
+    async def correct_study_aids(
+        self,
+        analysis_id: UUID,
+        requester: Requester,
+        chapters: list[Chapter],
+        questions: list[ReviewQuestion],
+    ) -> None:
+        """Capítulos e perguntas revisados; a versão da IA fica guardada."""
+        analysis = await self._ensure_access(analysis_id, requester)
+        analysis.correct_study_aids(chapters, questions)
+        await self._analyses.save(analysis)
+        logger.info("text_analysis.study_aids_corrected_by_human", analysis_id=str(analysis_id))
+
+    async def _ensure_access(self, analysis_id: UUID, requester: Requester) -> Analysis:
         analysis = await self._analyses.get(str(analysis_id))
         if analysis is None:
             raise NotFoundError("Análise não encontrada")
         ensure_can_access(analysis.user_id, requester, "Análise não encontrada")
+        return analysis

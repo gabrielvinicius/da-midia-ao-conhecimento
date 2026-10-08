@@ -9,6 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from src.media_processing.application.dtos import (
+    CorrectSegmentCommand,
     GetTranscriptionByIdQuery,
     GetTranscriptionByMediaIdQuery,
     SetSpeakerAliasesCommand,
@@ -19,7 +20,7 @@ from src.shared.application.access import Requester
 from src.user_management.api.dependencies import get_requester
 
 from .dependencies import get_transcription_service
-from .schemas import SpeakerAliasesUpdateRequest, TranscriptionResponse
+from .schemas import SegmentCorrectionRequest, SpeakerAliasesUpdateRequest, TranscriptionResponse
 
 router = APIRouter(prefix="/transcriptions", tags=["Transcriptions"])
 
@@ -38,6 +39,8 @@ def _response(transcription: Transcription) -> TranscriptionResponse:
         speaker_aliases=transcription.speaker_aliases,
         segments=transcription.segments,
         error_message=transcription.error_message,
+        duration=transcription.recording_seconds,
+        corrected_segments=transcription.corrected_segments,
     )
 
 
@@ -71,6 +74,26 @@ async def get_transcription_by_id(
 ):
     return _response(
         await service.get_transcription_by_id(GetTranscriptionByIdQuery(transcription_id=transcription_id), requester)
+    )
+
+
+@router.put(
+    "/{transcription_id}/segments/{index}",
+    response_model=TranscriptionResponse,
+    summary="Corrige o texto de um trecho",
+)
+async def correct_segment(
+    transcription_id: UUID,
+    index: int,
+    body: SegmentCorrectionRequest,
+    service: TranscriptionService = Depends(get_transcription_service),
+    requester: Requester = Depends(get_requester),
+):
+    """O texto do modelo fica guardado no trecho; a próxima análise usa o corrigido."""
+    return _response(
+        await service.correct_segment(
+            CorrectSegmentCommand(transcription_id=transcription_id, index=index, text=body.text), requester
+        )
     )
 
 

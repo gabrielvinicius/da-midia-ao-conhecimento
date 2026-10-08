@@ -70,13 +70,18 @@ def _chunk_lookup(chunks: List[TextChunk]) -> dict[str, TextChunk]:
     return {chunk.id: chunk for chunk in chunks}
 
 
-def _map_topic(t) -> TopicDTO:
+def _map_topic(t, chunks: List[TextChunk]) -> TopicDTO:
+    starts = [
+        chunks[i].start for i in (t.chunk_indices or []) if 0 <= i < len(chunks) and chunks[i].start is not None
+    ]
     return TopicDTO(
         topic_id=t.id,
         title=t.title,
         keywords=t.keywords,
         representative_snippets=list(t.snippets or []),
         size=t.size,
+        start=min(starts) if starts else None,
+        original_title=getattr(t, "original_title", None),
     )
 
 
@@ -97,7 +102,7 @@ def analysis_to_dto(analysis: Analysis) -> AnalysisResultDTO:
         for s in analysis.sentiments
     ]
 
-    topics = [_map_topic(t) for t in analysis.topics]
+    topics = [_map_topic(t, analysis.chunks or []) for t in analysis.topics]
 
     overall = analysis.overall_sentiment or SentimentLabel.NEUTRAL
     return AnalysisResultDTO(

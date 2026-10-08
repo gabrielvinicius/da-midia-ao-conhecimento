@@ -13,6 +13,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID, uuid4
 
+from src.shared.domain.errors import NotFoundError, ValidationError
 from src.text_analysis.domain.chapters import Chapter, ReviewQuestion
 from src.text_analysis.domain.content_genre import ContentGenre
 from src.text_analysis.domain.content_profile import main_topics
@@ -105,6 +106,40 @@ class Analysis:
     @property
     def main_topics(self) -> list[Topic]:
         return main_topics(self.topics)
+
+    # --- Revisão humana: a versão da IA fica guardada na primeira correção.
+
+    def rename_topic(self, topic_id: int, title: str) -> None:
+        topic = next((t for t in self.topics if t.id == topic_id), None)
+        if topic is None:
+            raise NotFoundError("Tema não encontrado")
+        topic.rename(_required_text(title, "título do tema"))
+
+    def correct_study_aids(self, chapters: list[Chapter], questions: list[ReviewQuestion]) -> None:
+        """Capítulos e perguntas revisados pelo usuário (títulos, perguntas,
+        respostas, inclusões e exclusões)."""
+        for chapter in chapters:
+            _required_text(chapter.title, "título do capítulo")
+            if chapter.start < 0 or chapter.end < chapter.start:
+                raise ValidationError("capítulo", chapter.title, "precisa terminar depois de começar")
+        for question in questions:
+            _required_text(question.question, "pergunta")
+            _required_text(question.answer, "resposta")
+        self.diagnostics.setdefault(
+            "original_ai_chapters", [{"start": c.start, "end": c.end, "title": c.title} for c in self.chapters]
+        )
+        self.diagnostics.setdefault(
+            "original_ai_review_questions",
+            [{"question": q.question, "answer": q.answer, "start": q.start} for q in self.review_questions],
+        )
+        self.chapters = sorted(chapters, key=lambda c: c.start)
+        self.review_questions = list(questions)
+
+
+def _required_text(value: str, what: str) -> str:
+    if not (value or "").strip():
+        raise ValidationError(what, value or "", "não pode ficar vazio")
+    return value.strip()
 
 
 __all__ = ["Analysis", "STEP_OK", "SummarySource"]

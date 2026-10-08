@@ -70,6 +70,10 @@ class TopicDTO:
     keywords: list[str]
     representative_snippets: list[str]
     size: int
+    # Momento em que o tema aparece pela primeira vez (gravações).
+    start: Optional[float] = None
+    # Título dado pela IA, quando o usuário o corrigiu.
+    original_title: Optional[str] = None
 
 
 @dataclass(slots=True)

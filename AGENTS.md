@@ -53,7 +53,8 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 
 ## Intelligence & Autonomy Features
 - **Multimodal Vision**: keyframes are described in `media_processing`, right after transcription, through `VisualAnalysisPort` (`VISUAL_PROVIDER`: `ollama`, the same Qwen3.5 as the summary, by default; `moondream`; or `none`). Consecutive descriptions of the same scene are kept once (`domain.visual_sampling.is_same_scene`).
-- **Human-in-the-loop (HITL)**: Supports rating and editing AI outputs. Updates to summaries must preserve versioning for future fine-tuning.
+- **Human-in-the-loop (HITL)**: Supports rating and editing AI outputs. Updates to summaries must preserve versioning for future fine-tuning. Every correction keeps the AI version on its first edit: summary (`diagnostics.original_ai_summary`), topic titles (`Topic.original_title`), chapters and questions (`original_ai_chapters`, `original_ai_review_questions`; `Analysis.correct_study_aids`), and transcript passages (`original_text` in the segment; `Transcription.correct_segment` rebuilds the full text, so the next analysis uses the correction). A new analysis regenerates the analysis fields (transcript corrections stay).
+- **Downloads**: the media page builds the files in the browser from what the API already returns (`frontend/src/features/media/lib/exporters.ts`): summary and study guide (Markdown), transcript (text with times, SRT, WebVTT), everything (JSON), and print/PDF. The stored summary keeps its appendix after `APPENDIX_MARKER`; the page shows and exports only the body.
 - **Hardware Awareness**: `HardwareAdvisor` reports GPU/RAM pressure (whole-GPU readings via `nvidia-smi`) for the admin panel and processing deadlines.
 - **JSONB Upcasting**: Persistence uses JSONB for metadata to support zero-downtime schema evolution.
 

@@ -20,6 +20,7 @@ from ..application.services.analysis_request_service import AnalysisRequestServi
 from ..application.services.analysis_review_service import AnalysisReviewService
 from ..application.services.knowledge_base_service import KnowledgeBaseService
 from ..application.services.text_analysis_read_service import TextAnalysisReadService
+from ..domain.chapters import Chapter, ReviewQuestion
 from .dependencies import (
     get_analysis_read_service,
     get_analysis_request_service,
@@ -114,6 +115,60 @@ async def correct_analysis_summary(
     """Corrige o resumo gerado pela IA, preservando o original."""
     await service.correct_summary(analysis_id, requester, body.summary)
     return {"message": "Resumo atualizado."}
+
+
+class TopicTitleCorrection(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+
+
+@router.put("/{analysis_id}/topics/{topic_id}")
+async def rename_topic(
+    analysis_id: UUID,
+    topic_id: int,
+    body: TopicTitleCorrection,
+    service: AnalysisReviewService = Depends(get_analysis_review_service),
+    requester: Requester = Depends(get_requester),
+):
+    """Corrige o título de um tema, preservando o dado pela IA."""
+    await service.rename_topic(analysis_id, requester, topic_id, body.title)
+    return {"message": "Tema atualizado."}
+
+
+class ChapterIn(BaseModel):
+    start: float = Field(..., ge=0)
+    end: float = Field(..., ge=0)
+    title: str = Field(..., min_length=1, max_length=200)
+
+
+class ReviewQuestionIn(BaseModel):
+    question: str = Field(..., min_length=1, max_length=1000)
+    answer: str = Field(..., min_length=1, max_length=2000)
+    start: Optional[float] = Field(None, ge=0)
+
+
+class StudyAidsCorrection(BaseModel):
+    chapters: list[ChapterIn] = Field(default_factory=list, max_length=50)
+    review_questions: list[ReviewQuestionIn] = Field(default_factory=list, max_length=50)
+
+
+@router.put("/{analysis_id}/study")
+async def correct_study_aids(
+    analysis_id: UUID,
+    body: StudyAidsCorrection,
+    service: AnalysisReviewService = Depends(get_analysis_review_service),
+    requester: Requester = Depends(get_requester),
+):
+    """Corrige capítulos e perguntas de revisão, preservando a versão da IA."""
+    await service.correct_study_aids(
+        analysis_id,
+        requester,
+        [Chapter(start=c.start, end=c.end, title=c.title.strip()) for c in body.chapters],
+        [
+            ReviewQuestion(question=q.question.strip(), answer=q.answer.strip(), start=q.start)
+            for q in body.review_questions
+        ],
+    )
+    return {"message": "Capítulos e perguntas atualizados."}
 
 
 __all__ = ["router"]
