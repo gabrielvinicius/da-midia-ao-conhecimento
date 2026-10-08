@@ -256,6 +256,22 @@ services:
       - public-net
     restart: unless-stopped
 
+  cloudflared:
+    # Publicação na internet com HTTPS pelo Cloudflare Tunnel, sem abrir
+    # portas no roteador: docker compose --profile internet up -d. O token
+    # vem do painel da Cloudflare (Zero Trust > Networks > Tunnels), com o
+    # hostname público apontando para http://frontend:80.
+    image: cloudflare/cloudflared:2026.9.3
+    container_name: video_summarizer_cloudflared
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on: [frontend]
+    networks:
+      - public-net
+    restart: unless-stopped
+    profiles: ["internet"]
+
 volumes:
   postgres_data:
   redis_data:

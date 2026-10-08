@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.user_management.application.ports import UserDataEraserPort
 
 from src.user_management.api.dependencies import (
+    get_account_email_service,
     get_auth_queries,
     get_auth_service,
     get_auth_settings,
@@ -19,10 +20,12 @@ from src.user_management.api.dependencies import (
     get_user_service,
 )
 from src.user_management.application.auth_queries import UserReadService
+from src.user_management.application.services.account_email_service import AccountEmailService
 from src.user_management.application.services.auth_service import AuthService
 from src.user_management.application.services.login_throttle import LoginThrottle
 from src.user_management.application.services.user_service import UserService
 from src.user_management.config.settings import user_settings
+from src.user_management.infrastructure.adapters.smtp_email_sender import build_email_sender
 from src.user_management.infrastructure.adapters.user_repository_adapter import (
     UserRepositoryAdapter,
 )
@@ -42,6 +45,7 @@ class UserManagementModule:
     user_service: UserService
     auth_service: AuthService
     auth_queries: UserReadService
+    account_emails: AccountEmailService
 
 
 def build_user_management_components(
@@ -66,10 +70,15 @@ def build_user_management_components(
         user_service=user_service, settings=user_settings, revoked_tokens=_revoked_tokens()
     )
 
+    account_emails = AccountEmailService(
+        user_service, build_email_sender(user_settings), user_settings, limiter=_mail_limiter()
+    )
+
     return UserManagementModule(
         user_service=user_service,
         auth_service=auth_service,
         auth_queries=auth_queries,
+        account_emails=account_emails,
     )
 
 
@@ -78,6 +87,7 @@ def bind_user_management_module(app: FastAPI, module: UserManagementModule) -> N
     app.dependency_overrides[get_user_service] = lambda: module.user_service
     app.dependency_overrides[get_auth_service] = lambda: module.auth_service
     app.dependency_overrides[get_auth_queries] = lambda: module.auth_queries
+    app.dependency_overrides[get_account_email_service] = lambda: module.account_emails
     app.dependency_overrides[get_auth_settings] = lambda: user_settings
     login_throttle = _build_login_throttle()
     app.dependency_overrides[get_login_throttle] = lambda: login_throttle
@@ -98,6 +108,23 @@ def _revoked_tokens():
         redis_url = None if os.getenv("LIGHTWEIGHT_BOOTSTRAP") == "1" else shared_settings.redis_url
         _REVOKED_TOKENS = build_revoked_tokens(redis_url)
     return _REVOKED_TOKENS
+
+
+_MAIL_LIMITER = None
+
+
+def _mail_limiter():
+    """Limite de e-mails da conta por endereço, no Redis (como o de login)."""
+    global _MAIL_LIMITER
+    if _MAIL_LIMITER is None:
+        from src.shared.infrastructure.config.settings import settings as shared_settings
+        from src.user_management.infrastructure.adapters.security.login_attempt_limiter import (
+            build_login_attempt_limiter,
+        )
+
+        redis_url = None if os.getenv("LIGHTWEIGHT_BOOTSTRAP") == "1" else shared_settings.redis_url
+        _MAIL_LIMITER = build_login_attempt_limiter(redis_url)
+    return _MAIL_LIMITER
 
 
 def _build_login_throttle() -> LoginThrottle:

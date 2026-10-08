@@ -37,6 +37,22 @@ class UserSettings(BaseSettings):
     login_max_attempts_per_ip: int = 20
     login_block_seconds: int = 15 * 60
 
+    # Endereço público da aplicação, usado nos links enviados por e-mail.
+    public_url: str = Field(default="http://localhost:3000", validation_alias=AliasChoices("PUBLIC_URL", "USER_PUBLIC_URL"))
+    # Envio de e-mails (confirmação do cadastro e nova senha). Opcional: sem
+    # SMTP_HOST, o cadastro entra direto e a recuperação de senha não aparece.
+    # Funciona com qualquer provedor SMTP (Resend, Brevo, Gmail, Amazon SES...).
+    smtp_host: str = Field(default="", validation_alias=AliasChoices("SMTP_HOST"))
+    smtp_port: int = Field(default=587, validation_alias=AliasChoices("SMTP_PORT"))
+    smtp_username: str = Field(default="", validation_alias=AliasChoices("SMTP_USERNAME"))
+    smtp_password: str = Field(default="", validation_alias=AliasChoices("SMTP_PASSWORD"))
+    # Remetente, ex.: "Video Summarizer <no-reply@seudominio>".
+    smtp_from: str = Field(default="", validation_alias=AliasChoices("SMTP_FROM"))
+    # starttls (porta 587), ssl (465) ou none (servidor local de testes).
+    smtp_security: str = Field(default="starttls", validation_alias=AliasChoices("SMTP_SECURITY"))
+    email_verification_hours: int = 24
+    password_reset_minutes: int = 60
+
     model_config = SettingsConfigDict(
         env_prefix="USER_",
         case_sensitive=False,

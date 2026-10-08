@@ -82,6 +82,30 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class RegisterResponse(UserResponse):
+    email_verification_required: bool = Field(
+        False, description="A conta só entra depois de confirmar o e-mail pelo link enviado."
+    )
+
+
+class EmailRequest(BaseModel):
+    email: EmailStr
+
+
+class TokenAction(BaseModel):
+    token: str = Field(..., min_length=20, max_length=2000)
+
+
+class PasswordResetRequest(TokenAction):
+    new_password: str = Field(..., min_length=8, max_length=200)
+
+
+class AuthOptionsResponse(BaseModel):
+    """O que a tela de login e de cadastro deve oferecer."""
+
+    email_enabled: bool = Field(..., description="Confirmação do cadastro e recuperação de senha por e-mail.")
+
+
 class ScopedTokenRequest(BaseModel):
     purpose: Literal[TokenPurpose.MEDIA_STREAM, TokenPurpose.NOTIFICATIONS] = Field(
         ..., description="media_stream (com resource = id da mídia) ou notifications."

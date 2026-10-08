@@ -57,6 +57,15 @@ docker compose up -d --build
 - **Acesso pela rede**: a interface responde por HTTP na porta 3000. Para
   HTTPS, coloque um proxy reverso com certificado na frente e defina
   `USER_COOKIE_SECURE=true` no `.env`.
+- **Publicar na internet com HTTPS (Cloudflare Tunnel)**: crie um túnel no
+  painel da Cloudflare (Zero Trust > Networks > Tunnels), aponte o hostname
+  público para `http://frontend:80`, ponha o token em `CLOUDFLARE_TUNNEL_TOKEN`,
+  ajuste `PUBLIC_URL` e `USER_COOKIE_SECURE=true` e suba com
+  `docker compose --profile internet up -d`. Nenhuma porta é aberta no roteador.
+- **E-mails da conta (opcional)**: com `SMTP_HOST` e `SMTP_FROM` definidos
+  (qualquer provedor SMTP), o cadastro passa a exigir a confirmação do e-mail
+  e a tela de login ganha "Esqueci minha senha". Sem eles, o cadastro entra
+  direto.
 
 **Instalações anteriores a esta versão**: o banco ficava num volume anônimo,
 que um `docker compose down` descartava. Para levá-lo ao volume correto:

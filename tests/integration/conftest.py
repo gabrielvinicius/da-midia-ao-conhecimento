@@ -12,7 +12,16 @@ from src.media_management.config.settings import media_settings
 from src.media_management.infrastructure.adapters.storage_uploader_adapter import (
     DefaultUploadMetadataMapper,
 )
-from src.user_management.api.dependencies import get_auth_service, get_user_service, get_auth_queries, get_auth_settings, get_login_throttle
+from src.user_management.api.dependencies import (
+    get_account_email_service,
+    get_auth_queries,
+    get_auth_service,
+    get_auth_settings,
+    get_login_throttle,
+    get_user_service,
+)
+from src.user_management.application.services.account_email_service import AccountEmailService
+from src.user_management.infrastructure.adapters.smtp_email_sender import DisabledEmailSender
 from src.user_management.application.services.login_throttle import LoginThrottle
 from src.user_management.infrastructure.adapters.security.login_attempt_limiter import InMemoryLoginAttemptLimiter
 from tests.mocks.fake_auth import build_fake_auth, seed_default_user
@@ -35,6 +44,9 @@ async def client():
         app.dependency_overrides[get_auth_settings] = lambda: user_service.settings
         app.dependency_overrides[get_user_service] = lambda: user_service
         app.dependency_overrides[get_auth_service] = lambda: auth_service
+        # Cadastro sobre o mesmo repositório em memória, sem envio de e-mail.
+        account_emails = AccountEmailService(user_service, DisabledEmailSender(), user_service.settings)
+        app.dependency_overrides[get_account_email_service] = lambda: account_emails
         # Limitador de login isolado por teste (sem estado compartilhado)
         login_throttle = LoginThrottle(InMemoryLoginAttemptLimiter())
         app.dependency_overrides[get_login_throttle] = lambda: login_throttle

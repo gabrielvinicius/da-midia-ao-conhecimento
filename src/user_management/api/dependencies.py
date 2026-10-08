@@ -12,6 +12,7 @@ from fastapi import Depends, Query, WebSocketException, status
 from src.user_management.application.auth_queries import UserReadService
 from src.shared.application.access import Requester
 from src.shared.domain.errors import AccessDeniedError, AuthenticationError
+from src.user_management.application.services.account_email_service import AccountEmailService
 from src.user_management.application.services.auth_service import AuthService
 from src.user_management.application.services.login_throttle import LoginThrottle
 from src.user_management.application.services.user_service import UserService
@@ -36,6 +37,11 @@ def get_auth_service() -> AuthService:
 def get_auth_queries() -> UserReadService:
     """Returns the UserReadService (CQRS Query side) instance."""
     raise NotImplementedError("AuthQueries dependency not configured.")
+
+
+def get_account_email_service() -> AccountEmailService:
+    """Confirmação de e-mail e recuperação de senha."""
+    raise NotImplementedError("AccountEmailService dependency not configured.")
 
 
 def get_auth_settings() -> UserSettings:

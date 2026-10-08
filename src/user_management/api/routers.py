@@ -25,9 +25,16 @@ from src.user_management.domain.errors import (
 )
 from src.user_management.domain import User, UserRole
 
-from .dependencies import get_auth_service, get_auth_settings, get_user_service
+from src.user_management.application.services.account_email_service import AccountEmailService
+
+from .dependencies import get_account_email_service, get_auth_service, get_auth_settings, get_user_service
 from .schemas import (
+    AuthOptionsResponse,
     ChangePasswordRequest,
+    EmailRequest,
+    PasswordResetRequest,
+    RegisterResponse,
+    TokenAction,
     ScopedTokenRequest,
     ScopedTokenResponse,
     UserCreate,
@@ -41,17 +48,64 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post(
     "/register",
-    response_model=UserResponse,
+    response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def register(
     user_data: UserCreate,
-    user_service: UserService = Depends(get_user_service),
+    account_emails: AccountEmailService = Depends(get_account_email_service),
 ):
+    """Cria a conta. Com o envio de e-mails ligado, ela só entra depois de
+    confirmar o e-mail (email_verification_required)."""
     # Conflito (409) e dados inválidos (400) saem pelos tratadores globais.
     command = CreateUserCommand(email=user_data.email, password=user_data.password, role=UserRole.USER)
-    result = await user_service.register_user(command)
-    return UserResponse(**result["user"])
+    user, verification_required = await account_emails.register(command)
+    return RegisterResponse(
+        id=user.id,
+        email=user.email,
+        is_active=user.is_active,
+        role=user.role.value,
+        email_verification_required=verification_required,
+    )
+
+
+@router.get("/options", response_model=AuthOptionsResponse)
+async def auth_options(account_emails: AccountEmailService = Depends(get_account_email_service)):
+    return AuthOptionsResponse(email_enabled=account_emails.enabled)
+
+
+@router.post("/verify-email", status_code=status.HTTP_204_NO_CONTENT)
+async def verify_email(
+    payload: TokenAction, account_emails: AccountEmailService = Depends(get_account_email_service)
+) -> Response:
+    await account_emails.confirm_email(payload.token)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/resend-verification", status_code=status.HTTP_202_ACCEPTED)
+async def resend_verification(
+    payload: EmailRequest, account_emails: AccountEmailService = Depends(get_account_email_service)
+):
+    """Mesma resposta com ou sem conta: não revela quem está cadastrado."""
+    await account_emails.resend_verification(payload.email)
+    return {"message": "Se houver uma conta aguardando confirmação, enviamos um novo link."}
+
+
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
+async def forgot_password(
+    payload: EmailRequest, account_emails: AccountEmailService = Depends(get_account_email_service)
+):
+    """Mesma resposta com ou sem conta: não revela quem está cadastrado."""
+    await account_emails.request_password_reset(payload.email)
+    return {"message": "Se houver uma conta com este e-mail, enviamos um link para criar uma nova senha."}
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password(
+    payload: PasswordResetRequest, account_emails: AccountEmailService = Depends(get_account_email_service)
+) -> Response:
+    await account_emails.reset_password(payload.token, payload.new_password)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 def _client_ip(request: Request) -> Optional[str]:
