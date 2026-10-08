@@ -23,6 +23,7 @@ from src.media_management.infrastructure.adapters.storage_uploader_adapter impor
     DefaultUploadMetadataMapper,
     StorageServiceFactoryUploader,
 )
+from src.media_management.infrastructure.adapters.youtube_fetcher_adapter import YoutubeFetcherAdapter
 from src.media_management.infrastructure.dependencies.data_erasers import (
     build_media_data_erasers,
 )
@@ -70,6 +71,11 @@ def build_media_service(
         data_erasers=build_media_data_erasers(session),
         unit_of_work=SqlAlchemyUnitOfWork(session),
         storage_downloader=StorageDownloaderAdapter(storage_factory),
+        url_fetcher=YoutubeFetcherAdapter(
+            max_bytes=media_settings.media_max_file_size_bytes,
+            max_seconds=media_settings.media_url_import_max_minutes * 60,
+        ),
+        url_import_enabled=media_settings.media_url_import_enabled,
     )
 
 

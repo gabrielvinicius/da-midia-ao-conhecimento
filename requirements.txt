@@ -61,6 +61,9 @@ faster-whisper~=1.2.1
 av~=18.1.0
 ctranslate2~=4.8.2
 openai-whisper==20250625  # provedor opcional de transcrição
+# Importação por link: o YouTube muda com frequência e versões antigas param de
+# funcionar, por isso só o mínimo testado.
+yt-dlp>=2026.8.19
 numpy~=2.4.6
 scikit-learn~=1.9.1
 bertopic~=0.17.4

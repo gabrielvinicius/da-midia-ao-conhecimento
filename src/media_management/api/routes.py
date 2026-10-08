@@ -17,6 +17,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from src.media_management.application.errors import InvalidRangeError, InvalidUploadError
 from src.media_management.config.settings import media_settings
@@ -26,6 +27,7 @@ from src.media_management.application.dtos import (
     GetMediaQuery,
     GetMediaStatisticsQuery,
     GetMediaStreamQuery,
+    ImportMediaCommand,
     ListMediaQuery,
     ReprocessMediaCommand,
 )
@@ -98,6 +100,45 @@ async def create_media(
         # Erros de validação viram 400 nos tratadores globais; o resto, 500 sem
         # expor a mensagem interna.
         media = await service.create_media(command)
+    return MediaResponse.from_domain(media)
+
+
+class MediaImportRequest(BaseModel):
+    url: str = Field(..., min_length=10, max_length=500, description="Link de um vídeo do YouTube.")
+    storage_provider: str = "local"
+    transcription_provider: Optional[str] = None
+
+
+@router.get("/import", summary="Importação por link disponível?")
+async def media_import_options(
+    current_user: User = Depends(get_current_user),
+    service: MediaService = Depends(get_media_service),
+):
+    return {"enabled": service.url_import.enabled, "max_minutes": media_settings.media_url_import_max_minutes}
+
+
+@router.post(
+    "/import",
+    response_model=MediaResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Importar um vídeo do YouTube",
+)
+async def import_media(
+    body: MediaImportRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    service: MediaService = Depends(get_media_service),
+):
+    """Baixa o vídeo e segue como um envio comum (pode levar alguns minutos)."""
+    media = await service.import_media_from_url(
+        ImportMediaCommand(
+            user_id=current_user.id,
+            url=body.url,
+            storage_provider=body.storage_provider,
+            transcription_provider=body.transcription_provider,
+            correlation_id=correlation_id_of(request),
+        )
+    )
     return MediaResponse.from_domain(media)
 
 

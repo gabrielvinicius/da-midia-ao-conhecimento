@@ -39,6 +39,10 @@ class MediaSettings(BaseSettings):
         "bmp",
     ]
 
+    # Importação de vídeos por link do YouTube (MEDIA_URL_IMPORT_ENABLED).
+    media_url_import_enabled: bool = True
+    media_url_import_max_minutes: int = 240
+
     # Mídia enviada sem registro de processamento (UnstartedMediaRecovery):
     # anunciada de novo após a folga e marcada como falha após o limite.
     unstarted_check_interval_seconds: int = 300

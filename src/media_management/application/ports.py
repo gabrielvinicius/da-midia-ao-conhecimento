@@ -139,3 +139,18 @@ class UploadMetadataMapperPort(Protocol):
         default_path: str,
         file_size: int,
     ) -> UploadMetadata: ...
+
+
+@dataclass(frozen=True)
+class FetchedMedia:
+    """Arquivo baixado de um link, já num diretório temporário local."""
+
+    path: str
+    filename: str
+    size_bytes: int
+
+
+class RemoteMediaFetcherPort(Protocol):
+    """Baixa o vídeo de um link para ``target_dir`` (InvalidUploadError se não der)."""
+
+    async def fetch(self, url: str, target_dir: str) -> FetchedMedia: ...
