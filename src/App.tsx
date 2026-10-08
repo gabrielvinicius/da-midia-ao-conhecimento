@@ -18,6 +18,11 @@ const MediaDetailPage = lazy(() => import("./pages/MediaDetailPage"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
+// Conta: confirmação de e-mail e nova senha (links enviados por e-mail).
+const CheckEmailPage = lazy(() => import("./pages/AccountPages").then((m) => ({ default: m.CheckEmailPage })));
+const ConfirmEmailPage = lazy(() => import("./pages/AccountPages").then((m) => ({ default: m.ConfirmEmailPage })));
+const ForgotPasswordPage = lazy(() => import("./pages/AccountPages").then((m) => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import("./pages/AccountPages").then((m) => ({ default: m.ResetPasswordPage })));
 
 // As páginas do administrador têm exportação nomeada; lazy() pede a padrão.
 const AdminDashboardPage = lazy(() => import("./features/admin/pages/AdminDashboardPage").then(module => ({ default: module.AdminDashboardPage })));
@@ -41,6 +46,10 @@ const App = () => {
               {/* Públicas */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/confirme-seu-email" element={<CheckEmailPage />} />
+              <Route path="/confirmar-email" element={<ConfirmEmailPage />} />
+              <Route path="/esqueci-a-senha" element={<ForgotPasswordPage />} />
+              <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
 
               {/* Usuário logado */}
               <Route element={<ProtectedRoute />}>

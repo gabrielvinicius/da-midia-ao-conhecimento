@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { login, register, changePassword, getMe } from '../api';
 import { useAuth } from '@/contexts/AuthContext';
-import { apiErrorMessage } from '@/lib/errors';
+import { apiErrorMessage, apiErrorStatus } from '@/lib/errors';
 import { UserCredentials, UserRegistration, ChangePasswordPayload } from '@/types';
 
 export const useLogin = () => {
@@ -20,7 +20,7 @@ export const useLogin = () => {
         // Atualizar contexto e cache
         setUser(user);
         queryClient.setQueryData(['currentUser'], user);
-        
+
         toast.success('Login realizado com sucesso!');
         navigate('/dashboard');
       } catch (userError) {
@@ -29,6 +29,8 @@ export const useLogin = () => {
       }
     },
     onError: (error) => {
+      // 403: senha certa, e-mail ainda não confirmado; o formulário oferece o reenvio.
+      if (apiErrorStatus(error) === 403) return;
       toast.error(apiErrorMessage(error, 'Não foi possível entrar. Tente novamente.'));
     },
   });
@@ -39,7 +41,11 @@ export const useRegister = () => {
 
   return useMutation({
     mutationFn: (userData: UserRegistration) => register(userData),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (result.email_verification_required) {
+        navigate(`/confirme-seu-email?email=${encodeURIComponent(result.email)}`);
+        return;
+      }
       toast.success('Cadastro realizado. Entre com o seu e-mail e senha.');
       navigate('/login');
     },
