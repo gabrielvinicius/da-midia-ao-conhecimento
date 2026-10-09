@@ -21,7 +21,7 @@ test('login leva ao painel com as contagens da API', async ({ page }) => {
   await page.getByRole('button', { name: 'Entrar' }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole('heading', { name: `Bem-vindo de volta, ${USER.email}` })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Olá, ana' })).toBeVisible();
 });
 
 test('aba nova recupera a sessão pelo cookie; endereço inexistente mostra 404', async ({ page }) => {

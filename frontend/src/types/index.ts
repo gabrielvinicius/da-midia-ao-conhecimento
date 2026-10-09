@@ -3,6 +3,9 @@ export enum UserRole {
   ADMIN = "ADMIN",
 }
 
+/** Administrador: o papel vem da API exatamente como "ADMIN". */
+export const isAdminUser = (user?: { role?: UserRole | string } | null): boolean => user?.role === UserRole.ADMIN;
+
 export interface User {
   id: string;
   email: string;

@@ -1,9 +1,10 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { isAdminUser } from "@/types";
 
 const AdminRoute = () => {
   const { isAuthenticated, user, isLoading } = useAuth();
-  const isAdmin = user?.role && user.role.toString().toUpperCase().includes("ADMIN");
+  const isAdmin = isAdminUser(user);
 
   if (isLoading) {
     return (

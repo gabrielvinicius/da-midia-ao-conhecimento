@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Sequence
 from uuid import UUID
 
 import structlog
@@ -18,6 +18,16 @@ from ..mappers import MediaMapper
 from ..persistence.models import MediaEntity
 
 logger = structlog.get_logger(__name__)
+
+
+
+def _where_status(stmt, status):
+    """Um estado ou vários (o painel filtra "em andamento": enviada, em processamento e em análise)."""
+    if status is None:
+        return stmt
+    if isinstance(status, (list, tuple, set, frozenset)):
+        return stmt.where(MediaEntity.status.in_(list(status)))
+    return stmt.where(MediaEntity.status == status)
 
 
 class MediaRepository:
@@ -69,15 +79,14 @@ class MediaRepository:
         page: int = 1,
         limit: int = 10,
         user_id: Optional[UUID] = None,
-        status: Optional[MediaStatus] = None,
+        status: Optional[MediaStatus | Sequence[MediaStatus]] = None,
         search: Optional[str] = None,
         order: str = "desc",
     ) -> List[Media]:
         stmt = select(MediaEntity)
         if user_id is not None:
             stmt = stmt.where(MediaEntity.user_id == user_id)
-        if status is not None:
-            stmt = stmt.where(MediaEntity.status == status)
+        stmt = _where_status(stmt, status)
         if search:
             stmt = stmt.where(MediaEntity.original_file_path.ilike(f"%{search}%"))
 
@@ -93,14 +102,13 @@ class MediaRepository:
         self,
         *,
         user_id: Optional[UUID] = None,
-        status: Optional[MediaStatus] = None,
+        status: Optional[MediaStatus | Sequence[MediaStatus]] = None,
         search: Optional[str] = None,
     ) -> int:
         stmt = select(func.count()).select_from(MediaEntity)
         if user_id is not None:
             stmt = stmt.where(MediaEntity.user_id == user_id)
-        if status is not None:
-            stmt = stmt.where(MediaEntity.status == status)
+        stmt = _where_status(stmt, status)
         if search:
             stmt = stmt.where(MediaEntity.original_file_path.ilike(f"%{search}%"))
         result = await self.db.execute(stmt)

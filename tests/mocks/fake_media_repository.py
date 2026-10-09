@@ -47,24 +47,31 @@ class FakeMediaRepository(MediaRepositoryPort):
             if m.user_id == user_id and m.status == status
         )
 
+    def _filtered(self, user_id=None, status=None, search=None) -> List[Media]:
+        items = list(self._items.values())
+        if user_id:
+            items = [m for m in items if m.user_id == user_id]
+        if status:
+            wanted = set(status) if isinstance(status, (list, tuple, set)) else {status}
+            items = [m for m in items if m.status in wanted]
+        if search:
+            items = [m for m in items if search.lower() in (m.filename or "").lower()]
+        return items
+
     async def list_paginated(
         self,
         page: int = 1,
         limit: int = 10,
         user_id: Optional[UUID] = None,
-        status: Optional[MediaStatus] = None,
+        status=None,
         search: Optional[str] = None,
+        order: str = "desc",
     ) -> List[Media]:
-        items = list(self._items.values())
-        if user_id:
-            items = [m for m in items if m.user_id == user_id]
-        if status:
-            items = [m for m in items if m.status == status]
-        if search:
-            items = [m for m in items if search.lower() in (m.filename or "").lower()]
         start = (page - 1) * limit
-        end = start + limit
-        return items[start:end]
+        return self._filtered(user_id, status, search)[start : start + limit]
+
+    async def count_filtered(self, *, user_id=None, status=None, search=None) -> int:
+        return len(self._filtered(user_id, status, search))
 
 
 __all__ = ["FakeMediaRepository"]

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CheckCircle2, Clock, Layers, XCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { isAdminUser } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import ErrorState from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -65,7 +66,7 @@ const ProcessingTimesTable = ({ items }: { items: ProcessingTimeItem[] }) => {
 
 export const AdminAnalyticsPage = () => {
   const { user } = useAuth();
-  const isAdmin = Boolean(user?.role && user.role.toString().toUpperCase().includes("ADMIN"));
+  const isAdmin = isAdminUser(user);
   const [days, setDays] = useState<number | undefined>(30);
 
   const media = useMediaProcessingStats(isAdmin);

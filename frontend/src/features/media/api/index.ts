@@ -2,7 +2,7 @@
 import { isAxiosError } from 'axios';
 
 import api from '@/lib/api';
-import { Media, PaginatedMedia } from '@/types';
+import { Media, MediaStatus, PaginatedMedia } from '@/types';
 
 export type ProviderOption = {
   name: string;
@@ -49,9 +49,12 @@ export const listMedia = async (
   limit = 100,
   order: 'asc' | 'desc' = 'desc',
   search = '',
+  statuses: MediaStatus[] = [],
 ): Promise<PaginatedMedia> =>
   (await api.get<PaginatedMedia>('/media/', {
-    params: { page, limit, order, search: search || undefined },
+    params: { page, limit, order, search: search || undefined, status: statuses.length ? statuses : undefined },
+    // status=a&status=b, como o FastAPI lê listas (o padrão do axios é status[]=).
+    paramsSerializer: { indexes: null },
   })).data;
 
 export const getMediaStats = async (): Promise<MediaStatsResponse> =>
