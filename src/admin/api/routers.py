@@ -3,7 +3,7 @@ from dataclasses import asdict
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.admin.application.dtos import (
     GetMediaProcessingStatsQuery,
@@ -26,7 +26,17 @@ from src.user_management.domain import User
 from .dependencies import (
     get_admin_service,
 )
-from .schemas import AdminMediaResponse, QueueItemResponse, QueueResponse, SystemStatsResponse, UserUpdateRequest
+from .schemas import (
+    AdminMediaResponse,
+    QueueItemResponse,
+    QualityResponse,
+    QueueResponse,
+    CorrectedMedia,
+    RatedComment,
+    ServerStatusResponse,
+    SystemStatsResponse,
+    UserUpdateRequest,
+)
 
 router = APIRouter(
     prefix="/admin",
@@ -175,6 +185,40 @@ async def reprocess_media(
         admin_user=current_admin,
     )
     return {"message": "Reprocessamento iniciado."}
+
+
+@router.get("/server", response_model=ServerStatusResponse, summary="Máquina, GPU e serviços")
+async def get_server_status(service: AdminService = Depends(get_admin_service)):
+    """CPU, memória e GPU (placa inteira, lida pelo worker pesado), e se o banco,
+    o Redis, o Ollama e os workers respondem."""
+    server = await service.get_server_status()
+    if server is None:
+        raise HTTPException(status_code=503, detail="Leitura do servidor indisponível.")
+    return ServerStatusResponse.model_validate(asdict(server))
+
+
+@router.get("/quality", response_model=QualityResponse, summary="Qualidade da IA")
+async def get_quality(service: AdminService = Depends(get_admin_service)):
+    """Quanto da saída da IA os usuários corrigiram (resumo, temas, capítulos,
+    perguntas e trechos da transcrição) e como a avaliaram."""
+    report = await service.get_quality()
+    if report is None:
+        raise HTTPException(status_code=503, detail="Relatório de qualidade indisponível.")
+    analyses, transcriptions, names = report["analyses"], report["transcriptions"], report["filenames"]
+    return QualityResponse(
+        analyses=analyses.analyses,
+        corrected=analyses.corrected,
+        ratings=analyses.ratings,
+        rating_count=analyses.rating_count,
+        rating_average=analyses.rating_average,
+        recent_comments=[
+            RatedComment(**asdict(f), filename=names.get(f.media_id)) for f in analyses.recent_comments
+        ],
+        recent_corrections=[
+            CorrectedMedia(**asdict(c), filename=names.get(c.media_id)) for c in analyses.recent_corrections
+        ],
+        **asdict(transcriptions),
+    )
 
 
 @router.get("/stats/health", summary="Alertas do sistema")

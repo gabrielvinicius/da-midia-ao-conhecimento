@@ -103,6 +103,22 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         # Add future migrations here: if from_version == 2: ...
         return updated
 
+    async def list_analyses(self, user_id: Optional[str] = None) -> list[Analysis]:
+        stmt = select(AnalysisModel.payload).order_by(AnalysisModel.created_at.desc())
+        if user_id is not None:
+            key = _uuid_or_none(user_id)
+            if key is None:
+                return []
+            stmt = stmt.where(AnalysisModel.user_id == key)
+        analyses = []
+        for (payload,) in (await self.session.execute(stmt)).all():
+            payload = payload or {}
+            version = payload.get("schema_version", 1)
+            if version < self.CURRENT_SCHEMA_VERSION:
+                payload = self._upcast_payload(payload, from_version=version)
+            analyses.append(self._payload_to_analysis(payload))
+        return analyses
+
     async def summaries_by_media(self, media_ids: set[str]) -> dict[str, str]:
         keys = [k for k in (_uuid_or_none(m) for m in media_ids) if k is not None]
         if not keys:

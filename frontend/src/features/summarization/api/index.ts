@@ -52,3 +52,10 @@ export const correctStudyAids = async (analysisId: string, payload: StudyAidsPay
 
 export const semanticSearch =async (query: string, limit = 10): Promise<SemanticSearchResult[]> =>
   (await api.get<SemanticSearchResult[]>('/text-analysis/search', { params: { query, limit } })).data;
+
+export type StudyQuestion = { question: string; answer: string; start: number | null };
+export type StudyDeckEntry = { media_id: string | null; analysis_id: string; questions: StudyQuestion[] };
+
+/** Perguntas de revisão de todas as mídias do usuário, das mais novas para as mais antigas. */
+export const getStudyDeck = async (): Promise<StudyDeckEntry[]> =>
+  (await api.get<StudyDeckEntry[]>('/text-analysis/study-deck')).data;

@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from src.shared.application.ports import ProcessingStatsPort
+from src.admin.application.ports import MediaAdminPort, QualityPort, ServerStatus, ServerStatusPort
 
 from dataclasses import dataclass
 from uuid import UUID
@@ -37,6 +38,9 @@ class AdminService:
     admin_media_service: AdminMediaService
     processing_stats: Optional[ProcessingStatsPort] = None
     queue: Optional[AdminQueueService] = None
+    server_status: Optional[ServerStatusPort] = None
+    quality: Optional[QualityPort] = None
+    media: Optional[MediaAdminPort] = None
 
     # --- Stats & monitoring -------------------------------------------------
     async def get_system_stats(self, query: GetSystemStatsQuery) -> dict:
@@ -60,6 +64,20 @@ class AdminService:
         if self.queue is None:
             return QueueSnapshot(items=[], counts={}, broker=None, truncated=False)
         return await self.queue.snapshot()
+
+    async def get_server_status(self) -> Optional[ServerStatus]:
+        """Máquina, GPU e serviços (banco, Redis, Ollama, workers)."""
+        return await self.server_status.snapshot() if self.server_status else None
+
+    async def get_quality(self) -> Optional[dict]:
+        """Quanto da saída da IA os usuários corrigiram e como a avaliaram."""
+        if self.quality is None:
+            return None
+        analyses = await self.quality.analysis_quality()
+        transcriptions = await self.quality.transcription_quality()
+        ids = [c.media_id for c in analyses.recent_corrections] + [f.media_id for f in analyses.recent_comments]
+        names = await self.media.filenames([i for i in ids if i]) if self.media else {}
+        return {"analyses": analyses, "transcriptions": transcriptions, "filenames": names}
 
     async def owner_emails(self, user_ids) -> dict:
         """E-mail do dono de cada mídia listada (a lista mostrava só o id)."""

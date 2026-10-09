@@ -162,3 +162,35 @@ export const bulkReprocessMessage = (result: BulkReprocessResult): string => {
   return parts.join(" ");
 };
 
+
+export interface ServerStatus {
+  cpu_percent: number;
+  cpu_count: number;
+  ram_used_gb: number;
+  ram_total_gb: number;
+  /** null: sem leitura recente do worker pesado (parado, ou máquina sem GPU). */
+  gpu: { memory_used_mb: number; memory_total_mb: number; utilization_percent: number } | null;
+  pressure: "low" | "moderate" | "high" | "critical";
+  services: Record<string, boolean>;
+  workers: string[];
+  loaded_models: string[];
+}
+
+export const getServerStatus = async (): Promise<ServerStatus> => (await api.get<ServerStatus>("/admin/server")).data;
+
+export interface QualityReport {
+  analyses: number;
+  /** Análises com cada parte corrigida: "resumo", "temas", "capítulos", "perguntas". */
+  corrected: Record<string, number>;
+  ratings: Record<string, number>;
+  rating_count: number;
+  rating_average: number | null;
+  recent_comments: { media_id: string | null; filename: string | null; score: number; comment: string | null; created_at: string | null }[];
+  recent_corrections: { media_id: string | null; filename: string | null; parts: string[] }[];
+  transcriptions: number;
+  corrected_transcriptions: number;
+  segments_total: number;
+  segments_corrected: number;
+}
+
+export const getQualityReport = async (): Promise<QualityReport> => (await api.get<QualityReport>("/admin/quality")).data;

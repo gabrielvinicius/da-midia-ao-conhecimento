@@ -44,3 +44,11 @@ class MediaManagementAdapter(MediaAdminPort):
 
     async def list_media(self, query: ListMediaQuery) -> PaginatedMedia:
         return await self._service.list_media(query)
+
+    async def filenames(self, media_ids: list[UUID]) -> dict[UUID, Optional[str]]:
+        found = {}
+        for media_id in set(media_ids):
+            media = await self._repo.get_by_id(media_id)
+            if media is not None:
+                found[media_id] = media.filename
+        return found

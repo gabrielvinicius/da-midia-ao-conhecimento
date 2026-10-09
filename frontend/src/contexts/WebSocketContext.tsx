@@ -58,7 +58,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
   // os que chegaram com ela fechada.
   const { data: notifications = [] } = useQuery({
     queryKey: NOTIFICATIONS_KEY,
-    queryFn: listNotifications,
+    queryFn: () => listNotifications(),
     enabled: isAuthenticated,
     staleTime: 60_000,
   });

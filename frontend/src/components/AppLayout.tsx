@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Link, NavLink, useLocation } from 'react-router-dom';
-import { Home, Upload, LogOut, UserCircle, Settings, ShieldCheck, Menu, Search } from 'lucide-react';
+import { Home, Upload, LogOut, UserCircle, Settings, ShieldCheck, Menu, Search, GraduationCap } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { isAdminUser } from '@/types';
 import { Button } from './ui/Button';
@@ -66,6 +66,10 @@ const AppLayout = () => {
                 <Search className="mr-3 h-4 w-4" />
                 {!isSidebarCollapsed && 'Busca'}
               </NavLink>
+              <NavLink to="/study" className={({ isActive }) => navLinkClasses(isActive)}>
+                <GraduationCap className="mr-3 h-4 w-4" />
+                {!isSidebarCollapsed && 'Revisão'}
+              </NavLink>
               {isAdmin && (
                 <NavLink to="/admin/dashboard" className={({ isActive }) => navLinkClasses(isActive)}>
                   <ShieldCheck className="mr-3 h-4 w-4" />
@@ -125,6 +129,7 @@ const AppLayout = () => {
             { to: '/dashboard', label: 'Painel', icon: <Home className="h-4 w-4" /> },
             { to: '/upload', label: 'Envios', icon: <Upload className="h-4 w-4" /> },
             { to: '/search', label: 'Busca', icon: <Search className="h-4 w-4" /> },
+            { to: '/study', label: 'Revisão', icon: <GraduationCap className="h-4 w-4" /> },
             ...(isAdmin ? [{ to: '/admin/dashboard', label: 'Administração', icon: <ShieldCheck className="h-4 w-4" /> }] : []),
           ]}
         />

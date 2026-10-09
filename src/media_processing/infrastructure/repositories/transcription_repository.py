@@ -60,6 +60,32 @@ class TranscriptionRepository:
         result = await self.db.execute(stmt)
         return set(result.scalars().all())
 
+    async def media_ids_finished_before(self, media_ids: List[UUID], finished_before: datetime.datetime) -> set:
+        """Mídias com transcrição concluída ou com falha, encerrada antes do instante dado."""
+        if not media_ids:
+            return set()
+        stmt = select(TranscriptionModel.media_id).where(
+            TranscriptionModel.media_id.in_(media_ids),
+            TranscriptionModel.status.in_([TranscriptionStatus.COMPLETED, TranscriptionStatus.FAILED]),
+            func.coalesce(TranscriptionModel.updated_at, TranscriptionModel.created_at) < finished_before,
+        )
+        result = await self.db.execute(stmt)
+        return set(result.scalars().all())
+
+    async def segment_correction_counts(self) -> tuple[int, int, int, int]:
+        """Transcrições concluídas, quantas tiveram trecho corrigido, trechos no
+        total e trechos corrigidos (o original fica em ``original_text``)."""
+        stmt = select(TranscriptionModel.segments).where(TranscriptionModel.status == TranscriptionStatus.COMPLETED)
+        transcriptions = corrected_transcriptions = segments_total = segments_corrected = 0
+        for (segments,) in (await self.db.execute(stmt)).all():
+            items = [s for s in (segments or []) if isinstance(s, dict)]
+            corrected = sum(1 for s in items if "original_text" in s)
+            transcriptions += 1
+            corrected_transcriptions += corrected > 0
+            segments_total += len(items)
+            segments_corrected += corrected
+        return transcriptions, corrected_transcriptions, segments_total, segments_corrected
+
     async def delete_by_media_id(self, media_id: UUID) -> None:
         result = await self.db.execute(
             select(TranscriptionModel).where(TranscriptionModel.media_id == media_id)

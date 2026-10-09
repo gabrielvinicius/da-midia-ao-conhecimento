@@ -11,6 +11,7 @@ from src.shared.domain.errors import NotFoundError
 from src.shared.application.access import Requester, ensure_can_access
 from ...domain import Analysis
 from ...domain.chapters import Chapter, ReviewQuestion
+from ..insights import AnalysisQualityReport, quality_report
 from ..ports import AnalysisRepositoryPort, FeedbackRepositoryPort
 
 logger = structlog.get_logger(__name__)
@@ -27,6 +28,10 @@ class AnalysisReviewService:
         await self._ensure_access(analysis_id, requester)
         await self._feedback.save_feedback(str(analysis_id), requester.user_id, score, comment)
         logger.info("text_analysis.feedback_submitted", analysis_id=str(analysis_id), score=score)
+
+    async def quality_report(self) -> AnalysisQualityReport:
+        """Correções e avaliações de todas as análises (para o administrador)."""
+        return quality_report(await self._analyses.list_analyses(), await self._feedback.list_feedback())
 
     async def correct_summary(self, analysis_id: UUID, requester: Requester, summary: str) -> None:
         """Grava o resumo corrigido; o original da IA fica guardado."""

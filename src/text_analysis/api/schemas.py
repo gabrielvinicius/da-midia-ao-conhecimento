@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -28,3 +29,15 @@ class AnalyzeResponse(BaseModel):
     provider: str | None = None
     user_id: str | None = None
     summary: str | None = None
+
+
+class StudyQuestionResponse(BaseModel):
+    question: str
+    answer: str
+    start: Optional[float] = None
+
+
+class StudyDeckEntryResponse(BaseModel):
+    media_id: Optional[UUID] = None
+    analysis_id: UUID
+    questions: List[StudyQuestionResponse]

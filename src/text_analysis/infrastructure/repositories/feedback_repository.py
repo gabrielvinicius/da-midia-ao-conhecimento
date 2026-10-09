@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 from uuid import UUID
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from src.text_analysis.application.insights import FeedbackRecord
 from src.text_analysis.infrastructure.persistence.feedback_models import FeedbackModel
+from src.text_analysis.infrastructure.persistence.models import AnalysisModel
 from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
 
 class FeedbackRepository:
@@ -29,6 +31,12 @@ class FeedbackRepository:
         self.session.add(record)
         await uow_commit(self.session)
         return record
+
+    async def list_feedback(self) -> list[FeedbackRecord]:
+        stmt = select(
+            AnalysisModel.media_id, FeedbackModel.score, FeedbackModel.comment, FeedbackModel.created_at
+        ).join(AnalysisModel, AnalysisModel.id == FeedbackModel.analysis_id)
+        return [FeedbackRecord(*row) for row in (await self.session.execute(stmt)).all()]
 
     async def delete_by_user(self, user_id: UUID) -> int:
         result = await self.session.execute(delete(FeedbackModel).where(FeedbackModel.user_id == user_id))

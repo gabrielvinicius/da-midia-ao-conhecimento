@@ -29,6 +29,10 @@ class InMemoryAnalysisRepository(AnalysisRepositoryPort):
                 return analysis
         return None
 
+    async def list_analyses(self, user_id: Optional[str] = None) -> list[Analysis]:
+        found = [a for a in self._store.values() if user_id is None or str(a.user_id) == str(user_id)]
+        return list(reversed(found))
+
     async def summaries_by_media(self, media_ids: set[str]) -> dict[str, str]:
         return {
             str(a.media_id): a.summary or "" for a in self._store.values() if str(a.media_id) in media_ids

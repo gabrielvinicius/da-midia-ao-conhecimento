@@ -33,6 +33,11 @@ class AnalysisRepositoryPort(ABC):
         ...
 
     @abstractmethod
+    async def list_analyses(self, user_id: Optional[str] = None) -> List[Analysis]:
+        """Análises de um usuário (ou de todos), das mais novas para as mais antigas."""
+        ...
+
+    @abstractmethod
     async def summaries_by_media(self, media_ids: set[str]) -> dict[str, str]:
         """Só o texto do resumo de cada mídia (sem carregar a análise inteira)."""
         ...
@@ -44,3 +49,7 @@ class FeedbackRepositoryPort(Protocol):
     async def save_feedback(
         self, analysis_id: str, user_id: UUID, score: int, comment: Optional[str] = None
     ) -> Any: ...
+
+    async def list_feedback(self) -> List[Any]:
+        """Todas as avaliações (FeedbackRecord), com a mídia da análise."""
+        ...

@@ -27,6 +27,13 @@ logger = structlog.get_logger(__name__)
 
 PAGE_SIZE = 50
 
+# A transcrição terminou (ou falhou), mas o evento que mudaria o estado da
+# mídia se perdeu. A mídia ficava "enviada" para sempre: esta varredura a
+# pulava por ter registro, e o monitor de prazos só olha o que está em curso.
+LOST_OUTCOME_MESSAGE = (
+    "O processamento terminou, mas a mídia não foi atualizada. Reprocesse para gerar os resultados."
+)
+
 GIVE_UP_MESSAGE = (
     "O processamento não chegou a começar. Tente novamente; se voltar a "
     "acontecer, verifique se os workers estão em execução."
@@ -75,13 +82,22 @@ class UnstartedMediaRecovery:
         return result
 
     async def _recover(self, waiting, now: datetime.datetime, result: RecoveryResult) -> None:
-        started = await self._processing.media_with_processing([m.id for m in waiting])
+        ids = [m.id for m in waiting]
+        started = await self._processing.media_with_processing(ids)
+        # Encerrado há mais que a folga: o estado da mídia já deveria ter mudado.
+        finished = await self._processing.media_with_finished_processing(
+            ids, now - datetime.timedelta(seconds=self._grace)
+        )
         for media in waiting:
+            if media.id in finished:
+                await self._give_up_on(media, LOST_OUTCOME_MESSAGE)
+                result.failed.append(str(media.id))
+                continue
             if media.id in started:
-                continue  # o monitor de prazos do processamento cuida dela
+                continue  # em curso: o monitor de prazos do processamento cuida dela
             age = (now - media.created_at).total_seconds()
             if age >= self._give_up:
-                await self._give_up_on(media)
+                await self._give_up_on(media, GIVE_UP_MESSAGE)
                 result.failed.append(str(media.id))
                 continue
             logger.warning("unstarted_media.requeue", media_id=str(media.id), age_seconds=round(age))
@@ -90,9 +106,9 @@ class UnstartedMediaRecovery:
             )
             result.requeued.append(str(media.id))
 
-    async def _give_up_on(self, media) -> None:
-        logger.warning("unstarted_media.marking_failed", media_id=str(media.id))
-        media.mark_as_failed(GIVE_UP_MESSAGE)
+    async def _give_up_on(self, media, message: str) -> None:
+        logger.warning("unstarted_media.marking_failed", media_id=str(media.id), reason=message)
+        media.mark_as_failed(message)
         await self._media.update(media)
         # Quem avisa o usuário reage ao evento (notificações).
         await self._event_bus.publish(
@@ -100,7 +116,7 @@ class UnstartedMediaRecovery:
                 media_id=str(media.id),
                 user_id=str(media.user_id),
                 stage="queue",
-                error_message=GIVE_UP_MESSAGE,
+                error_message=message,
             )
         )
 
