@@ -20,6 +20,9 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const StudyPage = lazy(() => import("./pages/StudyPage"));
+const NotebookPage = lazy(() => import("./pages/NotebookPage"));
+const TopicsPage = lazy(() => import("./pages/TopicsPage"));
+const HelpPage = lazy(() => import("./pages/HelpPage"));
 // Conta: confirmação de e-mail e nova senha (links enviados por e-mail).
 const CheckEmailPage = lazy(() => import("./pages/AccountPages").then((m) => ({ default: m.CheckEmailPage })));
 const ConfirmEmailPage = lazy(() => import("./pages/AccountPages").then((m) => ({ default: m.ConfirmEmailPage })));
@@ -65,6 +68,9 @@ const App = () => {
                   <Route path="search" element={<SearchPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="study" element={<StudyPage />} />
+                  <Route path="notebook" element={<NotebookPage />} />
+                  <Route path="topics" element={<TopicsPage />} />
+                  <Route path="help" element={<HelpPage />} />
                   <Route path="media/:id" element={<MediaDetailPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
@@ -31,10 +32,50 @@ class AnalyzeResponse(BaseModel):
     summary: str | None = None
 
 
+class ReviewProgressResponse(BaseModel):
+    box: int = Field(..., description="Caixa de 1 a 5; a partir da 4, dominada.")
+    correct_count: int
+    wrong_count: int
+    last_answered_at: Optional[datetime] = None
+    due_at: Optional[datetime] = None
+
+
 class StudyQuestionResponse(BaseModel):
     question: str
     answer: str
     start: Optional[float] = None
+    progress: Optional[ReviewProgressResponse] = Field(None, description="Vazio: nunca respondida.")
+    due: bool = Field(True, description="Para revisar agora.")
+
+
+class ReviewAnswerRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+    correct: bool
+
+
+class NotebookEntryResponse(BaseModel):
+    media_id: Optional[UUID] = None
+    analysis_id: UUID
+    summary: str
+    genre: Optional[str] = None
+    topics: List[str]
+    chapters: int
+    questions: int
+
+
+class TopicOccurrenceResponse(BaseModel):
+    media_id: Optional[UUID] = None
+    analysis_id: UUID
+    title: str
+    keywords: List[str]
+    snippet: Optional[str] = None
+    start: Optional[float] = None
+
+
+class TopicGroupResponse(BaseModel):
+    title: str
+    media_count: int
+    occurrences: List[TopicOccurrenceResponse]
 
 
 class StudyDeckEntryResponse(BaseModel):

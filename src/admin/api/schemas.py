@@ -88,9 +88,9 @@ class CorrectedMedia(BaseModel):
 class QualityResponse(BaseModel):
     analyses: int = Field(..., description="Análises gravadas.")
     corrected: Dict[str, int] = Field(..., description="Análises com cada parte corrigida (resumo, temas...).")
-    ratings: Dict[int, int] = Field(..., description="Avaliações por nota (1 a 5).")
-    rating_count: int
-    rating_average: Optional[float] = None
+    useful: int = Field(..., description='Avaliações "útil".')
+    not_useful: int = Field(..., description='Avaliações "não foi útil".')
+    useful_share: Optional[float] = Field(None, description='% de "útil" entre as avaliações.')
     recent_comments: List[RatedComment]
     recent_corrections: List[CorrectedMedia]
     transcriptions: int

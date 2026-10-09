@@ -34,6 +34,7 @@ from src.text_analysis.infrastructure.dependencies.providers import (
     runtime_diagnostics,
 )
 from src.text_analysis.infrastructure.repositories.feedback_repository import FeedbackRepository
+from src.text_analysis.infrastructure.repositories.review_progress_repository import ReviewProgressRepository
 from src.text_analysis.infrastructure.repositories.sqlalchemy_analysis_repository import (
     SqlAlchemyAnalysisRepository,
 )
@@ -100,13 +101,17 @@ def build_text_analysis_service(
 
 
 def build_analysis_read_service(session, *, repository: Any = None) -> TextAnalysisReadService:
-    return TextAnalysisReadService(repository=repository or SqlAlchemyAnalysisRepository(session))
+    return TextAnalysisReadService(
+        repository=repository or SqlAlchemyAnalysisRepository(session),
+        progress=ReviewProgressRepository(session) if session is not None else None,
+    )
 
 
 def build_analysis_review_service(session, *, repository: Any = None) -> AnalysisReviewService:
     return AnalysisReviewService(
         repository=repository or SqlAlchemyAnalysisRepository(session),
         feedback_repo=FeedbackRepository(session),
+        progress=ReviewProgressRepository(session) if session is not None else None,
     )
 
 

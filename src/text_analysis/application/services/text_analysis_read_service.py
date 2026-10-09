@@ -6,14 +6,15 @@ from src.shared.domain.errors import NotFoundError
 from ...domain import Analysis
 from src.shared.application.access import Requester, ensure_can_access
 from ..dtos import GetAnalysisByMediaIdQuery, GetAnalysisQuery, ListTopicsQuery
-from ..insights import StudyDeckEntry, study_deck
+from ..insights import NotebookEntry, StudyDeckEntry, TopicGroup, notebook, study_deck, topic_overview
 from ..mappers import analysis_to_dto
-from ..ports import AnalysisRepositoryPort
+from ..ports.repository import AnalysisRepositoryPort, ReviewProgressPort
 
 
 class TextAnalysisReadService:
-    def __init__(self, repository: AnalysisRepositoryPort) -> None:
+    def __init__(self, repository: AnalysisRepositoryPort, progress: ReviewProgressPort | None = None) -> None:
         self.repository = repository
+        self._progress = progress
 
     async def get_analysis(self, query: GetAnalysisQuery, requester: Requester) -> dict[str, Any]:
         analysis = await self._accessible(await self.repository.get(str(query.analysis_id)), requester)
@@ -31,7 +32,17 @@ class TextAnalysisReadService:
 
     async def study_deck(self, requester: Requester) -> list[StudyDeckEntry]:
         """Perguntas de revisão de todas as análises de quem pede."""
-        return study_deck(await self.repository.list_analyses(str(requester.user_id)))
+        analyses = await self.repository.list_analyses(str(requester.user_id))
+        progress = await self._progress.progress_of(requester.user_id) if self._progress else {}
+        return study_deck(analyses, progress)
+
+    async def notebook(self, requester: Requester) -> list[NotebookEntry]:
+        """Os resumos de todas as mídias de quem pede."""
+        return notebook(await self.repository.list_analyses(str(requester.user_id)))
+
+    async def topic_overview(self, requester: Requester) -> list[TopicGroup]:
+        """Os temas de todas as mídias de quem pede, juntos pelo título."""
+        return topic_overview(await self.repository.list_analyses(str(requester.user_id)))
 
     @staticmethod
     async def _accessible(analysis: Analysis | None, requester: Requester) -> Analysis:

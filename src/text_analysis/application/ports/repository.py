@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from src.text_analysis.domain import Analysis, Topic
+from src.text_analysis.domain.review import ReviewCard
 
 
 class AnalysisRepositoryPort(ABC):
@@ -41,6 +42,18 @@ class AnalysisRepositoryPort(ABC):
     async def summaries_by_media(self, media_ids: set[str]) -> dict[str, str]:
         """Só o texto do resumo de cada mídia (sem carregar a análise inteira)."""
         ...
+
+
+class ReviewProgressPort(Protocol):
+    """Progresso de cada usuário nas perguntas de revisão."""
+
+    async def progress_of(self, user_id: UUID) -> dict:
+        """(id da análise, chave da pergunta) -> ReviewCard."""
+        ...
+
+    async def card(self, user_id: UUID, analysis_id: UUID, key: str) -> Optional[ReviewCard]: ...
+
+    async def save(self, user_id: UUID, analysis_id: UUID, key: str, card: ReviewCard) -> None: ...
 
 
 class FeedbackRepositoryPort(Protocol):

@@ -182,9 +182,10 @@ export interface QualityReport {
   analyses: number;
   /** Análises com cada parte corrigida: "resumo", "temas", "capítulos", "perguntas". */
   corrected: Record<string, number>;
-  ratings: Record<string, number>;
-  rating_count: number;
-  rating_average: number | null;
+  /** Avaliações do resumo pelo polegar: útil e não foi útil. */
+  useful: number;
+  not_useful: number;
+  useful_share: number | null;
   recent_comments: { media_id: string | null; filename: string | null; score: number; comment: string | null; created_at: string | null }[];
   recent_corrections: { media_id: string | null; filename: string | null; parts: string[] }[];
   transcriptions: number;

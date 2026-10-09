@@ -208,9 +208,9 @@ async def get_quality(service: AdminService = Depends(get_admin_service)):
     return QualityResponse(
         analyses=analyses.analyses,
         corrected=analyses.corrected,
-        ratings=analyses.ratings,
-        rating_count=analyses.rating_count,
-        rating_average=analyses.rating_average,
+        useful=analyses.useful,
+        not_useful=analyses.not_useful,
+        useful_share=analyses.useful_share,
         recent_comments=[
             RatedComment(**asdict(f), filename=names.get(f.media_id)) for f in analyses.recent_comments
         ],

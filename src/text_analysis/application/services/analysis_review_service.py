@@ -13,14 +13,23 @@ from ...domain import Analysis
 from ...domain.chapters import Chapter, ReviewQuestion
 from ..insights import AnalysisQualityReport, quality_report
 from ..ports import AnalysisRepositoryPort, FeedbackRepositoryPort
+from ..ports.repository import ReviewProgressPort
+from ...domain.review import ReviewCard, question_key
+from src.shared.domain.time.clock import utcnow
 
 logger = structlog.get_logger(__name__)
 
 
 class AnalysisReviewService:
-    def __init__(self, repository: AnalysisRepositoryPort, feedback_repo: FeedbackRepositoryPort) -> None:
+    def __init__(
+        self,
+        repository: AnalysisRepositoryPort,
+        feedback_repo: FeedbackRepositoryPort,
+        progress: ReviewProgressPort | None = None,
+    ) -> None:
         self._analyses = repository
         self._feedback = feedback_repo
+        self._progress = progress
 
     async def submit_feedback(
         self, analysis_id: UUID, requester: Requester, score: int, comment: Optional[str] = None
@@ -28,6 +37,17 @@ class AnalysisReviewService:
         await self._ensure_access(analysis_id, requester)
         await self._feedback.save_feedback(str(analysis_id), requester.user_id, score, comment)
         logger.info("text_analysis.feedback_submitted", analysis_id=str(analysis_id), score=score)
+
+    async def answer_question(self, analysis_id: UUID, requester: Requester, question: str, correct: bool) -> ReviewCard:
+        """Registra se o aluno acertou a pergunta e devolve quando revê-la."""
+        analysis = await self._ensure_access(analysis_id, requester)
+        key = question_key(question)
+        if self._progress is None or not any(question_key(q.question) == key for q in analysis.review_questions):
+            raise NotFoundError("Pergunta não encontrada")
+        card = await self._progress.card(requester.user_id, analysis.id, key) or ReviewCard()
+        card = card.answered(correct, utcnow())
+        await self._progress.save(requester.user_id, analysis.id, key, card)
+        return card
 
     async def quality_report(self) -> AnalysisQualityReport:
         """Correções e avaliações de todas as análises (para o administrador)."""

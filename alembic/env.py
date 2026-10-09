@@ -18,6 +18,7 @@ import src.notifications.infrastructure.persistence.models  # noqa: F401
 import src.text_analysis.infrastructure.persistence.models  # noqa: F401
 import src.text_analysis.infrastructure.persistence.knowledge_models  # noqa: F401
 import src.text_analysis.infrastructure.persistence.feedback_models  # noqa: F401
+import src.text_analysis.infrastructure.persistence.review_models  # noqa: F401
 import src.shared.infrastructure.persistence.processing_stats_model  # noqa: F401
 import src.user_management.infrastructure.persistence.models  # noqa: F401
 from src.shared.infrastructure.config.settings import settings
