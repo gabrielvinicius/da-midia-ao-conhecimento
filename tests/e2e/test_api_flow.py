@@ -132,7 +132,8 @@ def test_admin_dashboard_endpoints_answer(client):
 
     for path in (
         "/admin/stats", "/admin/stats/health", "/admin/stats/media-processing", "/admin/users", "/admin/queue",
-        "/admin/quality", "/admin/server", "/text-analysis/study-deck",
+        "/admin/quality", "/admin/server", "/text-analysis/study-deck", "/text-analysis/notebook",
+        "/text-analysis/topics-overview",
     ):
         response = client.get(path, headers=admin)
         assert response.status_code == 200, (path, response.text)

@@ -28,7 +28,15 @@ from .dependencies import (
     get_analysis_review_service,
     get_knowledge_service,
 )
-from .schemas import AnalyzeRequest, AnalyzeResponse, StudyDeckEntryResponse
+from .schemas import (
+    AnalyzeRequest,
+    AnalyzeResponse,
+    NotebookEntryResponse,
+    ReviewAnswerRequest,
+    ReviewProgressResponse,
+    StudyDeckEntryResponse,
+    TopicGroupResponse,
+)
 
 router = APIRouter(prefix="/text-analysis", tags=["text-analysis"])
 
@@ -64,6 +72,25 @@ async def study_deck(
     """As perguntas de revisão (com a resposta e o momento da gravação) de todas
     as análises de quem pede, das mais novas para as mais antigas."""
     return [StudyDeckEntryResponse.model_validate(asdict(entry)) for entry in await service.study_deck(requester)]
+
+
+@router.get("/notebook", response_model=list[NotebookEntryResponse], summary="Resumos de todas as mídias")
+async def notebook(
+    service: TextAnalysisReadService = Depends(get_analysis_read_service),
+    requester: Requester = Depends(get_requester),
+):
+    """O caderno de resumos de quem pede, das mídias mais novas para as mais antigas."""
+    return [NotebookEntryResponse.model_validate(asdict(entry)) for entry in await service.notebook(requester)]
+
+
+@router.get("/topics-overview", response_model=list[TopicGroupResponse], summary="Temas de todas as mídias")
+async def topics_overview(
+    service: TextAnalysisReadService = Depends(get_analysis_read_service),
+    requester: Requester = Depends(get_requester),
+):
+    """Temas de todas as mídias de quem pede, juntos pelo título; os que se
+    repetem em mais mídias primeiro."""
+    return [TopicGroupResponse.model_validate(asdict(group)) for group in await service.topic_overview(requester)]
 
 
 @router.get("/media/{media_id}", response_model=AnalyzeResponse)
@@ -183,3 +210,19 @@ async def correct_study_aids(
 
 
 __all__ = ["router"]
+
+
+@router.post(
+    "/{analysis_id}/review-answer",
+    response_model=ReviewProgressResponse,
+    summary="Registrar se acertou uma pergunta de revisão",
+)
+async def review_answer(
+    analysis_id: UUID,
+    payload: ReviewAnswerRequest,
+    service: AnalysisReviewService = Depends(get_analysis_review_service),
+    requester: Requester = Depends(get_requester),
+):
+    """Acertou: a pergunta volta mais tarde (1, 3, 7, 14 dias). Errou: volta hoje."""
+    card = await service.answer_question(analysis_id, requester, payload.question, payload.correct)
+    return ReviewProgressResponse.model_validate(asdict(card))

@@ -17,6 +17,7 @@ from src.notifications.infrastructure.repositories.notification_repository impor
     NotificationRepository,
 )
 from src.text_analysis.infrastructure.adapters.user_feedback_eraser import UserFeedbackEraser
+from src.text_analysis.infrastructure.repositories.review_progress_repository import ReviewProgressRepository
 from src.text_analysis.infrastructure.repositories.feedback_repository import FeedbackRepository
 from src.user_management.application.ports import UserDataEraserPort
 
@@ -25,7 +26,7 @@ def build_user_data_erasers(session, media_service: MediaService) -> List[UserDa
     return [
         UserMediaEraser(MediaRepository(db=session), media_service.deletion),
         UserNotificationsEraser(NotificationRepository(db=session)),
-        UserFeedbackEraser(FeedbackRepository(session)),
+        UserFeedbackEraser(FeedbackRepository(session), ReviewProgressRepository(session)),
     ]
 
 
