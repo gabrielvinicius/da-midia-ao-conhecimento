@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
+import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from './test-utils';
 import NotificationsPage from '@/pages/NotificationsPage';
@@ -124,6 +125,16 @@ describe('Resumos', () => {
     expect((await screen.findAllByText('DDD organiza o código pelo domínio.')).length).toBeGreaterThan(0);
     expect(screen.queryByText('segredo')).not.toBeInTheDocument();
     expect(screen.getByText('Domínio')).toBeInTheDocument();
+
+    // Baixar é um seletor (PDF, depois Markdown); o outro botão só imprime.
+    expect(screen.getByRole('button', { name: 'Imprimir' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Baixar/ }));
+    const options = await screen.findAllByRole('menuitem');
+    expect(options.map((o) => o.textContent)).toEqual([
+      expect.stringContaining('PDF'),
+      expect.stringContaining('Markdown (.md)'),
+    ]);
+    await userEvent.keyboard('{Escape}');
 
     fireEvent.change(screen.getByLabelText('Buscar nos resumos'), { target: { value: 'inexistente' } });
     expect(screen.getByText('Nenhum resumo menciona “inexistente”.')).toBeInTheDocument();

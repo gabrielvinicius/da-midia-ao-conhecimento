@@ -3,9 +3,10 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { saveAs } from "file-saver";
-import { ChevronDown, ChevronUp, Download, Printer, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, FileCode2, FileText, Printer, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/DropdownMenu";
 import { Card } from "@/components/ui/Card";
 import ErrorState from "@/components/ui/ErrorState";
 import { Input } from "@/components/ui/Input";
@@ -16,6 +17,19 @@ import { useMediaNames } from "@/features/media/hooks/useMediaNames";
 import { getNotebook, type NotebookEntry } from "@/features/summarization/api";
 import { genreLabel } from "@/features/summarization/components/SummaryPanel";
 import { normalizeText } from "@/lib/text";
+
+const FILE_NAME = "caderno-de-resumos";
+
+/**
+ * PDF pelo próprio navegador (destino "Salvar como PDF"), sem biblioteca: o
+ * título da página vira o nome sugerido do arquivo enquanto o diálogo está aberto.
+ */
+const savePdf = () => {
+  const previous = document.title;
+  document.title = FILE_NAME;
+  window.addEventListener("afterprint", () => (document.title = previous), { once: true });
+  window.print();
+};
 
 /** Um arquivo Markdown com todos os resumos, na ordem da tela. */
 const notebookMarkdown = (entries: NotebookEntry[], nameOf: (id: string | null) => string) =>
@@ -89,20 +103,40 @@ const NotebookPage = () => {
           <h1 className="text-2xl font-semibold text-slate-900">Resumos</h1>
           <p className="text-sm text-muted-foreground">Os resumos de todas as suas mídias, para ler e estudar em sequência.</p>
         </div>
-        <div className="flex gap-2 ">
-          <Button
-            variant="outline"
-            disabled={entries.length === 0}
-            onClick={() =>
-              saveAs(new Blob([notebookMarkdown(entries, nameOf)], { type: "text/markdown;charset=utf-8" }), "caderno-de-resumos.md")
-            }
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Baixar (.md)
-          </Button>
+        <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={entries.length === 0}>
+                <Download className="mr-2 h-4 w-4" />
+                Baixar
+                <ChevronDown className="ml-2 h-3.5 w-3.5 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem onSelect={savePdf} className="items-start gap-3 py-2">
+                <FileText className="mt-0.5 h-4 w-4 text-slate-500" />
+                <span className="flex flex-col">
+                  <span className="text-sm text-slate-900">PDF</span>
+                  <span className="text-xs text-slate-500">Escolha “Salvar como PDF” no destino</span>
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() =>
+                  saveAs(new Blob([notebookMarkdown(entries, nameOf)], { type: "text/markdown;charset=utf-8" }), `${FILE_NAME}.md`)
+                }
+                className="items-start gap-3 py-2"
+              >
+                <FileCode2 className="mt-0.5 h-4 w-4 text-slate-500" />
+                <span className="flex flex-col">
+                  <span className="text-sm text-slate-900">Markdown (.md)</span>
+                  <span className="text-xs text-slate-500">Para editar ou levar a outro aplicativo</span>
+                </span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="outline" disabled={entries.length === 0} onClick={() => window.print()}>
             <Printer className="mr-2 h-4 w-4" />
-            Imprimir ou PDF
+            Imprimir
           </Button>
         </div>
       </div>
