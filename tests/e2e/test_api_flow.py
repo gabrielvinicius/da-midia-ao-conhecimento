@@ -130,7 +130,10 @@ def test_admin_dashboard_endpoints_answer(client):
     assert r.status_code == 200, r.text
     admin = {"Authorization": f"Bearer {r.json()['access_token']}"}
 
-    for path in ("/admin/stats", "/admin/stats/health", "/admin/stats/media-processing", "/admin/users", "/admin/queue"):
+    for path in (
+        "/admin/stats", "/admin/stats/health", "/admin/stats/media-processing", "/admin/users", "/admin/queue",
+        "/admin/quality", "/admin/server", "/text-analysis/study-deck",
+    ):
         response = client.get(path, headers=admin)
         assert response.status_code == 200, (path, response.text)
     assert client.get("/admin/stats", headers=admin).json()["total_users"] >= 1

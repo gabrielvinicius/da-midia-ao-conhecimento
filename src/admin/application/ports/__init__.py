@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Protocol
 from uuid import UUID
 
@@ -25,6 +26,10 @@ class MediaAdminPort(Protocol):
         ...
 
     async def list_media(self, query: ListMediaQuery) -> PaginatedMedia: ...
+
+    async def filenames(self, media_ids: List[UUID]) -> Dict[UUID, Optional[str]]:
+        """Nome do arquivo de cada mídia (as que não existem mais ficam de fora)."""
+        ...
 
 
 class UserAdminPort(Protocol):
@@ -66,6 +71,48 @@ class QueueDepthPort(Protocol):
         ...
 
 
+@dataclass(frozen=True)
+class GpuStatus:
+    memory_used_mb: float
+    memory_total_mb: float
+    utilization_percent: float
+
+
+@dataclass(frozen=True)
+class ServerStatus:
+    """Máquina e serviços, do ponto de vista do administrador."""
+
+    cpu_percent: float
+    cpu_count: int
+    ram_used_gb: float
+    ram_total_gb: float
+    gpu: Optional[GpuStatus]  # None: sem leitura recente do worker pesado
+    pressure: str
+    services: Dict[str, bool] = field(default_factory=dict)
+    workers: List[str] = field(default_factory=list)
+    loaded_models: List[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class TranscriptionQuality:
+    transcriptions: int
+    corrected_transcriptions: int
+    segments_total: int
+    segments_corrected: int
+
+
+class QualityPort(Protocol):
+    """Correções e avaliações feitas pelos usuários sobre a saída da IA."""
+
+    async def analysis_quality(self): ...  # text_analysis.application.insights.AnalysisQualityReport
+
+    async def transcription_quality(self) -> TranscriptionQuality: ...
+
+
+class ServerStatusPort(Protocol):
+    async def snapshot(self) -> ServerStatus: ...
+
+
 class AdminAuditPort(Protocol):
     async def log_admin_action(
         self,
@@ -85,4 +132,9 @@ __all__ = [
     "AdminUserReadPort",
     "AdminAuditPort",
     "QueueDepthPort",
+    "GpuStatus",
+    "ServerStatus",
+    "ServerStatusPort",
+    "QualityPort",
+    "TranscriptionQuality",
 ]

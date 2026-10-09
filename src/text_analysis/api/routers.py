@@ -6,6 +6,7 @@ Quem pode ver ou alterar cada análise é decidido na camada de aplicação
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Optional
 from uuid import UUID
 
@@ -27,7 +28,7 @@ from .dependencies import (
     get_analysis_review_service,
     get_knowledge_service,
 )
-from .schemas import AnalyzeRequest, AnalyzeResponse
+from .schemas import AnalyzeRequest, AnalyzeResponse, StudyDeckEntryResponse
 
 router = APIRouter(prefix="/text-analysis", tags=["text-analysis"])
 
@@ -53,6 +54,16 @@ async def request_analysis(
     """Pede uma nova análise da mídia ao worker; o resultado chega pelos avisos."""
     await service.request(payload.media_id, requester, correlation_id_of(request))
     return {"media_id": str(payload.media_id), "status": "queued"}
+
+
+@router.get("/study-deck", response_model=list[StudyDeckEntryResponse], summary="Perguntas de revisão de todas as mídias")
+async def study_deck(
+    service: TextAnalysisReadService = Depends(get_analysis_read_service),
+    requester: Requester = Depends(get_requester),
+):
+    """As perguntas de revisão (com a resposta e o momento da gravação) de todas
+    as análises de quem pede, das mais novas para as mais antigas."""
+    return [StudyDeckEntryResponse.model_validate(asdict(entry)) for entry in await service.study_deck(requester)]
 
 
 @router.get("/media/{media_id}", response_model=AnalyzeResponse)

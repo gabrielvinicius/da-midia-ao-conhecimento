@@ -14,6 +14,8 @@ from src.admin.application.services.admin_service import AdminService
 from src.admin.application.services.admin_user_service import AdminUserService
 from src.admin.infrastructure.adapters.media_read_adapter import MediaReadAdapter
 from src.admin.infrastructure.adapters.redis_queue_depth import RedisQueueDepthAdapter
+from src.admin.infrastructure.adapters.server_status_adapter import ServerStatusAdapter
+from src.admin.infrastructure.adapters.quality_adapter import QualityAdapter
 from src.admin.infrastructure.adapters.user_read_adapter import UserReadAdapter
 from src.admin.infrastructure.dependencies.providers import (
     get_media_admin_adapter,
@@ -89,6 +91,9 @@ def build_admin_module(
             users=user_read_adapter,
             queue_depth=RedisQueueDepthAdapter(settings.redis_url),
         ),
+        server_status=ServerStatusAdapter(),
+        quality=QualityAdapter.for_session(session) if session is not None else None,
+        media=media_admin_adapter,
     )
 
     return AdminModule(

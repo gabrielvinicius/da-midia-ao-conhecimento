@@ -6,6 +6,7 @@ from src.shared.domain.errors import NotFoundError
 from ...domain import Analysis
 from src.shared.application.access import Requester, ensure_can_access
 from ..dtos import GetAnalysisByMediaIdQuery, GetAnalysisQuery, ListTopicsQuery
+from ..insights import StudyDeckEntry, study_deck
 from ..mappers import analysis_to_dto
 from ..ports import AnalysisRepositoryPort
 
@@ -27,6 +28,10 @@ class TextAnalysisReadService:
     async def list_topics(self, query: ListTopicsQuery, requester: Requester) -> list[dict[str, Any]]:
         analysis = await self._accessible(await self.repository.get(str(query.analysis_id)), requester)
         return analysis_to_dto(analysis).to_dict()["topics"]
+
+    async def study_deck(self, requester: Requester) -> list[StudyDeckEntry]:
+        """Perguntas de revisão de todas as análises de quem pede."""
+        return study_deck(await self.repository.list_analyses(str(requester.user_id)))
 
     @staticmethod
     async def _accessible(analysis: Analysis | None, requester: Requester) -> Analysis:
