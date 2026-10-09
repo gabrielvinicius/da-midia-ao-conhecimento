@@ -30,10 +30,11 @@ def _media(minutes_ago):
     return media
 
 
-def _recovery(waiting, started=()):
+def _recovery(waiting, started=(), finished=()):
     query, records, bus = AsyncMock(), AsyncMock(), AsyncMock()
     query.list_waiting.return_value = waiting
-    records.media_with_processing.return_value = set(started)
+    records.media_with_processing.return_value = set(started) | set(finished)
+    records.media_with_finished_processing.return_value = set(finished)
     recovery = UnstartedMediaRecovery(query, records, bus, grace_seconds=600, give_up_seconds=3600)
     return recovery, query, bus
 
@@ -111,3 +112,22 @@ async def test_a_full_page_of_started_media_does_not_hide_newer_ones():
 
     assert result.requeued == [str(lost.id)]
     assert query.list_waiting.await_args_list[1].args[2] is started[-1]  # continua da última
+
+
+@pytest.mark.asyncio
+async def test_media_whose_processing_ended_but_state_never_changed_is_failed():
+    """A transcrição terminou (ou falhou) e o evento se perdeu: a mídia ficava
+    "enviada" para sempre; agora vira falha e pode ser reprocessada."""
+    media = _media(30)
+    recovery, query, bus = _recovery([media], finished=[media.id])
+
+    result = await recovery.sweep(NOW)
+
+    assert result.failed == [str(media.id)]
+    assert media.status == MediaStatus.FAILED
+    assert "não foi atualizada" in media.error_message
+    query.update.assert_awaited_once_with(media)
+    event = bus.publish.await_args.args[0]
+    assert isinstance(event, MediaFailed) and event.error_message == media.error_message
+    records = recovery._processing
+    assert records.media_with_finished_processing.await_args.args[1] == NOW - datetime.timedelta(minutes=10)

@@ -74,6 +74,12 @@ class ProcessingRecordsPort(Protocol):
 
     async def media_with_processing(self, media_ids: List[UUID]) -> Set[UUID]: ...
 
+    async def media_with_finished_processing(
+        self, media_ids: List[UUID], finished_before: datetime.datetime
+    ) -> Set[UUID]:
+        """As que têm processamento já encerrado (concluído ou com falha) antes do instante dado."""
+        ...
+
 
 class StoredFileRemoverPort(Protocol):
     """Remove os arquivos de uma mídia do armazenamento (implementado pelo módulo storage)."""
