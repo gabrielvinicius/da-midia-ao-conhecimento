@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Link, NavLink, useLocation } from 'react-router-dom';
-import { Home, Users, FolderKanban, LogOut, BarChart3, Menu, UserCircle, Settings, ShieldCheck, ListOrdered, ArrowLeft } from 'lucide-react';
+import { Home, Users, FolderKanban, LogOut, BarChart3, Menu, UserCircle, Settings, ShieldCheck, ListOrdered, ArrowLeft, Server, BadgeCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/Button';
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
@@ -20,7 +20,9 @@ const ADMIN_NAV: NavItem[] = [
   { to: '/admin/queue', label: 'Fila', icon: <ListOrdered className="h-4 w-4" /> },
   { to: '/admin/media', label: 'Mídias', icon: <FolderKanban className="h-4 w-4" /> },
   { to: '/admin/users', label: 'Usuários', icon: <Users className="h-4 w-4" /> },
+  { to: '/admin/quality', label: 'Qualidade da IA', icon: <BadgeCheck className="h-4 w-4" /> },
   { to: '/admin/analytics', label: 'Tempos', icon: <BarChart3 className="h-4 w-4" /> },
+  { to: '/admin/server', label: 'Servidor', icon: <Server className="h-4 w-4" /> },
 ];
 
 const AdminLayout = () => {

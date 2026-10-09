@@ -18,6 +18,8 @@ const MediaDetailPage = lazy(() => import("./pages/MediaDetailPage"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const SearchPage = lazy(() => import("./pages/SearchPage"));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
+const StudyPage = lazy(() => import("./pages/StudyPage"));
 // Conta: confirmação de e-mail e nova senha (links enviados por e-mail).
 const CheckEmailPage = lazy(() => import("./pages/AccountPages").then((m) => ({ default: m.CheckEmailPage })));
 const ConfirmEmailPage = lazy(() => import("./pages/AccountPages").then((m) => ({ default: m.ConfirmEmailPage })));
@@ -29,6 +31,8 @@ const AdminDashboardPage = lazy(() => import("./features/admin/pages/AdminDashbo
 const AdminAnalyticsPage = lazy(() => import("./features/admin/pages/AdminAnalyticsPage").then(module => ({ default: module.AdminAnalyticsPage })));
 const AdminUsersPage = lazy(() => import("./features/admin/pages/AdminUsersPage").then(module => ({ default: module.AdminUsersPage })));
 const AdminQueuePage = lazy(() => import("./features/admin/pages/AdminQueuePage").then(module => ({ default: module.AdminQueuePage })));
+const AdminServerPage = lazy(() => import("./features/admin/pages/AdminServerPage").then(module => ({ default: module.AdminServerPage })));
+const AdminQualityPage = lazy(() => import("./features/admin/pages/AdminQualityPage").then(module => ({ default: module.AdminQualityPage })));
 const AdminAllMediaPage = lazy(() => import("./features/admin/pages/AdminAllMediaPage").then(module => ({ default: module.AdminAllMediaPage })));
 
 const PageLoader = () => (
@@ -59,6 +63,8 @@ const App = () => {
                   <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="upload" element={<UploadPage />} />
                   <Route path="search" element={<SearchPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="study" element={<StudyPage />} />
                   <Route path="media/:id" element={<MediaDetailPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>
@@ -73,6 +79,8 @@ const App = () => {
                   <Route path="users" element={<AdminUsersPage />} />
                   <Route path="media" element={<AdminAllMediaPage />} />
                   <Route path="queue" element={<AdminQueuePage />} />
+                  <Route path="server" element={<AdminServerPage />} />
+                  <Route path="quality" element={<AdminQualityPage />} />
                 </Route>
               </Route>
 

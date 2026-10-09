@@ -7,6 +7,8 @@ import {
   getAllUsers,
   getAllMedia,
   getProcessingQueue,
+  getServerStatus,
+  getQualityReport,
   GetPaginatedDataParams,
 } from '../api';
 
@@ -68,3 +70,15 @@ export const useProcessingQueue = () =>
     refetchInterval: 10_000,
     placeholderData: keepPreviousData,
   });
+
+/** Máquina e serviços, atualizados a cada 15 s enquanto a tela está aberta. */
+export const useServerStatus = () =>
+  useQuery({
+    queryKey: ['admin-server'],
+    queryFn: getServerStatus,
+    refetchInterval: 15_000,
+    placeholderData: keepPreviousData,
+  });
+
+export const useQualityReport = () =>
+  useQuery({ queryKey: ['admin-quality'], queryFn: getQualityReport, staleTime: 60_000 });
