@@ -3,7 +3,7 @@ import asyncio
 import os
 import tempfile
 from contextlib import asynccontextmanager, suppress
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, List, Optional
 from uuid import UUID
 
 from fastapi import (
@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from src.media_management.application.errors import InvalidRangeError, InvalidUploadError
 from src.media_management.config.settings import media_settings
+from src.media_management.domain.enums import MediaStatus
 from src.media_management.application.dtos import (
     CreateMediaCommand,
     DeleteMediaCommand,
@@ -257,12 +258,14 @@ async def list_user_media(
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
     order: str = Query("desc", pattern="^(asc|desc)$"),
+    status_filter: Optional[List[MediaStatus]] = Query(None, alias="status", description="Um ou mais estados."),
 ):
     query = ListMediaQuery(
         user_id=current_user.id,
         page=page,
         limit=limit,
         search=search,
+        status=status_filter,
         order=order,
     )
     return media_page(await service.list_media(query), page, limit)

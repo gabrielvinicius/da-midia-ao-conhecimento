@@ -35,7 +35,7 @@ export default defineConfig({
             "./src/features/admin/pages/AdminAllMediaPage.tsx",
           ],
           media: [
-            "./src/features/media/components/MediaCard.tsx",
+            "./src/features/media/components/MediaRow.tsx",
             "./src/features/media/components/MediaPlayer.tsx",
             "./src/features/media/components/UploadForm.tsx",
           ],

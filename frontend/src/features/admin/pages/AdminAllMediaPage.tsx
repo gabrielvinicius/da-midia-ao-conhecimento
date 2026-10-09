@@ -160,7 +160,7 @@ export const AdminAllMediaPage = () => {
       <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Inventário de mídias</h1>
-          <p className="text-sm text-muted-foreground">Atue em uploads problemáticos e monitore a operação.</p>
+          <p className="text-sm text-muted-foreground">Atue nos envios com problema e acompanhe a operação.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => bulkReprocess()} disabled={isBulkReprocessing}>

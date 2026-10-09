@@ -1,358 +1,377 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/Button";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { ProgressBar } from "@/components/ui/ProgressBar";
-import ErrorState from "@/components/ui/ErrorState";
-import { MagicSurface } from "@/components/ui/MagicSurface";
-import { MediaCard } from "../features/media/components/MediaCard";
-import { GenericStatCard } from "@/components/GenericStatCard";
-import { useMediaByUserQuery, useMediaStatsQuery } from "@/features/media/hooks/useMediaQueries";
-import { PaginationState } from "@tanstack/react-table";
-import { Input } from "@/components/ui/Input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { useAuth } from "../contexts/AuthContext";
-import { getStatusToken } from "@/features/media/lib/status-helpers";
-import { UserRole, MediaType, MediaStatus, isInProgress } from "@/types";
-import {
-  Upload,
-  BarChart3,
-  FileText,
-  Video,
-  Music,
-  RefreshCw,
-  Sparkles,
-  Clock3,
-  CheckCircle2,
-  AlertTriangle,
-} from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, ChevronLeft, ChevronRight, Files, RefreshCw, Search, Upload, X } from "lucide-react";
 
-const SelectPageSize = ({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (n: number) => void;
-}) => {
-  const options = [12, 24, 48, 96];
-  return (
-    <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
-      <SelectTrigger className="w-24">
-        <SelectValue placeholder="Itens/pág." />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((opt) => (
-          <SelectItem key={opt} value={String(opt)}>
-            {opt} / pág.
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Skeleton } from "@/components/ui/Skeleton";
+import ErrorState from "@/components/ui/ErrorState";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
+import { MediaRow } from "@/features/media/components/MediaRow";
+import { useMediaByUserQuery, useMediaStatsQuery } from "@/features/media/hooks/useMediaQueries";
+import { cn } from "@/lib/utils";
+import { isAdminUser, MediaStatus, MediaType } from "@/types";
+import { useAuth } from "../contexts/AuthContext";
+
+type StatusFilter = "all" | "active" | "completed" | "failed";
+
+const FILTER_STATUSES: Record<StatusFilter, MediaStatus[]> = {
+  all: [],
+  active: [MediaStatus.UPLOADED, MediaStatus.PROCESSING, MediaStatus.ANALYZING],
+  completed: [MediaStatus.COMPLETED],
+  failed: [MediaStatus.FAILED],
 };
 
+const FILTER_LABELS: Record<StatusFilter, string> = {
+  all: "Todas",
+  active: "Em andamento",
+  completed: "Concluídas",
+  failed: "Com falha",
+};
+
+const PAGE_SIZES = [10, 25, 50];
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** Contagens de /media/stats (todas as mídias, sem o filtro da lista). */
+const useCounts = () => {
+  const { data, isLoading } = useMediaStatsQuery();
+  return React.useMemo(() => {
+    // A API devolve os estados em minúsculas ("completed"); aceita as duas formas.
+    const byStatus = Object.fromEntries(
+      Object.entries(data?.by_status ?? {}).map(([k, v]) => [k.toLowerCase(), v]),
+    ) as Record<string, number>;
+    const of = (statuses: MediaStatus[]) => statuses.reduce((sum, s) => sum + (byStatus[s] ?? 0), 0);
+    const byType = data?.by_type ?? {};
+    return {
+      isLoading,
+      known: Boolean(data),
+      total: data?.total ?? 0,
+      videos: byType[MediaType.VIDEO] ?? 0,
+      audios: byType[MediaType.AUDIO] ?? 0,
+      texts: byType[MediaType.TEXT] ?? 0,
+      byFilter: {
+        all: data?.total ?? 0,
+        active: of(FILTER_STATUSES.active),
+        completed: of(FILTER_STATUSES.completed),
+        failed: of(FILTER_STATUSES.failed),
+      } as Record<StatusFilter, number>,
+    };
+  }, [data, isLoading]);
+};
+
+type IndicatorProps = {
+  label: string;
+  value: number;
+  detail: string;
+  icon: React.ReactNode;
+  selected: boolean;
+  tone?: "default" | "success" | "danger";
+  onClick: () => void;
+  isLoading: boolean;
+};
+
+/** Indicador que também filtra a lista ao ser tocado. */
+const Indicator = ({ label, value, detail, icon, selected, tone = "default", onClick, isLoading }: IndicatorProps) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-pressed={selected}
+    className={cn(
+      "rounded-xl border bg-white p-3 text-left transition-colors hover:border-slate-400 sm:p-4",
+      selected ? "border-slate-900 ring-1 ring-slate-900" : "border-[#ede4d5]",
+    )}
+  >
+    <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground sm:text-sm">
+      <span
+        className={cn(
+          "hidden sm:inline-flex",
+          tone === "success" && "text-emerald-600",
+          tone === "danger" && value > 0 && "text-rose-600",
+        )}
+      >
+        {icon}
+      </span>
+      {label}
+    </span>
+    {isLoading ? (
+      <Skeleton className="mt-2 h-7 w-12" />
+    ) : (
+      <span className={cn("mt-1 block text-2xl font-semibold sm:text-3xl", tone === "danger" && value > 0 && "text-rose-600")}>
+        {value}
+      </span>
+    )}
+    <span className="mt-1 hidden text-xs text-muted-foreground sm:block">{detail}</span>
+  </button>
+);
+
 const DashboardPage = () => {
-  const [{ pageIndex, pageSize }, setPagination] = React.useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 12,
-  });
+  const { user } = useAuth();
+  const counts = useCounts();
+  const [filter, setFilter] = React.useState<StatusFilter>("all");
   const [search, setSearch] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
+  const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(PAGE_SIZES[0]);
 
   React.useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 400);
     return () => clearTimeout(timer);
   }, [search]);
 
-  const page = pageIndex + 1;
-
-  const { data: mediaPage, isLoading, isError, error, refetch, isFetching } = useMediaByUserQuery(
+  const { data, isLoading, isError, error, refetch, isFetching } = useMediaByUserQuery(
     page,
     pageSize,
     "desc",
-    debouncedSearch
+    debouncedSearch,
+    FILTER_STATUSES[filter],
   );
-  const { data: statsApi } = useMediaStatsQuery();
-  const media = React.useMemo(() => mediaPage?.items ?? [], [mediaPage]);
-  const totalMedia =
-    typeof mediaPage?.total === "number"
-      ? mediaPage.total
-      : Array.isArray(mediaPage?.items)
-        ? mediaPage.items.length
-        : 0;
-  const totalPages = mediaPage?.pages ?? Math.max(1, Math.ceil(totalMedia / pageSize));
-  const { user } = useAuth();
-  const isAdmin = user?.role === UserRole.ADMIN || user?.role?.toString().toUpperCase().includes("ADMIN");
+  const media = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const pages = Math.max(1, data?.pages ?? 1);
+  const filtering = filter !== "all" || debouncedSearch !== "";
 
-  // Calcular estatísticas (usa API /media/stats quando disponível; fallback no slice)
-  const stats = React.useMemo(() => {
-    const fallback = { total: media.length, videos: 0, audios: 0, texts: 0, processing: 0, completed: 0, failed: 0 };
-    if (statsApi?.by_status) {
-      // A API devolve os estados em minúsculas ("completed"); aceita as duas formas.
-      const byStatus = Object.fromEntries(
-        Object.entries(statsApi.by_status).map(([k, v]) => [k.toUpperCase(), v]),
-      ) as Record<string, number>;
-      // Por tipo, também da API: contar só a página atual dava números
-      // errados assim que havia mais mídias que cabiam numa página.
-      const byType = statsApi.by_type ?? {};
-      return {
-        total: statsApi.total ?? fallback.total,
-        videos: byType[MediaType.VIDEO] ?? 0,
-        audios: byType[MediaType.AUDIO] ?? 0,
-        texts: byType[MediaType.TEXT] ?? 0,
-        processing: (byStatus.PROCESSING ?? 0) + (byStatus.ANALYZING ?? 0),
-        completed: byStatus.COMPLETED ?? 0,
-        failed: byStatus.FAILED ?? 0,
-      };
-    }
-    return {
-      ...fallback,
-      videos: media.filter(m => m.media_type === MediaType.VIDEO).length,
-      audios: media.filter(m => m.media_type === MediaType.AUDIO).length,
-      texts: media.filter(m => m.media_type === MediaType.TEXT).length,
-      processing: media.filter(m => isInProgress(m.status)).length,
-      completed: media.filter(m => m.status === MediaStatus.COMPLETED).length,
-      failed: media.filter(m => m.status === MediaStatus.FAILED).length,
-    };
-  }, [media, statsApi]);
+  const chooseFilter = (next: StatusFilter) => {
+    setFilter((current) => (current === next && next !== "all" ? "all" : next));
+    setPage(1);
+  };
+  const clearFilters = () => {
+    setFilter("all");
+    setSearch("");
+    setDebouncedSearch("");
+    setPage(1);
+  };
 
-  // Indicadores sobre todas as mídias do usuário: as contagens vêm de
-  // /media/stats, sem o filtro por nome. Antes, a divisão usava o total da
-  // lista filtrada, e a taxa podia passar de 100%.
-  const completionRate = stats.total ? (stats.completed / stats.total) * 100 : 0;
-  const failureRate = stats.total ? (stats.failed / stats.total) * 100 : 0;
-  const processingRate = stats.total ? (stats.processing / stats.total) * 100 : 0;
-  const lastUpload = media?.[0];
+  const name = user?.email?.split("@")[0];
+  const firstItem = total ? (page - 1) * pageSize + 1 : 0;
+  const lastItem = Math.min(total, page * pageSize);
+  const completedShare = counts.total ? Math.round((counts.byFilter.completed / counts.total) * 100) : 0;
+  const isNewAccount = counts.known && counts.total === 0;
 
-  const breakdown = [
-    { label: "Vídeo", value: stats.videos, icon: <Video className="h-4 w-4" />, color: "bg-violet-500" },
-    { label: "Áudio", value: stats.audios, icon: <Music className="h-4 w-4" />, color: "bg-emerald-500" },
-    { label: "Texto", value: stats.texts, icon: <FileText className="h-4 w-4" />, color: "bg-sky-500" },
-  ];
-
-  const renderStatsCards = () => (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <GenericStatCard
-        title="Total monitorado"
-        value={stats.total}
-        description={stats.processing ? `${stats.processing} em processamento` : "Nenhum processamento ativo"}
-        icon={<FileText className="h-4 w-4" />}
-        isLoading={isLoading}
-      />
-      <GenericStatCard
-        title="Taxa de conclusão"
-        value={completionRate}
-        suffix="%"
-        description="Resumo das últimas execuções"
-        icon={<CheckCircle2 className="h-4 w-4" />}
-        isLoading={isLoading}
-      />
-      <GenericStatCard
-        title="Uploads recentes"
-        value={stats.total}
-        description="Total de itens enviados"
-        icon={<Upload className="h-4 w-4" />}
-        isLoading={isLoading}
-      />
-      <GenericStatCard
-        title="Taxa de falhas"
-        value={failureRate}
-        suffix="%"
-        description={failureRate > 0 ? "Verifique itens com erro" : "Sem falhas no período"}
-        icon={<AlertTriangle className="h-4 w-4" />}
-        isLoading={isLoading}
-      />
-    </div>
-  );
-
-  const renderContent = () => {
+  const renderList = () => {
     if (isLoading) {
       return (
-        <>
-          {/* Stats skeleton */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-32 w-full" />
-            ))}
-          </div>
-          {/* Media grid skeleton */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-32 w-full" />
-            ))}
-          </div>
-        </>
+        <div className="space-y-3 py-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-14 w-full" />
+          ))}
+        </div>
       );
     }
-
     if (isError) {
       return (
         <ErrorState
-          title="Erro ao carregar seus arquivos"
+          title="Não foi possível carregar suas mídias"
           message={error?.message || "Tente novamente em instantes."}
           onRetry={() => refetch()}
         />
       );
     }
-
-    if (!media || media.length === 0) {
+    if (media.length === 0) {
+      // A busca e os filtros continuam à vista: antes, um nome sem resultado
+      // trocava a lista pela tela de "primeira mídia" e escondia o campo.
       return (
-        <div className="text-center py-16">
-          <MagicSurface title="Nenhum arquivo encontrado" description="Envie sua primeira mídia para liberar os insights." className="max-w-md mx-auto">
-            <Upload className="h-12 w-12 mx-auto text-slate-500 mb-4" />
-            <Button asChild className="w-full">
-              <Link to="/upload">
-                <Upload className="mr-2 h-4 w-4" />
-                Fazer Upload
-              </Link>
+        <div className="py-10 text-center">
+          <p className="font-medium text-slate-900">Nenhuma mídia encontrada</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {filtering ? "Nada corresponde à busca ou ao filtro escolhido." : "Ainda não há mídias nesta lista."}
+          </p>
+          {filtering && (
+            <Button variant="outline" size="sm" className="mt-4" onClick={clearFilters}>
+              Limpar filtros
             </Button>
-          </MagicSurface>
+          )}
         </div>
       );
     }
-
     return (
-      <>
-        {renderStatsCards()}
-        <div className="grid gap-6 lg:grid-cols-3">
-          <MagicSurface title="Seus arquivos" description="Consulte e acompanhe o status de cada mídia." className="lg:col-span-2">
-            <div className="mb-4 flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => refetch()}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                {isFetching ? "Atualizando..." : "Atualizar"}
-              </Button>
-              <Input
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPagination((p) => ({ ...p, pageIndex: 0 }));
-                }}
-                placeholder="Filtrar por nome..."
-                className="max-w-xs"
-              />
-              <Button asChild size="sm">
-                <Link to="/upload">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Novo Upload
-                </Link>
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {media.map((item) => (
-                <MediaCard key={item.id} media={item} />
-              ))}
-            </div>
-            <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-              <span>
-                Página {page} de {totalPages} · {totalMedia} itens
-              </span>
-              <div className="flex gap-2">
-                <SelectPageSize value={pageSize} onChange={(n) => setPagination({ pageIndex: 0, pageSize: n })} />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={pageIndex === 0}
-                  onClick={() => setPagination((p) => ({ ...p, pageIndex: Math.max(0, p.pageIndex - 1) }))}
-                >
-                  Anterior
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() =>
-                    setPagination((p) => ({
-                      ...p,
-                      pageIndex: Math.min(totalPages - 1, p.pageIndex + 1),
-                    }))
-                  }
-                >
-                  Próxima
-                </Button>
-              </div>
-            </div>
-          </MagicSurface>
-
-          <div className="space-y-4">
-            <MagicSurface title="Distribuição por tipo" description="Visão rápida da proporção de mídias enviadas.">
-              <div className="space-y-4">
-                {breakdown.map((item) => (
-                  <div key={item.label} className="rounded-2xl border border-border/70 p-3">
-                    <div className="flex items-center justify-between text-sm font-medium">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <span className={`rounded-full p-2 text-slate-900 ${item.color}`}>
-                          {item.icon}
-                        </span>
-                        {item.label}
-                      </div>
-                      <span>{item.value}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </MagicSurface>
-
-            <MagicSurface title="Saúde do pipeline" description="Taxas de processamento em tempo quase real.">
-              <div className="space-y-3">
-                <ProgressBar label="Concluídos" value={completionRate} color="bg-emerald-500" />
-                <ProgressBar label="Processando" value={processingRate} color="bg-sky-500" />
-                <ProgressBar label="Falhas" value={failureRate} color="bg-rose-500" />
-              </div>
-            </MagicSurface>
-
-            <MagicSurface title="Último upload" description="Acompanhe o item mais recente enviado.">
-                {lastUpload ? (
-                  <div className="space-y-2 text-sm">
-                    <p className="font-semibold text-foreground">{lastUpload.filename ?? "Arquivo sem nome"}</p>
-                    <p className="text-muted-foreground">
-                      Situação: <span className="font-medium text-foreground">{getStatusToken(lastUpload.status).label}</span>
-                    </p>
-                    <p className="text-muted-foreground">
-                      Enviado em {new Date(lastUpload.created_at ?? Date.now()).toLocaleString("pt-BR")}
-                    </p>
-                    <Button asChild variant="secondary" size="sm" className="mt-2 w-full">
-                      <Link to={`/media/${lastUpload.id}`}>Abrir detalhes</Link>
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Faça um upload para desbloquear esta visão.</p>
-                )}
-            </MagicSurface>
-          </div>
-        </div>
-      </>
+      <ul className={cn("divide-y divide-slate-100", isFetching && "opacity-70 transition-opacity")}>
+        {media.map((item) => (
+          <MediaRow key={item.id} media={item} />
+        ))}
+      </ul>
     );
   };
 
   return (
     <div className="space-y-6">
-      <MagicSurface title="Painel pessoal" description="Centralize uploads, progresso e insights.">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold">Bem-vindo de volta, {user?.email}</h1>
-            <p className="text-sm text-slate-600">Tudo o que você processou e ainda está em fila, reunido neste painel.</p>
-          </div>
-          <div className="flex flex-col gap-2 text-sm">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-amber-300" />
-              <span>{stats.completed} arquivos concluídos</span>
-            </div>
-            <div className="flex.items-center gap-2">
-              <Clock3 className="h-4 w-4 text-sky-300" />
-              <span>{stats.processing} em processamento agora</span>
-            </div>
-            {isAdmin && (
-              <Button asChild size="sm" variant="secondary" className="mt-2">
-                <Link to="/admin/analytics">
-                  <BarChart3 className="mr-2 h-4 w-4" />
-                  Visão administrativa
-                </Link>
-              </Button>
-            )}
-          </div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold text-slate-900 [overflow-wrap:anywhere]">Olá{name ? `, ${name}` : ""}</h1>
+          <p className="text-sm text-muted-foreground">Suas mídias e o andamento de cada uma.</p>
         </div>
-      </MagicSurface>
-      {renderContent()}
+        <div className="flex flex-wrap gap-2">
+          {isAdminUser(user) && (
+            <Button asChild variant="outline">
+              <Link to="/admin/analytics">
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Visão administrativa
+              </Link>
+            </Button>
+          )}
+          <Button asChild>
+            <Link to="/upload">
+              <Upload className="mr-2 h-4 w-4" />
+              Enviar mídia
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      {isNewAccount ? (
+        <Card className="mx-auto max-w-md border-[#ede4d5] p-8 text-center">
+          <Upload className="mx-auto mb-4 h-10 w-10 text-slate-500" />
+          <p className="font-semibold text-slate-900">Envie sua primeira mídia</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Aulas, palestras, áudios ou documentos: a plataforma transcreve, resume e organiza o conteúdo.
+          </p>
+          <Button asChild className="mt-6 w-full">
+            <Link to="/upload">Enviar mídia</Link>
+          </Button>
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-3 sm:gap-4">
+            <Indicator
+              label="Mídias"
+              value={counts.total}
+              detail={`${plural(counts.videos, "vídeo", "vídeos")} · ${plural(counts.audios, "áudio", "áudios")} · ${plural(counts.texts, "texto", "textos")}`}
+              icon={<Files className="h-4 w-4" />}
+              selected={false}
+              onClick={() => chooseFilter("all")}
+              isLoading={counts.isLoading}
+            />
+            <Indicator
+              label="Concluídas"
+              value={counts.byFilter.completed}
+              detail={`${completedShare}% do total`}
+              icon={<CheckCircle2 className="h-4 w-4" />}
+              tone="success"
+              selected={filter === "completed"}
+              onClick={() => chooseFilter("completed")}
+              isLoading={counts.isLoading}
+            />
+            <Indicator
+              label="Com falha"
+              value={counts.byFilter.failed}
+              detail={counts.byFilter.failed ? "Toque para ver e tentar de novo" : "Nenhuma falha"}
+              icon={<AlertTriangle className="h-4 w-4" />}
+              tone="danger"
+              selected={filter === "failed"}
+              onClick={() => chooseFilter("failed")}
+              isLoading={counts.isLoading}
+            />
+          </div>
+
+          <Card className="border-[#ede4d5] p-4 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-base font-semibold text-slate-900">Suas mídias</h2>
+              <div className="flex gap-2 sm:w-80">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setPage(1);
+                    }}
+                    placeholder="Buscar pelo nome"
+                    aria-label="Buscar pelo nome"
+                    className="pl-9 pr-9"
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearch("");
+                        setPage(1);
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-slate-900"
+                      aria-label="Limpar busca"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                <Button variant="outline" size="icon" onClick={() => refetch()} aria-label="Atualizar lista">
+                  <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+                </Button>
+              </div>
+            </div>
+
+            <div className="-mx-1 mt-4 flex gap-2 overflow-x-auto px-1 pb-1" role="group" aria-label="Filtrar por situação">
+              {(Object.keys(FILTER_LABELS) as StatusFilter[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => chooseFilter(key)}
+                  aria-pressed={filter === key}
+                  className={cn(
+                    "whitespace-nowrap rounded-full border px-3 py-1 text-sm transition-colors",
+                    filter === key
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-400",
+                  )}
+                >
+                  {FILTER_LABELS[key]}
+                  {counts.known && <span className="ml-1.5 opacity-70">{counts.byFilter[key]}</span>}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-2">{renderList()}</div>
+
+            {total > 0 && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm text-muted-foreground">
+                <span>
+                  {firstItem}–{lastItem} de {total}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={String(pageSize)}
+                    onValueChange={(v) => {
+                      setPageSize(Number(v));
+                      setPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-auto gap-2 whitespace-nowrap" aria-label="Itens por página">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZES.map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n} por página
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    aria-label="Página anterior"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    disabled={page >= pages}
+                    onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                    aria-label="Próxima página"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
     </div>
   );
 };

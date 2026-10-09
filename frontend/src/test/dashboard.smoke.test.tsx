@@ -1,92 +1,99 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import { render, screen, waitFor } from './test-utils';
+import { fireEvent, render, screen, waitFor } from './test-utils';
 import DashboardPage from '@/pages/DashboardPage';
 
+const listCalls: URL[] = [];
+
+const page = (items: object[]) => ({ items, total: items.length, page: 1, pages: 1, limit: 10 });
+const VIDEO = {
+  id: '1',
+  filename: 'a-historia-nao-contada-do-colapso.mp4',
+  media_type: 'video',
+  status: 'completed',
+  created_at: new Date().toISOString(),
+  size: 2 * 1024 * 1024,
+  content_type: 'video/mp4',
+};
+
 const server = setupServer(
-  http.get('/api/media/', () => {
-    return HttpResponse.json({
-      items: [
-        { id: '1', filename: 'video.mp4', media_type: 'video', status: 'COMPLETED', created_at: new Date().toISOString(), size: 100, content_type: 'video/mp4' },
-      ],
-      total: 1,
-      page: 1,
-      pages: 1,
-      limit: 12,
-    });
+  http.get('/api/media/', ({ request }) => {
+    const url = new URL(request.url);
+    listCalls.push(url);
+    if (url.searchParams.get('search') === 'nada') return HttpResponse.json(page([]));
+    return HttpResponse.json(page([VIDEO]));
   }),
-  http.get('/api/media/stats', () => {
-    return HttpResponse.json({
-      total: 1,
-      by_status: { COMPLETED: 1, PROCESSING: 0, FAILED: 0, PENDING: 0, UPLOADED: 0 },
-      by_type: { video: 1, audio: 0, text: 0 },
-    });
-  }),
-  http.get('/api/auth/me', () => {
-    return HttpResponse.json({ id: 'user', email: 'user@test.com', role: 'USER' });
-  })
+  http.get('/api/media/stats', () =>
+    HttpResponse.json({
+      total: 19,
+      by_status: { completed: 16, failed: 1, processing: 2 },
+      by_type: { video: 11, audio: 5, text: 3 },
+    }),
+  ),
+  http.get('/api/auth/me', () => HttpResponse.json({ id: 'user', email: 'ana@test.com', role: 'USER' })),
 );
 
 beforeAll(() => server.listen());
+beforeEach(() => {
+  listCalls.length = 0;
+});
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 describe('DashboardPage', () => {
-  it('renders media cards and stats', async () => {
+  it('mostra a lista com o nome inteiro e os indicadores de todas as mídias', async () => {
     render(<DashboardPage />);
 
-    expect(screen.getByText(/Painel pessoal/i)).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(screen.getAllByText(/video\.mp4/i).length).toBeGreaterThan(0);
-    });
-
-    expect(screen.getByText(/Total monitorado/i)).toBeInTheDocument();
+    expect(await screen.findByText(VIDEO.filename)).toBeInTheDocument();
+    expect(screen.getByText(/Vídeo · .* · 2 MB/)).toBeInTheDocument();
+    // Tipos e taxa vêm de /media/stats (todas as mídias), não da página atual.
+    expect(await screen.findByText('11 vídeos · 5 áudios · 3 textos')).toBeInTheDocument();
+    expect(screen.getByText('84% do total')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Em andamento\s*2/ })).toBeInTheDocument();
   });
 
-  it('counts types from the API, not from the current page', async () => {
-    // As chaves da API são minúsculas ("video"); o painel lia "VIDEO" e caía
-    // na contagem da página atual.
+  it('filtra "em andamento" pelas três situações numa consulta só', async () => {
+    render(<DashboardPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /Em andamento/ }));
+
+    await waitFor(() =>
+      expect(listCalls.at(-1)?.searchParams.getAll('status')).toEqual(['uploaded', 'processing', 'analyzing']),
+    );
+  });
+
+  it('o indicador de falhas filtra a lista, e tocar de novo volta para todas', async () => {
+    render(<DashboardPage />);
+    const failed = await screen.findByRole('button', { name: /Com falha.*Toque para ver/ });
+
+    fireEvent.click(failed);
+    await waitFor(() => expect(listCalls.at(-1)?.searchParams.getAll('status')).toEqual(['failed']));
+    expect(failed).toHaveAttribute('aria-pressed', 'true');
+    // A lista sem filtro já está em cache: volta sem nova consulta.
+    fireEvent.click(failed);
+    expect(failed).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: /^Todas/ })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('uma busca sem resultado mantém o campo e oferece limpar os filtros', async () => {
+    // Antes, a lista vazia virava a tela de "primeira mídia" e o campo sumia.
+    render(<DashboardPage />);
+    const input = await screen.findByLabelText('Buscar pelo nome');
+    fireEvent.change(input, { target: { value: 'nada' } });
+
+    expect(await screen.findByText('Nenhuma mídia encontrada', {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByLabelText('Buscar pelo nome')).toHaveValue('nada');
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    expect(await screen.findByText(VIDEO.filename)).toBeInTheDocument();
+  });
+
+  it('conta nova vê o convite para o primeiro envio', async () => {
     server.use(
-      http.get('/api/media/stats', () =>
-        HttpResponse.json({ total: 7, by_status: { completed: 7 }, by_type: { video: 5, audio: 2, text: 0 } }),
-      ),
+      http.get('/api/media/stats', () => HttpResponse.json({ total: 0, by_status: {}, by_type: {} })),
+      http.get('/api/media/', () => HttpResponse.json(page([]))),
     );
     render(<DashboardPage />);
-    const video = await screen.findByText('Vídeo');
-    await waitFor(() => expect(video.closest('div')?.parentElement?.textContent).toContain('5'));
-  });
 
-  it('computes the rates over all media, not over the filtered list', async () => {
-    // As contagens vêm de /media/stats (todas as mídias); antes, a taxa dividia
-    // pelo total da lista filtrada e passava de 100%.
-    server.use(
-      http.get('/api/media/stats', () =>
-        HttpResponse.json({ total: 10, by_status: { completed: 5 }, by_type: { video: 10 } }),
-      ),
-    );
-    // Sem animação (preferência "reduzir movimento"), o contador mostra o valor
-    // final direto. Antes o teste esperava a animação de 1,2 s acabar e falhava
-    // com a máquina carregada (a suíte inteira em paralelo).
-    const original = window.matchMedia;
-    window.matchMedia = ((query: string) => ({
-      matches: query.includes('prefers-reduced-motion'),
-      media: query,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    })) as typeof window.matchMedia;
-    try {
-      render(<DashboardPage />);
-      const card = (await screen.findByText(/Taxa de conclusão/i)).closest('div')?.parentElement;
-      // Com o cálculo antigo, a taxa ficava em 500%.
-      await waitFor(() => expect(card?.textContent).toContain('Taxa de conclusão50%'));
-      expect(card?.textContent).not.toMatch(/500/);
-    } finally {
-      window.matchMedia = original;
-    }
+    expect(await screen.findByText('Envie sua primeira mídia')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Buscar pelo nome')).not.toBeInTheDocument();
   });
 });

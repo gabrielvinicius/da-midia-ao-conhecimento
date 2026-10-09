@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
-import { MediaCard } from "@/features/media/components/MediaCard";
+import { MediaRow } from "@/features/media/components/MediaRow";
 import { Media, MediaStatus, MediaType } from "@/types";
 
 const post = vi.fn();
@@ -22,21 +22,21 @@ const media = (status: MediaStatus, extra: Partial<Media> = {}): Media =>
     ...extra,
   }) as Media;
 
-const renderCard = (m: Media) =>
+const renderRow = (m: Media) =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
-        <MediaCard media={m} />
+        <ul><MediaRow media={m} /></ul>
       </MemoryRouter>
     </QueryClientProvider>
   );
 
-describe("MediaCard", () => {
+describe("MediaRow", () => {
   beforeEach(() => post.mockReset());
 
   it("offers a visible retry, with the reason, only when processing failed", async () => {
     post.mockResolvedValue({ data: { message: "ok" } });
-    renderCard(media(MediaStatus.FAILED, { error_message: "Modelo de linguagem indisponível" }));
+    renderRow(media(MediaStatus.FAILED, { error_message: "Modelo de linguagem indisponível" }));
 
     // Em linguagem simples; o texto técnico fica na dica (title).
     expect(screen.getByText("O modelo de linguagem não respondeu.")).toHaveAttribute("title", "Modelo de linguagem indisponível");
@@ -48,7 +48,7 @@ describe("MediaCard", () => {
   it.each([MediaStatus.COMPLETED, MediaStatus.PROCESSING, MediaStatus.UPLOADED])(
     "does not offer retry for %s media",
     (status) => {
-      renderCard(media(status));
+      renderRow(media(status));
       expect(screen.queryByRole("button", { name: /tentar novamente/i })).not.toBeInTheDocument();
     }
   );

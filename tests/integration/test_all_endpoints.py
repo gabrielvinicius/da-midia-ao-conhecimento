@@ -129,6 +129,19 @@ async def test_upload_media_in_parts(client: AsyncClient, authenticated_user: Us
 
 
 @pytest.mark.asyncio
+async def test_list_media_by_several_statuses(client: AsyncClient, authenticated_user: User):
+    """O painel filtra "em andamento" (enviada, em processamento, em análise) numa consulta só."""
+    await client.post("/media/", files={"file": ("test.txt", b"test content", "text/plain")})
+
+    in_progress = await client.get("/media/", params=[("status", "uploaded"), ("status", "processing")])
+    completed = await client.get("/media/", params={"status": "completed"})
+
+    assert in_progress.json()["total"] == 1
+    assert completed.json()["items"] == []
+    assert (await client.get("/media/", params={"status": "inexistente"})).status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_get_media(client: AsyncClient, authenticated_user: User):
     """Test getting media."""
     response = await client.post(

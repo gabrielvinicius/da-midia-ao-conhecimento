@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet, Link, NavLink, useLocation } from 'react-router-dom';
 import { Home, Upload, LogOut, UserCircle, Settings, ShieldCheck, Menu, Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { isAdminUser } from '@/types';
 import { Button } from './ui/Button';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
@@ -20,7 +21,7 @@ const AppLayout = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const isAdmin = user?.role && user.role.toString().toUpperCase().includes('ADMIN');
+  const isAdmin = isAdminUser(user);
   const layoutClass = isSidebarCollapsed
     ? 'grid min-h-screen w-full md:grid-cols-[72px_1fr]'
     : 'grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]';

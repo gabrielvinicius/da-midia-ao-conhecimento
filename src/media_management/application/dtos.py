@@ -1,4 +1,4 @@
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -82,8 +82,8 @@ class ListMediaQuery(BaseModel):
     user_id: Optional[UUID] = Field(
         None, description="Filtra por usuário dono (opcional)."
     )
-    status: Optional[MediaStatus] = Field(
-        None, description="Filtra por status (opcional)."
+    status: Optional[List[MediaStatus]] = Field(
+        None, description="Filtra por um ou mais estados (opcional)."
     )
     search: Optional[str] = Field(
         None, description="Termo de busca por nome/metadata (opcional)."
