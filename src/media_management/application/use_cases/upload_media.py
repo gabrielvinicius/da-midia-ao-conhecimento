@@ -69,9 +69,18 @@ class UploadMedia:
             "transcription_provider": set(media_settings.transcription_providers_allowed or []),
         }
 
+    def check_request(
+        self, size_bytes: int, filename: str, storage_provider: str, transcription_provider: Optional[str]
+    ) -> None:
+        """Tamanho, formato e armazenamento; também usado no início do envio em
+        partes, para recusar o arquivo antes de receber os bytes."""
+        self._upload_validator.validate(size_bytes, filename)
+        self._check_providers(storage_provider, transcription_provider)
+
     async def execute(self, command: CreateMediaCommand) -> Media:
-        self._upload_validator.validate(command.file_size_bytes, command.filename)
-        self._check_providers(command)
+        self.check_request(
+            command.file_size_bytes, command.filename, command.storage_provider, command.transcription_provider
+        )
 
         media_type = media_type_of(command.filename)
         content_type = mimetypes.guess_type(command.filename)[0] or "application/octet-stream"
@@ -114,17 +123,15 @@ class UploadMedia:
         except Exception as exc:  # a falha original é a que importa
             logger.warning("media_management.upload_discard_failed", path=path, error=str(exc))
 
-    def _check_providers(self, command: CreateMediaCommand) -> None:
+    def _check_providers(self, storage: str, transcription: Optional[str]) -> None:
         """Armazenamento desconhecido é recusado (400): antes, só gerava um aviso
         no log e o envio terminava em erro 500 ao procurar o armazenamento.
         Um modelo de transcrição desconhecido só gera aviso: o worker usa o padrão."""
-        storage = command.storage_provider
         allowed_storage = self._allowed["storage_provider"]
         if allowed_storage and storage not in allowed_storage:
             raise InvalidUploadError(
                 f"Armazenamento desconhecido: {storage}. Opções: {', '.join(sorted(allowed_storage))}."
             )
-        transcription = command.transcription_provider
         allowed_transcription = self._allowed["transcription_provider"]
         if transcription and allowed_transcription and transcription not in allowed_transcription:
             logger.warning(

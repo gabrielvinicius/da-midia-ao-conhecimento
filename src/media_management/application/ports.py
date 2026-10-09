@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import datetime
-from typing import Any, Dict, List, Optional, Protocol, Set
+from typing import Any, AsyncIterator, Dict, List, Optional, Protocol, Set
 from uuid import UUID
 
 from src.media_management.domain import Media
@@ -154,3 +154,38 @@ class RemoteMediaFetcherPort(Protocol):
     """Baixa o vídeo de um link para ``target_dir`` (InvalidUploadError se não der)."""
 
     async def fetch(self, url: str, target_dir: str) -> FetchedMedia: ...
+
+
+@dataclass(frozen=True)
+class StagedUpload:
+    """Envio em partes em andamento: o arquivo cresce a cada parte recebida."""
+
+    upload_id: UUID
+    user_id: str
+    filename: str
+    size_bytes: int
+    storage_provider: str
+    transcription_provider: Optional[str]
+    created_at: datetime.datetime
+    received_bytes: int = 0
+
+
+class UploadStagingPort(Protocol):
+    """Área temporária dos envios em partes, até a conclusão ou o abandono."""
+
+    async def create(self, upload: StagedUpload) -> None: ...
+
+    async def get(self, upload_id: UUID) -> Optional[StagedUpload]:
+        """O envio com o total já recebido, ou None se não existir."""
+        ...
+
+    async def write(self, upload_id: UUID, offset: int, chunks: AsyncIterator[bytes], max_bytes: int) -> int:
+        """Grava a partir de ``offset`` (descarta o que houver depois dele) e
+        devolve o total recebido; InvalidUploadError acima de ``max_bytes``."""
+        ...
+
+    def file_path(self, upload_id: UUID) -> str: ...
+
+    async def remove(self, upload_id: UUID) -> None: ...
+
+    async def remove_created_before(self, moment: datetime.datetime) -> int: ...

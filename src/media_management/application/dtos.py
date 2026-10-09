@@ -27,6 +27,18 @@ class CreateMediaCommand(BaseModel):
     )
 
 
+class StartUploadCommand(BaseModel):
+    """Início de um envio em partes: o arquivo é conferido antes dos bytes chegarem."""
+
+    model_config = ConfigDict(frozen=True)
+
+    user_id: str | UUID
+    filename: str
+    size_bytes: int = Field(..., ge=0)
+    storage_provider: str = "local"
+    transcription_provider: Optional[str] = None
+
+
 class ImportMediaCommand(BaseModel):
     """Mídia a partir de um link (YouTube)."""
 

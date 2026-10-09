@@ -109,6 +109,26 @@ async def test_upload_media(client: AsyncClient, authenticated_user: User):
 
 
 @pytest.mark.asyncio
+async def test_upload_media_in_parts(client: AsyncClient, authenticated_user: User):
+    """Envio em partes (arquivos acima do limite por requisição da Cloudflare)."""
+    started = await client.post("/media/uploads", json={"filename": "notas.txt", "size_bytes": 12})
+    assert started.status_code == 201
+    upload_id = started.json()["upload_id"]
+
+    first = await client.put(f"/media/uploads/{upload_id}", params={"offset": 0}, content=b"test ")
+    assert first.json()["offset"] == 5
+    assert (await client.put(f"/media/uploads/{upload_id}", params={"offset": 9}, content=b"x")).status_code == 409
+    assert (await client.put(f"/media/uploads/{upload_id}", params={"offset": 5}, content=b"content")).json()[
+        "offset"
+    ] == 12
+
+    completed = await client.post(f"/media/uploads/{upload_id}/complete")
+    assert completed.status_code == 201
+    assert completed.json()["filename"] == "notas.txt"
+    assert (await client.get(f"/media/uploads/{upload_id}")).status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_get_media(client: AsyncClient, authenticated_user: User):
     """Test getting media."""
     response = await client.post(
