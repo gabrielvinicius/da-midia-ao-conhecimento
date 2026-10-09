@@ -1,10 +1,13 @@
 import * as React from "react";
 import { ColumnDef, PaginationState } from "@tanstack/react-table";
-import { MoreHorizontal, RefreshCw, Recycle, Trash2, CheckCircle, Loader2, ShieldCheck } from "lucide-react";
+import { MoreHorizontal, RefreshCw, Recycle, Trash2, CheckCircle, Loader2, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+import { Link } from "react-router-dom";
 import { Media, MediaStatus } from "@/types";
+import type { AdminMedia } from "../api";
+import { formatFileSize } from "@/features/media/uploadFile";
 import { useAllMedia, useSystemStats } from "../hooks/useAdminQueries";
 import { useDeleteMedia, useReprocessMedia, useBulkReprocessMedia } from "../hooks/useAdminMutations";
 import { DataTable } from "@/components/ui/DataTable";
@@ -88,29 +91,41 @@ const MediaActionsCell = ({ media }: { media: Media }) => {
   );
 };
 
-// Define the columns for the media table
-export const columns: ColumnDef<Media>[] = [
+const TYPE_LABELS: Record<string, string> = { video: "Vídeo", audio: "Áudio", text: "Texto" };
+
+// Antes, a tabela mostrava o id da mídia e o id do dono, e a coluna "Arquivo"
+// lia um campo que a API não devolve (ficava vazia).
+export const columns: ColumnDef<AdminMedia>[] = [
   {
-    accessorKey: "id",
-    header: "ID",
-  },
-  {
-    accessorKey: "user_id",
-    header: "Usuário",
-  },
-  {
-    accessorKey: "original_file_path",
+    accessorKey: "filename",
     header: "Arquivo",
+    cell: ({ row }) => (
+      <div className="min-w-0 max-w-xs">
+        <Link to={`/media/${row.original.id}`} className="font-medium text-slate-900 [overflow-wrap:anywhere] hover:underline">
+          {row.original.filename || row.original.id}
+        </Link>
+        <p className="text-xs text-muted-foreground">
+          {[TYPE_LABELS[row.original.media_type] ?? row.original.media_type, row.original.size ? formatFileSize(row.original.size) : null]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      </div>
+    ),
+  },
+  {
+    accessorKey: "owner_email",
+    header: "Dono",
+    cell: ({ row }) => <span className="[overflow-wrap:anywhere]">{row.original.owner_email ?? "—"}</span>,
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: "Situação",
     cell: ({ row }) => <MediaStatusBadge status={row.original.status} />,
   },
   {
     accessorKey: "created_at",
-    header: "Criada em",
-    cell: ({ row }) => format(new Date(row.original.created_at), "PPP p", { locale: ptBR }),
+    header: "Enviada em",
+    cell: ({ row }) => format(new Date(row.original.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }),
   },
   {
     id: "actions",
@@ -148,7 +163,7 @@ export const AdminAllMediaPage = () => {
   if (isError) {
     return (
       <ErrorState
-        title="Erro ao carregar o inventário de mídias"
+        title="Não foi possível carregar as mídias"
         message="Tente novamente em instantes."
         onRetry={() => refetch()}
       />
@@ -159,21 +174,39 @@ export const AdminAllMediaPage = () => {
     <div>
       <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inventário de mídias</h1>
+          <h1 className="text-2xl font-semibold">Mídias</h1>
           <p className="text-sm text-muted-foreground">Atue nos envios com problema e acompanhe a operação.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => bulkReprocess()} disabled={isBulkReprocessing}>
-            <Recycle className="mr-2 h-4 w-4" />
-            {isBulkReprocessing ? 'Iniciando...' : 'Reprocessar falhas'}
-          </Button>
+          {/* Confirmação: o lote ocupa a GPU por um bom tempo (até 50 mídias). */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" disabled={isBulkReprocessing || !stats?.failed_media}>
+                <Recycle className="mr-2 h-4 w-4" />
+                {isBulkReprocessing ? 'Iniciando...' : 'Reprocessar falhas'}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reprocessar as mídias com falha?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Até 50 mídias voltam para a fila, uma de cada vez na GPU; enquanto isso, os novos envios esperam mais.
+                  Os resultados anteriores delas são apagados.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={() => bulkReprocess()}>Reprocessar</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mb-6">
         <Card className="border border-[#ede4d5] bg-white">
           <CardHeader>
             <CardTitle className="text-base font-semibold">Mídias listadas</CardTitle>
-            <CardDescription>Resultado atual da busca.</CardDescription>
+            <CardDescription>Resultado da busca atual.</CardDescription>
           </CardHeader>
           <CardContent className="text-3xl font-semibold">
             <NumberTicker value={totalItems} />
@@ -182,7 +215,10 @@ export const AdminAllMediaPage = () => {
         <Card className="border border-[#ede4d5] bg-white">
           <CardHeader>
             <CardTitle className="text-base font-semibold">Em processamento</CardTitle>
-            <CardDescription>Itens aguardando workers.</CardDescription>
+            <CardDescription>
+              Transcrição ou análise em andamento.{" "}
+              <Link to="/admin/queue" className="underline">Ver fila</Link>
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-sky-600">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -192,7 +228,7 @@ export const AdminAllMediaPage = () => {
         <Card className="border border-[#ede4d5] bg-white">
           <CardHeader>
             <CardTitle className="text-base font-semibold">Concluídas</CardTitle>
-            <CardDescription>Últimos 7 dias.</CardDescription>
+            <CardDescription>Desde o início.</CardDescription>
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-emerald-600">
             <CheckCircle className="h-4 w-4" />
@@ -202,10 +238,10 @@ export const AdminAllMediaPage = () => {
         <Card className="border border-[#ede4d5] bg-white">
           <CardHeader>
             <CardTitle className="text-base font-semibold">Falhas</CardTitle>
-            <CardDescription>Prontas para revisão.</CardDescription>
+            <CardDescription>Podem ser reprocessadas.</CardDescription>
           </CardHeader>
           <CardContent className="flex items-center gap-2 text-red-600">
-            <ShieldCheck className="h-4 w-4" />
+            <XCircle className="h-4 w-4" />
             <span className="text-2xl font-semibold">{stats?.failed_media ?? 0}</span>
           </CardContent>
         </Card>
@@ -218,8 +254,8 @@ export const AdminAllMediaPage = () => {
       ) : (
         <Card className="border border-[#ede4d5] bg-white">
           <CardHeader>
-            <CardTitle className="text-base font-semibold">Inventário detalhado</CardTitle>
-            <CardDescription>Pesquise, filtre e acione ações em lote.</CardDescription>
+            <CardTitle className="text-base font-semibold">Todas as mídias</CardTitle>
+            <CardDescription>De todos os usuários, das mais novas para as mais antigas.</CardDescription>
           </CardHeader>
           <CardContent>
             <DataTable

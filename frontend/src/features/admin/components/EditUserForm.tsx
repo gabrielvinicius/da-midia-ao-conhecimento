@@ -57,13 +57,13 @@ export const EditUserForm = ({ user, onFinished }: EditUserFormProps) => {
             <SelectValue placeholder="Escolha o perfil" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={UserRole.USER}>User</SelectItem>
-            <SelectItem value={UserRole.ADMIN}>Admin</SelectItem>
+            <SelectItem value={UserRole.USER}>Usuário</SelectItem>
+            <SelectItem value={UserRole.ADMIN}>Administrador</SelectItem>
           </SelectContent>
         </Select>
       </div>
       <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? 'Saving...' : 'Save Changes'}
+        {isPending ? 'Salvando...' : 'Salvar'}
       </Button>
     </form>
   );

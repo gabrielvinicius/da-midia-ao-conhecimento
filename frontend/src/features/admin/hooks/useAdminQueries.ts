@@ -6,6 +6,7 @@ import {
   getProcessingTimes,
   getAllUsers,
   getAllMedia,
+  getProcessingQueue,
   GetPaginatedDataParams,
 } from '../api';
 
@@ -58,3 +59,12 @@ export const useAllMedia = (params: GetPaginatedDataParams) => {
     placeholderData: keepPreviousData, // mantém a página anterior enquanto a próxima carrega
   });
 };
+
+/** Fila de processamento, atualizada a cada 10 s enquanto a tela está aberta. */
+export const useProcessingQueue = () =>
+  useQuery({
+    queryKey: ['admin-queue'],
+    queryFn: getProcessingQueue,
+    refetchInterval: 10_000,
+    placeholderData: keepPreviousData,
+  });

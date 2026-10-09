@@ -204,7 +204,7 @@ const DashboardPage = () => {
         <div className="flex flex-wrap gap-2">
           {isAdminUser(user) && (
             <Button asChild variant="outline">
-              <Link to="/admin/analytics">
+              <Link to="/admin/dashboard">
                 <BarChart3 className="mr-2 h-4 w-4" />
                 Visão administrativa
               </Link>

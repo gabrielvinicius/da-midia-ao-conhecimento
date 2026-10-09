@@ -33,6 +33,7 @@ export default defineConfig({
             "./src/features/admin/pages/AdminDashboardPage.tsx",
             "./src/features/admin/pages/AdminUsersPage.tsx",
             "./src/features/admin/pages/AdminAllMediaPage.tsx",
+            "./src/features/admin/pages/AdminQueuePage.tsx",
           ],
           media: [
             "./src/features/media/components/MediaRow.tsx",

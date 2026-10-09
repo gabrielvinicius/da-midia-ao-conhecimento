@@ -8,10 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.admin.api.dependencies import AdminDependencies, get_admin_dependencies
 from src.admin.application.services.admin_audit_service import AdminAuditService
 from src.admin.application.services.admin_media_service import AdminMediaService
+from src.admin.application.services.admin_queue_service import AdminQueueService
 from src.admin.application.services.admin_read_service import AdminReadService
 from src.admin.application.services.admin_service import AdminService
 from src.admin.application.services.admin_user_service import AdminUserService
 from src.admin.infrastructure.adapters.media_read_adapter import MediaReadAdapter
+from src.admin.infrastructure.adapters.redis_queue_depth import RedisQueueDepthAdapter
 from src.admin.infrastructure.adapters.user_read_adapter import UserReadAdapter
 from src.admin.infrastructure.dependencies.providers import (
     get_media_admin_adapter,
@@ -37,6 +39,7 @@ class AdminModule:
     service: AdminService
 
 
+from src.shared.infrastructure.config.settings import settings
 from src.shared.infrastructure.repositories.processing_stats_repository import (
     ProcessingStatsRepository,
 )
@@ -81,6 +84,11 @@ def build_admin_module(
         admin_user_service=user_service,
         admin_media_service=admin_media_service,
         processing_stats=ProcessingStatsRepository(session) if session is not None else None,
+        queue=AdminQueueService(
+            media=media_admin_adapter,
+            users=user_read_adapter,
+            queue_depth=RedisQueueDepthAdapter(settings.redis_url),
+        ),
     )
 
     return AdminModule(

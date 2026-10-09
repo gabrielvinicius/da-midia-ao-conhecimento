@@ -1,5 +1,6 @@
 """Rotas do painel do administrador (o roteador inteiro exige administrador)."""
-from typing import Optional
+from dataclasses import asdict
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -11,7 +12,8 @@ from src.admin.application.dtos import (
     GetUserActivityQuery,
 )
 from src.admin.application.services.admin_service import AdminService
-from src.media_management.api.schemas import MediaResponse, media_page
+from src.media_management.api.schemas import MediaResponse
+from src.media_management.domain.enums import MediaStatus
 from src.media_management.application.dtos import (
     ListMediaQuery,
 )
@@ -24,7 +26,7 @@ from src.user_management.domain import User
 from .dependencies import (
     get_admin_service,
 )
-from .schemas import SystemStatsResponse, UserUpdateRequest
+from .schemas import AdminMediaResponse, QueueItemResponse, QueueResponse, SystemStatsResponse, UserUpdateRequest
 
 router = APIRouter(
     prefix="/admin",
@@ -102,7 +104,7 @@ async def delete_user(
 
 @router.get(
     "/media",
-    response_model=PaginatedResponse[MediaResponse],
+    response_model=PaginatedResponse[AdminMediaResponse],
     summary="Mídias de todos os usuários",
 )
 async def list_all_media(
@@ -112,9 +114,34 @@ async def list_all_media(
     search: Optional[str] = Query(
         None, description="Busca pelo nome do arquivo"
     ),
+    status_filter: Optional[List[MediaStatus]] = Query(None, alias="status", description="Um ou mais estados."),
 ):
-    result = await service.list_media(ListMediaQuery(page=page, limit=limit, search=search))
-    return media_page(result, page, limit)
+    result = await service.list_media(ListMediaQuery(page=page, limit=limit, search=search, status=status_filter))
+    emails = await service.owner_emails(m.user_id for m in result.items)
+    items = [
+        AdminMediaResponse(**MediaResponse.from_domain(m).model_dump(), owner_email=emails.get(m.user_id))
+        for m in result.items
+    ]
+    return PaginatedResponse[AdminMediaResponse](
+        items=items,
+        total=result.total,
+        page=page,
+        pages=result.pages if result.pages is not None else PaginatedResponse.pages_for(result.total, limit),
+        limit=limit,
+    )
+
+
+@router.get("/queue", response_model=QueueResponse, summary="Fila de processamento")
+async def get_processing_queue(service: AdminService = Depends(get_admin_service)):
+    """Mídias em andamento na ordem de chegada, há quanto tempo cada uma está
+    na etapa atual (e se parece parada) e as tarefas esperando no Celery."""
+    snapshot = await service.get_queue()
+    return QueueResponse(
+        items=[QueueItemResponse(**asdict(item)) for item in snapshot.items],
+        counts=snapshot.counts,
+        broker=snapshot.broker,
+        truncated=snapshot.truncated,
+    )
 
 
 @router.delete(

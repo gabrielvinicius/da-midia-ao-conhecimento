@@ -8,6 +8,7 @@ import {
   reprocessMedia,
   bulkReprocessFailedMedia,
   bulkReprocessMessage,
+  setUserActive,
 } from '../api';
 import { apiErrorMessage } from '@/lib/errors';
 import { removeFromCachedPages, restoreCachedPages } from '@/lib/optimistic';
@@ -99,5 +100,18 @@ export const useBulkReprocessMedia = () => {
       console.error('Failed to bulk reprocess media:', error);
       toast.error(apiErrorMessage(error, 'Erro ao reprocessar mídia em massa.'));
     },
+  });
+};
+
+export const useSetUserActive = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, active }: { userId: string; active: boolean }) => setUserActive(userId, active),
+    onSuccess: (_user, { active }) => {
+      toast.success(active ? 'Conta reativada.' : 'Conta desativada: o usuário não consegue mais entrar.');
+      queryClient.invalidateQueries({ queryKey: ['admin-all-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, 'Não foi possível alterar a conta.')),
   });
 };

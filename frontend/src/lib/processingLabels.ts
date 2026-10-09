@@ -28,3 +28,15 @@ export const formatSeconds = (value: number | null | undefined): string => {
   const seconds = Math.round(value % 60);
   return `${minutes} min ${seconds} s`;
 };
+
+/** "45 s", "12 min", "2 h 5 min", "3 d 4 h". */
+export const formatElapsed = (seconds: number): string => {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `${s} s`;
+  const minutes = Math.floor(s / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return minutes % 60 ? `${hours} h ${minutes % 60} min` : `${hours} h`;
+  const days = Math.floor(hours / 24);
+  return hours % 24 ? `${days} d ${hours % 24} h` : `${days} d`;
+};

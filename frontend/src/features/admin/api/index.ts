@@ -56,6 +56,32 @@ export interface GetPaginatedDataParams {
   search?: string;
 }
 
+export type AdminMedia = Media & { owner_email?: string | null };
+
+export interface QueueItem {
+  position: number;
+  media_id: string;
+  filename: string | null;
+  media_type: string;
+  status: "uploaded" | "processing" | "analyzing";
+  owner_email: string | null;
+  created_at: string;
+  stage_since: string;
+  stage_seconds: number;
+  stuck: boolean;
+}
+
+export interface ProcessingQueue {
+  items: QueueItem[];
+  counts: Record<string, number>;
+  /** Tarefas esperando em cada fila do Celery; null se o Redis não respondeu. */
+  broker: Record<string, number> | null;
+  truncated: boolean;
+}
+
+export const getProcessingQueue = async (): Promise<ProcessingQueue> =>
+  (await api.get<ProcessingQueue>("/admin/queue")).data;
+
 export interface UserUpdatePayload {
   role?: UserRole;
 }
@@ -89,12 +115,15 @@ export const getAllUsers = async ({ page = 1, limit = 10, search = '' }: GetPagi
   return response.data;
 };
 
-export const getAllMedia = async ({ page = 1, limit = 10, search = '' }: GetPaginatedDataParams): Promise<Paginated<Media>> => {
-  const response = await api.get<Paginated<Media>>("/admin/media", {
+export const getAllMedia = async ({ page = 1, limit = 10, search = '' }: GetPaginatedDataParams): Promise<Paginated<AdminMedia>> => {
+  const response = await api.get<Paginated<AdminMedia>>("/admin/media", {
     params: { page, limit, search },
   });
   return response.data;
 };
+
+export const setUserActive = async (userId: string, active: boolean): Promise<User> =>
+  (await api.post<User>(`/admin/users/${userId}/${active ? "activate" : "deactivate"}`)).data;
 
 export const deleteUser = async (userId: string): Promise<void> => {
   await api.delete(`/admin/users/${userId}`);

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional, Protocol
+from typing import Dict, List, Optional, Protocol
 from uuid import UUID
 
 from src.media_management.application.dtos import ListMediaQuery, PaginatedMedia
@@ -58,6 +58,14 @@ class AdminUserReadPort(Protocol):
     async def get_user_by_id(self, query) -> object | None: ...
 
 
+class QueueDepthPort(Protocol):
+    """Tarefas esperando em cada fila do Celery (ainda não pegas por um worker)."""
+
+    async def waiting_tasks(self) -> Optional[Dict[str, int]]:
+        """Por nome de fila; None se o broker não responder."""
+        ...
+
+
 class AdminAuditPort(Protocol):
     async def log_admin_action(
         self,
@@ -76,4 +84,5 @@ __all__ = [
     "AdminMediaReadPort",
     "AdminUserReadPort",
     "AdminAuditPort",
+    "QueueDepthPort",
 ]
