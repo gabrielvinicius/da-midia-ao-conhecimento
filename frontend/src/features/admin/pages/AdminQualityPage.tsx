@@ -9,13 +9,15 @@ import type { QualityReport } from "../api";
 import { useQualityReport } from "../hooks/useAdminQueries";
 
 const percent = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);
+/** "<1%" quando há correção mas ela arredonda para zero (1 de 3.042 trechos não é "nenhum"). */
+const percentLabel = (part: number, whole: number) => (part > 0 && percent(part, whole) === 0 ? "<1%" : `${percent(part, whole)}%`);
 
 const Bar = ({ label, part, whole, unit }: { label: string; part: number; whole: number; unit: string }) => (
   <div>
     <div className="flex items-baseline justify-between gap-3 text-sm">
       <span className="font-medium text-slate-900">{label}</span>
       <span className="text-muted-foreground">
-        {part} de {whole} {unit} · <span className="font-semibold text-slate-900">{percent(part, whole)}%</span>
+        {part} de {whole} {unit} · <span className="font-semibold text-slate-900">{percentLabel(part, whole)}</span>
       </span>
     </div>
     <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label={label} aria-valuenow={percent(part, whole)} aria-valuemin={0} aria-valuemax={100}>
@@ -66,13 +68,13 @@ const Content = ({ data }: { data: QualityReport }) => {
         />
         <Kpi
           title="Resumos corrigidos"
-          value={`${percent(data.corrected["resumo"] ?? 0, data.analyses)}%`}
+          value={percentLabel(data.corrected["resumo"] ?? 0, data.analyses)}
           detail={`${data.corrected["resumo"] ?? 0} de ${data.analyses} análises`}
           icon={<PencilLine className="h-4 w-4" />}
         />
         <Kpi
           title="Trechos corrigidos"
-          value={`${percent(data.segments_corrected, data.segments_total)}%`}
+          value={percentLabel(data.segments_corrected, data.segments_total)}
           detail={`${data.segments_corrected} de ${data.segments_total} trechos de transcrição`}
           icon={<MessageSquare className="h-4 w-4" />}
         />
