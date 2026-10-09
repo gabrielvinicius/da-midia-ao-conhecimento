@@ -53,9 +53,54 @@ export const correctStudyAids = async (analysisId: string, payload: StudyAidsPay
 export const semanticSearch =async (query: string, limit = 10): Promise<SemanticSearchResult[]> =>
   (await api.get<SemanticSearchResult[]>('/text-analysis/search', { params: { query, limit } })).data;
 
-export type StudyQuestion = { question: string; answer: string; start: number | null };
+export type ReviewProgress = {
+  /** Caixa de 1 a 5: acertar sobe, errar volta para 1. A partir da 4, dominada. */
+  box: number;
+  correct_count: number;
+  wrong_count: number;
+  last_answered_at: string | null;
+  due_at: string | null;
+};
+export type StudyQuestion = {
+  question: string;
+  answer: string;
+  start: number | null;
+  /** null: nunca respondida. */
+  progress: ReviewProgress | null;
+  /** Para revisar agora. */
+  due: boolean;
+};
 export type StudyDeckEntry = { media_id: string | null; analysis_id: string; questions: StudyQuestion[] };
 
 /** Perguntas de revisão de todas as mídias do usuário, das mais novas para as mais antigas. */
 export const getStudyDeck = async (): Promise<StudyDeckEntry[]> =>
   (await api.get<StudyDeckEntry[]>('/text-analysis/study-deck')).data;
+
+/** Registra se o aluno acertou; devolve quando a pergunta volta. */
+export const answerReviewQuestion = async (analysisId: string, question: string, correct: boolean): Promise<ReviewProgress> =>
+  (await api.post<ReviewProgress>(`/text-analysis/${analysisId}/review-answer`, { question, correct })).data;
+
+export type NotebookEntry = {
+  media_id: string | null;
+  analysis_id: string;
+  summary: string;
+  genre: string | null;
+  topics: string[];
+  chapters: number;
+  questions: number;
+};
+
+export const getNotebook = async (): Promise<NotebookEntry[]> => (await api.get<NotebookEntry[]>('/text-analysis/notebook')).data;
+
+export type TopicOccurrence = {
+  media_id: string | null;
+  analysis_id: string;
+  title: string;
+  keywords: string[];
+  snippet: string | null;
+  start: number | null;
+};
+export type TopicGroup = { title: string; media_count: number; occurrences: TopicOccurrence[] };
+
+export const getTopicsOverview = async (): Promise<TopicGroup[]> =>
+  (await api.get<TopicGroup[]>('/text-analysis/topics-overview')).data;

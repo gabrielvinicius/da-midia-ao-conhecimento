@@ -37,7 +37,8 @@ class StudyDeckEntry:
 
 @dataclass(frozen=True)
 class FeedbackRecord:
-    """Uma avaliação (1 a 5) com o comentário, ligada à mídia da análise."""
+    """Uma avaliação com o comentário, ligada à mídia da análise. A tela grava
+    1 (útil) ou -1 (não foi útil); positiva conta como útil."""
 
     media_id: Optional[UUID]
     score: int
@@ -55,9 +56,9 @@ class CorrectedAnalysis:
 class AnalysisQualityReport:
     analyses: int
     corrected: dict  # parte -> quantas análises tiveram essa parte corrigida
-    ratings: dict  # nota (1 a 5) -> quantas
-    rating_count: int
-    rating_average: Optional[float]
+    useful: int  # avaliações "útil"
+    not_useful: int  # avaliações "não foi útil"
+    useful_share: Optional[float]  # % de "útil" entre as avaliações
     recent_comments: List[FeedbackRecord] = field(default_factory=list)
     recent_corrections: List[CorrectedAnalysis] = field(default_factory=list)
 
@@ -188,7 +189,8 @@ def quality_report(
         corrected.update(parts)
         if parts:
             corrections.append(CorrectedAnalysis(analysis.media_id, parts))
-    scores = [f.score for f in feedback if 1 <= f.score <= 5]
+    useful = sum(1 for f in feedback if f.score > 0)
+    not_useful = sum(1 for f in feedback if f.score < 0)
     newest_first = sorted(
         (f for f in feedback if (f.comment or "").strip()),
         key=lambda f: f.created_at or datetime.datetime.min.replace(tzinfo=datetime.timezone.utc),
@@ -197,9 +199,9 @@ def quality_report(
     return AnalysisQualityReport(
         analyses=len(analyses),
         corrected={part: corrected.get(part, 0) for part in ("resumo", "temas", "capítulos", "perguntas")},
-        ratings={score: scores.count(score) for score in range(1, 6)},
-        rating_count=len(scores),
-        rating_average=round(sum(scores) / len(scores), 2) if scores else None,
+        useful=useful,
+        not_useful=not_useful,
+        useful_share=round(useful * 100 / (useful + not_useful), 1) if useful + not_useful else None,
         recent_comments=newest_first[:recent],
         recent_corrections=corrections[:recent],
     )

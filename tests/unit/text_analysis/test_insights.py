@@ -50,22 +50,23 @@ def test_quality_report_counts_corrections_and_ratings():
     corrected.diagnostics["original_ai_summary"] = "resumo da IA"
     now = datetime.datetime.now(datetime.timezone.utc)
     feedback = [
-        FeedbackRecord(corrected.media_id, 5, "Ótimo resumo", now),
-        FeedbackRecord(corrected.media_id, 3, None, now - datetime.timedelta(days=1)),
-        FeedbackRecord(untouched.media_id, 4, "Faltou um tema", now - datetime.timedelta(days=2)),
+        FeedbackRecord(corrected.media_id, 1, "Ótimo resumo", now),
+        FeedbackRecord(corrected.media_id, -1, None, now - datetime.timedelta(days=1)),
+        FeedbackRecord(untouched.media_id, 1, "Faltou um tema", now - datetime.timedelta(days=2)),
     ]
 
     report = quality_report([corrected, untouched], feedback)
 
     assert report.analyses == 2
     assert report.corrected == {"resumo": 1, "temas": 0, "capítulos": 0, "perguntas": 0}
-    assert report.ratings == {1: 0, 2: 0, 3: 1, 4: 1, 5: 1} and report.rating_average == 4.0
+    # O polegar grava 1 (útil) ou -1: "útil" não pode virar a pior nota.
+    assert (report.useful, report.not_useful, report.useful_share) == (2, 1, 66.7)
     assert [c.comment for c in report.recent_comments] == ["Ótimo resumo", "Faltou um tema"]
     assert [c.media_id for c in report.recent_corrections] == [corrected.media_id]
 
 
 def test_quality_report_without_ratings_has_no_average():
-    assert quality_report([], []).rating_average is None
+    assert quality_report([], []).useful_share is None
 
 
 @pytest.mark.asyncio

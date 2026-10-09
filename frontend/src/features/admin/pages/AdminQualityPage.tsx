@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { MessageSquare, PencilLine, Star } from "lucide-react";
+import { MessageSquare, PencilLine, ThumbsDown, ThumbsUp } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import ErrorState from "@/components/ui/ErrorState";
@@ -37,12 +37,17 @@ const Kpi = ({ title, value, detail, icon }: { title: string; value: string; det
   </Card>
 );
 
-const Stars = ({ score }: { score: number }) => (
-  <span className="text-amber-500" aria-label={`${score} de 5`}>
-    {"★".repeat(score)}
-    <span className="text-slate-300">{"★".repeat(Math.max(0, 5 - score))}</span>
-  </span>
-);
+/** O resumo é avaliado pelo polegar: 1 (útil) ou -1 (não foi útil). */
+const Verdict = ({ score }: { score: number }) =>
+  score > 0 ? (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
+      <ThumbsUp className="h-3.5 w-3.5" /> Útil
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-700">
+      <ThumbsDown className="h-3.5 w-3.5" /> Não foi útil
+    </span>
+  );
 
 const MediaName = ({ id, name }: { id: string | null; name: string | null }) =>
   id && name ? (
@@ -55,16 +60,16 @@ const MediaName = ({ id, name }: { id: string | null; name: string | null }) =>
 
 const Content = ({ data }: { data: QualityReport }) => {
   const correctedAny = data.recent_corrections.length;
-  const maxRating = Math.max(1, ...Object.values(data.ratings));
+  const rated = data.useful + data.not_useful;
   return (
     <>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <Kpi title="Análises" value={String(data.analyses)} detail="Mídias com análise gravada" icon={<PencilLine className="h-4 w-4" />} />
         <Kpi
-          title="Nota média"
-          value={data.rating_average === null ? "—" : data.rating_average.toFixed(1).replace(".", ",")}
-          detail={data.rating_count ? `${data.rating_count} avaliações, de 1 a 5` : "Nenhuma avaliação ainda"}
-          icon={<Star className="h-4 w-4" />}
+          title="Resumos úteis"
+          value={data.useful_share === null ? "—" : `${Math.round(data.useful_share)}%`}
+          detail={rated ? `${data.useful} de ${rated} avaliações` : "Nenhuma avaliação ainda"}
+          icon={<ThumbsUp className="h-4 w-4" />}
         />
         <Kpi
           title="Resumos corrigidos"
@@ -97,29 +102,17 @@ const Content = ({ data }: { data: QualityReport }) => {
 
         <Card className="border-[#ede4d5]">
           <CardHeader>
-            <CardTitle className="text-base">Notas dadas</CardTitle>
-            <CardDescription>Avaliações das análises pelos próprios usuários.</CardDescription>
+            <CardTitle className="text-base">O resumo foi útil?</CardTitle>
+            <CardDescription>Respostas dos usuários pelo polegar, abaixo de cada resumo.</CardDescription>
           </CardHeader>
           <CardContent>
-            {data.rating_count === 0 ? (
+            {rated === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma avaliação ainda.</p>
             ) : (
-              <ul className="space-y-2 text-sm">
-                {[5, 4, 3, 2, 1].map((score) => {
-                  const count = data.ratings[String(score)] ?? 0;
-                  return (
-                    <li key={score} className="flex items-center gap-3">
-                      <span className="w-20 flex-shrink-0">
-                        <Stars score={score} />
-                      </span>
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                        <div className="h-full rounded-full bg-amber-400" style={{ width: `${(count / maxRating) * 100}%` }} />
-                      </div>
-                      <span className="w-8 text-right tabular-nums text-muted-foreground">{count}</span>
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="space-y-4">
+                <Bar label="Útil" part={data.useful} whole={rated} unit="avaliações" />
+                <Bar label="Não foi útil" part={data.not_useful} whole={rated} unit="avaliações" />
+              </div>
             )}
           </CardContent>
         </Card>
@@ -138,7 +131,7 @@ const Content = ({ data }: { data: QualityReport }) => {
                   <li key={i} className="py-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <MediaName id={c.media_id} name={c.filename} />
-                      <Stars score={c.score} />
+                      <Verdict score={c.score} />
                     </div>
                     <p className="mt-1 text-slate-700">“{c.comment}”</p>
                   </li>
@@ -186,7 +179,7 @@ export const AdminQualityPage = () => {
       <div>
         <h1 className="text-2xl font-semibold">Qualidade da IA</h1>
         <p className="text-sm text-muted-foreground">
-          Medida pelo uso real: o que os usuários corrigiram na saída da IA e as notas que deram.
+          Medida pelo uso real: o que os usuários corrigiram na saída da IA e se acharam o resumo útil.
         </p>
       </div>
       {isLoading ? (
