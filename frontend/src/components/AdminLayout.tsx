@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Outlet, Link, NavLink, useLocation } from 'react-router-dom';
-import { Home, Users, FolderKanban, LogOut, BarChart3, Menu, UserCircle, Settings, ShieldCheck } from 'lucide-react';
+import { Home, Users, FolderKanban, LogOut, BarChart3, Menu, UserCircle, Settings, ShieldCheck, ListOrdered, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/Button';
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 import { SystemHealthBanner } from './SystemHealthBanner';
+import { MobileNav, type NavItem } from './MobileNav';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +14,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
+
+const ADMIN_NAV: NavItem[] = [
+  { to: '/admin/dashboard', label: 'Resumo', icon: <Home className="h-4 w-4" /> },
+  { to: '/admin/queue', label: 'Fila', icon: <ListOrdered className="h-4 w-4" /> },
+  { to: '/admin/media', label: 'Mídias', icon: <FolderKanban className="h-4 w-4" /> },
+  { to: '/admin/users', label: 'Usuários', icon: <Users className="h-4 w-4" /> },
+  { to: '/admin/analytics', label: 'Tempos', icon: <BarChart3 className="h-4 w-4" /> },
+];
 
 const AdminLayout = () => {
   const { user, logout } = useAuth();
@@ -44,36 +53,34 @@ const AdminLayout = () => {
             </button>
             {!isSidebarCollapsed && (
               <Link to="/admin" className="ml-3 flex items-center gap-2 font-semibold">
-                <span>Painel Administrativo</span>
+                <span>Administração</span>
               </Link>
             )}
           </div>
           <div className="flex-1">
             <nav className={`grid items-start ${isSidebarCollapsed ? 'px-1' : 'px-2 text-sm font-medium lg:px-4'}`}>
-              <NavLink to="/admin/dashboard" className={({ isActive }) => navLinkClasses(isActive)}>
-                <Home className="mr-3 h-4 w-4" />
-                {!isSidebarCollapsed && 'Resumo'}
-              </NavLink>
-              <NavLink to="/admin/users" className={({ isActive }) => navLinkClasses(isActive)}>
-                <Users className="mr-3 h-4 w-4" />
-                {!isSidebarCollapsed && 'Usuários'}
-              </NavLink>
-              <NavLink to="/admin/media" className={({ isActive }) => navLinkClasses(isActive)}>
-                <FolderKanban className="mr-3 h-4 w-4" />
-                {!isSidebarCollapsed && 'Mídias'}
-              </NavLink>
-              <NavLink to="/admin/analytics" className={({ isActive }) => navLinkClasses(isActive)}>
-                <BarChart3 className="mr-3 h-4 w-4" />
-                {!isSidebarCollapsed && 'Análises'}
-              </NavLink>
+              {ADMIN_NAV.map((item) => (
+                <NavLink key={item.to} to={item.to} className={({ isActive }) => navLinkClasses(isActive)} title={item.label}>
+                  <span className="mr-3">{item.icon}</span>
+                  {!isSidebarCollapsed && item.label}
+                </NavLink>
+              ))}
+              <Link to="/dashboard" className={`${navLinkClasses(false)} mt-4 border-t border-[#f2eadf] pt-4`} title="Voltar ao meu painel">
+                <ArrowLeft className="mr-3 h-4 w-4" />
+                {!isSidebarCollapsed && 'Voltar ao meu painel'}
+              </Link>
             </nav>
           </div>
         </div>
       </div>
-      <div className="flex flex-col">
+      <div className="flex min-w-0 flex-col">
         <SystemHealthBanner />
         <header className="flex h-14 items-center gap-4 border-b border-[#f2eadf] bg-white/70 px-4 backdrop-blur lg:h-[60px] lg:px-6">
-          <div className="w-full flex-1" />
+          <div className="w-full flex-1">
+            <Link to="/admin/dashboard" className="text-sm font-semibold md:hidden">
+              Administração
+            </Link>
+          </div>
           <div className="flex items-center gap-4">
             <ConnectionStatusIndicator />
             <DropdownMenu>
@@ -95,7 +102,7 @@ const AdminLayout = () => {
                 <DropdownMenuItem asChild>
                   <Link to={isAdminRoute ? '/dashboard' : '/admin/dashboard'}>
                     <ShieldCheck className="mr-2 h-4 w-4" />
-                    <span>{isAdminRoute ? 'Painel do usuário' : 'Painel Admin'}</span>
+                    <span>{isAdminRoute ? 'Meu painel' : 'Administração'}</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -107,6 +114,7 @@ const AdminLayout = () => {
             </DropdownMenu>
           </div>
         </header>
+        <MobileNav items={[...ADMIN_NAV, { to: '/dashboard', label: 'Meu painel', icon: <ArrowLeft className="h-4 w-4" /> }]} />
         <main className="flex flex-1 flex-col gap-4 bg-transparent p-4 lg:gap-6 lg:p-6">
           <Outlet />
         </main>

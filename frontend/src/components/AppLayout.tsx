@@ -8,6 +8,7 @@ import { NotificationBell } from '@/features/notifications/components/Notificati
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 import { SystemHealthBanner } from './SystemHealthBanner';
 import { APP_NAME } from './Brand';
+import { MobileNav } from './MobileNav';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,7 +69,7 @@ const AppLayout = () => {
               {isAdmin && (
                 <NavLink to="/admin/dashboard" className={({ isActive }) => navLinkClasses(isActive)}>
                   <ShieldCheck className="mr-3 h-4 w-4" />
-                  {!isSidebarCollapsed && 'Painel Admin'}
+                  {!isSidebarCollapsed && 'Administração'}
                 </NavLink>
               )}
             </nav>
@@ -78,7 +79,11 @@ const AppLayout = () => {
       <div className="flex min-w-0 flex-col">
         <SystemHealthBanner />
         <header className="flex h-14 items-center gap-4 border-b border-[#f2eadf] bg-white/70 px-4 backdrop-blur lg:h-[60px] lg:px-6">
-          <div className="w-full flex-1"></div>
+          <div className="w-full flex-1">
+            <Link to="/dashboard" className="text-sm font-semibold leading-tight md:hidden">
+              {APP_NAME}
+            </Link>
+          </div>
           <div className="flex items-center gap-4">
             <ConnectionStatusIndicator /> {/* Add the indicator */}
             <NotificationBell />
@@ -86,7 +91,7 @@ const AppLayout = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="secondary" size="icon" className="rounded-full">
                   <UserCircle className="h-5 w-5" />
-                  <span className="sr-only">Toggle user menu</span>
+                  <span className="sr-only">Menu do usuário</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -102,7 +107,7 @@ const AppLayout = () => {
                   <DropdownMenuItem asChild>
                     <Link to={location.pathname.startsWith('/admin') ? '/dashboard' : '/admin/dashboard'}>
                       <ShieldCheck className="mr-2 h-4 w-4" />
-                      <span>{location.pathname.startsWith('/admin') ? 'Painel do usuário' : 'Painel Admin'}</span>
+                      <span>{location.pathname.startsWith('/admin') ? 'Meu painel' : 'Administração'}</span>
                     </Link>
                   </DropdownMenuItem>
                 )}
@@ -115,6 +120,14 @@ const AppLayout = () => {
             </DropdownMenu>
           </div>
         </header>
+        <MobileNav
+          items={[
+            { to: '/dashboard', label: 'Painel', icon: <Home className="h-4 w-4" /> },
+            { to: '/upload', label: 'Envios', icon: <Upload className="h-4 w-4" /> },
+            { to: '/search', label: 'Busca', icon: <Search className="h-4 w-4" /> },
+            ...(isAdmin ? [{ to: '/admin/dashboard', label: 'Administração', icon: <ShieldCheck className="h-4 w-4" /> }] : []),
+          ]}
+        />
         <main className="flex min-w-0 flex-1 flex-col gap-4 bg-transparent p-4 lg:gap-6 lg:p-6">
           <Outlet />
         </main>

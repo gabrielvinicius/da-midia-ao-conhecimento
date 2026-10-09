@@ -24,6 +24,7 @@ class AdminReadService:
         queue_alert: int = 20,
     ) -> None:
         self._user_read_service = user_read_port
+        self.user_read_port = user_read_port
         self._media_read_service = media_read_port
         self.failure_window_hours = failure_window_hours
         self.failed_alert = failed_alert

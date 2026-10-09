@@ -22,6 +22,7 @@ from ..dtos import (
 )
 from .admin_audit_service import AdminAuditService
 from .admin_media_service import AdminMediaService, BulkReprocessResult
+from .admin_queue_service import AdminQueueService, OwnerDirectory, QueueSnapshot
 from .admin_read_service import AdminReadService
 from .admin_user_service import AdminUserService
 
@@ -35,6 +36,7 @@ class AdminService:
     admin_user_service: AdminUserService
     admin_media_service: AdminMediaService
     processing_stats: Optional[ProcessingStatsPort] = None
+    queue: Optional[AdminQueueService] = None
 
     # --- Stats & monitoring -------------------------------------------------
     async def get_system_stats(self, query: GetSystemStatsQuery) -> dict:
@@ -52,6 +54,17 @@ class AdminService:
         self, query: GetMediaProcessingStatsQuery
     ) -> dict:
         return await self.admin_read_service.get_media_processing_stats()
+
+    async def get_queue(self) -> QueueSnapshot:
+        """Mídias em andamento, na ordem de chegada, e o tamanho das filas."""
+        if self.queue is None:
+            return QueueSnapshot(items=[], counts={}, broker=None, truncated=False)
+        return await self.queue.snapshot()
+
+    async def owner_emails(self, user_ids) -> dict:
+        """E-mail do dono de cada mídia listada (a lista mostrava só o id)."""
+        users = self.admin_read_service.user_read_port
+        return await OwnerDirectory(users).emails(user_ids)
 
     async def get_user_activity(self, query: GetUserActivityQuery) -> dict:
         return await self.admin_read_service.get_user_activity_stats(query.user_id)

@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { CheckCircle2, Clock, Layers, XCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isAdminUser } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import ErrorState from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { KpiCard } from "../components/AnalyticsWidgets";
-import { useMediaProcessingStats, useProcessingTimes } from "../hooks/useAdminQueries";
+import { useProcessingTimes } from "../hooks/useAdminQueries";
 import type { ProcessingTimeItem } from "../api";
 import { formatSeconds, taskLabel } from "@/lib/processingLabels";
 
@@ -69,7 +67,6 @@ export const AdminAnalyticsPage = () => {
   const isAdmin = isAdminUser(user);
   const [days, setDays] = useState<number | undefined>(30);
 
-  const media = useMediaProcessingStats(isAdmin);
   const times = useProcessingTimes(days, isAdmin);
 
   if (!isAdmin) {
@@ -83,67 +80,30 @@ export const AdminAnalyticsPage = () => {
     );
   }
 
-  if (media.isError && times.isError) {
+  if (times.isError && !times.data) {
     return (
       <ErrorState
         title="Não foi possível carregar as métricas"
         message="Verifique a conexão com o servidor e tente novamente."
-        onRetry={() => {
-          media.refetch();
-          times.refetch();
-        }}
+        onRetry={() => times.refetch()}
       />
     );
   }
 
-  const stats = media.data;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold">Análises de processamento</h1>
-        <p className="text-muted-foreground">
-          Situação das mídias e tempos medidos em cada etapa do processamento.
+        <h1 className="text-2xl font-semibold">Tempos de processamento</h1>
+        <p className="text-sm text-muted-foreground">
+          Quanto cada etapa levou nas mídias já processadas, para estimar a fila e comparar modelos.
         </p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          title="Mídias"
-          description="Total enviado à plataforma"
-          value={stats?.total_media ?? 0}
-          icon={<Layers className="h-5 w-5" />}
-          isLoading={media.isLoading}
-        />
-        <KpiCard
-          title="Concluídas"
-          description="Processadas com sucesso"
-          value={stats?.success_rate ?? 0}
-          suffix="%"
-          decimals={1}
-          icon={<CheckCircle2 className="h-5 w-5" />}
-          isLoading={media.isLoading}
-        />
-        <KpiCard
-          title="Com falha"
-          description="Podem ser reprocessadas"
-          value={stats?.failed ?? 0}
-          icon={<XCircle className="h-5 w-5" />}
-          isLoading={media.isLoading}
-        />
-        <KpiCard
-          title="Em processamento"
-          description="Na fila ou em execução"
-          value={stats?.processing ?? 0}
-          icon={<Clock className="h-5 w-5" />}
-          isLoading={media.isLoading}
-        />
       </div>
 
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
-            <CardTitle>Tempos de processamento</CardTitle>
+            <CardTitle className="text-base">Por etapa</CardTitle>
             <CardDescription>
               Na coluna "Tempo real", 0,50× significa que a etapa levou metade da duração da gravação.
             </CardDescription>

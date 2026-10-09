@@ -130,7 +130,7 @@ def test_admin_dashboard_endpoints_answer(client):
     assert r.status_code == 200, r.text
     admin = {"Authorization": f"Bearer {r.json()['access_token']}"}
 
-    for path in ("/admin/stats", "/admin/stats/health", "/admin/stats/media-processing", "/admin/users"):
+    for path in ("/admin/stats", "/admin/stats/health", "/admin/stats/media-processing", "/admin/users", "/admin/queue"):
         response = client.get(path, headers=admin)
         assert response.status_code == 200, (path, response.text)
     assert client.get("/admin/stats", headers=admin).json()["total_users"] >= 1
@@ -140,7 +140,11 @@ def test_admin_dashboard_endpoints_answer(client):
     activity = client.get(f"/admin/users/{user_id}/activity", headers=admin)
     assert activity.status_code == 200, activity.text
     assert activity.json()["user_id"] == user_id
-    assert client.get("/admin/media", headers=admin).status_code == 200
+    media = client.get("/admin/media", headers=admin)
+    assert media.status_code == 200
+    assert all("owner_email" in item for item in media.json()["items"])
+    queue = client.get("/admin/queue", headers=admin).json()
+    assert set(queue["counts"]) == {"uploaded", "processing", "analyzing"}
 
 
 def test_concurrent_requests_each_get_their_own_session(client):

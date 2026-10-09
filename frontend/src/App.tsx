@@ -28,6 +28,7 @@ const ResetPasswordPage = lazy(() => import("./pages/AccountPages").then((m) => 
 const AdminDashboardPage = lazy(() => import("./features/admin/pages/AdminDashboardPage").then(module => ({ default: module.AdminDashboardPage })));
 const AdminAnalyticsPage = lazy(() => import("./features/admin/pages/AdminAnalyticsPage").then(module => ({ default: module.AdminAnalyticsPage })));
 const AdminUsersPage = lazy(() => import("./features/admin/pages/AdminUsersPage").then(module => ({ default: module.AdminUsersPage })));
+const AdminQueuePage = lazy(() => import("./features/admin/pages/AdminQueuePage").then(module => ({ default: module.AdminQueuePage })));
 const AdminAllMediaPage = lazy(() => import("./features/admin/pages/AdminAllMediaPage").then(module => ({ default: module.AdminAllMediaPage })));
 
 const PageLoader = () => (
@@ -71,6 +72,7 @@ const App = () => {
                   <Route path="analytics" element={<AdminAnalyticsPage />} />
                   <Route path="users" element={<AdminUsersPage />} />
                   <Route path="media" element={<AdminAllMediaPage />} />
+                  <Route path="queue" element={<AdminQueuePage />} />
                 </Route>
               </Route>
 

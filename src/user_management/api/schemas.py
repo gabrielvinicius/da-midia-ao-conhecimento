@@ -78,6 +78,7 @@ class UserResponse(BaseModel):
         json_schema_extra={"example": "user@example.com"},
     )
     role: str # Assuming role is a string representation
+    is_active: bool = Field(True, description="Conta ativa (o administrador pode desativar).")
 
     model_config = ConfigDict(from_attributes=True)
 
