@@ -335,7 +335,7 @@ const DashboardPage = () => {
                       setPage(1);
                     }}
                   >
-                    <SelectTrigger className="h-8 w-28" aria-label="Itens por página">
+                    <SelectTrigger className="h-8 w-auto gap-2 whitespace-nowrap" aria-label="Itens por página">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
