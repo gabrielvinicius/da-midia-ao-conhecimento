@@ -17,19 +17,10 @@ import { useMediaNames } from "@/features/media/hooks/useMediaNames";
 import { getNotebook, type NotebookEntry } from "@/features/summarization/api";
 import { genreLabel } from "@/features/summarization/components/SummaryPanel";
 import { normalizeText } from "@/lib/text";
+import { buildNotebookPdf } from "@/features/summarization/notebookPdf";
+import { toast } from "react-toastify";
 
 const FILE_NAME = "caderno-de-resumos";
-
-/**
- * PDF pelo próprio navegador (destino "Salvar como PDF"), sem biblioteca: o
- * título da página vira o nome sugerido do arquivo enquanto o diálogo está aberto.
- */
-const savePdf = () => {
-  const previous = document.title;
-  document.title = FILE_NAME;
-  window.addEventListener("afterprint", () => (document.title = previous), { once: true });
-  window.print();
-};
 
 /** Um arquivo Markdown com todos os resumos, na ordem da tela. */
 const notebookMarkdown = (entries: NotebookEntry[], nameOf: (id: string | null) => string) =>
@@ -89,6 +80,28 @@ const NotebookPage = () => {
   const nameOf = useMediaNames();
   const [search, setSearch] = React.useState("");
 
+  const [makingPdf, setMakingPdf] = React.useState(false);
+
+  const downloadPdf = async () => {
+    setMakingPdf(true);
+    try {
+      const blob = await buildNotebookPdf(
+        "Caderno de resumos",
+        entries.map((entry) => ({
+          title: nameOf(entry.media_id),
+          meta: [genreLabel(entry.genre), entry.topics.join(" · ")].filter(Boolean).join(" — "),
+          markdown: splitSummary(entry.summary).body,
+        })),
+      );
+      saveAs(blob, `${FILE_NAME}.pdf`);
+    } catch (error) {
+      console.error("Falha ao gerar o PDF", error);
+      toast.error("Não foi possível gerar o PDF. Tente o Markdown ou Imprimir.");
+    } finally {
+      setMakingPdf(false);
+    }
+  };
+
   const entries = React.useMemo(() => {
     const term = normalizeText(search.trim());
     return (data ?? []).filter(
@@ -113,11 +126,11 @@ const NotebookPage = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuItem onSelect={savePdf} className="items-start gap-3 py-2">
+              <DropdownMenuItem onSelect={downloadPdf} disabled={makingPdf} className="items-start gap-3 py-2">
                 <FileText className="mt-0.5 h-4 w-4 text-slate-500" />
                 <span className="flex flex-col">
-                  <span className="text-sm text-slate-900">PDF</span>
-                  <span className="text-xs text-slate-500">Escolha “Salvar como PDF” no destino</span>
+                  <span className="text-sm text-slate-900">{makingPdf ? "Gerando PDF..." : "PDF"}</span>
+                  <span className="text-xs text-slate-500">Para ler, imprimir ou enviar</span>
                 </span>
               </DropdownMenuItem>
               <DropdownMenuItem
