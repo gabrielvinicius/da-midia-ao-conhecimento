@@ -23,6 +23,7 @@ from src.media_management.infrastructure.adapters.storage_uploader_adapter impor
     DefaultUploadMetadataMapper,
     StorageServiceFactoryUploader,
 )
+from src.media_management.infrastructure.adapters.disk_upload_staging import DiskUploadStaging
 from src.media_management.infrastructure.adapters.direct_link_fetcher_adapter import DirectLinkFetcherAdapter
 from src.media_management.infrastructure.adapters.youtube_fetcher_adapter import YoutubeFetcherAdapter
 from src.media_management.infrastructure.dependencies.data_erasers import (
@@ -85,6 +86,9 @@ def build_media_service(
             ],
         ),
         url_import_enabled=media_settings.media_url_import_enabled,
+        upload_staging=DiskUploadStaging(media_settings.media_upload_staging_dir),
+        upload_part_max_bytes=media_settings.media_upload_part_max_bytes,
+        upload_staging_hours=media_settings.media_upload_staging_hours,
     )
 
 

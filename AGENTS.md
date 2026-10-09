@@ -47,7 +47,7 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 - **Semantic indexing**: Every processed chunk is vectorized via `pgvector` for global semantic search.
 
 ### Module Deprecations & Cleanup Status
-- `media_management`: each operation is a use-case class in `application/use_cases/` (`UploadMedia`, `DeleteMedia`, `ReprocessMedia`, `StreamMedia`, `MediaLifecycle`); `MediaService` is only a facade over them.
+- `media_management`: each operation is a use-case class in `application/use_cases/` (`UploadMedia`, `ResumableUpload`, `DeleteMedia`, `ReprocessMedia`, `StreamMedia`, `MediaLifecycle`); `MediaService` is only a facade over them. The web interface always uploads in parts (`/media/uploads`, 32 MB each, staged by `UploadStagingPort`), because Cloudflare refuses requests above 100 MB; completion goes through `UploadMedia`.
 - `monitoring`: only `HardwareAdvisor` and `gpu_stats` (admin panel). Logging and metrics live in `shared/infrastructure/observability`.
 - `tests`: Directories like `tests/unit/auth` are removed. Unit tests reside within context folders (e.g., `tests/unit/user_management`).
 

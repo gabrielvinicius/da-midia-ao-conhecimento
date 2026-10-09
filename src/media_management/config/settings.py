@@ -12,6 +12,12 @@ class MediaSettings(BaseSettings):
     transcription_providers_allowed: List[str] = ["default", "fastwhisper", "openai-whisper"]
     media_min_file_size_bytes: int = 1
     media_max_file_size_bytes: int = 500 * 1024 * 1024
+    # Envio em partes (a Cloudflare recusa requisições acima de 100 MB): maior
+    # parte aceita, pasta dos envios em andamento (vazia: a temporária do
+    # sistema) e horas até um envio abandonado ser apagado.
+    media_upload_part_max_bytes: int = 64 * 1024 * 1024
+    media_upload_staging_dir: str = ""
+    media_upload_staging_hours: float = 24
     media_allowed_audio_extensions: List[str] = [
         "mp3",
         "wav",

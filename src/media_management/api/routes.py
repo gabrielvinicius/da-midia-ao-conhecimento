@@ -30,6 +30,7 @@ from src.media_management.application.dtos import (
     ImportMediaCommand,
     ListMediaQuery,
     ReprocessMediaCommand,
+    StartUploadCommand,
 )
 from src.media_management.application.services.media_service import MediaService
 from src.shared.infrastructure.middleware.correlation_middleware import correlation_id_of
@@ -101,6 +102,108 @@ async def create_media(
         # expor a mensagem interna.
         media = await service.create_media(command)
     return MediaResponse.from_domain(media)
+
+
+class UploadStartRequest(BaseModel):
+    filename: str = Field(..., min_length=1, max_length=255)
+    size_bytes: int = Field(..., ge=0)
+    storage_provider: str = "local"
+    transcription_provider: Optional[str] = None
+
+
+class UploadStateResponse(BaseModel):
+    upload_id: UUID
+    offset: int = Field(..., description="Bytes já recebidos: a próxima parte começa aqui.")
+    size_bytes: int
+    part_max_bytes: int
+
+
+def _upload_state(staged, part_max_bytes: int) -> UploadStateResponse:
+    return UploadStateResponse(
+        upload_id=staged.upload_id,
+        offset=staged.received_bytes,
+        size_bytes=staged.size_bytes,
+        part_max_bytes=part_max_bytes,
+    )
+
+
+# Envio em partes: a Cloudflare recusa requisições acima de 100 MB. O
+# navegador abre o envio, manda as partes em ordem (cada uma a partir do total
+# já recebido) e conclui; a mídia nasce na conclusão, como num envio comum.
+@router.post(
+    "/uploads",
+    response_model=UploadStateResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Iniciar um envio em partes",
+)
+async def start_upload(
+    body: UploadStartRequest,
+    current_user: User = Depends(get_current_user),
+    service: MediaService = Depends(get_media_service),
+):
+    uploads = service.resumable_upload
+    staged = await uploads.start(
+        StartUploadCommand(
+            user_id=current_user.id,
+            filename=body.filename,
+            size_bytes=body.size_bytes,
+            storage_provider=body.storage_provider,
+            transcription_provider=body.transcription_provider,
+        )
+    )
+    return _upload_state(staged, uploads.part_max_bytes)
+
+
+@router.get("/uploads/{upload_id}", response_model=UploadStateResponse, summary="Situação de um envio em partes")
+async def upload_status(
+    upload_id: UUID,
+    current_user: User = Depends(get_current_user),
+    service: MediaService = Depends(get_media_service),
+):
+    uploads = service.resumable_upload
+    return _upload_state(await uploads.status(upload_id, current_user.id), uploads.part_max_bytes)
+
+
+@router.put(
+    "/uploads/{upload_id}",
+    response_model=UploadStateResponse,
+    summary="Enviar uma parte (corpo: os bytes, a partir de offset)",
+)
+async def upload_part(
+    upload_id: UUID,
+    request: Request,
+    offset: int = Query(..., ge=0),
+    current_user: User = Depends(get_current_user),
+    service: MediaService = Depends(get_media_service),
+):
+    uploads = service.resumable_upload
+    await uploads.receive(upload_id, current_user.id, offset, request.stream())
+    return _upload_state(await uploads.status(upload_id, current_user.id), uploads.part_max_bytes)
+
+
+@router.post(
+    "/uploads/{upload_id}/complete",
+    response_model=MediaResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Concluir um envio em partes",
+)
+async def complete_upload(
+    upload_id: UUID,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    service: MediaService = Depends(get_media_service),
+):
+    media = await service.resumable_upload.complete(upload_id, current_user.id, correlation_id_of(request))
+    return MediaResponse.from_domain(media)
+
+
+@router.delete("/uploads/{upload_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Cancelar um envio em partes")
+async def cancel_upload(
+    upload_id: UUID,
+    current_user: User = Depends(get_current_user),
+    service: MediaService = Depends(get_media_service),
+):
+    await service.resumable_upload.cancel(upload_id, current_user.id)
 
 
 class MediaImportRequest(BaseModel):

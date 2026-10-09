@@ -7,6 +7,7 @@ reúne, para que as rotas, a administração e os handlers continuem usando um
 
 from __future__ import annotations
 
+import datetime
 import uuid
 from typing import Any, Dict, Optional, Sequence
 
@@ -21,6 +22,7 @@ from src.media_management.application.ports import (
     StorageUploaderPort,
     StoredFileRemoverPort,
     UploadMetadataMapperPort,
+    UploadStagingPort,
 )
 from src.media_management.application.use_cases import (
     DeleteMedia,
@@ -28,6 +30,7 @@ from src.media_management.application.use_cases import (
     MediaDataCleanup,
     MediaLifecycle,
     ReprocessMedia,
+    ResumableUpload,
     StreamMedia,
     UploadMedia,
 )
@@ -69,6 +72,9 @@ class MediaService:
         url_fetcher: RemoteMediaFetcherPort | None = None,
         direct_link_fetcher: RemoteMediaFetcherPort | None = None,
         url_import_enabled: bool = False,
+        upload_staging: UploadStagingPort | None = None,
+        upload_part_max_bytes: int = 64 * 1024 * 1024,
+        upload_staging_hours: float = 24,
     ) -> None:
         self.media_repository = media_repository
         self.media_read_service = media_read_service
@@ -91,6 +97,9 @@ class MediaService:
             media_repository, cleanup, access_policy, event_bus=event_bus, metrics=metrics_service
         )
         self.url_import = ImportMediaFromUrl(url_fetcher, direct_link_fetcher, self.upload, url_import_enabled)
+        self.resumable_upload = ResumableUpload(
+            upload_staging, self.upload, upload_part_max_bytes, datetime.timedelta(hours=upload_staging_hours)
+        )
         self.lifecycle = MediaLifecycle(media_repository)
         self.streaming = StreamMedia(media_repository, access_policy, storage_downloader)
 

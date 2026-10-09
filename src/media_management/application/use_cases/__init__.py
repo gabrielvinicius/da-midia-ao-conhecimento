@@ -4,6 +4,7 @@ from .import_media_from_url import ImportMediaFromUrl
 from .media_cleanup import MediaDataCleanup
 from .media_lifecycle import MediaLifecycle
 from .reprocess_media import ReprocessMedia
+from .resumable_upload import ResumableUpload
 from .stream_media import StreamMedia
 from .upload_media import UploadMedia
 
@@ -13,6 +14,7 @@ __all__ = [
     "MediaDataCleanup",
     "MediaLifecycle",
     "ReprocessMedia",
+    "ResumableUpload",
     "StreamMedia",
     "UploadMedia",
 ]

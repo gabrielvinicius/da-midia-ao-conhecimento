@@ -9,6 +9,7 @@ from src.media_management.application.services.media_read_service import MediaRe
 from src.media_management.application.services.media_service import MediaService
 from src.media_management.application.services.validators import MediaUploadValidator
 from src.media_management.config.settings import media_settings
+from src.media_management.infrastructure.adapters.disk_upload_staging import DiskUploadStaging
 from src.media_management.infrastructure.adapters.storage_uploader_adapter import (
     DefaultUploadMetadataMapper,
 )
@@ -32,7 +33,7 @@ from tests.mocks.in_memory_storage import InMemoryStorage
 
 
 @pytest_asyncio.fixture
-async def client():
+async def client(tmp_path):
     """HTTPX client bound to the FastAPI app for integration tests, com fakes in-memory."""
     async with app.router.lifespan_context(app):
         # Override dependências após o bootstrap real para manter fakes
@@ -66,7 +67,8 @@ async def client():
             media_read_service=media_read_service,
             event_bus=fake_event_bus,
             storage_maintenance=None,
-                                    storage_downloader=None,
+            storage_downloader=None,
+            upload_staging=DiskUploadStaging(str(tmp_path / "envios")),
         )
         app.dependency_overrides[get_media_service] = lambda: media_service
 

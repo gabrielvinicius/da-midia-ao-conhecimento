@@ -1,5 +1,5 @@
 // Chamadas HTTP das mídias: listagem, detalhe, envio, reprocessamento e exclusão.
-import type { AxiosProgressEvent } from 'axios';
+import { isAxiosError } from 'axios';
 
 import api from '@/lib/api';
 import { Media, PaginatedMedia } from '@/types';
@@ -38,7 +38,7 @@ export interface UploadMediaRequest {
 }
 
 type UploadOptions = {
-  onProgress?: (percent: number, event: AxiosProgressEvent) => void;
+  onProgress?: (percent: number) => void;
 };
 
 export const getMedia = async (mediaId: string): Promise<Media> =>
@@ -64,24 +64,74 @@ export const getProviders = async (): Promise<ProvidersResponse> =>
 export const getAnalysisEstimation = async (mediaId: string): Promise<AnalysisEstimation> =>
   (await api.get<AnalysisEstimation>(`/transcriptions/media/${mediaId}/estimate`)).data;
 
+// Envio em partes: a Cloudflare recusa requisições acima de 100 MB. Cada
+// parte vai a partir do total já recebido pelo servidor; uma parte que falha
+// é repetida do ponto que ele confirmar.
+export const UPLOAD_PART_BYTES = 32 * 1024 * 1024;
+const PART_ATTEMPTS = 4;
+
+type UploadState = { upload_id: string; offset: number; size_bytes: number; part_max_bytes: number };
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Erro que outra tentativa não resolve (arquivo recusado, sessão expirada). */
+const isFinal = (error: unknown) => {
+  const status = isAxiosError(error) ? error.response?.status : undefined;
+  return status !== undefined && status < 500 && status !== 409 && status !== 408 && status !== 429;
+};
+
+const sendPart = async (
+  uploadId: string,
+  file: File,
+  offset: number,
+  partBytes: number,
+  onLoaded: (loaded: number) => void,
+): Promise<number> => {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const { data } = await api.put<UploadState>(`/media/uploads/${uploadId}`, file.slice(offset, offset + partBytes), {
+        params: { offset },
+        headers: { 'Content-Type': 'application/octet-stream' },
+        timeout: 300000,
+        onUploadProgress: (event) => onLoaded(event.loaded),
+      });
+      return data.offset;
+    } catch (error) {
+      if (attempt >= PART_ATTEMPTS || isFinal(error)) throw error;
+      await wait(1000 * attempt);
+      // O servidor diz de onde continuar (a parte pode ter chegado em parte).
+      offset = (await api.get<UploadState>(`/media/uploads/${uploadId}`)).data.offset;
+      onLoaded(0);
+    }
+  }
+};
+
 export const uploadMedia = async (
   { file, storageProvider, transcriptionProvider }: UploadMediaRequest,
   options?: UploadOptions,
 ): Promise<Media> => {
-  const formData = new FormData();
-  formData.append('file', file, file.name);
-  const response = await api.post<Media>('/media/', formData, {
-    params: {
-      storage_provider: storageProvider || undefined,
-      transcription_provider: transcriptionProvider || undefined,
-    },
-    timeout: 300000, // 5 minutos
-    onUploadProgress: (event) => {
-      const percent = event.total ? Math.round((event.loaded * 100) / event.total) : 0;
-      options?.onProgress?.(percent, event);
-    },
+  const { data: started } = await api.post<UploadState>('/media/uploads', {
+    filename: file.name,
+    size_bytes: file.size,
+    storage_provider: storageProvider || 'local',
+    transcription_provider: transcriptionProvider || null,
   });
-  return response.data;
+  const partBytes = Math.min(UPLOAD_PART_BYTES, started.part_max_bytes);
+  try {
+    let offset = 0;
+    while (offset < file.size) {
+      const base = offset;
+      offset = await sendPart(started.upload_id, file, offset, partBytes, (loaded) => {
+        const sent = Math.min(file.size, base + loaded);
+        options?.onProgress?.(Math.round((sent * 100) / file.size));
+      });
+    }
+    return (await api.post<Media>(`/media/uploads/${started.upload_id}/complete`, null, { timeout: 300000 })).data;
+  } catch (error) {
+    // Libera o espaço no servidor; se nem isso der, o envio expira sozinho.
+    api.delete(`/media/uploads/${started.upload_id}`).catch(() => undefined);
+    throw error;
+  }
 };
 
 export type UrlImportOptions = { enabled: boolean; max_minutes: number };
