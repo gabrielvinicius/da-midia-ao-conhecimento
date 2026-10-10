@@ -57,6 +57,14 @@ docker compose up -d --build
   GPU AMD, `-f docker-compose.yml -f docker-compose.rocm.yml`.
 - **Desenvolvimento** com o código do host (a API recarrega sozinha):
   `-f docker-compose.yml -f docker-compose.dev.yml`.
+- **Implantação contínua**: a cada merge na `main` com a CI verde, o workflow
+  `Deploy` roda num runner do GitHub instalado na máquina de produção (rótulo
+  `producao`): põe a pasta de produção na versão que passou e executa
+  `scripts/ops/deploy.ps1`, que reconstrói as imagens, sobe os contêineres,
+  confere a saúde e, se algo falhar, volta às imagens anteriores. O histórico
+  fica no ambiente `producao` do GitHub; "Run workflow" reimplanta à mão. A
+  pasta de produção (variável `DEPLOY_DIR`, padrão
+  `C:\producao\da-midia-ao-conhecimento`) é um clone separado, com o `.env`.
 - **Cópia de segurança**: `sh scripts/ops/backup.sh` grava o banco e as mídias
   em `backups/<data>`; `sh scripts/ops/restore.sh backups/<data>` restaura.
 - **Acesso pela rede**: a interface responde por HTTP na porta 3000. Para
