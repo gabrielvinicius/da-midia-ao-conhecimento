@@ -22,7 +22,19 @@ param(
 
 $ErrorActionPreference = "Stop"
 $images = @("app", "frontend")
-$compose = @("compose", "-p", $Project, "--profile", "internet")
+$compose = @("compose", "-p", $Project)
+
+# O túnel da Cloudflare é opcional: só entra com o token no .env. Sem ele, o
+# contêiner cloudflared subiria sem credencial e ficaria reiniciando, e a
+# plataforma continua acessível na rede local (porta 3000).
+$tunnelToken = Get-Content .env -ErrorAction SilentlyContinue |
+    Where-Object { $_ -match '^\s*CLOUDFLARE_TUNNEL_TOKEN\s*=\s*\S' }
+if ($tunnelToken) {
+    $compose += @("--profile", "internet")
+    Write-Host "Túnel da Cloudflare ligado (CLOUDFLARE_TUNNEL_TOKEN definido)."
+} else {
+    Write-Host "Sem túnel da Cloudflare: acesso pela rede local, porta 3000."
+}
 
 function Invoke-Docker([string[]]$arguments) {
     & docker @arguments
