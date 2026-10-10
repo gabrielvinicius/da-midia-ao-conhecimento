@@ -154,6 +154,15 @@ jobs:
       - name: Shell scripts
         run: for f in docker/*.sh scripts/ops/*.sh; do sh -n "$f"; done
 
+      - name: PowerShell scripts
+        shell: pwsh
+        run: |
+          foreach ($f in Get-ChildItem scripts/ops/*.ps1) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) { $errors | ForEach-Object { Write-Error "$($f.Name): $_" }; exit 1 }
+          }
+
   # Garante que um banco novo é criado só pelas migrações (é o que o
   # entrypoint do contêiner executa) e que o esquema bate com os modelos.
   migrations:

@@ -1,0 +1,49 @@
+name: Deploy
+
+# Implantação contínua: quando a CI passa num push na main, o runner da
+# máquina de produção (rótulo "producao") põe a pasta de produção na versão
+# exata que passou e roda scripts/ops/deploy.ps1, que reconstrói, sobe,
+# confere a saúde e, se falhar, volta à versão anterior. "Run workflow" na
+# aba Actions reimplanta a main à mão.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Uma implantação por vez; a seguinte espera a atual terminar.
+concurrency:
+  group: deploy-producao
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: [self-hosted, producao]
+    timeout-minutes: 60
+    environment:
+      name: producao
+      url: https://tcc.gabrielvinicius.dev
+    env:
+      DEPLOY_DIR: ${{ vars.DEPLOY_DIR || 'C:\producao\da-midia-ao-conhecimento' }}
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Código na versão que passou na CI
+        shell: pwsh
+        run: |
+          Set-Location $env:DEPLOY_DIR
+          $previous = (git rev-parse HEAD).Trim()
+          "PREVIOUS_SHA=$previous" >> $env:GITHUB_ENV
+          git fetch --prune origin
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          git checkout --force --detach $env:TARGET_SHA
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Write-Host "Produção: $previous -> $env:TARGET_SHA"
+
+      - name: Reconstruir, subir e conferir a saúde
+        shell: pwsh
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: ./scripts/ops/deploy.ps1 -PreviousSha $env:PREVIOUS_SHA
