@@ -71,7 +71,6 @@ class MediaWorkerApp:
             "transcription_id": str(event.transcription_id) if event.transcription_id else None,
             "user_id": event.user_id,
             "filename": event.filename,
-            "text_content": event.text,
             "language": event.language,
             "correlation_id": event.correlation_id,
         }

@@ -54,10 +54,17 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 
 ## Intelligence & Autonomy Features
 - **Multimodal Vision**: keyframes are described in `media_processing`, right after transcription, through `VisualAnalysisPort` (`VISUAL_PROVIDER`: `ollama`, the same Qwen3.5 as the summary, by default; `moondream`; or `none`). Consecutive descriptions of the same scene are kept once (`domain.visual_sampling.is_same_scene`).
-- **Human-in-the-loop (HITL)**: Supports rating and editing AI outputs. Updates to summaries must preserve versioning for future fine-tuning. Every correction keeps the AI version on its first edit: summary (`diagnostics.original_ai_summary`), topic titles (`Topic.original_title`), chapters and questions (`original_ai_chapters`, `original_ai_review_questions`; `Analysis.correct_study_aids`), and transcript passages (`original_text` in the segment; `Transcription.correct_segment` rebuilds the full text, so the next analysis uses the correction). A new analysis regenerates the analysis fields (transcript corrections stay).
+- **Human-in-the-loop (HITL)**: Supports rating and editing AI outputs. Updates to summaries must preserve versioning for future fine-tuning. Every correction keeps the AI version on its first edit: summary (`diagnostics.original_ai_summary`), topic titles (`Topic.original_title`), chapters and questions (`original_ai_chapters`, `original_ai_review_questions`; `Analysis.correct_study_aids`), and transcript passages (`original_text` in the segment; `Transcription.correct_segment` rebuilds the full text, so the next analysis uses the correction). A new analysis regenerates analysis fields only when they have not been reviewed (ADR-015); transcript corrections stay.
 - **Downloads**: the media page builds the files in the browser from what the API already returns (`frontend/src/features/media/lib/exporters.ts`): summary and study guide (Markdown), transcript (text with times, SRT, WebVTT), everything (JSON), and print/PDF. The stored summary keeps its appendix after `APPENDIX_MARKER`; the page shows and exports only the body.
 - **Hardware Awareness**: `HardwareAdvisor` reports GPU/RAM pressure (whole-GPU readings via `nvidia-smi`) for the admin panel and processing deadlines.
 - **JSONB Upcasting**: Persistence uses JSONB for metadata to support zero-downtime schema evolution.
+
+## Analysis reliability (ADR-015)
+- New analysis requests must refuse reviewed summaries, topic titles, chapters and questions with 409. The worker checks the same rule; generated persistence rechecks it under a row lock. Full reprocessing of failed media retains its explicit cleanup policy.
+- Pipeline checkpoints use `save_generated`; persistence failures must reach the task retry policy. Checkpoints preserve partial output, but retries still execute every step.
+- Persist `pipeline_completed` only after the pipeline finishes. Media recovery queries completed results through `AnalysisCompletionRecordsPort` before declaring a stalled analysis failed; never query another module's tables directly. Reconciliation runs at the configured analysis deadline and does not guarantee notification delivery.
+- Queue identifiers and read text, segments, language and visual context from the same persisted source. Legacy embedded text must not override that source; requests for a replaced transcription are ignored.
+- Failed model initialization must remain retryable. Synchronize concurrent embedding model loading.
 
 ## Build, Test, and Development Commands
 - **Backend**: `poetry run uvicorn main:app --reload` or `docker-compose up`.

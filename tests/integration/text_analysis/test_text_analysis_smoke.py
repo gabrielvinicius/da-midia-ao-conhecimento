@@ -75,13 +75,13 @@ class AsyncInMemoryRepo(InMemoryAnalysisRepository):
         return await super().save(analysis)
 
     async def get(self, analysis_id: str):
-        return super().get(analysis_id)
+        return await super().get(analysis_id)
 
     async def get_by_media_id(self, media_id: str):
         return await super().get_by_media_id(media_id)
 
     async def list_topics(self, analysis_id: str):
-        return super().list_topics(analysis_id)
+        return await super().list_topics(analysis_id)
 
 
 from src.text_analysis.application.pipeline.base import AnalysisPipeline

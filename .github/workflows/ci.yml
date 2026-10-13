@@ -69,6 +69,8 @@ jobs:
         run: lint-imports
 
       - name: Tests (unit, smoke, integration)
+        env:
+          TEST_POSTGRES_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/app
         run: pytest tests/unit tests/smoke tests/integration -q
 
       # API real contra PostgreSQL e Redis: cadastro, login, envio, isolamento

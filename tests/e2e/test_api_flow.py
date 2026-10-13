@@ -26,6 +26,40 @@ def _account(client, prefix):
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
 
+def test_new_analysis_preserves_a_reviewed_result_in_the_real_database(client):
+    import asyncio
+
+    from src.shared.infrastructure.database.db import AsyncSessionLocal
+    from src.text_analysis.domain import Analysis, Document
+    from src.text_analysis.infrastructure.repositories.sqlalchemy_analysis_repository import SqlAlchemyAnalysisRepository
+
+    headers = _account(client, "reviewed")
+    response = client.post(
+        "/media/", headers=headers, files={"file": ("revisao.txt", b"Texto da aula.", "text/plain")},
+    )
+    assert response.status_code == 201, response.text
+    media = response.json()
+
+    async def seed_review():
+        async with AsyncSessionLocal() as session:
+            repository = SqlAlchemyAnalysisRepository(session)
+            analysis = Analysis.new(
+                Document.from_payload("Texto da aula."), media_id=uuid.UUID(media["id"]),
+                user_id=uuid.UUID(media["user_id"]),
+            )
+            analysis.summary = "Resumo original."
+            await repository.save(analysis)
+            await repository.update_summary(str(analysis.id), "Resumo revisado pelo usuário.")
+
+    asyncio.run(seed_review())
+    response = client.post("/text-analysis/analyze", headers=headers, json={"media_id": media["id"]})
+    assert response.status_code == 409, response.text
+    stored = client.get(f"/text-analysis/media/{media['id']}", headers=headers)
+    assert stored.status_code == 200, stored.text
+    assert stored.json()["summary"] == "Resumo revisado pelo usuário."
+    assert stored.json()["diagnostics"]["original_ai_summary"] == "Resumo original."
+
+
 def test_upload_list_isolation_and_delete(client):
     alice = _account(client, "alice")
     bob = _account(client, "bob")

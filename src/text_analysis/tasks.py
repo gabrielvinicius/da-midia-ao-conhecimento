@@ -28,6 +28,7 @@ from src.shared.infrastructure.tasks.retry import (
     is_transient,
 )
 from src.text_analysis.application.dtos import AnalyzeTextCommand
+from src.text_analysis.domain.entities.analysis import AnalysisReviewedError, AnalysisSourceChangedError
 from src.text_analysis.infrastructure.dependencies.builders import build_text_analysis_service
 
 logger = get_logger(__name__)
@@ -81,6 +82,9 @@ def run_analysis(payload: Dict[str, Any], *, bus: SupportsEventBus, final_attemp
     logger.info("text_analysis.task.start", media_id=payload.get("media_id"))
     try:
         return asyncio.run(_analyze(payload, bus))
+    except (AnalysisReviewedError, AnalysisSourceChangedError) as exc:
+        logger.info("text_analysis.request_ignored", media_id=payload.get("media_id"), reason=str(exc))
+        return {}
     except SoftTimeLimitExceeded:
         asyncio.run(_announce_failure(bus, payload, TIME_LIMIT_MESSAGE))
         raise

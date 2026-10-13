@@ -18,6 +18,7 @@ def analysis_diagnostics(analysis: Analysis) -> dict:
     data = {k: v for k, v in (analysis.diagnostics or {}).items() if not str(k).startswith("_")}
     data["steps"] = dict(analysis.step_status)
     data["step_seconds"] = dict(analysis.step_seconds)
+    data["pipeline_completed"] = analysis.pipeline_completed
     if analysis.language:
         data["language"] = analysis.language
     if analysis.visual_context:
@@ -42,6 +43,7 @@ def restore_from_diagnostics(analysis: Analysis, diagnostics: dict) -> None:
     rest = dict(diagnostics or {})
     analysis.step_status = dict(rest.pop("steps", None) or {})
     analysis.step_seconds = dict(rest.pop("step_seconds", None) or {})
+    analysis.pipeline_completed = rest.pop("pipeline_completed", False) is True
     analysis.set_language(rest.pop("language", None))
     analysis.visual_context = list(rest.pop("visual_context", None) or [])
     analysis.summary_source = _summary_source(rest.pop("summary_source", None))

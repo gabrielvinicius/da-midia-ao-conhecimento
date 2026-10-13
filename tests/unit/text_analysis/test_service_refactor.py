@@ -6,11 +6,14 @@ from src.text_analysis.application.services.text_analysis_service import TextAna
 from src.text_analysis.application.ports.transcription_port import TextSourceData
 from src.text_analysis.application.dtos import AnalyzeTextCommand
 from src.text_analysis.application.pipeline.base import AnalysisPipeline
+from src.text_analysis.application.ports.repository import AnalysisRepositoryPort
 
 @pytest.fixture
 def mock_transcription_query_port():
     port = AsyncMock()
-    port.get_text_source.return_value = None
+    port.get_text_source.return_value = TextSourceData(
+        id=uuid4(), text="Teste de pipeline", language="pt", segments=[], media_id=uuid4()
+    )
     port.get_media_info.return_value = {}
     return port
 
@@ -22,11 +25,14 @@ def mock_pipeline():
 
 @pytest.fixture
 def service(mock_transcription_query_port, mock_pipeline):
+    repository = AsyncMock(spec=AnalysisRepositoryPort)
+    repository.get_by_media_id.return_value = None
+    repository.save_generated.side_effect = lambda analysis: str(analysis.id)
     return TextAnalysisService(
-        repository=AsyncMock(),
+        repository=repository,
         pipeline=mock_pipeline,
         transcription_queries=mock_transcription_query_port,
-        event_bus=MagicMock(),
+        event_bus=AsyncMock(),
     )
 
 @pytest.mark.asyncio
@@ -45,7 +51,7 @@ async def test_analyze_uses_pipeline(service, mock_transcription_query_port, moc
 
     # Assert
     assert mock_pipeline.run.called
-    service.repository.save.assert_called_once()
+    service.repository.save_generated.assert_awaited_once()
 
 
 @pytest.mark.asyncio

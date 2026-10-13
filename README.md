@@ -90,6 +90,24 @@ docker compose up -d --build             # sobe com o volume novo (banco vazio)
 sh scripts/ops/restore.sh backups/<data> # devolve banco e mídias
 ```
 
+## Revisão e recuperação da análise
+
+Uma análise com resumo, temas, capítulos ou perguntas corrigidos não pode ser
+regenerada pela operação de nova análise: a API responde 409 e mantém as
+correções. O worker e a gravação de checkpoints verificam a mesma proteção.
+O reprocessamento completo de uma mídia com falha continua apagando os dados
+derivados conforme sua política explícita.
+
+Falhas de checkpoint chegam à política de retry; checkpoints preservam
+resultados parciais, mas a tentativa seguinte executa o pipeline inteiro.
+O marcador `diagnostics.pipeline_completed` identifica a conclusão persistida.
+Antes de dar uma análise parada como falha, a recuperação periódica consulta
+esse marcador e reconcilia a mídia se o resultado já terminou. A reconciliação
+usa o prazo de análise configurado; não é uma atualização imediata nem uma
+garantia de entrega de notificações. Resultados antigos sem o marcador não
+são considerados conclusões comprovadas. Veja o ADR-015 em
+`docs/adr/decisions.md`.
+
 ## Dependências
 
 - `requirements.txt`: execução (API e workers), com as versões testadas.

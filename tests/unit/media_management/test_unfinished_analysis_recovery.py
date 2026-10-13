@@ -45,3 +45,44 @@ async def test_stuck_analysis_fails_the_media_and_warns_the_owner():
 def test_the_deadline_must_be_positive():
     with pytest.raises(ValueError):
         UnfinishedAnalysisRecovery(MagicMock(), MagicMock(), give_up_seconds=0)
+
+
+@pytest.mark.asyncio
+async def test_a_persisted_completion_repairs_the_media_without_reprocessing_or_failure_notice():
+    from src.text_analysis.domain import Analysis, Document
+    from src.text_analysis.infrastructure.adapters.analysis_completion_records_adapter import AnalysisCompletionRecordsAdapter
+    from src.text_analysis.infrastructure.repositories.inmemory_analysis_repository import InMemoryAnalysisRepository
+
+    media = _analyzing()
+    analysis = Analysis.new(Document.from_payload("texto"), media_id=media.id)
+    analysis.pipeline_completed = True
+    analyses = InMemoryAnalysisRepository()
+    await analyses.save(analysis)
+    repository = MagicMock()
+    repository.list_analyzing_since_before = AsyncMock(return_value=[media])
+    repository.update = AsyncMock()
+    bus = AsyncMock()
+
+    failed = await UnfinishedAnalysisRecovery(
+        repository, bus, give_up_seconds=3600, completions=AnalysisCompletionRecordsAdapter(analyses),
+    ).sweep(NOW)
+
+    assert failed == []
+    assert media.status == MediaStatus.COMPLETED
+    repository.update.assert_awaited_once_with(media)
+    bus.publish.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_an_unavailable_completion_query_does_not_turn_a_media_into_a_failure():
+    media = _analyzing()
+    repository, completions, bus = AsyncMock(), AsyncMock(), AsyncMock()
+    repository.list_analyzing_since_before.return_value = [media]
+    completions.completed_media_ids.side_effect = ConnectionError("banco indisponível")
+
+    with pytest.raises(ConnectionError):
+        await UnfinishedAnalysisRecovery(repository, bus, 3600, completions).sweep(NOW)
+
+    assert media.status == MediaStatus.ANALYZING
+    repository.update.assert_not_awaited()
+    bus.publish.assert_not_awaited()
