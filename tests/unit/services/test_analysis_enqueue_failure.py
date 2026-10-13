@@ -46,3 +46,20 @@ def test_sending_a_task_retries_a_short_redis_outage(monkeypatch):
     monkeypatch.setattr("src.celery_app.celery", FakeCelery())
     schedulers._send("task", {}, "queue")
     assert sent["retry"] is True and sent["retry_policy"]["max_retries"] >= 3
+
+
+@pytest.mark.asyncio
+async def test_automatic_analysis_queues_identifiers_instead_of_a_second_copy_of_the_text():
+    payloads = []
+
+    class Queue:
+        def request_analysis(self, payload):
+            payloads.append(payload)
+
+    event = TextContentReady(media_id=str(uuid4()), transcription_id=str(uuid4()), text="texto original")
+    await worker_module.MediaWorkerApp(InMemoryEventBus(), Queue())._on_text_content_ready(event)
+
+    [payload] = payloads
+    assert payload["transcription_id"] == event.transcription_id
+    assert payload["media_id"] == event.media_id
+    assert "text_content" not in payload

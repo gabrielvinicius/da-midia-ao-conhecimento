@@ -17,7 +17,7 @@ from src.text_analysis.api.dependencies import (
 from src.text_analysis.application.ports.transcription_port import TextSourceData
 from src.text_analysis.application.services.analysis_request_service import AnalysisRequestService
 from src.text_analysis.application.services.analysis_review_service import AnalysisReviewService
-from src.text_analysis.domain import Analysis, Document
+from src.text_analysis.domain import Analysis, Document, Topic
 from src.text_analysis.infrastructure.repositories.inmemory_analysis_repository import (
     InMemoryAnalysisRepository,
 )
@@ -84,7 +84,7 @@ def _client(user_id, role=UserRole.USER, text="texto da aula"):
 
     app.dependency_overrides[get_analysis_read_service] = lambda: TextAnalysisReadService(repo)
     app.dependency_overrides[get_analysis_review_service] = lambda: AnalysisReviewService(repo, feedback)
-    app.dependency_overrides[get_analysis_request_service] = lambda: AnalysisRequestService(FakeSources(text), queue)
+    app.dependency_overrides[get_analysis_request_service] = lambda: AnalysisRequestService(FakeSources(text), queue, repo)
     app.dependency_overrides[get_knowledge_service] = lambda: knowledge
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=user_id, role=role)
     return TestClient(app), SimpleNamespace(
@@ -157,3 +157,19 @@ def test_analysis_request_checks_owner_and_text():
     not_ready, ctx = _client(OWNER, text="")
     assert not_ready.post("/text-analysis/analyze", json={"media_id": str(MEDIA_ID)}).status_code == 409
     assert ctx.queue.payloads == []
+
+
+@pytest.mark.parametrize("field", ["original_ai_summary", "original_ai_chapters", "original_ai_review_questions", "topic"])
+def test_a_new_analysis_is_refused_without_erasing_reviewed_content(field):
+    client, ctx = _client(OWNER)
+    if field == "topic":
+        ctx.analysis.topics = [Topic(id=0, keywords=[], title="Tema revisado", original_title="Tema da IA")]
+    else:
+        ctx.analysis.diagnostics[field] = "original" if field == "original_ai_summary" else []
+    ctx.analysis.summary = "Resumo revisado."
+
+    response = client.post("/text-analysis/analyze", json={"media_id": str(MEDIA_ID)})
+
+    assert response.status_code == 409
+    assert ctx.queue.payloads == []
+    assert ctx.analysis.summary == "Resumo revisado."

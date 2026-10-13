@@ -9,6 +9,7 @@ from src.text_analysis.application.services.text_analysis_service import (
 )
 from src.text_analysis.domain import Document
 from src.text_analysis.domain import SentimentLabel, Sentiment, TextChunk, Topic
+from src.text_analysis.infrastructure.repositories.inmemory_analysis_repository import InMemoryAnalysisRepository
 
 
 class FakeChunker:
@@ -40,8 +41,9 @@ class FakeTextGen:
         return f"Summary of {title}"
 
 
-class InMemoryRepo:
+class InMemoryRepo(InMemoryAnalysisRepository):
     def __init__(self):
+        super().__init__()
         self.saved = {}
 
     async def save(self, analysis):

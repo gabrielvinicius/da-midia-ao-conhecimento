@@ -19,6 +19,8 @@ from src.media_processing.infrastructure.adapters.processing_records_adapter imp
 from src.media_processing.infrastructure.repositories.transcription_repository import (
     TranscriptionRepository,
 )
+from src.text_analysis.infrastructure.adapters.analysis_completion_records_adapter import AnalysisCompletionRecordsAdapter
+from src.text_analysis.infrastructure.repositories.sqlalchemy_analysis_repository import SqlAlchemyAnalysisRepository
 
 
 def build_unstarted_media_recovery(
@@ -42,6 +44,7 @@ def build_unfinished_analysis_recovery(
         media=MediaRepository(db=session),
         event_bus=event_bus,
         give_up_seconds=media_settings.analysis_give_up_minutes * 60,
+        completions=AnalysisCompletionRecordsAdapter(SqlAlchemyAnalysisRepository(session)),
     )
 
 

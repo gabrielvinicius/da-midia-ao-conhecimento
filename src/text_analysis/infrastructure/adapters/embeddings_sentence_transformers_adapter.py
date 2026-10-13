@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from threading import Lock
+
 from src.shared.domain.errors import TemporarilyUnavailableError
 from src.shared.infrastructure.observability.logging.logging_config import get_logger
 from src.shared.infrastructure.config.settings import settings
@@ -14,8 +16,15 @@ class SentenceTransformerEmbeddingAdapter(EmbeddingServicePort):
         self.device = device or settings.resolved_device
         self._model = None
         self._initialized = False
+        self._load_lock = Lock()
 
     def _get_model(self):
+        if self._initialized:
+            return self._model
+        with self._load_lock:
+            return self._load_model()
+
+    def _load_model(self):
         if not self._initialized:
             try:  # pragma: no cover
                 from sentence_transformers import SentenceTransformer
@@ -25,7 +34,8 @@ class SentenceTransformerEmbeddingAdapter(EmbeddingServicePort):
                 logger.warning(
                     "Embedding model unavailable", error=str(exc)
                 )
-            self._initialized = True
+            else:
+                self._initialized = True
         return self._model
 
     def get_model_instance(self):

@@ -69,6 +69,12 @@ class AnalyzingMediaPort(Protocol):
     async def update(self, media: Media): ...
 
 
+class AnalysisCompletionRecordsPort(Protocol):
+    """Conclusões persistidas, consultadas sem acessar tabelas de outro módulo."""
+
+    async def completed_media_ids(self, media_ids: Set[UUID]) -> Set[UUID]: ...
+
+
 class ProcessingRecordsPort(Protocol):
     """Diz quais mídias já ganharam registro no processamento (transcrição ou extração)."""
 

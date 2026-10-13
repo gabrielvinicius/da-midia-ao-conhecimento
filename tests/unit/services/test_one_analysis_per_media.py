@@ -83,3 +83,20 @@ async def test_the_request_id_reaches_the_analysis_events():
     )
     [completed] = bus.events
     assert type(completed).__name__ == "AnalysisCompleted" and completed.correlation_id == "req-9"
+
+
+@pytest.mark.parametrize("conflict", ["reviewed", "replaced_source"])
+def test_a_queued_analysis_does_not_report_a_protection_conflict_as_pipeline_failure(monkeypatch, conflict):
+    from src.text_analysis import tasks
+    from src.text_analysis.domain.entities.analysis import AnalysisReviewedError, AnalysisSourceChangedError
+    from tests.mocks.in_memory_event_bus import InMemoryEventBus
+
+    async def reviewed(*args):
+        error = AnalysisReviewedError if conflict == "reviewed" else AnalysisSourceChangedError
+        raise error("pedido obsoleto")
+
+    monkeypatch.setattr(tasks, "_analyze", reviewed)
+    bus = InMemoryEventBus()
+
+    assert tasks.run_analysis({"media_id": str(uuid4())}, bus=bus, final_attempt=False) == {}
+    assert bus.events == []

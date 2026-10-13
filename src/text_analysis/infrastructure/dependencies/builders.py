@@ -122,6 +122,7 @@ def build_analysis_request_service(
     return AnalysisRequestService(
         sources=transcription_queries or build_transcription_queries(session),
         queue=CeleryAnalysisQueue(),
+        analyses=SqlAlchemyAnalysisRepository(session),
     )
 
 

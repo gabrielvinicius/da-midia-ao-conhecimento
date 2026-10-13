@@ -17,6 +17,7 @@ from src.text_analysis.infrastructure.persistence.knowledge_models import Knowle
 from src.text_analysis.infrastructure.persistence.models import AnalysisModel
 from src.shared.infrastructure.database.unit_of_work import commit as uow_commit
 from src.shared.infrastructure.database.unit_of_work import rollback as uow_rollback
+from src.shared.infrastructure.database.unit_of_work import SqlAlchemyUnitOfWork
 
 
 class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
@@ -24,6 +25,28 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
 
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def save_generated(self, analysis: Analysis) -> str:
+        async with SqlAlchemyUnitOfWork(self.session).transaction():
+            statement = select(AnalysisModel).where(AnalysisModel.id == analysis.id).with_for_update()
+            result = await self.session.execute(statement.execution_options(populate_existing=True))
+            record = result.scalar_one_or_none()
+            if record is not None:
+                payload = record.payload or {}
+                version = payload.get("schema_version", 1)
+                if version < self.CURRENT_SCHEMA_VERSION:
+                    payload = self._upcast_payload(payload, from_version=version)
+                self._payload_to_analysis(payload).ensure_can_regenerate()
+            return await self.save(analysis)
+
+    async def completed_media_ids(self, media_ids: set[uuid.UUID]) -> set[uuid.UUID]:
+        if not media_ids:
+            return set()
+        statement = select(AnalysisModel.media_id).where(
+            AnalysisModel.media_id.in_(media_ids),
+            AnalysisModel.payload["diagnostics"]["pipeline_completed"].as_boolean().is_(True),
+        )
+        return set((await self.session.execute(statement)).scalars().all())
 
     async def save(self, analysis: Analysis) -> str:
         payload = {
@@ -133,7 +156,8 @@ class SqlAlchemyAnalysisRepository(AnalysisRepositoryPort):
         key = _uuid_or_none(analysis_id)
         if key is None:
             return False
-        record = (await self.session.execute(select(AnalysisModel).where(AnalysisModel.id == key))).scalar_one_or_none()
+        statement = select(AnalysisModel).where(AnalysisModel.id == key).with_for_update()
+        record = (await self.session.execute(statement.execution_options(populate_existing=True))).scalar_one_or_none()
         if not record:
             return False
             

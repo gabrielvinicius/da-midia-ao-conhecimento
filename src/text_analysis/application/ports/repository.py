@@ -12,6 +12,19 @@ from src.text_analysis.domain.review import ReviewCard
 
 
 class AnalysisRepositoryPort(ABC):
+    async def save_generated(self, analysis: Analysis) -> str:
+        """Grava saída do pipeline somente se não substituir revisão humana."""
+        current = await self.get(str(analysis.id))
+        if current is not None:
+            current.ensure_can_regenerate()
+        return await self.save(analysis)
+
+    async def completed_media_ids(self, media_ids: set[UUID]) -> set[UUID]:
+        return {
+            analysis.media_id for analysis in await self.list_analyses()
+            if analysis.pipeline_completed and analysis.media_id in media_ids
+        }
+
     @abstractmethod
     async def save(self, analysis: Analysis) -> str:
         ...

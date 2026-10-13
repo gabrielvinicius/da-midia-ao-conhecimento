@@ -15,6 +15,7 @@ from src.shared.domain.errors import ConflictError
 
 from src.shared.application.access import Requester, ensure_can_access
 from ..ports import AnalysisQueuePort, TranscriptionQueryPort
+from ..ports.repository import AnalysisRepositoryPort
 
 logger = structlog.get_logger(__name__)
 
@@ -22,13 +23,19 @@ TEXT_NOT_READY = "O texto desta mídia ainda não está pronto; a análise come�
 
 
 class AnalysisRequestService:
-    def __init__(self, sources: TranscriptionQueryPort, queue: AnalysisQueuePort) -> None:
+    def __init__(
+        self, sources: TranscriptionQueryPort, queue: AnalysisQueuePort, analyses: AnalysisRepositoryPort
+    ) -> None:
         self._sources = sources
         self._queue = queue
+        self._analyses = analyses
 
     async def request(self, media_id: UUID, requester: Requester, correlation_id: Optional[str] = None) -> None:
         owner = await self._sources.get_media_owner(media_id)
         ensure_can_access(owner, requester, "Mídia não encontrada")
+        existing = await self._analyses.get_by_media_id(str(media_id))
+        if existing is not None:
+            existing.ensure_can_regenerate()
         source = await self._sources.get_text_source(media_id)
         if source is None or not (source.text or "").strip():
             raise ConflictError(TEXT_NOT_READY)

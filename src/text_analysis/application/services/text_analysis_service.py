@@ -15,8 +15,10 @@ import structlog
 from src.shared.application.event_bus import SupportsEventBus
 from src.shared.application.ports import ProcessingStatsPort
 from src.shared.domain.events import AnalysisCompleted
+from src.shared.domain.errors import ConflictError, NotFoundError
 
 from src.text_analysis.domain import Analysis, Document
+from src.text_analysis.domain.entities.analysis import AnalysisSourceChangedError
 from src.text_analysis.application.config import AnalysisConfig
 from src.text_analysis.application.dtos import (
     AnalyzeTextCommand,
@@ -72,13 +74,14 @@ class TextAnalysisService:
             # (checkpoint); se o worker cair no meio, o que já foi calculado
             # continua disponível.
             async def checkpoint(current: Analysis, step_name: str) -> None:
-                await self.repository.save(current)
+                await self.repository.save_generated(current)
 
             pipeline_started = time.perf_counter()
             analysis = await self.pipeline.run(analysis, on_step_completed=checkpoint)
             await self._record_durations(analysis, time.perf_counter() - pipeline_started)
 
-            analysis_id = await self.repository.save(analysis)
+            analysis.pipeline_completed = True
+            analysis_id = await self.repository.save_generated(analysis)
             logger.info("text_analysis.stored", analysis_id=analysis_id)
 
             if self.event_bus:
@@ -118,12 +121,17 @@ class TextAnalysisService:
 
         if media_id and self.transcription_queries:
             text_source = await self.transcription_queries.get_text_source(media_id)
-            if text_source:
-                text_content = text_content or text_source.text
-                transcription_id = transcription_id or text_source.id
-                segments = list(text_source.segments or [])
-                language = getattr(text_source, "language", None)
-                visual_context = list(getattr(text_source, "visual_context", None) or [])
+            if text_source is None:
+                raise NotFoundError("O texto desta mídia não está disponível para análise.")
+            if transcription_id is not None and transcription_id != text_source.id:
+                raise AnalysisSourceChangedError("A transcrição deste pedido de análise foi substituída.")
+            if not text_source.text.strip():
+                raise ConflictError("O texto desta mídia ainda não está pronto para análise.")
+            text_content = text_source.text
+            transcription_id = text_source.id
+            segments = list(text_source.segments or [])
+            language = text_source.language
+            visual_context = list(text_source.visual_context or [])
             # Dados da mídia (tipo, arquivo) usados pelas etapas da análise.
             media_info = await self.transcription_queries.get_media_info(media_id) or {}
 
@@ -139,6 +147,7 @@ class TextAnalysisService:
         if media_id:
             existing = await self.repository.get_by_media_id(str(media_id))
             if existing is not None:
+                existing.ensure_can_regenerate()
                 analysis.id = existing.id
         analysis.diagnostics.update(media_info)
         # Idioma detectado na transcrição: palavras vazias e sentimento

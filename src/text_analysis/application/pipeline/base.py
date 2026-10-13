@@ -97,10 +97,7 @@ class AnalysisPipeline:
                 error = str(exc)
             analysis.record_step(step.name, time.perf_counter() - started, error)
             if on_step_completed is not None:
-                try:
-                    await on_step_completed(analysis, step.name)
-                except Exception as exc:
-                    logger.warning("pipeline.checkpoint_failed", step=step.name, error=str(exc))
+                await on_step_completed(analysis, step.name)
             if failure is not None and step.required:
                 # A tarefa decide: repete a falha passageira, anuncia a definitiva.
                 raise failure

@@ -13,7 +13,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID, uuid4
 
-from src.shared.domain.errors import NotFoundError, ValidationError
+from src.shared.domain.errors import ConflictError, NotFoundError, ValidationError
 from src.text_analysis.domain.chapters import Chapter, ReviewQuestion
 from src.text_analysis.domain.content_genre import ContentGenre
 from src.text_analysis.domain.content_profile import main_topics
@@ -30,6 +30,14 @@ class SummarySource(str, Enum):
     LLM = "llm"  # modelo principal
     RESERVE = "reserve"  # modelo reserva
     SIMPLIFIED = "simplified"  # sem modelo: temas e palavras-chave
+
+
+class AnalysisReviewedError(ConflictError):
+    """Uma nova análise não pode substituir conteúdo revisado pelo usuário."""
+
+
+class AnalysisSourceChangedError(ConflictError):
+    """O pedido da fila aponta para uma transcrição que já foi substituída."""
 
 
 @dataclass
@@ -66,6 +74,12 @@ class Analysis:
     chunk_embeddings: list = field(default_factory=list, repr=False)
     # Identificador da requisição de envio (logs e eventos). Transitório.
     correlation_id: Optional[str] = field(default=None, repr=False)
+    pipeline_completed: bool = False
+
+    def ensure_can_regenerate(self) -> None:
+        revised_fields = {"original_ai_summary", "original_ai_chapters", "original_ai_review_questions"}
+        if revised_fields.intersection(self.diagnostics) or any(t.original_title is not None for t in self.topics):
+            raise AnalysisReviewedError("Esta análise foi revisada. Uma nova análise não pode substituir as correções.")
 
     @classmethod
     def new(
