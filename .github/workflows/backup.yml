@@ -32,8 +32,9 @@ jobs:
       run:
         # O Git Bash, pelo caminho completo: no PATH do runner, "bash" é o
         # C:\Windows\System32\bash.exe do WSL, que não entende o caminho do
-        # script que o runner gera.
-        shell: '"C:\Program Files\Git\bin\bash.exe" --noprofile --norc -e -o pipefail {0}'
+        # script que o runner gera. O runner não aceita aspas no comando,
+        # por isso o nome curto de "Program Files".
+        shell: C:\PROGRA~1\Git\bin\bash.exe --noprofile --norc -e -o pipefail {0}
         working-directory: ${{ vars.DEPLOY_DIR }}
     steps:
       - name: Cópia do banco e das mídias
