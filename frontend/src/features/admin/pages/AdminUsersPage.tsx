@@ -1,12 +1,12 @@
 import * as React from "react";
-import { ColumnDef, PaginationState } from "@tanstack/react-table";
+import type { PaginationState } from "@tanstack/react-table";
 import { MoreHorizontal } from "lucide-react";
 
 import { User, UserRole } from "@/types";
 import { useAllUsers } from "../hooks/useAdminQueries";
 import { useDeleteUser, useSetUserActive } from "../hooks/useAdminMutations";
 import { useAuth } from "@/contexts/AuthContext";
-import { DataTable } from "@/components/ui/DataTable";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import ErrorState from "@/components/ui/ErrorState";
@@ -109,7 +109,7 @@ const UserActionsCell = ({ user }: { user: User }) => {
 };
 
 // Antes: o id (UUID) ocupava a primeira coluna e o papel aparecia cru ("ADMIN").
-export const columns: ColumnDef<User>[] = [
+export const columns: DataTableColumn<User>[] = [
   {
     accessorKey: "email",
     header: "E-mail",
