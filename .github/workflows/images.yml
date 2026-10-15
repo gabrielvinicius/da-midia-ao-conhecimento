@@ -56,8 +56,10 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max
 
+      # O nome do backend só existe na rede do Compose; aqui ele aponta para
+      # um endereço qualquer, e o teste confere a sintaxe e os caminhos.
       - name: Configuração do nginx válida
-        run: docker run --rm frontend:ci nginx -t
+        run: docker run --rm --add-host backend:127.0.0.1 frontend:ci nginx -t
 
       - name: Vulnerabilities (report)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
