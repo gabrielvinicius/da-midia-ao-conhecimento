@@ -113,7 +113,7 @@ export const columns: ColumnDef<User>[] = [
   {
     accessorKey: "email",
     header: "E-mail",
-    cell: ({ row }) => <span className="[overflow-wrap:anywhere]">{row.original.email}</span>,
+    cell: ({ row }) => <span className="wrap-anywhere">{row.original.email}</span>,
   },
   {
     accessorKey: "role",

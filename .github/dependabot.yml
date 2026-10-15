@@ -30,14 +30,9 @@ updates:
     groups:
       frontend: { patterns: ["*"], update-types: [minor, patch] }
     ignore:
-      # Versões maiores que exigem migração do código: o Tailwind 4 troca a
-      # configuração (e o tailwind-merge 3 só funciona com ele), o TypeScript 7
-      # não é aceito pelo typescript-eslint 8 e o react-table 9 muda a API.
+      # Versões maiores que exigem migração do código: o TypeScript 7 não é
+      # aceito pelo typescript-eslint 8 e o react-table 9 muda a API.
       # Sobem à mão, num PR com a migração.
-      - dependency-name: tailwindcss
-        update-types: [version-update:semver-major]
-      - dependency-name: tailwind-merge
-        update-types: [version-update:semver-major]
       - dependency-name: typescript
         update-types: [version-update:semver-major]
       - dependency-name: "@tanstack/react-table"

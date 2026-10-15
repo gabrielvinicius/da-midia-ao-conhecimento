@@ -101,7 +101,7 @@ export const columns: ColumnDef<AdminMedia>[] = [
     header: "Arquivo",
     cell: ({ row }) => (
       <div className="min-w-0 max-w-xs">
-        <Link to={`/media/${row.original.id}`} className="font-medium text-slate-900 [overflow-wrap:anywhere] hover:underline">
+        <Link to={`/media/${row.original.id}`} className="font-medium text-slate-900 wrap-anywhere hover:underline">
           {row.original.filename || row.original.id}
         </Link>
         <p className="text-xs text-muted-foreground">
@@ -115,7 +115,7 @@ export const columns: ColumnDef<AdminMedia>[] = [
   {
     accessorKey: "owner_email",
     header: "Dono",
-    cell: ({ row }) => <span className="[overflow-wrap:anywhere]">{row.original.owner_email ?? "—"}</span>,
+    cell: ({ row }) => <span className="wrap-anywhere">{row.original.owner_email ?? "—"}</span>,
   },
   {
     accessorKey: "status",

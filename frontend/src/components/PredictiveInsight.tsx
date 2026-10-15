@@ -27,7 +27,7 @@ export const PredictiveInsight = ({ mediaId, isEnabled }: PredictiveInsightProps
   if (!isEnabled || !est?.estimated_seconds) return null;
 
   return (
-    <Card className="border-[#ede4d5] bg-[#fdfbf6] shadow-sm">
+    <Card className="border-[#ede4d5] bg-[#fdfbf6] shadow-xs">
       <CardContent className="flex items-start gap-3 p-4">
         <Clock className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
         <div className="space-y-1">

@@ -107,7 +107,7 @@ export const UploadForm = () => {
           dragging ? "border-amber-500 bg-amber-50" : "border-slate-300 bg-slate-50/60 hover:border-slate-400 hover:bg-slate-50",
         )}
       >
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-amber-600 shadow-sm">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-amber-600 shadow-xs">
           <UploadCloud className="h-6 w-6" />
         </span>
         <span className="text-base font-medium text-slate-900">
@@ -155,7 +155,7 @@ export const UploadForm = () => {
                     addLink();
                   }
                 }}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-hidden focus:ring-2 focus:ring-primary/20"
               />
             </div>
             <Button type="button" variant="outline" onClick={addLink} disabled={!link.trim()}>

@@ -48,7 +48,7 @@ const Usage = ({ label, percent, detail, icon }: { label: string; percent: numbe
 };
 
 const Dot = ({ ok }: { ok: boolean }) => (
-  <span className={cn("inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full", ok ? "bg-emerald-500" : "bg-rose-500")} aria-hidden />
+  <span className={cn("inline-block h-2.5 w-2.5 shrink-0 rounded-full", ok ? "bg-emerald-500" : "bg-rose-500")} aria-hidden />
 );
 
 export const AdminServerPage = () => {

@@ -20,7 +20,7 @@ const TopicCard = ({ group, nameOf }: { group: TopicGroup; nameOf: (id: string |
     <div className="flex items-start justify-between gap-3">
       <h2 className="font-semibold text-slate-900">{group.title}</h2>
       {group.media_count > 1 && (
-        <span className="flex-shrink-0 whitespace-nowrap rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+        <span className="shrink-0 whitespace-nowrap rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
           em {group.media_count} mídias
         </span>
       )}
@@ -29,7 +29,7 @@ const TopicCard = ({ group, nameOf }: { group: TopicGroup; nameOf: (id: string |
       {group.occurrences.map((o) => (
         <li key={`${o.analysis_id}-${o.title}`} className="border-l-2 border-slate-200 pl-3 text-sm">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <Link to={o.media_id ? `/media/${o.media_id}` : "#"} className="font-medium text-slate-900 [overflow-wrap:anywhere] hover:underline">
+            <Link to={o.media_id ? `/media/${o.media_id}` : "#"} className="font-medium text-slate-900 wrap-anywhere hover:underline">
               {nameOf(o.media_id)}
             </Link>
             {o.media_id && o.start != null && (
