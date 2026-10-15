@@ -85,3 +85,29 @@ def test_an_unknown_transcription_provider_uses_the_real_default():
         providers._SPEECH_RECOGNIZERS["default"] = original
         providers._SPEECH_RECOGNIZERS.pop("teste-padrao")
         providers._SPEECH_META.pop("teste-padrao")
+
+
+def _compose_project_name() -> str:
+    text = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    found = re.findall(r"^name:\s*(\S+)\s*$", text, flags=re.M)
+    assert len(found) == 1, "docker-compose.yml deve declarar name: uma vez, no topo"
+    return found[0]
+
+
+def test_compose_project_name_is_declared_only_in_the_compose_file():
+    """Antes, o nome estava em seis volumes e no deploy.ps1, e os scripts de
+    cópia de segurança, sem ele, procuravam outro projeto na pasta de produção
+    (e gravavam um banco vazio)."""
+    project = _compose_project_name()
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    assert f"name: {project}_" not in compose, "volumes devem herdar o nome do projeto"
+    others = [*ROOT.glob("scripts/**/*"), *ROOT.glob(".github/workflows/*.yml"), *ROOT.glob("docker-compose.*.yml")]
+    repeated = [str(p.relative_to(ROOT)) for p in others
+                if p.suffix in {".sh", ".ps1", ".py", ".yml"} and project in p.read_text(encoding="utf-8", errors="ignore")]
+    assert not repeated, f"nome do projeto repetido fora do docker-compose.yml: {repeated}"
+
+
+def test_deploy_workflow_takes_machine_values_from_repository_variables():
+    workflow = (ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
+    assert "${{ vars.DEPLOY_DIR }}" in workflow and "${{ vars.PUBLIC_URL }}" in workflow
+    assert not re.search(r"[A-Z]:\\\\", workflow), "caminho da máquina de produção fixo no workflow"

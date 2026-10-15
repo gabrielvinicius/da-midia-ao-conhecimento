@@ -17,6 +17,7 @@ from typing import Any, Optional
 import structlog
 
 from src.shared.application.privacy import masked_email
+from src.shared.domain.brand import PLATFORM_NAME
 from src.user_management.application.dtos import CreateUserCommand
 from src.user_management.application.ports import EmailSenderPort, LoginAttemptLimiterPort
 from src.user_management.application.tokens import TokenPurpose
@@ -94,7 +95,7 @@ class AccountEmailService:
             await self._send(
                 user,
                 "Redefinir a senha",
-                "Recebemos um pedido para redefinir a senha da sua conta na plataforma Da Mídia ao Conhecimento.\n\n"
+                f"Recebemos um pedido para redefinir a senha da sua conta na plataforma {PLATFORM_NAME}.\n\n"
                 f"Para escolher uma nova senha, abra o link abaixo (vale por {self._settings.password_reset_minutes} minutos "
                 f"e uma única vez):\n\n{self._link('redefinir-senha', token)}\n\n"
                 "Se você não pediu, ignore este e-mail: a senha atual continua valendo.",
@@ -123,7 +124,7 @@ class AccountEmailService:
         await self._send(
             user,
             "Confirme seu e-mail",
-            "Sua conta na plataforma Da Mídia ao Conhecimento foi criada.\n\n"
+            f"Sua conta na plataforma {PLATFORM_NAME} foi criada.\n\n"
             f"Para ativá-la, confirme o e-mail pelo link abaixo (vale por {self._settings.email_verification_hours} horas):"
             f"\n\n{self._link('confirmar-email', token)}\n\n"
             "Se você não criou esta conta, ignore este e-mail.",

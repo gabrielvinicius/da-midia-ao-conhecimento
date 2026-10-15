@@ -26,14 +26,17 @@ jobs:
     timeout-minutes: 60
     environment:
       name: producao
-      url: https://tcc.gabrielvinicius.dev
+      url: ${{ vars.PUBLIC_URL }}
+    # Variáveis do repositório (Settings > Secrets and variables > Actions):
+    # DEPLOY_DIR, a pasta de produção na máquina do runner, e PUBLIC_URL.
     env:
-      DEPLOY_DIR: ${{ vars.DEPLOY_DIR || 'C:\producao\da-midia-ao-conhecimento' }}
+      DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
       TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - name: Código na versão que passou na CI
         shell: pwsh
         run: |
+          if (-not $env:DEPLOY_DIR) { Write-Host "::error::Defina a variável DEPLOY_DIR do repositório (pasta de produção)."; exit 1 }
           Set-Location $env:DEPLOY_DIR
           $previous = (git rev-parse HEAD).Trim()
           "PREVIOUS_SHA=$previous" >> $env:GITHUB_ENV

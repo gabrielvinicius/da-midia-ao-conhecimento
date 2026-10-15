@@ -22,8 +22,12 @@ else
 fi
 
 echo "[backup] banco ${DB_NAME:-app} -> $DEST/banco.sql.gz"
+# Primeiro em arquivo, depois compactado: num pipe direto para o gzip, uma
+# falha do pg_dump (postgres parado, projeto errado) passava despercebida e
+# deixava um banco.sql.gz vazio. O sh não tem pipefail em toda parte.
 docker compose exec -T postgres pg_dump -U "${DB_USER:-postgres}" -d "${DB_NAME:-app}" \
-  --clean --if-exists | gzip > "$DEST/banco.sql.gz"
+  --clean --if-exists > "$DEST/banco.sql"
+gzip "$DEST/banco.sql"
 
 echo "[backup] mídias -> $DEST/midias.tar.gz"
 # MSYS_NO_PATHCONV e pwd -W: no Git Bash (Windows), os caminhos do contêiner
