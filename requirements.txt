@@ -11,7 +11,7 @@ fastapi~=0.143.0
 uvicorn[standard]~=0.54.0
 pydantic[email]~=2.13.5
 pydantic-settings~=2.15.0
-python-dotenv~=1.2.3
+python-dotenv~=1.2.4
 python-multipart~=0.0.32
 httpx~=0.28.1  # cliente do Ollama
 
