@@ -62,6 +62,19 @@ describe("sessão", () => {
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Sessão expirada"), expect.anything());
   });
 
+  it("erro do servidor numa leitura avisa; numa gravação, fica com quem gravou", async () => {
+    // A mutação já mostra o próprio erro: com o aviso global também, o mesmo
+    // erro aparecia duas vezes.
+    server.use(
+      http.get("/api/lista", () => new HttpResponse(null, { status: 500 })),
+      http.delete("/api/media/m1", () => new HttpResponse(null, { status: 500 })),
+    );
+    await expect(api.delete("/media/m1")).rejects.toBeTruthy();
+    expect(toast.error).not.toHaveBeenCalled();
+    await expect(api.get("/lista")).rejects.toBeTruthy();
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Erro no servidor"), expect.anything());
+  });
+
   it("um 404 esperado não gera aviso global", async () => {
     // A tela de uma mídia ainda sem análise mostrava "Não encontrado".
     await expect(api.get("/sem-analise")).rejects.toBeTruthy();

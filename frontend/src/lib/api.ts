@@ -110,6 +110,8 @@ const AUTH_ENDPOINTS = ['/auth/token', '/auth/refresh', '/auth/logout'];
  * avisava todo 404, e a tela de uma mídia ainda sem análise mostrava "Não
  * encontrado" enquanto a análise estava a caminho.
  */
+const isRead = (config?: { method?: string }) => !config?.method || config.method.toLowerCase() === 'get';
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -130,8 +132,10 @@ api.interceptors.response.use(
         toast.error('Sessão expirada. Faça login novamente.', { toastId: 'session-expired' });
         window.dispatchEvent(new CustomEvent('app:logout'));
       }
-    } else if (status === 413) {
-      toast.error('Arquivo muito grande. Tamanho máximo permitido: 500 MB');
+    } else if (!isRead(original)) {
+      // Gravações (POST, PUT, DELETE) mostram o próprio erro: toda mutação tem
+      // onError, e o envio mostra a falha no item. Com o aviso daqui também,
+      // o mesmo erro aparecia duas vezes.
     } else if (status !== undefined && status >= 500) {
       toast.error('Erro no servidor. Tente novamente em instantes.', { toastId: 'server-error' });
     } else if (!error.response) {
