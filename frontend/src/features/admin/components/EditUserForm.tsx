@@ -50,7 +50,7 @@ export const EditUserForm = ({ user, onFinished }: EditUserFormProps) => {
         <Label htmlFor="role">Perfil</Label>
         <Select
           defaultValue={user.role}
-          onValueChange={(value: UserRole) => form.setValue('role', value)}
+          onValueChange={(value) => form.setValue('role', value as UserRole)}
           disabled={isPending}
         >
           <SelectTrigger id="role">
