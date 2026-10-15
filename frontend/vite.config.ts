@@ -20,9 +20,10 @@ export default defineConfig({
   build: {
     // Só as bibliotecas que mudam pouco ficam em pedaços fixos (o navegador
     // os guarda entre versões); as telas ficam com a divisão automática pelos
-    // imports dinâmicos. Medido com a API simulada, o JavaScript baixado caiu
-    // em todas as telas (login de 704 para 267 kB) em relação aos grupos por
-    // funcionalidade que havia antes.
+    // imports dinâmicos. Medido com a API simulada, cada tela carrega de 15% a
+    // 24% menos JavaScript que com os grupos por funcionalidade de antes
+    // (login: 704 → 584 kB); a divisão só automática é ~40 kB menor, mas em
+    // até 38 arquivos e sem um pedaço estável das bibliotecas.
     rolldownOptions: {
       output: {
         codeSplitting: {
