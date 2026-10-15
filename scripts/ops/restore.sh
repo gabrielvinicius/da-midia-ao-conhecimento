@@ -7,9 +7,15 @@ set -eu
 SRC="${1:?informe a pasta da cópia, ex.: backups/20261006-120000}"
 DB_USER="$(grep -E '^DB_USER=' .env | cut -d= -f2-)"
 DB_NAME="$(grep -E '^DB_NAME=' .env | cut -d= -f2-)"
-# Volume das mídias, pelo nome fixado no docker-compose.yml (não exige o backend no ar).
-MEDIA_VOLUME="$(docker compose config | sed -n '/^volumes:/,$p' | sed -n '/^  media_data:/{n;s/^ *name: //p;}')"
-docker volume inspect "$MEDIA_VOLUME" >/dev/null 2>&1 || { echo "volume das mídias ($MEDIA_VOLUME) não encontrado" >&2; exit 1; }
+# Mídias: a pasta do host em MEDIA_STORAGE_PATH ou, sem ela, o volume pelo nome
+# fixado no docker-compose.yml (não exige o backend no ar).
+MEDIA_VOLUME="$(grep -E '^MEDIA_STORAGE_PATH=' .env | cut -d= -f2- || true)"
+if [ -n "$MEDIA_VOLUME" ]; then
+  [ -d "$MEDIA_VOLUME" ] || { echo "pasta das mídias ($MEDIA_VOLUME) não encontrada" >&2; exit 1; }
+else
+  MEDIA_VOLUME="$(docker compose config | sed -n '/^volumes:/,$p' | sed -n '/^  media_data:/{n;s/^ *name: //p;}')"
+  docker volume inspect "$MEDIA_VOLUME" >/dev/null 2>&1 || { echo "volume das mídias ($MEDIA_VOLUME) não encontrado" >&2; exit 1; }
+fi
 
 echo "[restore] parando os workers durante a restauração"
 docker compose stop worker-heavy worker-light

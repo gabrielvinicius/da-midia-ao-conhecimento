@@ -179,7 +179,7 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
     volumes:
-      - media_data:/app/storage
+      - ${MEDIA_STORAGE_PATH:-media_data}:/app/storage
       - ai_models_cache:/app/.cache
     deploy:
       resources:
@@ -209,7 +209,7 @@ services:
       backend: { condition: service_healthy }
       ollama: { condition: service_started }
     volumes:
-      - media_data:/app/storage
+      - ${MEDIA_STORAGE_PATH:-media_data}:/app/storage
       - ai_models_cache:/app/.cache
     deploy:
       resources:
@@ -233,7 +233,7 @@ services:
       redis: { condition: service_healthy }
       backend: { condition: service_healthy }
     volumes:
-      - media_data:/app/storage
+      - ${MEDIA_STORAGE_PATH:-media_data}:/app/storage
     deploy:
       resources:
         limits:
@@ -281,6 +281,8 @@ volumes:
     name: video-summarizer_redis_data
   minio_data:
     name: video-summarizer_minio_data
+  # Mídias enviadas. Com MEDIA_STORAGE_PATH no .env (uma pasta do host, como
+  # D:/midias), os serviços montam essa pasta no lugar deste volume.
   media_data:
     name: video-summarizer_media_data
   ai_models_cache:

@@ -37,6 +37,7 @@ READ_ELSEWHERE = {
     "LOG_FORMAT", "LOG_LEVEL", "METRICS_PORT",  # observabilidade
     "DEFAULT_ADMIN_EMAIL", "DEFAULT_ADMIN_PASSWORD", "DEFAULT_ADMIN_FORCE_PASSWORD",  # main.py
     "CLOUDFLARE_TUNNEL_TOKEN",  # docker-compose.yml, serviço cloudflared
+    "MEDIA_STORAGE_PATH",  # docker-compose.yml, pasta das mídias no host
 }
 
 
