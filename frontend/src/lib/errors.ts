@@ -14,6 +14,10 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
       const first = detail[0] as { msg?: unknown } | undefined;
       if (typeof first?.msg === 'string') return first.msg;
     }
+    // Antes, só o aviso global do interceptador dizia isto (ele não avisa
+    // mais nas gravações, para o erro não aparecer duas vezes).
+    if (error.response?.status === 413) return 'Arquivo muito grande para o servidor.';
+    if (!error.response) return 'Sem conexão com o servidor. Verifique a sua internet.';
   }
   return fallback;
 }
