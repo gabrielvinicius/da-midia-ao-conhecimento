@@ -29,11 +29,29 @@ updates:
     schedule: { interval: weekly, day: monday }
     groups:
       frontend: { patterns: ["*"], update-types: [minor, patch] }
+    ignore:
+      # Versões maiores que exigem migração do código: o Tailwind 4 troca a
+      # configuração (e o tailwind-merge 3 só funciona com ele), o TypeScript 7
+      # não é aceito pelo typescript-eslint 8 e o react-table 9 muda a API.
+      # Sobem à mão, num PR com a migração.
+      - dependency-name: tailwindcss
+        update-types: [version-update:semver-major]
+      - dependency-name: tailwind-merge
+        update-types: [version-update:semver-major]
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+      - dependency-name: "@tanstack/react-table"
+        update-types: [version-update:semver-major]
 
   # Imagens base dos Dockerfiles e imagens dos serviços do Compose.
   - package-ecosystem: docker
     directories: [/, /frontend]
     schedule: { interval: weekly, day: monday }
+    ignore:
+      # Só versões LTS (pares) do Node; a troca de LTS é feita à mão, junto
+      # com o node-version da CI.
+      - dependency-name: node
+        update-types: [version-update:semver-major]
   - package-ecosystem: docker-compose
     directory: /
     schedule: { interval: weekly, day: monday }
