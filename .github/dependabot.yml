@@ -23,6 +23,10 @@ updates:
       # Abaixo de 4.50 enquanto o Moondream 2 usar a revisão de 2024-08-26.
       - dependency-name: transformers
         versions: [">=4.50"]
+      # O sentence-transformers 6 exige transformers >= 4.50 (o #129 não
+      # instalava); sobe junto com a trava acima.
+      - dependency-name: sentence-transformers
+        versions: [">=6"]
 
   - package-ecosystem: npm
     directory: /frontend
