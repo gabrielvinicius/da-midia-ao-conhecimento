@@ -30,12 +30,9 @@ updates:
     groups:
       frontend: { patterns: ["*"], update-types: [minor, patch] }
     ignore:
-      # Versões maiores que exigem migração do código: o TypeScript 7 não é
-      # aceito pelo typescript-eslint 8 e o react-table 9 muda a API.
-      # Sobem à mão, num PR com a migração.
+      # O TypeScript 7 não é aceito pelo typescript-eslint 8: sobe à mão,
+      # quando o typescript-eslint o aceitar.
       - dependency-name: typescript
-        update-types: [version-update:semver-major]
-      - dependency-name: "@tanstack/react-table"
         update-types: [version-update:semver-major]
 
   # Imagens base dos Dockerfiles e imagens dos serviços do Compose.
