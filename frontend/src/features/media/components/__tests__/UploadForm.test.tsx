@@ -9,6 +9,7 @@ import { UploadForm } from '../UploadForm';
 const uploadMedia = vi.fn();
 const importMediaFromUrl = vi.fn();
 let urlImportEnabled = true;
+let storageOptions = [{ name: 'local', label: 'Local (Filesystem)' }];
 vi.mock('../../api', () => ({
   uploadMedia: (...args: unknown[]) => uploadMedia(...args),
   importMediaFromUrl: (...args: unknown[]) => importMediaFromUrl(...args),
@@ -16,7 +17,7 @@ vi.mock('../../api', () => ({
   getProviders: () =>
     Promise.resolve({
       stages: {
-        storage: [{ name: 'local', label: 'Local (Filesystem)' }],
+        storage: storageOptions,
         transcription: [{ name: 'whisperx', label: 'WhisperX' }],
       },
     }),
@@ -32,6 +33,18 @@ describe('UploadForm', () => {
       options?.onProgress?.(50);
       return { id: `id-${file.name}`, filename: file.name };
     });
+    storageOptions = [{ name: 'local', label: 'Local (Filesystem)' }];
+  });
+
+  it('usa o primeiro armazenamento do servidor quando o local não é oferecido', async () => {
+    storageOptions = [{ name: 's3', label: 'S3 (MinIO)' }];
+    renderForm();
+    await userEvent.upload(screen.getByLabelText('Escolher arquivos'), [pick('aula.mp4')]);
+    await waitFor(() => expect(screen.getAllByText('S3 (MinIO)').length).toBeGreaterThan(0));
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+
+    await waitFor(() => expect(uploadMedia).toHaveBeenCalledTimes(1));
+    expect(uploadMedia.mock.calls[0][0]).toMatchObject({ storageProvider: 's3' });
   });
 
   it('envia vários arquivos, um de cada vez, e leva a cada mídia', async () => {

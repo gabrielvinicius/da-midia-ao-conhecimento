@@ -35,6 +35,9 @@ export function DataTable<TData, TValue>({
   onPaginationChange,
   onSearchChange,
 }: DataTableProps<TData, TValue>) {
+  // As funções do useReactTable (v8) não podem ser memorizadas pelo React
+  // Compiler; ele pula este componente, que é o comportamento certo.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,

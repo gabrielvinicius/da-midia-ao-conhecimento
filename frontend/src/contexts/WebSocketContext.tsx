@@ -53,6 +53,9 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
   // um usuário que já saiu, não abre o socket do usuário seguinte.
   const generationRef = useRef(0);
   const noticesRef = useRef(createNoticeBatcher((message) => toast.info(message)));
+  // A reconexão chama a versão atual de connect (que não pode citar a si
+  // mesma na própria declaração).
+  const connectRef = useRef<() => void>(() => undefined);
 
   // Os avisos ficam gravados no servidor: ao abrir a página aparecem também
   // os que chegaram com ela fechada.
@@ -86,7 +89,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
     try {
       token = await requestScopedToken("notifications");
     } catch {
-      scheduleReconnect(connect);
+      scheduleReconnect(() => connectRef.current());
       return;
     }
     // Durante a espera do token o usuário pode ter saído (ou outro ter
@@ -118,7 +121,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
       }
       if (wantedRef.current) {
         setConnectionStatus('RECONNECTING');
-        scheduleReconnect(connect);
+        scheduleReconnect(() => connectRef.current());
       }
     };
 
@@ -142,6 +145,10 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
       }
     };
   }, [queryClient, setCached, scheduleReconnect]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   const disconnect = useCallback(() => {
     wantedRef.current = false;

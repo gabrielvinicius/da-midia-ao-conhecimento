@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
@@ -88,6 +88,19 @@ describe("SearchPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Quem escreveu o manifesto ágil?" }));
     await waitFor(() => expect(get).toHaveBeenCalledWith("/text-analysis/search", expect.anything()));
     expect(JSON.parse(localStorage.getItem("busca-recentes")!)).toEqual(["Quem escreveu o manifesto ágil?"]);
+  });
+
+  it("shows in the field the search from the address, and follows it when it changes", async () => {
+    respond(RESULTS);
+    renderPage("/busca?q=regra%20da%20cadeia");
+    expect(screen.getByLabelText("Pergunta")).toHaveValue("regra da cadeia");
+    cleanup();
+
+    // O exemplo só muda o endereço; o campo vem dele.
+    renderPage();
+    expect(screen.getByLabelText("Pergunta")).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "Quem escreveu o manifesto ágil?" }));
+    await waitFor(() => expect(screen.getByLabelText("Pergunta")).toHaveValue("Quem escreveu o manifesto ágil?"));
   });
 
   it("does not search with fewer than 3 characters", () => {
