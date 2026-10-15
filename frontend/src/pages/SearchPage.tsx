@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Clock, FileText, History, Loader2, Music, PlayCircle, Search, SearchX, Video, X } from "lucide-react";
@@ -83,7 +83,12 @@ const SearchPage = () => {
   const [input, setInput] = useState(query);
   const [recent, setRecent] = useState<string[]>(readRecent);
 
-  useEffect(() => setInput(query), [query]);
+  // O campo acompanha a busca do endereço quando ela muda (voltar, links).
+  const [shownQuery, setShownQuery] = useState(query);
+  if (query !== shownQuery) {
+    setShownQuery(query);
+    setInput(query);
+  }
 
   const { data, isFetching, isError } = useQuery({
     queryKey: ["semantic-search", query],

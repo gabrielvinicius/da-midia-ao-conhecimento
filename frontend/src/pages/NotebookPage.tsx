@@ -80,6 +80,13 @@ const NotebookPage = () => {
   const nameOf = useMediaNames();
   const [search, setSearch] = React.useState("");
 
+  const entries = React.useMemo(() => {
+    const term = normalizeText(search.trim());
+    return (data ?? []).filter(
+      (e) => !term || normalizeText(`${nameOf(e.media_id)} ${e.topics.join(" ")} ${splitSummary(e.summary).body}`).includes(term),
+    );
+  }, [data, nameOf, search]);
+
   const [makingPdf, setMakingPdf] = React.useState(false);
 
   const downloadPdf = async () => {
@@ -101,13 +108,6 @@ const NotebookPage = () => {
       setMakingPdf(false);
     }
   };
-
-  const entries = React.useMemo(() => {
-    const term = normalizeText(search.trim());
-    return (data ?? []).filter(
-      (e) => !term || normalizeText(`${nameOf(e.media_id)} ${e.topics.join(" ")} ${splitSummary(e.summary).body}`).includes(term),
-    );
-  }, [data, nameOf, search]);
 
   return (
     <div className="space-y-6">

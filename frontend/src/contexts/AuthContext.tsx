@@ -44,11 +44,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     refetchOnWindowFocus: false,
   });
 
-  useEffect(() => {
-    if (currentUser) {
-      setUser(currentUser);
-    }
-  }, [currentUser]);
+  // Um usuário novo vindo da consulta substitui o do estado já nesta
+  // renderização (ajuste durante a renderização, em vez de um efeito que
+  // renderizaria de novo).
+  const [seenUser, setSeenUser] = useState(currentUser);
+  if (currentUser !== seenUser) {
+    setSeenUser(currentUser);
+    if (currentUser) setUser(currentUser);
+  }
 
   const logout = async () => {
     try {
@@ -64,9 +67,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // O usuário vindo da consulta vale já na mesma renderização em que ela
-  // termina; o useEffect acima só copia para o estado depois. Sem isso, ao
-  // recarregar a página, a rota protegida via isLoading=false e user=null por
-  // um instante e mandava para o login.
+  // termina. Sem isso, ao recarregar a página, a rota protegida via
+  // isLoading=false e user=null por um instante e mandava para o login.
   const effectiveUser = user ?? currentUser ?? null;
 
   const value = {
