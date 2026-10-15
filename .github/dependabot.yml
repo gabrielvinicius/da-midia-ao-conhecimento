@@ -34,6 +34,10 @@ updates:
       # quando o typescript-eslint o aceitar.
       - dependency-name: typescript
         update-types: [version-update:semver-major]
+      # Os tipos do Node seguem o Node da imagem e da CI (24, LTS); sobem
+      # junto com ele.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
 
   # Imagens base dos Dockerfiles e imagens dos serviços do Compose.
   - package-ecosystem: docker
