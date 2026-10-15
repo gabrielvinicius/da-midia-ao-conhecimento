@@ -7,7 +7,7 @@
 # fosse mais novo, inclusive versões principais com mudanças incompatíveis.
 
 # API
-fastapi~=0.142.0
+fastapi~=0.143.0
 uvicorn[standard]~=0.54.0
 pydantic[email]~=2.13.5
 pydantic-settings~=2.15.0
