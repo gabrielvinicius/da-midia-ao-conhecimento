@@ -107,7 +107,7 @@ export const AdminDashboardPage = () => {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="border-[#ede4d5]">
-          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
             <div>
               <CardTitle className="text-base">Fila de processamento</CardTitle>
               <CardDescription>As mídias em andamento mais antigas.</CardDescription>
@@ -152,7 +152,7 @@ export const AdminDashboardPage = () => {
               <ul className="space-y-2 text-sm text-amber-800">
                 {stuck > 0 && (
                   <li className="flex gap-2">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>
                       {stuck === 1 ? "1 mídia parece parada" : `${stuck} mídias parecem paradas`} na fila.{" "}
                       <Link to="/admin/queue" className="underline">
@@ -163,7 +163,7 @@ export const AdminDashboardPage = () => {
                 )}
                 {h?.issues?.map((issue) => (
                   <li key={issue} className="flex gap-2">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>{issue}</span>
                   </li>
                 ))}

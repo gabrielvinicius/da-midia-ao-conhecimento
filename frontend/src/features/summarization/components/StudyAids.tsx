@@ -19,7 +19,7 @@ export const TimeLink = ({ seconds, onSeek }: { seconds: number; onSeek?: (time:
     <button
       type="button"
       onClick={() => onSeek(seconds)}
-      className="rounded font-mono text-xs tabular-nums text-amber-700 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+      className="rounded font-mono text-xs tabular-nums text-amber-700 underline-offset-2 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-400"
       aria-label={`Ir para ${formatClock(seconds)}`}
     >
       {formatClock(seconds)}

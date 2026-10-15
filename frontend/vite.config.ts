@@ -1,50 +1,39 @@
-/// <reference types="vitest" />
+/// <reference types="vitest/config" />
 import path from "path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
-  plugins: [react(), tsconfigPaths()],
+  plugins: [react()],
   test: {
     globals: true,
     environment: "jsdom",
+    // Endereço que nunca resolve (.test é reservado). O padrão do jsdom é
+    // http://localhost:3000, que na máquina de produção é o próprio sistema:
+    // uma requisição que o teste esquecesse de simular ia para a produção.
+    environmentOptions: { jsdom: { url: "http://app.test/" } },
     setupFiles: "./src/setupTests.ts",
     // tests/e2e é do Playwright (precisa do sistema rodando): npm run test:e2e
     exclude: ["**/node_modules/**", "**/dist/**", "tests/e2e/**"],
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
   build: {
-    rollupOptions: {
+    // Só as bibliotecas que mudam pouco ficam em pedaços fixos (o navegador
+    // os guarda entre versões); as telas ficam com a divisão automática pelos
+    // imports dinâmicos. Medido com a API simulada, cada tela carrega de 15% a
+    // 24% menos JavaScript que com os grupos por funcionalidade de antes
+    // (login: 704 → 584 kB); a divisão só automática é ~40 kB menor, mas em
+    // até 38 arquivos e sem um pedaço estável das bibliotecas.
+    rolldownOptions: {
       output: {
-        manualChunks: {
-          vendor: ["react", "react-dom", "react-router-dom"],
-          ui: ["@tanstack/react-query", "@tanstack/react-table", "lucide-react"],
-          auth: [
-            "./src/features/authentication/components/LoginForm.tsx",
-            "./src/features/authentication/components/RegisterForm.tsx",
-            "./src/features/authentication/hooks/useAuthMutations.ts",
-          ],
-          admin: [
-            "./src/features/admin/pages/AdminDashboardPage.tsx",
-            "./src/features/admin/pages/AdminUsersPage.tsx",
-            "./src/features/admin/pages/AdminAllMediaPage.tsx",
-            "./src/features/admin/pages/AdminQueuePage.tsx",
-            "./src/features/admin/pages/AdminServerPage.tsx",
-            "./src/features/admin/pages/AdminQualityPage.tsx",
-          ],
-          media: [
-            "./src/features/media/components/MediaRow.tsx",
-            "./src/features/media/components/MediaPlayer.tsx",
-            "./src/features/media/components/UploadForm.tsx",
-          ],
-          analysis: [
-            "./src/features/sentiment_analysis/components/SentimentResultPanel.tsx",
-            "./src/features/topic_modeling/components/TopicModelingResultPanel.tsx",
+        codeSplitting: {
+          groups: [
+            { name: "vendor", test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/ },
+            { name: "ui", test: /node_modules[\\/](@tanstack[\\/]react-(query|table)|lucide-react)[\\/]/ },
           ],
         },
       },

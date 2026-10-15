@@ -112,7 +112,7 @@ const NotificationsPage = () => {
               const error = typeof n.variables?.erro === "string" ? n.variables.erro : null;
               return (
                 <li key={n.id} className="flex gap-3 py-4" onClick={() => readOne(n)}>
-                  <span className="mt-0.5 flex-shrink-0">{ICONS[kind]}</span>
+                  <span className="mt-0.5 shrink-0">{ICONS[kind]}</span>
                   <div className="min-w-0 flex-1">
                     <p className={cn("text-sm", n.read ? "text-muted-foreground" : "font-medium text-slate-900")}>{n.content}</p>
                     {kind === "failure" && error && (
@@ -132,7 +132,7 @@ const NotificationsPage = () => {
                       )}
                     </p>
                   </div>
-                  {!n.read && <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-sky-500" aria-label="Não lido" />}
+                  {!n.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-sky-500" aria-label="Não lido" />}
                 </li>
               );
             })}

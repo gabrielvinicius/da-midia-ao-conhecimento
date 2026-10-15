@@ -43,7 +43,7 @@ const AdminLayout = () => {
 
   return (
     <div className={`${layoutClass} bg-white text-slate-900`}>
-      <div className={`hidden border-r border-[#f2eadf] bg-white/80 backdrop-blur md:block ${isSidebarCollapsed ? 'w-[72px]' : ''}`}>
+      <div className={`hidden border-r border-[#f2eadf] bg-white/80 backdrop-blur-sm md:block ${isSidebarCollapsed ? 'w-[72px]' : ''}`}>
         <div className="flex h-full max-h-screen flex-col gap-2">
           <div className={`flex h-14 items-center border-b ${isSidebarCollapsed ? 'justify-center px-0' : 'px-4 lg:px-6'} lg:h-[60px]`}>
             <button
@@ -77,7 +77,7 @@ const AdminLayout = () => {
       </div>
       <div className="flex min-w-0 flex-col">
         <SystemHealthBanner />
-        <header className="flex h-14 items-center gap-4 border-b border-[#f2eadf] bg-white/70 px-4 backdrop-blur lg:h-[60px] lg:px-6">
+        <header className="flex h-14 items-center gap-4 border-b border-[#f2eadf] bg-white/70 px-4 backdrop-blur-sm lg:h-[60px] lg:px-6">
           <div className="w-full flex-1">
             <Link to="/admin/dashboard" className="text-sm font-semibold md:hidden">
               Administração

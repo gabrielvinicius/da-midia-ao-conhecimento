@@ -62,13 +62,13 @@ export const MediaRow = ({ media }: { media: Media }) => {
   return (
     <li className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:gap-4" onMouseEnter={prefetch}>
       <div className="flex min-w-0 flex-1 items-start gap-3">
-        <span className={`mt-0.5 flex-shrink-0 rounded-full p-2 ${type.color}`} aria-hidden>
+        <span className={`mt-0.5 shrink-0 rounded-full p-2 ${type.color}`} aria-hidden>
           {type.icon}
         </span>
         <div className="min-w-0">
           <Link
             to={`/media/${media.id}`}
-            className="font-medium leading-snug text-slate-900 [overflow-wrap:anywhere] hover:underline"
+            className="font-medium leading-snug text-slate-900 wrap-anywhere hover:underline"
             title={filename}
           >
             {filename}

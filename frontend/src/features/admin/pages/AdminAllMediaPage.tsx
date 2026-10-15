@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ColumnDef, PaginationState } from "@tanstack/react-table";
+import type { PaginationState } from "@tanstack/react-table";
 import { MoreHorizontal, RefreshCw, Recycle, Trash2, CheckCircle, Loader2, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -10,7 +10,7 @@ import type { AdminMedia } from "../api";
 import { formatFileSize } from "@/features/media/uploadFile";
 import { useAllMedia, useSystemStats } from "../hooks/useAdminQueries";
 import { useDeleteMedia, useReprocessMedia, useBulkReprocessMedia } from "../hooks/useAdminMutations";
-import { DataTable } from "@/components/ui/DataTable";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { MediaStatusBadge } from "@/components/MediaStatusBadge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import ErrorState from "@/components/ui/ErrorState";
@@ -95,13 +95,13 @@ const TYPE_LABELS: Record<string, string> = { video: "Vídeo", audio: "Áudio", 
 
 // Antes, a tabela mostrava o id da mídia e o id do dono, e a coluna "Arquivo"
 // lia um campo que a API não devolve (ficava vazia).
-export const columns: ColumnDef<AdminMedia>[] = [
+export const columns: DataTableColumn<AdminMedia>[] = [
   {
     accessorKey: "filename",
     header: "Arquivo",
     cell: ({ row }) => (
       <div className="min-w-0 max-w-xs">
-        <Link to={`/media/${row.original.id}`} className="font-medium text-slate-900 [overflow-wrap:anywhere] hover:underline">
+        <Link to={`/media/${row.original.id}`} className="font-medium text-slate-900 wrap-anywhere hover:underline">
           {row.original.filename || row.original.id}
         </Link>
         <p className="text-xs text-muted-foreground">
@@ -115,7 +115,7 @@ export const columns: ColumnDef<AdminMedia>[] = [
   {
     accessorKey: "owner_email",
     header: "Dono",
-    cell: ({ row }) => <span className="[overflow-wrap:anywhere]">{row.original.owner_email ?? "—"}</span>,
+    cell: ({ row }) => <span className="wrap-anywhere">{row.original.owner_email ?? "—"}</span>,
   },
   {
     accessorKey: "status",

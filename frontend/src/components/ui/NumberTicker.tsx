@@ -26,13 +26,11 @@ export const NumberTicker = ({
   suffix = "",
 }: NumberTickerProps) => {
   const [displayValue, setDisplayValue] = useState(0);
-  const rafRef = useRef<number>();
+  const rafRef = useRef<number | null>(null);
+  const reduced = prefersReducedMotion();
 
   useEffect(() => {
-    if (prefersReducedMotion()) {
-      setDisplayValue(value);
-      return;
-    }
+    if (reduced) return;
     const start = performance.now();
 
     const animate = (timestamp: number) => {
@@ -49,9 +47,9 @@ export const NumberTicker = ({
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [value, duration]);
+  }, [value, duration, reduced]);
 
-  const formatted = `${prefix}${displayValue.toFixed(decimals)}${suffix}`;
+  const formatted = `${prefix}${(reduced ? value : displayValue).toFixed(decimals)}${suffix}`;
   return <span className="font-semibold tabular-nums">{formatted}</span>;
 };
 

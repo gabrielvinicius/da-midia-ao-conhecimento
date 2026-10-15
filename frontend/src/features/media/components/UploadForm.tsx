@@ -36,7 +36,7 @@ const KIND: Record<UploadKind, { label: string; icon: React.ReactNode; color: st
 export const UploadForm = () => {
   const queue = useUploadQueue();
   const [dragging, setDragging] = React.useState(false);
-  const [storageProvider, setStorageProvider] = React.useState<string | undefined>("local");
+  const [chosenStorage, setChosenStorage] = React.useState<string | undefined>("local");
   const [transcriptionProvider, setTranscriptionProvider] = React.useState<string | undefined>();
   const inputRef = React.useRef<HTMLInputElement>(null);
 
@@ -59,12 +59,12 @@ export const UploadForm = () => {
   const storageOptions = React.useMemo(() => stages?.storage ?? [], [stages]);
   const transcriptionOptions = stages?.transcription ?? [];
 
-  // O armazenamento escolhido precisa existir na lista do servidor.
-  React.useEffect(() => {
-    if (storageOptions.length && !storageOptions.some((p) => p.name === storageProvider)) {
-      setStorageProvider(storageOptions[0].name);
-    }
-  }, [storageOptions, storageProvider]);
+  // O armazenamento escolhido precisa existir na lista do servidor; se não
+  // existe, vale o primeiro da lista.
+  const storageProvider =
+    storageOptions.length && !storageOptions.some((p) => p.name === chosenStorage)
+      ? storageOptions[0].name
+      : chosenStorage;
 
   const waiting = queue.items.filter((i) => i.status === "waiting").length;
   const sent = queue.items.filter((i) => i.status === "sent");
@@ -107,7 +107,7 @@ export const UploadForm = () => {
           dragging ? "border-amber-500 bg-amber-50" : "border-slate-300 bg-slate-50/60 hover:border-slate-400 hover:bg-slate-50",
         )}
       >
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-amber-600 shadow-sm">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-amber-600 shadow-xs">
           <UploadCloud className="h-6 w-6" />
         </span>
         <span className="text-base font-medium text-slate-900">
@@ -155,7 +155,7 @@ export const UploadForm = () => {
                     addLink();
                   }
                 }}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-hidden focus:ring-2 focus:ring-primary/20"
               />
             </div>
             <Button type="button" variant="outline" onClick={addLink} disabled={!link.trim()}>
@@ -203,7 +203,7 @@ export const UploadForm = () => {
               id="storage-provider"
               options={storageOptions}
               value={storageProvider}
-              onChange={setStorageProvider}
+              onChange={setChosenStorage}
               disabled={queue.running || providers.isLoading}
               fallbackPlaceholder="Nome do armazenamento"
             />

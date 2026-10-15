@@ -1,12 +1,12 @@
 import * as React from "react";
-import { ColumnDef, PaginationState } from "@tanstack/react-table";
+import type { PaginationState } from "@tanstack/react-table";
 import { MoreHorizontal } from "lucide-react";
 
 import { User, UserRole } from "@/types";
 import { useAllUsers } from "../hooks/useAdminQueries";
 import { useDeleteUser, useSetUserActive } from "../hooks/useAdminMutations";
 import { useAuth } from "@/contexts/AuthContext";
-import { DataTable } from "@/components/ui/DataTable";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import ErrorState from "@/components/ui/ErrorState";
@@ -29,6 +29,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/AlertDialog";
 import {
   Dialog,
@@ -61,9 +62,14 @@ const UserActionsCell = ({ user }: { user: User }) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Ações</DropdownMenuLabel>
-              <DialogTrigger asChild>
-                <DropdownMenuItem>Alterar papel</DropdownMenuItem>
-              </DialogTrigger>
+              {/* O item do menu é o próprio gatilho do diálogo (como nas mídias):
+                  abrir pelo estado, no React 19, devolvia o foco ao botão do
+                  menu, atrás do diálogo. */}
+              <DropdownMenuItem asChild>
+                <DialogTrigger asChild>
+                  <button className="w-full">Alterar papel</button>
+                </DialogTrigger>
+              </DropdownMenuItem>
               {/* Ninguém desativa nem remove a própria conta por aqui. */}
               <DropdownMenuItem
                 disabled={isMe || isSwitching}
@@ -72,8 +78,10 @@ const UserActionsCell = ({ user }: { user: User }) => {
                 {user.is_active ? "Desativar conta" : "Reativar conta"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600" onSelect={() => setIsDeleteOpen(true)} disabled={isMe || isDeleting}>
-                Excluir conta
+              <DropdownMenuItem className="text-red-600" disabled={isMe || isDeleting} asChild>
+                <AlertDialogTrigger asChild>
+                  <button className="w-full">Excluir conta</button>
+                </AlertDialogTrigger>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -109,11 +117,11 @@ const UserActionsCell = ({ user }: { user: User }) => {
 };
 
 // Antes: o id (UUID) ocupava a primeira coluna e o papel aparecia cru ("ADMIN").
-export const columns: ColumnDef<User>[] = [
+export const columns: DataTableColumn<User>[] = [
   {
     accessorKey: "email",
     header: "E-mail",
-    cell: ({ row }) => <span className="[overflow-wrap:anywhere]">{row.original.email}</span>,
+    cell: ({ row }) => <span className="wrap-anywhere">{row.original.email}</span>,
   },
   {
     accessorKey: "role",

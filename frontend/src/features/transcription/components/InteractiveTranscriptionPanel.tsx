@@ -108,7 +108,7 @@ export const InteractiveTranscriptionPanel = ({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[12rem] flex-1">
+        <div className="relative min-w-48 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             type="search"
@@ -116,7 +116,7 @@ export const InteractiveTranscriptionPanel = ({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar na transcrição"
             aria-label="Buscar na transcrição"
-            className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+            className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-hidden focus:ring-2 focus:ring-primary/20"
           />
         </div>
         {onSeek && (
@@ -165,7 +165,7 @@ export const InteractiveTranscriptionPanel = ({
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       rows={Math.min(6, Math.max(2, Math.ceil(draft.length / 80)))}
-                      className="w-full rounded-lg border border-slate-300 p-2 text-[15px] leading-7 outline-none focus:ring-2 focus:ring-primary/20"
+                      className="w-full rounded-lg border border-slate-300 p-2 text-[15px] leading-7 outline-hidden focus:ring-2 focus:ring-primary/20"
                       autoFocus
                     />
                     {segment.original_text && (

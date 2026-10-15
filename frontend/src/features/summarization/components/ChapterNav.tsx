@@ -60,7 +60,7 @@ export const ChapterNav = ({
                   aria-current={isActive ? "true" : undefined}
                   className={cn(
                     "flex w-full items-baseline gap-2 rounded-lg px-2 py-1.5 text-left transition-colors",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400",
+                    "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-400",
                     isActive ? "bg-amber-50" : "hover:bg-slate-50",
                   )}
                 >

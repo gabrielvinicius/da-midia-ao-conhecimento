@@ -5,7 +5,7 @@ interface MediaPlayerProps {
   src: string;
   mediaType: MediaType.AUDIO | MediaType.VIDEO;
   onTimeUpdate: (time: number) => void;
-  playerRef: React.RefObject<HTMLMediaElement>;
+  playerRef: React.RefObject<HTMLMediaElement | null>;
   /** Segundo em que a reprodução deve começar (ex.: trecho achado na busca). */
   startAt?: number;
 }

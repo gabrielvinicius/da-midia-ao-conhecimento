@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Clock, FileText, History, Loader2, Music, PlayCircle, Search, SearchX, Video, X } from "lucide-react";
@@ -83,7 +83,12 @@ const SearchPage = () => {
   const [input, setInput] = useState(query);
   const [recent, setRecent] = useState<string[]>(readRecent);
 
-  useEffect(() => setInput(query), [query]);
+  // O campo acompanha a busca do endereço quando ela muda (voltar, links).
+  const [shownQuery, setShownQuery] = useState(query);
+  if (query !== shownQuery) {
+    setShownQuery(query);
+    setInput(query);
+  }
 
   const { data, isFetching, isError } = useQuery({
     queryKey: ["semantic-search", query],
@@ -136,7 +141,7 @@ const SearchPage = () => {
             placeholder="Ex.: em qual aula expliquei a regra da cadeia?"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="h-12 w-full rounded-xl border border-slate-300 bg-white pl-12 pr-4 text-base shadow-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+            className="h-12 w-full rounded-xl border border-slate-300 bg-white pl-12 pr-4 text-base shadow-xs outline-hidden focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
           />
         </div>
         <Button type="submit" size="lg" className="h-12" disabled={input.trim().length < MIN_QUERY_LENGTH || isFetching}>

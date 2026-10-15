@@ -150,7 +150,7 @@ export const SummaryPanel = ({
             aria-label="Texto do resumo"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            className="min-h-[60vh] w-full resize-y rounded-xl border border-slate-200 bg-white p-4 font-mono text-[13px] leading-6 outline-none focus:ring-2 focus:ring-primary/20"
+            className="min-h-[60vh] w-full resize-y rounded-xl border border-slate-200 bg-white p-4 font-mono text-[13px] leading-6 outline-hidden focus:ring-2 focus:ring-primary/20"
           />
           <div className="max-h-[60vh] overflow-y-auto rounded-xl border border-dashed border-slate-200 p-4" aria-label="Pré-visualização">
             <Markdown text={draft} />

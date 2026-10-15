@@ -43,14 +43,14 @@ export const Tabs = ({
       <div
         role="tablist"
         aria-label={label}
-        className="flex gap-1 overflow-x-auto border-b border-slate-200 [scrollbar-width:none]"
+        className="flex gap-1 overflow-x-auto border-b border-slate-200 scrollbar-none"
       >
         {tabs.map((tab, index) => {
           const selected = tab.id === active;
           return (
             <button
               key={tab.id}
-              ref={(el) => (refs.current[tab.id] = el)}
+              ref={(el) => { refs.current[tab.id] = el; }}
               role="tab"
               type="button"
               id={`tab-${tab.id}`}
@@ -61,7 +61,7 @@ export const Tabs = ({
               onKeyDown={(e) => onKeyDown(e, index)}
               className={cn(
                 "-mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-t-md",
+                "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/40 rounded-t-md",
                 selected
                   ? "border-amber-500 text-slate-950"
                   : "border-transparent text-slate-500 hover:text-slate-800",

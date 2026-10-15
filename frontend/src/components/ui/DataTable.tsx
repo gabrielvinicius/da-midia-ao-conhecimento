@@ -1,10 +1,11 @@
 import * as React from "react"
 import {
   ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
   PaginationState,
+  RowData,
+  rowPaginationFeature,
+  tableFeatures,
+  useTable,
 } from "@tanstack/react-table"
 
 import {
@@ -18,8 +19,15 @@ import {
 import { Button } from "./Button"
 import { Input } from "./Input"
 
-interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[]
+// Só a paginação: a v9 registra cada recurso da tabela explicitamente. As
+// páginas vêm prontas do servidor (manualPagination).
+const features = tableFeatures({ rowPaginationFeature })
+
+/** Coluna das tabelas do admin. */
+export type DataTableColumn<TData extends RowData> = ColumnDef<typeof features, TData>
+
+interface DataTableProps<TData extends RowData> {
+  columns: DataTableColumn<TData>[]
   data: TData[]
   pageCount: number
   pagination: PaginationState
@@ -27,30 +35,26 @@ interface DataTableProps<TData, TValue> {
   onSearchChange: (search: string) => void
 }
 
-export function DataTable<TData, TValue>({
+export function DataTable<TData extends RowData>({
   columns,
   data,
   pageCount,
   pagination,
   onPaginationChange,
   onSearchChange,
-}: DataTableProps<TData, TValue>) {
-  const table = useReactTable({
+}: DataTableProps<TData>) {
+  const table = useTable({
+    features,
     data,
     columns,
-    pageCount: pageCount,
+    pageCount,
     state: {
       pagination,
     },
     onPaginationChange: (updater) => {
-      if (typeof updater === 'function') {
-        onPaginationChange(updater(pagination));
-      } else {
-        onPaginationChange(updater);
-      }
+      onPaginationChange(typeof updater === "function" ? updater(pagination) : updater)
     },
-    getCoreRowModel: getCoreRowModel(),
-    manualPagination: true, // Crucial for server-side pagination
+    manualPagination: true, // as páginas vêm prontas do servidor
   })
 
   // Debounce search input to avoid excessive API calls
@@ -80,31 +84,21 @@ export function DataTable<TData, TValue>({
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  )
-                })}
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder ? null : <table.FlexRender header={header} />}
+                  </TableHead>
+                ))}
               </TableRow>
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
+                <TableRow key={row.id}>
+                  {row.getAllCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      <table.FlexRender cell={cell} />
                     </TableCell>
                   ))}
                 </TableRow>
@@ -112,7 +106,7 @@ export function DataTable<TData, TValue>({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No results.
+                  Nenhum resultado.
                 </TableCell>
               </TableRow>
             )}
@@ -120,9 +114,9 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
       {/* Pagination Controls */}
-      <div className="flex items-center justify-between space-x-2 py-4">
+      <div className="flex items-center justify-between gap-2 py-4">
         <div className="text-sm text-muted-foreground">
-          Página {table.getState().pagination.pageIndex + 1} de{" "}
+          Página {table.state.pagination.pageIndex + 1} de{" "}
           {table.getPageCount()}
         </div>
         <div className="space-x-2">
