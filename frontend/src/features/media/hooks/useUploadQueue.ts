@@ -46,12 +46,14 @@ export const useUploadQueue = () => {
   const [running, setRunning] = useState(false);
   const itemsRef = useRef<UploadItem[]>([]);
 
+  // A ref é a fonte da lista: o laço de envio a lê logo depois de cada
+  // mudança. Antes, ela era gravada dentro da função passada ao setItems, que
+  // o React 19 pode rodar só na renderização seguinte; o laço achava o mesmo
+  // item ainda "waiting" e o enviava de novo, sem parar.
   const update = useCallback((next: (current: UploadItem[]) => UploadItem[]) => {
-    setItems((current) => {
-      const value = next(current);
-      itemsRef.current = value;
-      return value;
-    });
+    const value = next(itemsRef.current);
+    itemsRef.current = value;
+    setItems(value);
   }, []);
 
   const patch = useCallback(

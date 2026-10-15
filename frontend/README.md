@@ -6,11 +6,12 @@ Projeto frontend moderno para a aplicação de sumarização de vídeos.
 
 ## 🔧 Tecnologias Utilizadas
 
-- React 18
-- TypeScript
-- Tailwind CSS
-- Vite
-- React Router DOM v6
+- React 19
+- TypeScript 6
+- Tailwind CSS 4
+- Vite 8 (Rolldown) e Vitest 5
+- React Router 7
+- TanStack Query 5 e TanStack Table 9
 - Axios
 - React Toastify
 

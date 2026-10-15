@@ -29,6 +29,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/AlertDialog";
 import {
   Dialog,
@@ -61,9 +62,14 @@ const UserActionsCell = ({ user }: { user: User }) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Ações</DropdownMenuLabel>
-              <DialogTrigger asChild>
-                <DropdownMenuItem>Alterar papel</DropdownMenuItem>
-              </DialogTrigger>
+              {/* O item do menu é o próprio gatilho do diálogo (como nas mídias):
+                  abrir pelo estado, no React 19, devolvia o foco ao botão do
+                  menu, atrás do diálogo. */}
+              <DropdownMenuItem asChild>
+                <DialogTrigger asChild>
+                  <button className="w-full">Alterar papel</button>
+                </DialogTrigger>
+              </DropdownMenuItem>
               {/* Ninguém desativa nem remove a própria conta por aqui. */}
               <DropdownMenuItem
                 disabled={isMe || isSwitching}
@@ -72,8 +78,10 @@ const UserActionsCell = ({ user }: { user: User }) => {
                 {user.is_active ? "Desativar conta" : "Reativar conta"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600" onSelect={() => setIsDeleteOpen(true)} disabled={isMe || isDeleting}>
-                Excluir conta
+              <DropdownMenuItem className="text-red-600" disabled={isMe || isDeleting} asChild>
+                <AlertDialogTrigger asChild>
+                  <button className="w-full">Excluir conta</button>
+                </AlertDialogTrigger>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
