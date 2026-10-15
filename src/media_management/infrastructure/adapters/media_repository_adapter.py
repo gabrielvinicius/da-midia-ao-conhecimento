@@ -19,6 +19,9 @@ class MediaRepositoryAdapter(MediaRepositoryPort):
     async def save(self, media: Media):
         return await self._repo.save(media)
 
+    async def lock_for_deletion(self, media_id: UUID) -> None:
+        await self._repo.lock_for_deletion(media_id)
+
     async def delete(self, media_id: UUID):
         return await self._repo.delete(media_id)
 

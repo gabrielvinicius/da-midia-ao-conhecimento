@@ -30,6 +30,9 @@ class FakeMediaRepo(MediaRepositoryPort):
     async def get_by_id(self, media_id):
         return self.saved.get(media_id)
 
+    async def lock_for_deletion(self, media_id) -> None:
+        pass
+
     async def delete(self, media_id):
         self.saved.pop(media_id, None)
 

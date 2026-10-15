@@ -63,6 +63,20 @@ class MediaRepository:
     async def update(self, media: Media) -> Media:
         return await self.save(media)
 
+    async def lock_for_deletion(self, media_id: UUID) -> None:
+        """Trava a linha da mídia até o fim da transação (SELECT ... FOR UPDATE).
+
+        Gravar uma linha que aponta para a mídia (uma transcrição, por
+        exemplo) trava a mesma linha para conferir a chave estrangeira, então
+        a gravação e a exclusão passam a ocorrer uma de cada vez: ou a linha
+        nova entra antes e é apagada junto, ou espera e falha porque a mídia
+        já não existe. Sem a trava, uma transcrição gravada entre a limpeza e
+        a exclusão fazia a exclusão falhar com violação de chave estrangeira.
+        """
+        await self.db.execute(
+            select(MediaEntity.id).where(MediaEntity.id == media_id).with_for_update()
+        )
+
     async def delete(self, media_id: UUID) -> None:
         result = await self.db.execute(
             select(MediaEntity).where(MediaEntity.id == media_id)

@@ -34,6 +34,7 @@ def service_components() -> Dict[str, object]:
     media_repository.db = None
     media_repository.get_by_id = AsyncMock()
     media_repository.delete = AsyncMock()
+    media_repository.lock_for_deletion = AsyncMock()
     media_repository.save = AsyncMock()
     media_repository.update = AsyncMock()
     media_repository.count_all = AsyncMock(return_value=7)
@@ -141,6 +142,8 @@ async def test_delete_media_checks_access_and_dispatches(service_components):
     )
 
     access_policy.ensure_can_access.assert_called_once()
+    # A linha da mídia é travada antes da limpeza (transcrição gravada no meio).
+    media_repository.lock_for_deletion.assert_awaited_once_with(media.id)
     media_repository.delete.assert_awaited_once()
     service_components["storage_maintenance"].delete_file.assert_awaited_once_with(
         "local", "media/demo.mp4"

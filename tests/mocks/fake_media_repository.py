@@ -22,6 +22,9 @@ class FakeMediaRepository(MediaRepositoryPort):
         self._items[media.id] = media
         return media
 
+    async def lock_for_deletion(self, media_id) -> None:
+        pass
+
     async def delete(self, media_id: UUID) -> None:
         self._items.pop(media_id, None)
 
