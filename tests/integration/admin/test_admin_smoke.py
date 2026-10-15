@@ -42,6 +42,9 @@ class InMemoryMediaRepo:
         self.media[media.id] = media
         return media
 
+    async def lock_for_deletion(self, media_id) -> None:
+        pass
+
     async def delete(self, media_id):
         return bool(self.media.pop(media_id, None))
 

@@ -56,6 +56,9 @@ class DeleteMedia:
             # saem juntos. O arquivo é apagado antes da confirmação; se falhar,
             # nada é apagado do banco e a exclusão pode ser repetida.
             async with self._cleanup.transaction():
+                # Primeiro a trava: uma transcrição gravada pelo worker entre a
+                # limpeza e a exclusão quebrava a exclusão (chave estrangeira).
+                await self._media.lock_for_deletion(media.id)
                 await self._cleanup.erase_derived_data(media.id)
                 await self._cleanup.delete_stored_files(media)
                 await self._media.delete(media.id)
