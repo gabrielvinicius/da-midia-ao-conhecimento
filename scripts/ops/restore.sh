@@ -25,8 +25,11 @@ docker compose exec -T postgres pg_restore -U "${DB_USER:-postgres}" -d "${DB_NA
   --clean --if-exists --no-owner --exit-on-error < "$DUMP"
 
 echo "[restore] mídias ($MEDIA_SOURCE)"
+# O --include é exigido pelo restic com --target / e --delete: sem ele, a
+# restauração das mídias falhava ("must be combined with an include or exclude
+# filter") e só o banco voltava.
 restic -v "$MEDIA_SOURCE:/dados/midias" "$RESTIC_IMAGE" restore "$SNAPSHOT" --tag midias \
-  --target / --overwrite always --delete
+  --target / --include /dados/midias --overwrite always --delete
 
 if [ -n "$S3_SOURCE" ] && restic "$RESTIC_IMAGE" snapshots --tag s3 --json | grep -q '"id"'; then
   echo "[restore] S3 local, Garage ($S3_SOURCE)"
@@ -35,10 +38,16 @@ if [ -n "$S3_SOURCE" ] && restic "$RESTIC_IMAGE" snapshots --tag s3 --json | gre
   # que mudou depois dela.
   docker compose stop garage >/dev/null 2>&1 || true
   restic -v "$S3_SOURCE:/dados/s3" "$RESTIC_IMAGE" restore "$SNAPSHOT" --tag s3 \
-    --target / --overwrite always --delete
-  docker run --rm --entrypoint sh -v "$S3_SOURCE:/dados/s3" "$RESTIC_IMAGE" -c '
-    cd /dados/s3/meta && ultima="$(ls -1 snapshots 2>/dev/null | sort | tail -n 1)"
-    if [ -n "$ultima" ]; then rm -f db.sqlite*; cp "snapshots/$ultima" db.sqlite; fi'
+    --target / --include /dados/s3 --overwrite always --delete
+  # Na v2.4, cada cópia é uma pasta (snapshots/<data>/db.sqlite).
+  docker run --rm --entrypoint sh -v "$S3_SOURCE:/dados/s3" "$RESTIC_IMAGE" -ec '
+    cd /dados/s3/meta
+    ultima="$(ls -1 snapshots | sort | tail -n 1)"
+    [ -n "$ultima" ] || { echo "a cópia não tem o banco de metadados do Garage" >&2; exit 1; }
+    origem="snapshots/$ultima"; [ -d "$origem" ] && origem="$origem/db.sqlite"
+    rm -f db.sqlite db.sqlite-wal db.sqlite-shm
+    cp "$origem" db.sqlite
+    echo "[restore] banco de metadados do Garage: $ultima"'
   if docker compose start garage >/dev/null 2>&1; then
     i=0
     until garage_running && docker compose exec -T garage /garage status >/dev/null 2>&1; do
