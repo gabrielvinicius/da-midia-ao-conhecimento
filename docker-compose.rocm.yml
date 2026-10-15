@@ -6,7 +6,7 @@
 # precisa ser compatível (não testado; a máquina de referência é NVIDIA).
 services:
   ollama:
-    image: ollama/ollama:0.35.1-rocm
+    image: ollama/ollama:0.40.3-rocm
     deploy: !reset {}
     devices:
       - "/dev/kfd:/dev/kfd"

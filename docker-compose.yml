@@ -189,7 +189,7 @@ services:
   ollama:
     # LLM local (Qwen3.5-9B por padrão). Os modelos são baixados pelo
     # serviço ollama-models na primeira inicialização.
-    image: ollama/ollama:0.35.1
+    image: ollama/ollama:0.40.3
     volumes:
       - ollama_models:/root/.ollama
     environment:
@@ -220,7 +220,7 @@ services:
   ollama-models:
     # Roda uma vez a cada "up": baixa o modelo principal e o reserva, se ainda
     # não estiverem no volume ollama_models (downloads seguintes são rápidos).
-    image: ollama/ollama:0.35.1
+    image: ollama/ollama:0.40.3
     depends_on:
       ollama: { condition: service_healthy }
     environment:
