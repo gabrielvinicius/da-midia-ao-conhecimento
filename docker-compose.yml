@@ -117,7 +117,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:8.8
+    image: redis:8.10
     # Gravado em disco: a fila, os bloqueios de login e os tokens revogados no
     # logout sobrevivem a uma recriação (antes, um token revogado voltava a valer).
     command: ["redis-server", "--appendonly", "yes"]
