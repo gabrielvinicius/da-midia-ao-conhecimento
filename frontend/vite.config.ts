@@ -9,6 +9,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
+    // Endereço que nunca resolve (.test é reservado). O padrão do jsdom é
+    // http://localhost:3000, que na máquina de produção é o próprio sistema:
+    // uma requisição que o teste esquecesse de simular ia para a produção.
+    environmentOptions: { jsdom: { url: "http://app.test/" } },
     setupFiles: "./src/setupTests.ts",
     // tests/e2e é do Playwright (precisa do sistema rodando): npm run test:e2e
     exclude: ["**/node_modules/**", "**/dist/**", "tests/e2e/**"],
