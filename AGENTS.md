@@ -78,7 +78,7 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 ## Coding Style & Naming Conventions
 - **Python**: 4-space indent, Ruff formatting, strict type hints.
 - **Layering**: Stick to `Domain` -> `Application` -> `Infrastructure`.
-- **TypeScript**: React 18 with TanStack Query. Use PascalCase for components.
+- **TypeScript**: React 19 with TanStack Query, Tailwind 4 (theme in `src/index.css`, no `tailwind.config.js`), Vite 8. Use PascalCase for components. Lint includes the React Compiler rules (`eslint-plugin-react-hooks` 7): derive values during render or adjust state while rendering instead of `setState` in an effect, and keep `setState` updater functions pure (React 19 may run them later). A dialog opened from a menu item uses the item as its trigger (`DropdownMenuItem asChild` > `DialogTrigger asChild`), so focus moves into the dialog.
 
 ## Testing Guidelines
 - Unit tests MUST use mocks for all external dependencies (Repositories, EventBus).
