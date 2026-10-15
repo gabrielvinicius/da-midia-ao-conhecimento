@@ -6,11 +6,18 @@ name: Deploy
 # confere a saúde e, se falhar, volta à versão anterior. "Run workflow" na
 # aba Actions reimplanta a main à mão.
 on:
-  workflow_run:
+  # workflow_run aceito (zizmor): só reage à CI de pushes na main
+  # (condição do job), roda o commit que a CI aprovou e não lê nada vindo de
+  # pull requests (artefatos, títulos, ramos).
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [CI]
     types: [completed]
     branches: [main]
   workflow_dispatch:
+
+# O job não usa a API do GitHub: o token só lê o repositório.
+permissions:
+  contents: read
 
 # Uma implantação por vez; a seguinte espera a atual terminar.
 concurrency:
@@ -19,8 +26,12 @@ concurrency:
 
 jobs:
   deploy:
+    # A execução manual também só vale para a main: no plano gratuito, a regra
+    # de ramo do ambiente "producao" não é aplicada a repositórios privados, e
+    # um "Run workflow" num ramo qualquer implantaria código que não passou
+    # pela CI da main.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: [self-hosted, producao]
     timeout-minutes: 60
@@ -34,12 +45,13 @@ jobs:
       TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - name: Código na versão que passou na CI
+        id: code
         shell: pwsh
         run: |
           if (-not $env:DEPLOY_DIR) { Write-Host "::error::Defina a variável DEPLOY_DIR do repositório (pasta de produção)."; exit 1 }
           Set-Location $env:DEPLOY_DIR
           $previous = (git rev-parse HEAD).Trim()
-          "PREVIOUS_SHA=$previous" >> $env:GITHUB_ENV
+          "previous=$previous" >> $env:GITHUB_OUTPUT
           git fetch --prune origin
           if ($LASTEXITCODE -ne 0) { exit 1 }
           git checkout --force --detach $env:TARGET_SHA
@@ -49,4 +61,6 @@ jobs:
       - name: Reconstruir, subir e conferir a saúde
         shell: pwsh
         working-directory: ${{ env.DEPLOY_DIR }}
+        env:
+          PREVIOUS_SHA: ${{ steps.code.outputs.previous }}
         run: ./scripts/ops/deploy.ps1 -PreviousSha $env:PREVIOUS_SHA

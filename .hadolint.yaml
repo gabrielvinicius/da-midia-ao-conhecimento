@@ -1,0 +1,11 @@
+# Regras do hadolint (CI, job deployment). Avisos reprovam; "info" não.
+failure-threshold: warning
+ignored:
+  # Versões exatas de pacotes do apt: a imagem base (python:3.12-slim,
+  # Debian estável) só recebe correções de segurança, e fixar a versão faria o
+  # build quebrar a cada correção publicada. A base é atualizada pelo
+  # Dependabot, e a imagem é varrida pelo Trivy (workflow images.yml).
+  - DL3008
+  # "pip install --upgrade pip" no builder: só a ferramenta de instalação, que
+  # não vai para a imagem final; as dependências vêm dos requirements fixados.
+  - DL3013

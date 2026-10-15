@@ -67,10 +67,12 @@ Backend code lives in `src/`, grouped by bounded contexts such as `media_managem
 - Failed model initialization must remain retryable. Synchronize concurrent embedding model loading.
 
 ## Build, Test, and Development Commands
-- **Backend**: `poetry run uvicorn main:app --reload` or `docker-compose up`.
-- **Migrations**: `docker-compose exec backend alembic upgrade head`.
-- **Tests**: `poetry run pytest` (Unit, Integration, E2E). 90+ tests must pass.
-- **Linting**: `poetry run ruff check --fix` and `poetry run mypy .`.
+- **Environment**: `pip install -r requirements.txt -r requirements-dev.txt` (torch and torchvision from the variant's PyTorch index, as in `ci.yml`). There is no Poetry.
+- **Backend**: `uvicorn main:app --reload`, or the whole stack with `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`.
+- **Migrations**: `alembic upgrade head` (in Compose, the backend applies them at start).
+- **Tests**: `pytest tests/unit tests/smoke tests/integration` (`TEST_POSTGRES_URL` for the PostgreSQL ones) and `E2E=1 pytest tests/e2e` against PostgreSQL and Redis.
+- **Linting**: `ruff check src tests main.py` (CI selects runtime errors, dead code and McCabe ≤ 12).
+- **Infrastructure checks** (CI job `deployment`): `docker compose config` for every variant, hadolint (`.hadolint.yaml`), actionlint (`.github/actionlint.yaml`) and zizmor on the workflows. Actions are pinned to a commit SHA with the version in a comment; Dependabot (`.github/dependabot.yml`) updates them. Images are built and scanned by Trivy in `images.yml`.
 - **Architecture**: `lint-imports` checks the layer and module rules in `.importlinter` (also in CI). Composition code (`bootstrap.py`, `tasks.py`, `worker*.py`) lives at the module root, never in `application/`.
 
 ## Coding Style & Naming Conventions

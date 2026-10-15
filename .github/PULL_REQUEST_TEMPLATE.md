@@ -1,28 +1,19 @@
-# Stage6 Pull Request Template
+## O que muda e por quê
+
+<!-- O problema, a decisão e o efeito para quem usa ou opera a plataforma. -->
+
+## Validação
+
+<!-- O que foi rodado além da CI (testes locais, implantação de teste, medições). -->
+
+## Riscos e volta atrás
+
+<!-- Migrações de banco, variáveis novas no .env, mudança em volumes ou na
+implantação; como desfazer se der errado. -->
 
 ## Checklist
-- [ ] `python3 -m pytest -q`
-- [ ] `ruff check`
-- [ ] `mypy`
-- [ ] `docker-compose up --build backend` (quando aplicável)
-- [ ] Documentação atualizada (`AGENTS.md`, ADRs em `docs/adr`, README)
-- [ ] Plano de rollback descrito
-- [ ] Logs relevantes anexados (`uvicorn`, workers Celery, etc.)
-- [ ] Revisores de domínio confirmados
-- [ ] Issues relacionadas linkadas (Stage6-*)
 
-## Resumo
-Descreva brevemente o objetivo desta mudança e como ela se encaixa na fase Stage6 correspondente.
-
-## Validações
-- **Cenários principais testados:** (liste fluxos ou endpoints exercitados)
-- **Smoke tests / integrações:** (compose, celery inspect, etc.)
-
-## Observações
-- Riscos conhecidos:
-- Plano de monitoramento pós-deploy:
-
-## Checklist adicional (se aplicável)
-- [ ] Alterações em dados/migrações documentadas
-- [ ] Ajustes de configuração comunicado ao DevOps
-- [ ] Frontend impactado revisado com o time de UI
+- [ ] CI verde (backend, frontend, migrations, deployment; images, se tocou em Dockerfile ou dependências)
+- [ ] Variáveis novas documentadas no `.env.example`
+- [ ] `AGENTS.md`, README e ADRs (`docs/adr`) atualizados quando a regra ou a decisão mudou
+- [ ] Arquitetura preservada (injeção de dependência, camadas, `lint-imports`)

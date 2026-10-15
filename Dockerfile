@@ -55,10 +55,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # --- Stage Final ---
 FROM base AS runtime
 
-LABEL org.opencontainers.image.title="Da Mídia ao Conhecimento" \
-      org.opencontainers.image.description="API e workers: transcrição, resumo e busca semântica de aulas gravadas" \
-      org.opencontainers.image.version="2.0.0"
-
 # Criar usuário não-root
 RUN groupadd -r appuser && useradd -m -r -g appuser appuser
 
@@ -95,5 +91,14 @@ EXPOSE 8000
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/app/docker/backend-entrypoint.sh"]
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Por último: um valor novo a cada commit não invalida o cache das camadas
+# acima. Commit de origem (a implantação e a CI passam VCS_REF): diz de que versão
+# do código veio uma imagem em execução.
+ARG VCS_REF=unknown
+LABEL org.opencontainers.image.title="Da Mídia ao Conhecimento" \
+      org.opencontainers.image.description="API e workers: transcrição, resumo e busca semântica de aulas gravadas" \
+      org.opencontainers.image.source="https://github.com/gabrielvinicius/da-midia-ao-conhecimento" \
+      org.opencontainers.image.revision="${VCS_REF}"
 
 

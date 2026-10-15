@@ -1,0 +1,4 @@
+# Rótulos dos runners próprios (actionlint, job deployment da CI).
+self-hosted-runner:
+  labels:
+    - producao
