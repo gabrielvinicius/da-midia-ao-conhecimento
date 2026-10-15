@@ -9,7 +9,7 @@ class StorageSettings(BaseSettings):
     providers_allowed: List[str] = ["local", "s3"]
 
     # Serviço compatível com S3. Sem bucket, a opção "s3" não é oferecida.
-    # O endpoint fica vazio na AWS e aponta para o servidor no MinIO.
+    # O endpoint fica vazio na AWS; no perfil "s3" do Compose, é o Garage local.
     s3_endpoint_url: Optional[str] = None
     s3_bucket: Optional[str] = None
     s3_access_key: Optional[str] = None

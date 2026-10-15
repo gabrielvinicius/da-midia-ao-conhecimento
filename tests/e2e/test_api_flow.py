@@ -736,7 +736,7 @@ def test_admin_manages_own_media_and_owner_is_reported(client):
 
 def test_s3_storage_keeps_files_in_the_bucket(client):
     """A opção "s3" gravava no disco local. Roda quando há um bucket configurado
-    (STORAGE_S3_BUCKET), por exemplo com um MinIO ou o servidor do moto."""
+    (STORAGE_S3_BUCKET), por exemplo com o Garage do perfil "s3" ou o servidor do moto."""
     from src.storage.config.settings import storage_settings
 
     if not storage_settings.s3_configured:

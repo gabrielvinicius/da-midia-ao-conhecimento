@@ -4,7 +4,7 @@
 # Variantes: docker-compose.cpu.yml (sem GPU) e docker-compose.rocm.yml (GPU
 # AMD). Para desenvolver com o código do host: docker-compose.dev.yml.
 # Serviços opcionais entram por perfil, em COMPOSE_PROFILES no .env:
-# "internet" (Cloudflare Tunnel) e "s3" (MinIO).
+# "internet" (Cloudflare Tunnel) e "s3" (Garage, armazenamento S3 local).
 
 # Nome do projeto do Compose, declarado só aqui. Os volumes se chamam
 # <nome>_<volume> (video-summarizer_postgres_data...), e os scripts de
@@ -23,10 +23,10 @@ x-app-environment: &app-environment
   CELERY_BROKER_URL: redis://redis:6379/0
   DATABASE_URL: ${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-app}
   # O armazenamento S3 só é oferecido com um bucket definido no .env (e, para
-  # o MinIO deste arquivo, o perfil "s3"). Antes, o bucket tinha valor padrão:
+  # o Garage deste arquivo, o perfil "s3"). Antes, o bucket tinha valor padrão:
   # a opção S3 aparecia sempre, mesmo sem servidor S3 nenhum.
   STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-}
-  STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-http://minio:9000}
+  STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-http://garage:3900}
   STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-}
   STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-}
   OLLAMA_HOST: http://ollama:11434
@@ -134,26 +134,37 @@ services:
       timeout: 5s
       retries: 5
 
-  minio:
+  garage:
     # Opcional (perfil "s3"): armazenamento compatível com S3 na própria
-    # máquina. O MinIO deixou de publicar imagens da edição comunitária em
-    # outubro de 2025 (minio/minio não pode mais ser baixada, e "latest"
-    # quebrava uma instalação nova); esta é a imagem mantida pela Chainguard,
-    # fixada pelo digest. Defina STORAGE_S3_BUCKET e as chaves no .env.
-    image: cgr.dev/chainguard/minio@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8
+    # máquina, para usar a opção S3 do envio sem um serviço externo. Antes era
+    # o MinIO, cujo repositório foi arquivado em abril de 2026 (sem correções
+    # de segurança). O Garage é feito para auto-hospedagem pequena: um nó só
+    # (--single-node), que cria a chave e o bucket do .env ao subir
+    # (--default-bucket). Configuração em docker/garage.toml.
+    image: dxflrs/garage:v2.4.1@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020
     profiles: ["s3"]
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
     environment:
-      MINIO_ROOT_USER: ${STORAGE_S3_ACCESS_KEY:-}
-      MINIO_ROOT_PASSWORD: ${STORAGE_S3_SECRET_KEY:-}
-    command: server /data --console-address ":9001"
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:-}
+      GARAGE_DEFAULT_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-}
+      GARAGE_DEFAULT_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-}
+      GARAGE_DEFAULT_BUCKET: ${STORAGE_S3_BUCKET:-}
     volumes:
-      - minio_data:/data
+      - ./docker/garage.toml:/etc/garage.toml:ro
+      - garage_data:/var/lib/garage
     networks:
       - backend-net
     restart: unless-stopped
     logging: *logging
     security_opt: *no-new-privileges
+    # Roda como root (a imagem só tem o binário), mas sem nenhuma capacidade
+    # do Linux: só escreve no próprio volume.
     cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   jaeger:
     image: jaegertracing/jaeger:2.22.0
@@ -373,7 +384,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  minio_data:
+  garage_data:
   media_data:
   ai_models_cache:
   ollama_models:

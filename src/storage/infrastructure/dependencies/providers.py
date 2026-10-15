@@ -91,7 +91,7 @@ class StorageServiceFactory(StorageServiceResolverPort):
                 region=storage_settings.s3_region,
             )
             self._meta["s3"] = {
-                "label": "S3 / MinIO",
+                "label": "S3",
                 "description": f"Bucket {storage_settings.s3_bucket} em serviço compatível com S3",
                 "public": True,
                 "capabilities": {"upload": True, "download": True},

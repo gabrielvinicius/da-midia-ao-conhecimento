@@ -1,4 +1,4 @@
-"""Armazenamento em serviço compatível com S3 (AWS S3, MinIO).
+"""Armazenamento em serviço compatível com S3 (AWS S3, Garage, Cloudflare R2...).
 
 Cada arquivo é um objeto no bucket configurado, com o caminho como chave.
 O boto3 é síncrono; as chamadas rodam em outra thread para não travar o

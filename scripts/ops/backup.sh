@@ -34,6 +34,20 @@ restic "$RESTIC_IMAGE" backup --stdin --stdin-filename banco.dump --tag banco < 
 echo "[backup] mídias ($MEDIA_SOURCE)"
 restic -v "$MEDIA_SOURCE:/dados/midias:ro" "$RESTIC_IMAGE" backup /dados/midias --tag midias
 
+if [ -n "$S3_SOURCE" ]; then
+  echo "[backup] S3 local, Garage ($S3_SOURCE)"
+  # Os blocos de dados não mudam depois de gravados; o banco de metadados em
+  # uso pode estar no meio de uma escrita. Com o Garage no ar, vai a cópia
+  # que ele mesmo tira (meta/snapshots) e o banco em uso fica de fora.
+  EXCLUDE=""
+  if garage_running; then
+    docker compose exec -T garage /garage meta snapshot >/dev/null
+    EXCLUDE="--exclude=/dados/s3/meta/db.sqlite*"
+  fi
+  # shellcheck disable=SC2086 # EXCLUDE é vazio ou uma opção só.
+  restic -v "$S3_SOURCE:/dados/s3:ro" "$RESTIC_IMAGE" backup /dados/s3 --tag s3 $EXCLUDE
+fi
+
 echo "[backup] retenção e verificação"
 restic "$RESTIC_IMAGE" forget --prune --group-by tags \
   --keep-daily "$(env_value BACKUP_KEEP_DAILY | grep . || echo 14)" \

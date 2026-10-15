@@ -39,6 +39,7 @@ READ_ELSEWHERE = {
     "CLOUDFLARE_TUNNEL_TOKEN",  # docker-compose.yml, serviço cloudflared
     "MEDIA_STORAGE_PATH",  # docker-compose.yml, pasta das mídias no host
     "COMPOSE_PROFILES",  # lida pelo próprio docker compose (perfis opcionais)
+    "GARAGE_RPC_SECRET",  # docker-compose.yml, serviço garage (perfil s3)
     "BACKUP_REPOSITORY", "BACKUP_PASSWORD",  # scripts/ops/restic-env.sh
     "BACKUP_KEEP_DAILY", "BACKUP_KEEP_WEEKLY", "BACKUP_KEEP_MONTHLY",  # scripts/ops/backup.sh
 }
@@ -136,3 +137,16 @@ def test_every_image_has_a_fixed_version_and_no_container_name_is_fixed():
         image = service["image"]
         assert "@sha256:" in image or (":" in image and not image.endswith(":latest")), f"{name}: {image}"
         assert "container_name" not in service, f"{name}: container_name fixo"
+
+
+def test_garage_signs_with_the_same_region_as_the_s3_adapter():
+    """Com regiões diferentes, o Garage recusa toda assinatura do boto3."""
+    import tomllib
+
+    from src.storage.config.settings import StorageSettings
+
+    garage = tomllib.loads((ROOT / "docker" / "garage.toml").read_text(encoding="utf-8"))
+    assert garage["s3_api"]["s3_region"] == StorageSettings.model_fields["s3_region"].default
+    service = _compose_services()["garage"]
+    assert service["profiles"] == ["s3"]
+    assert "./docker/garage.toml:/etc/garage.toml:ro" in service["volumes"]
