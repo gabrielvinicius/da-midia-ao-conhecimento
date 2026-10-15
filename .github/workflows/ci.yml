@@ -171,8 +171,10 @@ jobs:
           # Os perfis opcionais também precisam montar.
           COMPOSE_PROFILES=internet,s3 docker compose config -q
 
-      - name: Shell scripts
-        run: for f in docker/*.sh scripts/ops/*.sh; do sh -n "$f"; done
+      # Erros de shell além da sintaxe (variáveis sem aspas, comandos que
+      # falham em silêncio), para o sh dos contêineres e do Git Bash.
+      - name: Shell scripts (shellcheck)
+        run: docker run --rm -v "$PWD:/repo:ro" -w /repo koalaman/shellcheck:v0.11.0 -x -s sh docker/*.sh scripts/ops/*.sh
 
       - name: PowerShell scripts
         shell: pwsh
