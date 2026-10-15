@@ -4,8 +4,11 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "../../lib/utils"
 
+// Bloco com a linha de 24px que o rótulo ocupava como elemento inline: no
+// Tailwind 4, o space-y-* põe a margem no próprio rótulo, e margem vertical
+// em elemento inline é ignorada (o campo colava no rótulo).
 const labelVariants = cva(
-  "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+  "block text-sm font-medium leading-6 peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
 )
 
 const Label = React.forwardRef<

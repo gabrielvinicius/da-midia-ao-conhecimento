@@ -53,7 +53,7 @@ const QueueRow = ({ item }: { item: QueueItem }) => {
     <li className={cn("flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:gap-4", item.stuck && "bg-amber-50/60 -mx-4 px-4 sm:-mx-6 sm:px-6")}>
       <div className="flex min-w-0 flex-1 items-start gap-3">
         <span
-          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 text-xs font-semibold text-slate-600"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 text-xs font-semibold text-slate-600"
           aria-label={`Posição ${item.position}`}
         >
           {item.position}
@@ -61,12 +61,12 @@ const QueueRow = ({ item }: { item: QueueItem }) => {
         <div className="min-w-0">
           <Link
             to={`/media/${item.media_id}`}
-            className="flex items-center gap-1.5 font-medium text-slate-900 [overflow-wrap:anywhere] hover:underline"
+            className="flex items-center gap-1.5 font-medium text-slate-900 wrap-anywhere hover:underline"
           >
-            <span className="flex-shrink-0 text-muted-foreground">{TYPE_ICONS[item.media_type]}</span>
+            <span className="shrink-0 text-muted-foreground">{TYPE_ICONS[item.media_type]}</span>
             {item.filename || item.media_id}
           </Link>
-          <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
+          <p className="text-xs text-muted-foreground wrap-anywhere">
             {item.owner_email ?? "dono desconhecido"} · enviada{" "}
             {formatDistanceToNow(new Date(item.created_at), { addSuffix: true, locale: ptBR })}
           </p>
@@ -142,7 +142,7 @@ export const AdminQueuePage = () => {
 
       {stuck > 0 && (
         <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
-          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
             {stuck === 1 ? "1 mídia está" : `${stuck} mídias estão`} na mesma etapa há mais tempo que o normal. Confira se os
             workers estão rodando (<code>docker compose logs worker-heavy</code>) e abra a mídia para ver o que aconteceu.

@@ -53,8 +53,8 @@ const QuestionCard = ({ card, mediaName }: { card: StudyCard; mediaName: string 
   return (
     <li className="flex flex-col rounded-xl border border-[#ede4d5] bg-white p-4">
       <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 text-xs text-muted-foreground [overflow-wrap:anywhere]">{mediaName}</p>
-        <span className={cn("flex-shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium", status.tone)}>
+        <p className="min-w-0 text-xs text-muted-foreground wrap-anywhere">{mediaName}</p>
+        <span className={cn("shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium", status.tone)}>
           {status.label}
         </span>
       </div>

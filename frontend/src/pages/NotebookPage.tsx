@@ -43,7 +43,7 @@ const NotebookItem = ({ entry, name }: { entry: NotebookEntry; name: string }) =
   return (
     <li className="rounded-xl border border-[#ede4d5] bg-white p-4 sm:p-6">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-        <Link to={entry.media_id ? `/media/${entry.media_id}` : "#"} className="font-semibold text-slate-900 [overflow-wrap:anywhere] hover:underline">
+        <Link to={entry.media_id ? `/media/${entry.media_id}` : "#"} className="font-semibold text-slate-900 wrap-anywhere hover:underline">
           {name}
         </Link>
         <p className="text-xs text-muted-foreground sm:whitespace-nowrap">
@@ -61,7 +61,7 @@ const NotebookItem = ({ entry, name }: { entry: NotebookEntry; name: string }) =
       )}
       <div className={open ? "mt-3" : "relative mt-3 max-h-48 overflow-hidden"}>
         <Markdown text={body} />
-        {!open && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white " />}
+        {!open && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-white " />}
       </div>
       <Button variant="ghost" size="sm" className="mt-2 -ml-2" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         {open ? <ChevronUp className="mr-2 h-4 w-4" /> : <ChevronDown className="mr-2 h-4 w-4" />}

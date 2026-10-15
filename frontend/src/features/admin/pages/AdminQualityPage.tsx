@@ -51,7 +51,7 @@ const Verdict = ({ score }: { score: number }) =>
 
 const MediaName = ({ id, name }: { id: string | null; name: string | null }) =>
   id && name ? (
-    <Link to={`/media/${id}`} className="font-medium text-slate-900 [overflow-wrap:anywhere] hover:underline">
+    <Link to={`/media/${id}`} className="font-medium text-slate-900 wrap-anywhere hover:underline">
       {name}
     </Link>
   ) : (

@@ -136,7 +136,7 @@ const SearchPage = () => {
             placeholder="Ex.: em qual aula expliquei a regra da cadeia?"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="h-12 w-full rounded-xl border border-slate-300 bg-white pl-12 pr-4 text-base shadow-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+            className="h-12 w-full rounded-xl border border-slate-300 bg-white pl-12 pr-4 text-base shadow-xs outline-hidden focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
           />
         </div>
         <Button type="submit" size="lg" className="h-12" disabled={input.trim().length < MIN_QUERY_LENGTH || isFetching}>
