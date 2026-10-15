@@ -62,7 +62,7 @@ jobs:
         run: docker run --rm --add-host backend:127.0.0.1 frontend:ci nginx -t
 
       - name: Vulnerabilities (report)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: ${{ env.TRIVY_VERSION }}
           image-ref: frontend:ci
@@ -70,7 +70,7 @@ jobs:
           ignore-unfixed: true
           exit-code: "0"
       - name: Vulnerabilities (critical with a fix fail)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: ${{ env.TRIVY_VERSION }}
           image-ref: frontend:ci
@@ -124,7 +124,7 @@ jobs:
           '
 
       - name: Vulnerabilities (report)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: ${{ env.TRIVY_VERSION }}
           image-ref: app:ci
@@ -133,7 +133,7 @@ jobs:
           ignore-unfixed: true
           exit-code: "0"
       - name: Vulnerabilities (critical with a fix fail)
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: ${{ env.TRIVY_VERSION }}
           image-ref: app:ci
