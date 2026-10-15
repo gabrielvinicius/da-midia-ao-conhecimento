@@ -109,3 +109,39 @@ Decisões de arquitetura do sistema e o motivo de cada uma. As regras do dia a d
     - O `Deploy` manual só roda a partir da main; a saída entre passos usa `GITHUB_OUTPUT`, e não `GITHUB_ENV`.
 *   **Consequências:** Uma tag comprometida deixa de alterar o que a CI executa, e as atualizações chegam como PRs revisáveis. Um erro de imagem aparece no PR, não na implantação. O custo é um PR do Dependabot por ecossistema por semana e cerca de 15 minutos de CI quando a imagem do backend é reconstruída.
 *   **Limites:** Sem proteção da main (indisponível no plano), um merge com a CI vermelha continua possível; a implantação, porém, só acontece com a CI verde. A imagem de GPU não é varrida antes de entrar em produção, só a de CPU, que tem as mesmas camadas de sistema. Não há assinatura das imagens nem SBOM publicado: as imagens não saem da máquina de produção (ADR-017).
+
+## [ADR-017] Execução: Compose de nó único endurecido, imagens versionadas pelo commit e migrações separadas
+*   **Status:** Aceito
+*   **Contexto:** A produção é uma máquina com GPU NVIDIA rodando Docker Desktop, e a revisão da infraestrutura encontrou:
+    - **Logs:** o driver padrão (`json-file`) não rotaciona, e os logs dos contêineres cresciam sem limite.
+    - **Imagens:** `app:latest` era remarcada como `previous` a cada implantação, sem saber de que commit vinha. Sem limpeza, a máquina acumulava 46 GB de imagens e 21 GB de cache de build.
+    - **Migrações:** o entrypoint da API as aplicava, e os workers dependiam da API só por isso.
+    - **Saúde dos workers:** eles não tinham verificação de saúde; um worker sem conexão aparecia como "Up".
+    - **Nomes fixos:** `container_name` e redes com nome fixo impediam uma segunda instância (de teste) na mesma máquina.
+    - **MinIO:** a imagem `minio:latest` deixou de ser publicada em outubro de 2025, e uma instalação nova falhava ao baixá-la. Além disso, o bucket padrão fazia a opção S3 aparecer sem servidor S3.
+    - **Túnel:** o `deploy.ps1` decidia por expressão regular se subia o túnel da Cloudflare.
+*   **Decisão:** Manter o Docker Compose num nó só (Kubernetes ou Swarm não se pagam com uma GPU e um operador, e a documentação do Docker trata o Compose num servidor como forma válida de produção) e aplicar o que o Docker e o CIS Docker Benchmark recomendam:
+    - **Logs:** driver `local` (5 arquivos de 20 MB por contêiner).
+    - **Privilégios:** `no-new-privileges` em todos os serviços; `cap_drop: [ALL]` nos nossos, que rodam sem root. Cada imagem foi testada com essas restrições.
+    - **Imagens versionadas pelo commit:** a implantação constrói `app:<commit>` e `frontend:<commit>`, marca `current` quando a versão fica saudável e, se não ficar, sobe a anterior sem reconstruir. Ficam três versões e uma semana de cache de build. A revisão do commit vai no rótulo OCI da imagem.
+    - **Migrações:** no serviço `migrate`, executado uma vez antes da API e dos workers (`service_completed_successfully`).
+    - **Saúde dos workers:** verificação pelo `celery inspect ping`, respondido pelo processo principal mesmo com uma transcrição em andamento.
+    - **Nomes derivados do projeto** para contêineres e redes.
+    - **Perfis opcionais** em `COMPOSE_PROFILES`: `internet` (túnel) e `s3` (MinIO da Chainguard, fixado pelo digest). Sem bucket, só o armazenamento local é oferecido.
+    - **Testes** garantem rotação de logs, `no-new-privileges`, versões fixas e ausência de `container_name`.
+*   **Consequências:** Uma instalação nova volta a subir. O disco deixa de encher com logs e imagens antigas, e a versão em execução é identificável pelo commit. Voltar atrás leva segundos e funciona sem internet. Os contêineres e as redes passam a ter nomes como `video-summarizer-backend-1`, então `docker compose exec backend` continua valendo, mas não `docker exec backend`.
+*   **Limites:**
+    - As imagens não vão para um registro: a do backend tem 13 GB, e a cota de pacotes de um repositório privado gratuito é de 500 MB. Por isso não há assinatura (cosign) nem SBOM publicado, e a imagem de GPU é construída na própria máquina.
+    - Uma migração que remove colunas impede a volta à versão anterior; migrações devem ser compatíveis com a versão anterior (expandir e depois contrair).
+    - Docker Desktop no Windows não é um servidor: depende da sessão do usuário (ADR-018). O caminho natural de evolução é um host Linux com Docker Engine e o mesmo Compose.
+
+## [ADR-018] Operação: cópias com restic, teste de restauração e runner vigiado
+*   **Status:** Aceito
+*   **Contexto:** As cópias de segurança eram manuais e completas: cada uma copiava todas as mídias (2,2 GB em outubro de 2026, crescendo a cada envio), sem retenção, sem verificação e sem teste de restauração. Ao serem rodados na pasta de produção, os scripts não achavam o projeto e gravavam um banco vazio sem acusar erro. O runner do GitHub parou em 10/10/2026, quando sua janela foi fechada, e ficou três dias parado com implantações na fila. A tarefa agendada só tinha o gatilho de logon e "reiniciar se falhar", que o Agendador do Windows não aplica quando o processo termina depois de iniciado.
+*   **Decisão:**
+    - **Cópias:** repositório restic (incremental, com deduplicação e criptografia) com o banco (`pg_dump -Fc`) e as mídias. Retenção de 14 diárias, 8 semanais e 12 mensais, e `restic check` ao final de cada execução.
+    - **Agendamento:** o workflow `Backup` roda todo dia no runner de produção. O histórico fica na aba Actions, e uma falha avisa por e-mail.
+    - **Teste de restauração:** aos domingos, o banco mais recente é restaurado num PostgreSQL temporário e conferido por consultas (tabelas, migração, usuários, mídias), e 5% dos dados do repositório são lidos de volta.
+    - **Runner:** continua na sessão do usuário, porque o Docker Desktop também precisa dela e, como serviço do Windows, o runner subiria sem Docker. A tarefa é recriada por `install-runner-task.ps1`, com o runner num laço e um gatilho a cada 5 minutos que o inicia se não estiver rodando.
+*   **Consequências:** A segunda cópia do mesmo dia levou 12 s e gravou 2,6 MB, contra 2,2 GB por cópia antes. A primeira restauração testada recuperou 10 tabelas, 3 usuários e 22 mídias. Uma cópia que não restaura passa a ser descoberta na semana, e não no dia em que for preciso usá-la.
+*   **Limites:** A regra 3-2-1 ainda não é cumprida, porque não há cópia fora da máquina. O mesmo script aceita um repositório remoto do restic (`s3:`, `b2:`, `rclone:`), e uma segunda cópia remota é o próximo passo. A chave do repositório precisa ser guardada fora da máquina. Também não há alertas: o Prometheus coleta métricas, mas nada avisa quando um worker cai ou a fila cresce (o próximo passo seria Alertmanager com regras para workers fora do ar, fila parada e disco cheio).

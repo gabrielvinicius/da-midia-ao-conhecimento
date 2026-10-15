@@ -5,3 +5,4 @@ aiosqlite~=0.22.1  # SQLite assíncrono dos testes (antes, uma imitação na rai
 moto[s3,server]~=5.2.3
 ruff~=0.16.9
 import-linter==2.15
+pyyaml~=6.0.3  # leitura dos arquivos do Compose nos testes de implantação

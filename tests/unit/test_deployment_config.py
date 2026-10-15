@@ -38,6 +38,9 @@ READ_ELSEWHERE = {
     "DEFAULT_ADMIN_EMAIL", "DEFAULT_ADMIN_PASSWORD", "DEFAULT_ADMIN_FORCE_PASSWORD",  # main.py
     "CLOUDFLARE_TUNNEL_TOKEN",  # docker-compose.yml, serviço cloudflared
     "MEDIA_STORAGE_PATH",  # docker-compose.yml, pasta das mídias no host
+    "COMPOSE_PROFILES",  # lida pelo próprio docker compose (perfis opcionais)
+    "BACKUP_REPOSITORY", "BACKUP_PASSWORD",  # scripts/ops/restic-env.sh
+    "BACKUP_KEEP_DAILY", "BACKUP_KEEP_WEEKLY", "BACKUP_KEEP_MONTHLY",  # scripts/ops/backup.sh
 }
 
 
@@ -53,9 +56,9 @@ def test_every_variable_in_env_example_is_read():
 def test_read_elsewhere_names_are_really_used():
     sources = "\n".join(
         p.read_text(encoding="utf-8", errors="ignore")
-        for p in [*ROOT.glob("src/**/*.py"), ROOT / "main.py", ROOT / "docker-compose.yml"]
+        for p in [*ROOT.glob("src/**/*.py"), ROOT / "main.py", ROOT / "docker-compose.yml", *ROOT.glob("scripts/ops/*.sh")]
     )
-    library_reads = {"HF_TOKEN", "OTEL_EXPORTER_OTLP_ENDPOINT"}
+    library_reads = {"HF_TOKEN", "OTEL_EXPORTER_OTLP_ENDPOINT", "COMPOSE_PROFILES"}
     missing = {n for n in READ_ELSEWHERE - library_reads if n not in sources}
     assert not missing, f"nomes que o código não usa mais: {sorted(missing)}"
 
@@ -111,3 +114,25 @@ def test_deploy_workflow_takes_machine_values_from_repository_variables():
     workflow = (ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
     assert "${{ vars.DEPLOY_DIR }}" in workflow and "${{ vars.PUBLIC_URL }}" in workflow
     assert not re.search(r"[A-Z]:\\\\", workflow), "caminho da máquina de produção fixo no workflow"
+
+
+def _compose_services() -> dict:
+    import yaml
+
+    return yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))["services"]
+
+
+def test_every_service_rotates_logs_and_blocks_privilege_escalation():
+    """O driver padrão (json-file) não rotaciona: os logs cresciam sem limite."""
+    for name, service in _compose_services().items():
+        assert service.get("logging", {}).get("driver") == "local", f"{name}: logs sem rotação"
+        assert "no-new-privileges:true" in service.get("security_opt", []), f"{name}: sem no-new-privileges"
+
+
+def test_every_image_has_a_fixed_version_and_no_container_name_is_fixed():
+    """minio:latest quebrou a instalação quando a imagem deixou de ser publicada;
+    container_name fixo impedia uma segunda instância (de teste) na máquina."""
+    for name, service in _compose_services().items():
+        image = service["image"]
+        assert "@sha256:" in image or (":" in image and not image.endswith(":latest")), f"{name}: {image}"
+        assert "container_name" not in service, f"{name}: container_name fixo"

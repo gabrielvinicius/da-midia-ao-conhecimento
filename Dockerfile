@@ -88,7 +88,8 @@ USER appuser
 
 EXPOSE 8000
 
-ENTRYPOINT ["/usr/bin/dumb-init", "--", "/app/docker/backend-entrypoint.sh"]
+# As migrações rodam no serviço "migrate" do Compose, antes da API e dos workers.
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 

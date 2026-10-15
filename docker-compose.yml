@@ -3,6 +3,8 @@
 #   docker compose up -d --build
 # Variantes: docker-compose.cpu.yml (sem GPU) e docker-compose.rocm.yml (GPU
 # AMD). Para desenvolver com o código do host: docker-compose.dev.yml.
+# Serviços opcionais entram por perfil, em COMPOSE_PROFILES no .env:
+# "internet" (Cloudflare Tunnel) e "s3" (MinIO).
 
 # Nome do projeto do Compose, declarado só aqui. Os volumes se chamam
 # <nome>_<volume> (video-summarizer_postgres_data...), e os scripts de
@@ -20,22 +22,49 @@ x-app-environment: &app-environment
   REDIS_URL: redis://redis:6379/0
   CELERY_BROKER_URL: redis://redis:6379/0
   DATABASE_URL: ${DB_SCHEME:-postgresql+asyncpg}://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-app}
-  STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-media}
+  # O armazenamento S3 só é oferecido com um bucket definido no .env (e, para
+  # o MinIO deste arquivo, o perfil "s3"). Antes, o bucket tinha valor padrão:
+  # a opção S3 aparecia sempre, mesmo sem servidor S3 nenhum.
+  STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-}
   STORAGE_S3_ENDPOINT_URL: ${STORAGE_S3_ENDPOINT_URL:-http://minio:9000}
-  STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-minio}
-  STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-minio123}
+  STORAGE_S3_ACCESS_KEY: ${STORAGE_S3_ACCESS_KEY:-}
+  STORAGE_S3_SECRET_KEY: ${STORAGE_S3_SECRET_KEY:-}
   OLLAMA_HOST: http://ollama:11434
   OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
   # Métricas só na rede interna (coletadas pelo serviço prometheus).
   METRICS_PORT: "9100"
 
+# Logs com rotação. O driver padrão do Docker (json-file) não faz rotação, e
+# os logs cresciam sem limite no disco; a documentação do Docker recomenda o
+# driver "local", que já rotaciona e compacta. Limite: 5 arquivos de 20 MB
+# por contêiner (docker compose logs continua funcionando).
+x-logging: &logging
+  driver: local
+  options:
+    max-size: 20m
+    max-file: "5"
+
+# Endurecimento dos contêineres (CIS Docker Benchmark): nenhum processo ganha
+# privilégios novos (setuid) e, nos serviços nossos, que rodam sem root,
+# nenhuma capability do kernel fica disponível.
+x-no-new-privileges: &no-new-privileges
+  - no-new-privileges:true
+
+# Imagens versionadas pelo commit: a implantação constrói app:<commit> e, com
+# a versão saudável, marca app:current. Sem APP_TAG, o Compose usa a versão
+# em produção (current); a volta atrás aponta APP_TAG para o commit anterior.
 x-app: &app
   build:
     context: .
     target: runtime
-  image: app:latest
+    args:
+      VCS_REF: ${APP_TAG:-current}
+  image: app:${APP_TAG:-current}
   env_file: [.env]
   restart: unless-stopped
+  logging: *logging
+  security_opt: *no-new-privileges
+  cap_drop: [ALL]
   networks:
     - backend-net
     - public-net
@@ -46,10 +75,23 @@ x-gpu: &gpu
       count: all
       capabilities: [gpu]
 
+# Os workers respondem ao ping do Celery pelo processo principal, mesmo com o
+# filho ocupado numa transcrição longa. Antes, um worker travado ou sem
+# conexão com o Redis aparecia como "Up" e a fila parava sem aviso.
+x-worker-healthcheck: &worker-healthcheck
+  test: ["CMD-SHELL", "celery -A src.celery_app:celery inspect ping -d \"celery@$$HOSTNAME\" --timeout 10"]
+  interval: 60s
+  timeout: 30s
+  retries: 3
+  start_period: 120s
+
+# Mídias enviadas e caches de modelos. MEDIA_STORAGE_PATH (no .env) troca o
+# volume media_data por uma pasta do host, como um disco só para as mídias.
+x-media-volume: &media-volume ${MEDIA_STORAGE_PATH:-media_data}:/app/storage
+
 services:
   postgres:
     image: pgvector/pgvector:pg17
-    container_name: postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
@@ -66,6 +108,8 @@ services:
     networks:
       - backend-net
     restart: unless-stopped
+    logging: *logging
+    security_opt: *no-new-privileges
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-app}"]
       interval: 10s
@@ -74,7 +118,6 @@ services:
 
   redis:
     image: redis:8.8
-    container_name: redis
     # Gravado em disco: a fila, os bloqueios de login e os tokens revogados no
     # logout sobrevivem a uma recriação (antes, um token revogado voltava a valer).
     command: ["redis-server", "--appendonly", "yes"]
@@ -83,6 +126,8 @@ services:
     networks:
       - backend-net
     restart: unless-stopped
+    logging: *logging
+    security_opt: *no-new-privileges
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -90,21 +135,28 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:latest
-    container_name: minio
+    # Opcional (perfil "s3"): armazenamento compatível com S3 na própria
+    # máquina. O MinIO deixou de publicar imagens da edição comunitária em
+    # outubro de 2025 (minio/minio não pode mais ser baixada, e "latest"
+    # quebrava uma instalação nova); esta é a imagem mantida pela Chainguard,
+    # fixada pelo digest. Defina STORAGE_S3_BUCKET e as chaves no .env.
+    image: cgr.dev/chainguard/minio@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8
+    profiles: ["s3"]
     environment:
-      MINIO_ROOT_USER: ${STORAGE_S3_ACCESS_KEY:-minio}
-      MINIO_ROOT_PASSWORD: ${STORAGE_S3_SECRET_KEY:-minio123}
+      MINIO_ROOT_USER: ${STORAGE_S3_ACCESS_KEY:-}
+      MINIO_ROOT_PASSWORD: ${STORAGE_S3_SECRET_KEY:-}
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
     networks:
       - backend-net
     restart: unless-stopped
+    logging: *logging
+    security_opt: *no-new-privileges
+    cap_drop: [ALL]
 
   jaeger:
     image: jaegertracing/jaeger:2.22.0
-    container_name: jaeger
     ports:
       # Só na própria máquina: os rastros incluem dados das requisições.
       - "127.0.0.1:16686:16686"  # interface web do Jaeger
@@ -112,11 +164,12 @@ services:
       - backend-net
       - public-net
     restart: unless-stopped
+    logging: *logging
+    security_opt: *no-new-privileges
 
   prometheus:
     # Coleta as métricas da API e dos workers pela porta interna 9100.
     image: prom/prometheus:v3.15.0
-    container_name: prometheus
     volumes:
       - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
@@ -125,12 +178,18 @@ services:
       - backend-net
       - public-net
     restart: unless-stopped
+    logging: *logging
+    security_opt: *no-new-privileges
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   ollama:
     # LLM local (Qwen3.5-9B por padrão). Os modelos são baixados pelo
     # serviço ollama-models na primeira inicialização.
     image: ollama/ollama:0.35.1
-    container_name: ollama
     volumes:
       - ollama_models:/root/.ollama
     environment:
@@ -150,6 +209,8 @@ services:
       resources:
         reservations: *gpu
     restart: unless-stopped
+    logging: *logging
+    security_opt: *no-new-privileges
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 30s
@@ -160,7 +221,6 @@ services:
     # Roda uma vez a cada "up": baixa o modelo principal e o reserva, se ainda
     # não estiverem no volume ollama_models (downloads seguintes são rápidos).
     image: ollama/ollama:0.35.1
-    container_name: ollama-models
     depends_on:
       ollama: { condition: service_healthy }
     environment:
@@ -172,10 +232,26 @@ services:
     networks:
       - backend-net
     restart: "no"
+    logging: *logging
+    security_opt: *no-new-privileges
+
+  migrate:
+    # Migrações do banco, uma vez a cada "up", antes da API e dos workers
+    # (que esperam ela terminar com sucesso). Antes, o entrypoint da API as
+    # aplicava ao iniciar: uma migração com erro deixava a API reiniciando em
+    # laço, e os workers dependiam da API só por causa delas.
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks:
+      - backend-net
+    restart: "no"
+    environment:
+      <<: *app-environment
 
   backend:
     <<: *app
-    container_name: backend
     ports:
       # Só na própria máquina (documentação da API e depuração). O acesso
       # externo passa pelo Nginx do frontend, que define o X-Real-IP usado
@@ -183,10 +259,10 @@ services:
       # forjar esse cabeçalho.
       - "127.0.0.1:8000:8000"
     depends_on:
-      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
     volumes:
-      - ${MEDIA_STORAGE_PATH:-media_data}:/app/storage
+      - *media-volume
       - ai_models_cache:/app/.cache
     deploy:
       resources:
@@ -197,6 +273,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
     environment:
       <<: *app-environment
       # A API não tem GPU: o vetor da pergunta e o reranqueador da busca rodam
@@ -206,23 +283,22 @@ services:
 
   worker-heavy:
     <<: *app
-    container_name: worker-heavy
     entrypoint: /app/docker/worker-entrypoint.sh
     # GPU, uma tarefa por vez: transcrição, extração de texto e análise.
     command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=1 -Q transcription_fast_lane,transcription_queue,text_analysis_queue
     depends_on:
-      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
-      backend: { condition: service_healthy }
       ollama: { condition: service_started }
     volumes:
-      - ${MEDIA_STORAGE_PATH:-media_data}:/app/storage
+      - *media-volume
       - ai_models_cache:/app/.cache
     deploy:
       resources:
         limits:
           memory: 12G
         reservations: *gpu
+    healthcheck: *worker-healthcheck
     environment:
       <<: *app-environment
       AI_DEVICE: cuda
@@ -231,20 +307,19 @@ services:
 
   worker-light:
     <<: *app
-    container_name: worker-light
     entrypoint: /app/docker/worker-entrypoint.sh
     # Tarefas curtas; --beat agenda as verificações periódicas (uma instância só).
     command: celery -A src.celery_app:celery worker --loglevel=info --concurrency=4 -Q celery --beat --schedule /tmp/celerybeat-schedule
     depends_on:
-      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
-      backend: { condition: service_healthy }
     volumes:
-      - ${MEDIA_STORAGE_PATH:-media_data}:/app/storage
+      - *media-volume
     deploy:
       resources:
         limits:
           memory: 2G
+    healthcheck: *worker-healthcheck
     environment:
       <<: *app-environment
       AI_DEVICE: cpu
@@ -255,8 +330,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    image: frontend:latest
-    container_name: frontend
+    image: frontend:${APP_TAG:-current}
     ports: ["3000:80"]
     depends_on:
       # O nginx guarda o IP do backend ao iniciar: quando o backend é recriado
@@ -266,14 +340,21 @@ services:
     networks:
       - public-net
     restart: unless-stopped
+    logging: *logging
+    security_opt: *no-new-privileges
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   cloudflared:
     # Publicação na internet com HTTPS pelo Cloudflare Tunnel, sem abrir
-    # portas no roteador: docker compose --profile internet up -d. O token
-    # vem do painel da Cloudflare (Zero Trust > Networks > Tunnels), com o
-    # hostname público apontando para http://frontend:80.
+    # portas no roteador (perfil "internet"). O token vem do painel da
+    # Cloudflare (Zero Trust > Networks > Tunnels), com o hostname público
+    # apontando para http://frontend:80.
     image: cloudflare/cloudflared:2026.9.3
-    container_name: cloudflared
     command: tunnel --no-autoupdate run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
@@ -281,22 +362,26 @@ services:
     networks:
       - public-net
     restart: unless-stopped
+    logging: *logging
+    security_opt: *no-new-privileges
+    cap_drop: [ALL]
     profiles: ["internet"]
 
-# Nomes derivados do projeto (name:, no início do arquivo).
+# Nomes derivados do projeto (name:, no início do arquivo). Os contêineres
+# também (video-summarizer-backend-1...): sem container_name fixo, outro
+# projeto (uma instância de teste, -p teste) pode rodar na mesma máquina.
 volumes:
   postgres_data:
   redis_data:
   minio_data:
-  # Mídias enviadas. Com MEDIA_STORAGE_PATH no .env (uma pasta do host, como
-  # D:/midias), os serviços montam essa pasta no lugar deste volume.
   media_data:
   ai_models_cache:
   ollama_models:
 
+# Também com o nome do projeto (antes, app-public e app-backend fixos: uma
+# instância de teste entraria nas mesmas redes e o nome "backend" apontaria
+# para dois contêineres).
 networks:
   public-net:
-    name: app-public
   backend-net:
-    name: app-backend
     internal: true

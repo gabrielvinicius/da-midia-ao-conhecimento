@@ -1,0 +1,48 @@
+name: Backup
+
+# Cópia de segurança diária do banco e das mídias (scripts/ops/backup.sh) na
+# máquina de produção, pelo mesmo runner da implantação, e teste de
+# restauração semanal (scripts/ops/verify-backup.sh). O repositório e a chave
+# vêm do .env de produção (BACKUP_REPOSITORY, BACKUP_PASSWORD), que não sai da
+# máquina. Uma execução com falha avisa por e-mail, como qualquer workflow; o
+# histórico fica na aba Actions.
+on:
+  schedule:
+    # 03:23 em Brasília (06:23 UTC): fora do horário de uso.
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+    inputs:
+      verify:
+        description: Também restaurar a cópia num banco temporário
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-producao
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: [self-hosted, producao]
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ vars.DEPLOY_DIR }}
+    steps:
+      - name: Cópia do banco e das mídias
+        run: sh scripts/ops/backup.sh
+
+      # Aos domingos, ou quando pedido: uma cópia só vale se restaurar.
+      - name: Teste de restauração
+        env:
+          VERIFY_REQUESTED: ${{ inputs.verify }}
+        run: |
+          if [ "$(date -u +%u)" = 7 ] || [ "$VERIFY_REQUESTED" = "true" ]; then
+            sh scripts/ops/verify-backup.sh
+          else
+            echo "Teste de restauração só aos domingos (ou com verify=true)."
+          fi

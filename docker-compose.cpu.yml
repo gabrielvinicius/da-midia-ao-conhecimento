@@ -7,7 +7,7 @@ services:
     deploy: !reset {}
 
   backend:
-    image: app:cpu
+    image: app-cpu:${APP_TAG:-current}
     build:
       args:
         PYTORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
@@ -15,7 +15,7 @@ services:
       AI_DEVICE: cpu
 
   worker-heavy:
-    image: app:cpu
+    image: app-cpu:${APP_TAG:-current}
     build:
       args:
         PYTORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
@@ -29,7 +29,14 @@ services:
       AI_COMPUTE_TYPE: int8
 
   worker-light:
-    image: app:cpu
+    image: app-cpu:${APP_TAG:-current}
+    build:
+      args:
+        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
+
+  # As migrações rodam na mesma imagem da variante.
+  migrate:
+    image: app-cpu:${APP_TAG:-current}
     build:
       args:
         PYTORCH_INDEX_URL: https://download.pytorch.org/whl/cpu

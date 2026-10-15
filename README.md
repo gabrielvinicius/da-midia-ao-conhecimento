@@ -60,45 +60,58 @@ docker compose up -d --build
 - **Implantação contínua**: a cada merge na `main` com a CI verde, o workflow
   `Deploy` roda num runner do GitHub instalado na máquina de produção (rótulo
   `producao`): põe a pasta de produção na versão que passou e executa
-  `scripts/ops/deploy.ps1`, que reconstrói as imagens, sobe os contêineres,
-  confere a saúde e, se algo falhar, volta às imagens anteriores. O histórico
-  fica no ambiente `producao` do GitHub; "Run workflow" reimplanta à mão. A
-  pasta de produção (variável `DEPLOY_DIR` do repositório; o endereço público
-  fica em `PUBLIC_URL`) é um clone separado, com o `.env`. O nome do projeto
-  do Compose está só em `name:`, no início do `docker-compose.yml`; os volumes
-  e os scripts de operação o leem de lá, em qualquer pasta.
-- **Cópia de segurança**: `sh scripts/ops/backup.sh` grava o banco e as mídias
-  em `backups/<data>`; `sh scripts/ops/restore.sh backups/<data>` restaura.
+  `scripts/ops/deploy.ps1`. Cada versão vira imagens marcadas com o commit
+  (`app:<commit>`); a saudável recebe também `current`. Se a nova versão não
+  ficar saudável, o script sobe de novo a anterior, sem reconstruir nada, e
+  guarda as três últimas. A pasta de produção (variável `DEPLOY_DIR` do
+  repositório; o endereço público fica em `PUBLIC_URL`) é um clone separado,
+  com o `.env`. O nome do projeto do Compose está só em `name:`, no início do
+  `docker-compose.yml`.
+- **Serviços opcionais** entram por perfil, em `COMPOSE_PROFILES` no `.env`:
+  `internet` (Cloudflare Tunnel) e `s3` (MinIO).
 - **Mídias em outro disco**: defina `MEDIA_STORAGE_PATH` no `.env` com uma
   pasta do host (ex.: `D:/da-midia-ao-conhecimento/midias`). No Docker
   Desktop, um disco instalado depois de o Docker iniciar só aparece para os
   contêineres após `wsl --shutdown` e um novo início do Docker. A pasta precisa
   pertencer ao usuário do contêiner:
-  `docker run --rm -v <pasta>:/s alpine:3.22 chown 999:999 /s`. Para levar as
-  mídias existentes: `backup.sh`, definir a variável, `docker compose up -d` e
-  `restore.sh` da cópia.
+  `docker run --rm -v <pasta>:/s alpine:3.22 chown 999:999 /s`.
 - **Acesso pela rede**: a interface responde por HTTP na porta 3000. Para
   HTTPS, coloque um proxy reverso com certificado na frente e defina
   `USER_COOKIE_SECURE=true` no `.env`.
 - **Publicar na internet com HTTPS (Cloudflare Tunnel)**: crie um túnel no
   painel da Cloudflare (Zero Trust > Networks > Tunnels), aponte o hostname
   público para `http://frontend:80`, ponha o token em `CLOUDFLARE_TUNNEL_TOKEN`,
-  ajuste `PUBLIC_URL` e `USER_COOKIE_SECURE=true` e suba com
-  `docker compose --profile internet up -d`. Nenhuma porta é aberta no roteador.
+  inclua `internet` em `COMPOSE_PROFILES`, ajuste `PUBLIC_URL` e
+  `USER_COOKIE_SECURE=true`. Nenhuma porta é aberta no roteador.
 - **E-mails da conta (opcional)**: com `SMTP_HOST` e `SMTP_FROM` definidos
   (qualquer provedor SMTP), o cadastro passa a exigir a confirmação do e-mail
   e a tela de login ganha "Esqueci minha senha". Sem eles, o cadastro entra
   direto.
 
-**Instalações anteriores a esta versão**: o banco ficava num volume anônimo,
-que um `docker compose down` descartava. Para levá-lo ao volume correto:
+## Operação
 
-```bash
-git pull
-sh scripts/ops/backup.sh                 # com a versão antiga ainda no ar
-docker compose up -d --build             # sobe com o volume novo (banco vazio)
-sh scripts/ops/restore.sh backups/<data> # devolve banco e mídias
-```
+| Tarefa | Como |
+|---|---|
+| Ver o que está no ar | `docker compose ps` (versão na coluna da imagem: `app:<commit>`) |
+| Voltar a uma versão guardada | `$env:APP_TAG="<commit>"; docker compose up -d --no-build` |
+| Reimplantar a `main` | aba Actions > Deploy > Run workflow |
+| Cópia de segurança agora | aba Actions > Backup > Run workflow, ou `sh scripts/ops/backup.sh` |
+| Testar a restauração | Backup com `verify`, ou `sh scripts/ops/verify-backup.sh` |
+| Restaurar | `sh scripts/ops/restore.sh [snapshot]` (substitui banco e mídias) |
+| Reinstalar a tarefa do runner | `pwsh scripts/ops/install-runner-task.ps1` |
+| Logs | `docker compose logs -f backend` (rotação: 5 arquivos de 20 MB por contêiner) |
+| Métricas e rastros | Prometheus em `localhost:9090`, Jaeger em `localhost:16686` |
+
+- **Cópias de segurança**: o workflow `Backup` roda todo dia às 03:23 no runner
+  de produção. O `backup.sh` guarda o banco (`pg_dump -Fc`) e as mídias num
+  repositório restic (`BACKUP_REPOSITORY`, cifrado com `BACKUP_PASSWORD`):
+  só o que mudou é gravado, a retenção (14 diárias, 8 semanais, 12 mensais)
+  apaga as antigas e a integridade é conferida ao final. Aos domingos, o
+  `verify-backup.sh` restaura o banco num PostgreSQL temporário e o confere.
+  Guarde a chave fora da máquina: sem ela, nenhuma cópia pode ser lida.
+- **Runner**: roda na sessão do usuário, porque o Docker Desktop também roda
+  (como serviço do Windows, subiria sem Docker). A tarefa agendada o mantém
+  num laço e confere a cada 5 minutos se ele está rodando.
 
 ## Revisão e recuperação da análise
 
