@@ -58,7 +58,7 @@ accelerate>=1.0,<2  # device_map do Moondream
 faster-whisper~=1.2.1
 # O faster-whisper 1.2.1 chama av.open(..., metadata_errors=...), argumento que
 # o PyAV 19 removeu: sem limite, toda transcrição falhava com TypeError.
-av~=18.1.0
+av~=19.0.1
 ctranslate2~=4.8.2
 openai-whisper==20250625  # provedor opcional de transcrição
 # Importação por link: o YouTube muda com frequência e versões antigas param de
