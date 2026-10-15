@@ -67,6 +67,14 @@ docker compose up -d --build
   `C:\producao\da-midia-ao-conhecimento`) é um clone separado, com o `.env`.
 - **Cópia de segurança**: `sh scripts/ops/backup.sh` grava o banco e as mídias
   em `backups/<data>`; `sh scripts/ops/restore.sh backups/<data>` restaura.
+- **Mídias em outro disco**: defina `MEDIA_STORAGE_PATH` no `.env` com uma
+  pasta do host (ex.: `D:/da-midia-ao-conhecimento/midias`). No Docker
+  Desktop, um disco instalado depois de o Docker iniciar só aparece para os
+  contêineres após `wsl --shutdown` e um novo início do Docker. A pasta precisa
+  pertencer ao usuário do contêiner:
+  `docker run --rm -v <pasta>:/s alpine:3.22 chown 999:999 /s`. Para levar as
+  mídias existentes: `backup.sh`, definir a variável, `docker compose up -d` e
+  `restore.sh` da cópia.
 - **Acesso pela rede**: a interface responde por HTTP na porta 3000. Para
   HTTPS, coloque um proxy reverso com certificado na frente e defina
   `USER_COOKIE_SECURE=true` no `.env`.
