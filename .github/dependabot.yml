@@ -1,0 +1,39 @@
+# Atualizações automáticas de dependências (PRs semanais, agrupados por
+# ecossistema). Cada PR passa pela CI antes do merge, e nada é implantado sem
+# ele. As ações dos workflows são fixadas pelo commit, e é o Dependabot que
+# mantém esses commits em dia.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    groups:
+      actions: { patterns: ["*"] }
+
+  - package-ecosystem: pip
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    groups:
+      python: { patterns: ["*"], update-types: [minor, patch] }
+    ignore:
+      # Fixados juntos e ligados ao CUDA da imagem (ADR-014); mudam à mão,
+      # com a medição de tempos e memória na GPU.
+      - dependency-name: torch
+      - dependency-name: torchvision
+      # Abaixo de 4.50 enquanto o Moondream 2 usar a revisão de 2024-08-26.
+      - dependency-name: transformers
+        versions: [">=4.50"]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: { interval: weekly, day: monday }
+    groups:
+      frontend: { patterns: ["*"], update-types: [minor, patch] }
+
+  # Imagens base dos Dockerfiles e imagens dos serviços do Compose.
+  - package-ecosystem: docker
+    directories: [/, /frontend]
+    schedule: { interval: weekly, day: monday }
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule: { interval: weekly, day: monday }

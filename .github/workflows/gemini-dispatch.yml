@@ -14,7 +14,9 @@ on:
     types:
       - 'opened'
       - 'reopened'
-  issue_comment:
+  # Modelo oficial do run-gemini-cli: os jobs só agem para quem tem acesso ao
+  # repositório (author_association OWNER, MEMBER ou COLLABORATOR).
+  issue_comment: # zizmor: ignore[dangerous-triggers]
     types:
       - 'created'
 
@@ -135,7 +137,7 @@ jobs:
       pull-requests: 'write'
     with:
       additional_context: '${{ needs.dispatch.outputs.additional_context }}'
-    secrets: 'inherit'
+    secrets: 'inherit' # zizmor: ignore[secrets-inherit] -- chaves do Gemini e do app do GitHub
 
   triage:
     needs: 'dispatch'
@@ -149,7 +151,7 @@ jobs:
       pull-requests: 'write'
     with:
       additional_context: '${{ needs.dispatch.outputs.additional_context }}'
-    secrets: 'inherit'
+    secrets: 'inherit' # zizmor: ignore[secrets-inherit] -- chaves do Gemini e do app do GitHub
 
   invoke:
     needs: 'dispatch'
@@ -163,7 +165,7 @@ jobs:
       pull-requests: 'write'
     with:
       additional_context: '${{ needs.dispatch.outputs.additional_context }}'
-    secrets: 'inherit'
+    secrets: 'inherit' # zizmor: ignore[secrets-inherit] -- chaves do Gemini e do app do GitHub
 
   fallthrough:
     needs:

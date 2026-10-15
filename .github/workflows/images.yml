@@ -1,0 +1,144 @@
+name: Images
+
+# Constrói as imagens e as varre em busca de vulnerabilidades conhecidas.
+# Antes, nenhuma imagem era construída na CI: um Dockerfile quebrado ou uma
+# dependência de sistema vulnerável só apareciam na máquina de produção.
+# O backend é construído na variante CPU (a CUDA não cabe no runner do
+# GitHub); o Dockerfile, as camadas e as dependências de sistema são os
+# mesmos da imagem de GPU, que é construída na implantação.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - requirements.txt
+      - docker/**
+      - frontend/**
+      - .github/workflows/images.yml
+      - .trivyignore
+  push:
+    branches: [main]
+  # Toda semana: novas vulnerabilidades aparecem sem mudança no código.
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TRIVY_VERSION: v0.76.0
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: frontend
+          load: true
+          tags: frontend:ci
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+
+      # O nome do backend só existe na rede do Compose; aqui ele aponta para
+      # um endereço qualquer, e o teste confere a sintaxe e os caminhos.
+      - name: Configuração do nginx válida
+        run: docker run --rm --add-host backend:127.0.0.1 frontend:ci nginx -t
+
+      - name: Vulnerabilities (report)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          version: ${{ env.TRIVY_VERSION }}
+          image-ref: frontend:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"
+      - name: Vulnerabilities (critical with a fix fail)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          version: ${{ env.TRIVY_VERSION }}
+          image-ref: frontend:ci
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          skip-setup-trivy: true
+
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # O runner tem ~14 GB livres; a imagem e o cache de build passam disso.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build (CPU)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: runtime
+          load: true
+          tags: app:ci
+          build-args: |
+            PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+            VCS_REF=${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=min
+
+      # A imagem sobe: o código importa com as dependências instaladas, o
+      # usuário não é root e as ferramentas de sistema existem.
+      - name: Smoke
+        run: |
+          docker run --rm -e APP_ENV=production -e DATABASE_URL=postgresql+asyncpg://ci:ci@localhost:5432/ci \
+            --entrypoint sh app:ci -c '
+            set -e
+            test "$(id -u)" != 0
+            ffmpeg -version > /dev/null
+            tesseract --version > /dev/null
+            python -c "import main, src.worker_process, alembic"
+          '
+
+      - name: Vulnerabilities (report)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          version: ${{ env.TRIVY_VERSION }}
+          image-ref: app:ci
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"
+      - name: Vulnerabilities (critical with a fix fail)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          version: ${{ env.TRIVY_VERSION }}
+          image-ref: app:ci
+          scanners: vuln
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          skip-setup-trivy: true

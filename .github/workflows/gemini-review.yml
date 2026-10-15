@@ -42,12 +42,14 @@ jobs:
 
       - name: 'Checkout repository'
         uses: 'actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8' # ratchet:actions/checkout@v5
+        with:
+          persist-credentials: false
 
       # A revisão é um auxílio, não um portão: sem cota na API do Gemini, ela
       # falhava e deixava a PR vermelha com os testes todos passando. Uma falha
       # aqui vira aviso (passo seguinte), e o job termina com sucesso.
       - name: 'Run Gemini pull request review'
-        uses: 'google-github-actions/run-gemini-cli@v0' # ratchet:exclude
+        uses: 'google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489' # v0.1.22
         id: 'gemini_pr_review'
         continue-on-error: true
         timeout-minutes: 10
