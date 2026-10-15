@@ -4,6 +4,13 @@
 # Variantes: docker-compose.cpu.yml (sem GPU) e docker-compose.rocm.yml (GPU
 # AMD). Para desenvolver com o código do host: docker-compose.dev.yml.
 
+# Nome do projeto do Compose, declarado só aqui. Os volumes se chamam
+# <nome>_<volume> (video-summarizer_postgres_data...), e os scripts de
+# implantação e de cópia de segurança o leem deste arquivo, em qualquer pasta.
+# É o nome do tempo em que o projeto se chamava video-summarizer: trocá-lo
+# aponta para volumes novos e vazios (os dados ficam nos antigos).
+name: video-summarizer
+
 # Comum à API e aos workers. O .env vale para todos (antes, só para a API:
 # os workers ignoravam os prazos, o modelo de transcrição e o formato dos
 # logs definidos nele); as variáveis abaixo têm precedência sobre ele e
@@ -251,7 +258,11 @@ services:
     image: frontend:latest
     container_name: frontend
     ports: ["3000:80"]
-    depends_on: [backend]
+    depends_on:
+      # O nginx guarda o IP do backend ao iniciar: quando o backend é recriado
+      # (implantação, troca de volume), o frontend reinicia junto. Sem isso, a
+      # interface respondia 502 até alguém reiniciá-lo.
+      backend: { condition: service_started, restart: true }
     networks:
       - public-net
     restart: unless-stopped
@@ -272,23 +283,16 @@ services:
     restart: unless-stopped
     profiles: ["internet"]
 
-# Nomes fixos, do tempo em que o projeto se chamava video-summarizer: sem eles,
-# o nome viria da pasta, e renomeá-la apontaria para volumes novos e vazios.
+# Nomes derivados do projeto (name:, no início do arquivo).
 volumes:
   postgres_data:
-    name: video-summarizer_postgres_data
   redis_data:
-    name: video-summarizer_redis_data
   minio_data:
-    name: video-summarizer_minio_data
   # Mídias enviadas. Com MEDIA_STORAGE_PATH no .env (uma pasta do host, como
   # D:/midias), os serviços montam essa pasta no lugar deste volume.
   media_data:
-    name: video-summarizer_media_data
   ai_models_cache:
-    name: video-summarizer_ai_models_cache
   ollama_models:
-    name: video-summarizer_ollama_models
 
 networks:
   public-net:

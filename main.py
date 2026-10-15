@@ -11,6 +11,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from src.shared.api.monitoring_router import router as monitoring_router
 from src.shared.api.providers_router import router as providers_router
+from src.shared.domain.brand import PLATFORM_NAME
 from src.shared.application.lifecycle import (
     ApplicationResources,
     start_application_resources,
@@ -328,7 +329,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="Media Processing API",
+        title=f"{PLATFORM_NAME} API",
         description=(
             "API for uploading, transcribing, and summarizing media files "
             "(video, audio, text)"

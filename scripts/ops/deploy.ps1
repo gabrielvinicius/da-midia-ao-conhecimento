@@ -10,19 +10,20 @@
 
     pwsh scripts/ops/deploy.ps1 -PreviousSha <commit em produção antes>
 
-  O nome do projeto do Compose é fixo (video-summarizer) para que a pasta de
-  produção reaproveite os contêineres e os volumes existentes.
+  O nome do projeto, as imagens e os contêineres vêm do docker-compose.yml
+  (name: no início do arquivo), e não deste script: assim a pasta de produção
+  reaproveita os contêineres e os volumes existentes, qualquer que seja o
+  nome dela.
 #>
 param(
     [string]$PreviousSha = "",
-    [string]$Project = "video-summarizer",
     [string]$HealthUrl = "http://localhost:3000/api/health",
     [int]$HealthTimeoutSeconds = 600
 )
 
 $ErrorActionPreference = "Stop"
-$images = @("app", "frontend")
-$compose = @("compose", "-p", $Project)
+$compose = @("compose")
+$services = @("backend", "frontend")
 
 # O túnel da Cloudflare é opcional: só entra com o token no .env. Sem ele, o
 # contêiner cloudflared subiria sem credencial e ficaria reiniciando, e a
@@ -41,12 +42,20 @@ function Invoke-Docker([string[]]$arguments) {
     if ($LASTEXITCODE -ne 0) { throw "docker $($arguments -join ' ') terminou com código $LASTEXITCODE" }
 }
 
+# Projeto e imagens (sem a marcação) dos serviços construídos aqui; a API e os
+# workers usam a mesma imagem.
+$config = (& docker @compose config --format json) | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { throw "docker compose config falhou" }
+$project = $config.name
+$images = $services | ForEach-Object { ($config.services.$_.image -split ":")[0] } | Select-Object -Unique
+
 function Test-Healthy {
     # O backend precisa ficar "healthy" (o /health dele consulta o banco e o
     # Redis) e a interface precisa entregar /api/health, o caminho público.
     $deadline = (Get-Date).AddSeconds($HealthTimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
-        $state = (& docker inspect -f "{{.State.Health.Status}}" backend 2>$null)
+        $backend = (& docker @compose ps -q backend 2>$null)
+        $state = if ($backend) { & docker inspect -f "{{.State.Health.Status}}" $backend 2>$null }
         if ($state -eq "healthy") {
             try {
                 $response = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 10
@@ -73,11 +82,11 @@ function Restore-PreviousImages {
 }
 
 $sha = (& git rev-parse --short HEAD).Trim()
-Write-Host "Implantando $sha (projeto $Project)"
+Write-Host "Implantando $sha (projeto $project, imagens $($images -join ', '))"
 
 Save-PreviousImages
 try {
-    Invoke-Docker ($compose + @("build", "backend", "frontend"))
+    Invoke-Docker ($compose + @("build") + $services)
     Invoke-Docker ($compose + @("up", "-d", "--no-build"))
     if (-not (Test-Healthy)) { throw "a versão $sha não ficou saudável em $HealthTimeoutSeconds s" }
     Write-Host "Versão $sha no ar e saudável."

@@ -63,8 +63,10 @@ docker compose up -d --build
   `scripts/ops/deploy.ps1`, que reconstrói as imagens, sobe os contêineres,
   confere a saúde e, se algo falhar, volta às imagens anteriores. O histórico
   fica no ambiente `producao` do GitHub; "Run workflow" reimplanta à mão. A
-  pasta de produção (variável `DEPLOY_DIR`, padrão
-  `C:\producao\da-midia-ao-conhecimento`) é um clone separado, com o `.env`.
+  pasta de produção (variável `DEPLOY_DIR` do repositório; o endereço público
+  fica em `PUBLIC_URL`) é um clone separado, com o `.env`. O nome do projeto
+  do Compose está só em `name:`, no início do `docker-compose.yml`; os volumes
+  e os scripts de operação o leem de lá, em qualquer pasta.
 - **Cópia de segurança**: `sh scripts/ops/backup.sh` grava o banco e as mídias
   em `backups/<data>`; `sh scripts/ops/restore.sh backups/<data>` restaura.
 - **Mídias em outro disco**: defina `MEDIA_STORAGE_PATH` no `.env` com uma
