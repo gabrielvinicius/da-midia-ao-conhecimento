@@ -31,7 +31,7 @@ bcrypt~=5.0.0
 pyjwt~=2.15.1
 
 # Armazenamento e documentos
-boto3~=1.43.105
+boto3~=1.43.112
 pymupdf~=1.28.2
 python-docx~=1.2.0
 pytesseract~=0.3.13
