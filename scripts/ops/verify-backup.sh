@@ -34,4 +34,9 @@ MEDIA="$(query "select count(*) from media")"
 echo "[verify] $TABLES tabelas, migração $REVISION, $USERS usuários, $MEDIA mídias"
 [ "$TABLES" -gt 0 ] && [ -n "$REVISION" ] && [ "$USERS" -gt 0 ] || {
   echo "a cópia restaurada não tem os dados esperados" >&2; exit 1; }
+if restic "$RESTIC_IMAGE" snapshots --tag s3 --json | grep -q '"id"'; then
+  SNAPSHOTS_META="$(restic "$RESTIC_IMAGE" ls --tag s3 latest | grep -c '/dados/s3/meta/snapshots/.')"
+  echo "[verify] S3 local: $SNAPSHOTS_META cópias do banco de metadados do Garage"
+  [ "$SNAPSHOTS_META" -gt 0 ] || { echo "a cópia do S3 local não tem o banco de metadados" >&2; exit 1; }
+fi
 echo "[verify] cópia restaurável"

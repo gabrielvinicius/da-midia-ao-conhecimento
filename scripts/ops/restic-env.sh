@@ -35,6 +35,15 @@ if [ -z "$MEDIA_SOURCE" ]; then
 fi
 [ -n "$MEDIA_SOURCE" ] || { echo "origem das mídias não encontrada" >&2; exit 1; }
 
+# Mídias guardadas no S3 local (Garage, perfil "s3"): o volume dele, quando
+# existe. Vazio sem o Garage (S3 externo ou só armazenamento local).
+S3_SOURCE="$(docker compose config --format json | grep -o '"name": *"[^"]*_garage_data"' | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/')"
+if [ -n "$S3_SOURCE" ] && ! docker volume inspect "$S3_SOURCE" >/dev/null 2>&1; then
+  S3_SOURCE=""
+fi
+# O Garage está rodando? (com o perfil "s3" desligado, o serviço nem existe)
+garage_running() { [ -n "$(docker compose ps -q --status running garage 2>/dev/null)" ]; }
+
 # Uso: restic [opções do docker run] "$RESTIC_IMAGE" <comando do restic>
 # shellcheck disable=SC2086 # REPO_MOUNT é vazio ou "-v origem:/repo".
 restic() {

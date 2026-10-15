@@ -19,7 +19,7 @@
   com mais de uma semana são apagados.
 
   O nome do projeto, as imagens e os contêineres vêm do docker-compose.yml, e
-  os perfis opcionais (túnel, MinIO), de COMPOSE_PROFILES no .env.
+  os perfis opcionais (túnel, Garage), de COMPOSE_PROFILES no .env.
 
   Volta manual a uma versão guardada:
 

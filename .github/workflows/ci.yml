@@ -87,7 +87,7 @@ jobs:
       # API real contra PostgreSQL e Redis: cadastro, login, envio, isolamento
       # entre usuários, exclusão e bloqueio de login. Os modelos de IA não
       # rodam; as tarefas ficam na fila. O armazenamento S3 usa o servidor
-      # do moto, que fala a mesma API do S3 e do MinIO.
+      # do moto, que fala a mesma API do S3 e do Garage.
       - name: End-to-end API tests
         env:
           E2E: "1"

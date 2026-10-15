@@ -68,7 +68,7 @@ docker compose up -d --build
   com o `.env`. O nome do projeto do Compose está só em `name:`, no início do
   `docker-compose.yml`.
 - **Serviços opcionais** entram por perfil, em `COMPOSE_PROFILES` no `.env`:
-  `internet` (Cloudflare Tunnel) e `s3` (MinIO).
+  `internet` (Cloudflare Tunnel) e `s3` (Garage, armazenamento S3 local).
 - **Mídias em outro disco**: defina `MEDIA_STORAGE_PATH` no `.env` com uma
   pasta do host (ex.: `D:/da-midia-ao-conhecimento/midias`). No Docker
   Desktop, um disco instalado depois de o Docker iniciar só aparece para os
