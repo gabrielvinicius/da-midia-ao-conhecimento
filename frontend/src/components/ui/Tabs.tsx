@@ -50,7 +50,7 @@ export const Tabs = ({
           return (
             <button
               key={tab.id}
-              ref={(el) => (refs.current[tab.id] = el)}
+              ref={(el) => { refs.current[tab.id] = el; }}
               role="tab"
               type="button"
               id={`tab-${tab.id}`}
