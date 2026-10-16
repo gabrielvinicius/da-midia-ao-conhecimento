@@ -2,7 +2,7 @@
 
 Como montar o ambiente, rodar as mesmas verificações da CI e abrir um PR que
 passa na revisão. As regras completas do código estão em
-[`AGENTS.md`](../../AGENTS.md); aqui ficam os passos.
+[`AGENTS.md`](https://github.com/gabrielvinicius/da-midia-ao-conhecimento/blob/main/AGENTS.md); aqui ficam os passos.
 
 ## Ambiente
 
@@ -99,6 +99,17 @@ python scripts/docs/gerar_referencia.py
 O teste `tests/unit/test_docs_reference.py` falha se ela ficar desatualizada.
 Ao mudar comportamento, atualize também o guia ou a explicação
 correspondente em `docs/`, no mesmo PR.
+
+Uma página nova entra também no menu do site, em `nav` no `zensical.toml`.
+Para ver o site como ele será publicado:
+
+```bash
+pip install -r requirements-docs.txt
+zensical serve
+```
+
+A CI gera o site em modo estrito (`zensical build --strict`): um link para
+uma página que não existe reprova o PR.
 
 ## Commits e PRs
 

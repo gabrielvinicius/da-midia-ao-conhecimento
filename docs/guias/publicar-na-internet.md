@@ -32,6 +32,53 @@ certificado HTTPS.
 > O `deploy.ps1` avisa quando há um token no `.env` mas o perfil `internet`
 > está desligado: antes, o túnel ficava fora do ar sem nenhuma mensagem.
 
+### Mais de um endereço
+
+O mesmo túnel atende vários hostnames. Cada um é mais uma linha em **Public
+Hostname**; o Cloudflare cria o registro de DNS junto.
+
+| Endereço | Serviço | Proteção |
+|---|---|---|
+| `tcc.seudominio.dev` | `http://frontend:80` | Login da própria plataforma |
+| `app.seudominio.dev` | `http://frontend:80` | Login da própria plataforma |
+| `docs.seudominio.dev` | `http://docs:80` | Cloudflare Access |
+| `metricas.seudominio.dev` | `http://prometheus:9090` | Cloudflare Access |
+| `rastros.seudominio.dev` | `http://jaeger:16686` | Cloudflare Access |
+
+A interface e a API respondem pela mesma origem: um endereço novo da
+plataforma não pede mudança no CORS nem no `.env`. O `PUBLIC_URL` continua
+um só, porque é o endereço dos links enviados por e-mail. A sessão fica
+separada por endereço: quem entrou por um precisa entrar de novo no outro.
+
+### Painéis e documentação com o Cloudflare Access
+
+O Prometheus e o Jaeger não têm login, e o site da documentação descreve a
+produção. Na internet, eles ficam atrás do Cloudflare Access, que pede um
+código enviado ao e-mail autorizado antes de qualquer requisição chegar à
+máquina.
+
+1. Em **Zero Trust > Access > Applications**, crie uma aplicação
+   *Self-hosted* para cada endereço, com uma política *Allow* que inclua só
+   os e-mails autorizados. O login por código no e-mail (*One-time PIN*)
+   dispensa outro provedor de identidade.
+2. **Crie a aplicação antes do hostname público.** Na ordem inversa, o
+   endereço fica aberto durante esse intervalo.
+3. No hostname público, em **Additional application settings > Access**,
+   ligue **Protect with Access** com a etiqueta (AUD) da aplicação. O
+   próprio `cloudflared` passa a recusar requisições sem o token do Access,
+   mesmo que alguém mude o DNS por engano.
+
+Sem login, o endereço responde com um redirecionamento (302) para a página
+de entrada do Access:
+
+```bash
+curl -sI https://metricas.seudominio.dev/ | head -1   # HTTP/2 302
+```
+
+O serviço `docs` só existe com o perfil `internet`: a implantação constrói
+o site a cada versão (`docker/docs.Dockerfile`, em modo estrito), junto com
+a interface.
+
 ### Redes que bloqueiam o domínio
 
 Filtros de rede de empresas e instituições (por exemplo, o FortiGuard) costumam

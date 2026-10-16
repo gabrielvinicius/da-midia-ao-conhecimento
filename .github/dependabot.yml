@@ -45,7 +45,7 @@ updates:
 
   # Imagens base dos Dockerfiles e imagens dos serviços do Compose.
   - package-ecosystem: docker
-    directories: [/, /frontend]
+    directories: [/, /frontend, /docker]
     schedule: { interval: weekly, day: monday }
     ignore:
       # Só versões LTS (pares) do Node; a troca de LTS é feita à mão, junto

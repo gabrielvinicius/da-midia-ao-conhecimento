@@ -13,11 +13,12 @@ interface web e a implantação. O relatório do TCC fica num repositório à pa
 | `frontend/` | Interface web (React 19, TypeScript, Vite, Tailwind) |
 | `alembic/` | Migrações do banco, aplicadas pelo serviço `migrate` |
 | `tests/` | Testes do backend (veja abaixo) |
-| `docker/` | Arquivos montados nos contêineres (`garage.toml`, `prometheus.yml`, entrada do worker) |
+| `docker/` | Arquivos montados nos contêineres (`garage.toml`, `prometheus.yml`, entrada do worker) e a imagem do site da documentação (`docs.Dockerfile`) |
 | `scripts/ops/` | Implantação, cópias de segurança e tarefa do runner ([Comandos](comandos.md)) |
 | `scripts/evaluation/` | Medições do protocolo de avaliação do TCC (WER, tempos) |
 | `scripts/docs/` | Gerador da referência desta documentação |
 | `docs/` | Esta documentação e os ADRs |
+| `zensical.toml` | Site da documentação: menu, tema e extensões do Markdown |
 | `docker-compose.yml` | Produção; `docker-compose.cpu.yml`, `.rocm.yml` e `.dev.yml` só sobrescrevem o que muda |
 | `Dockerfile` | Imagem da API e dos workers (a mesma, com comandos diferentes) |
 | `.env.example` | Todas as configurações, comentadas ([referência](configuracao.md)) |

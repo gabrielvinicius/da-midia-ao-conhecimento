@@ -169,7 +169,9 @@ services:
   jaeger:
     image: jaegertracing/jaeger:2.22.0
     ports:
-      # Só na própria máquina: os rastros incluem dados das requisições.
+      # Só na própria máquina: os rastros incluem dados das requisições. Pela
+      # internet, só pelo túnel com o Cloudflare Access na frente
+      # (docs/guias/publicar-na-internet.md).
       - "127.0.0.1:16686:16686"  # interface web do Jaeger
     networks:
       - backend-net
@@ -184,7 +186,9 @@ services:
     volumes:
       - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
-      - "127.0.0.1:9090:9090"  # interface web, só na própria máquina
+      # Interface web só na própria máquina; pela internet, só pelo túnel com
+      # o Cloudflare Access na frente, como o Jaeger.
+      - "127.0.0.1:9090:9090"
     networks:
       - backend-net
       - public-net
@@ -359,6 +363,27 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  docs:
+    # Site da documentação (docs/), gerado na própria imagem pelo Zensical.
+    # Sem porta publicada: só o túnel chega a ele (perfil "internet"), com o
+    # hostname público apontando para http://docs:80.
+    build:
+      context: .
+      dockerfile: docker/docs.Dockerfile
+    image: docs:${APP_TAG:-current}
+    networks:
+      - public-net
+    restart: unless-stopped
+    logging: *logging
+    security_opt: *no-new-privileges
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    profiles: ["internet"]
 
   cloudflared:
     # Publicação na internet com HTTPS pelo Cloudflare Tunnel, sem abrir

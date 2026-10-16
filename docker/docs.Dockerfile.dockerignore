@@ -1,0 +1,6 @@
+# Contexto da imagem da documentação (docker/docs.Dockerfile): só o necessário.
+*
+!requirements-docs.txt
+!zensical.toml
+!docs/
+!docker/docs-nginx.conf

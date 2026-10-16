@@ -1,0 +1,116 @@
+# Site da documentação (pasta docs/), gerado pelo Zensical, o sucessor do
+# Material for MkDocs. A imagem docker/docs.Dockerfile o constrói em modo
+# estrito e o serviço "docs" do Compose o publica (perfil "internet").
+# Localmente: pip install -r requirements-docs.txt && zensical serve
+[project]
+site_name = "Da Mídia ao Conhecimento"
+site_description = "Documentação da plataforma: tutorial, guias, referência e explicação."
+site_url = "https://docs.gabrielvinicius.dev/"
+repo_url = "https://github.com/gabrielvinicius/da-midia-ao-conhecimento"
+repo_name = "da-midia-ao-conhecimento"
+edit_uri = "edit/main/docs/"
+docs_dir = "docs"
+site_dir = "site"
+copyright = "Trabalho de Conclusão de Curso de Gabriel Vinicius"
+
+# A mesma ordem do docs/README.md, pelas seções do Diátaxis.
+nav = [
+  { "Início" = "README.md" },
+  { "Tutorial" = [
+    { "Primeiros passos" = "tutoriais/primeiros-passos.md" },
+  ] },
+  { "Guias" = [
+    { "Implantar em produção" = "guias/implantar-em-producao.md" },
+    { "Publicar na internet" = "guias/publicar-na-internet.md" },
+    { "Cópias de segurança" = "guias/copias-de-seguranca.md" },
+    { "Armazenamento" = "guias/armazenamento.md" },
+    { "Modelos e etapas da análise" = "guias/modelos-e-etapas.md" },
+    { "Desenvolver" = "guias/desenvolver.md" },
+    { "Atualizar dependências" = "guias/atualizar-dependencias.md" },
+    { "Solucionar problemas" = "guias/solucionar-problemas.md" },
+  ] },
+  { "Referência" = [
+    { "API" = "referencia/api.md" },
+    { "Configuração" = "referencia/configuracao.md" },
+    { "Eventos e filas" = "referencia/eventos-e-filas.md" },
+    { "Modelos de IA" = "referencia/modelos.md" },
+    { "Comandos" = "referencia/comandos.md" },
+    { "Estrutura do repositório" = "referencia/estrutura.md" },
+  ] },
+  { "Explicação" = [
+    { "Arquitetura" = "explicacao/arquitetura.md" },
+    { "Pipeline de processamento" = "explicacao/pipeline.md" },
+    { "Segurança" = "explicacao/seguranca.md" },
+    { "Operação e confiabilidade" = "explicacao/operacao.md" },
+    { "Decisões de arquitetura" = "adr/decisions.md" },
+  ] },
+]
+
+[project.theme]
+language = "pt-BR"
+features = [
+  "content.action.edit",
+  "content.code.copy",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "toc.follow",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Usar o tema claro"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "indigo"
+accent = "indigo"
+toggle.icon = "lucide/sun"
+toggle.name = "Usar o tema escuro"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "indigo"
+accent = "indigo"
+toggle.icon = "lucide/moon"
+toggle.name = "Seguir o sistema"
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+tables = {}
+pymdownx.betterem = {}
+pymdownx.details = {}
+pymdownx.highlight.anchor_linenums = true
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.keys = {}
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+pymdownx.tasklist.custom_checkbox = true
+
+# Os avisos no formato do GitHub (> [!NOTE]), que a documentação já usa.
+[project.markdown_extensions.pymdownx.quotes]
+callouts = true
+
+# Âncoras como as do GitHub (com acento): os links entre as páginas são
+# conferidos pelo lychee com essas âncoras.
+[project.markdown_extensions.toc]
+permalink = true
+slugify = { object = "pymdownx.slugs.slugify", kwds = { case = "lower" } }

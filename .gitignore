@@ -51,3 +51,6 @@ gha-creds-*.json
 
 # Relatório do TCC: repositório próprio (gabrielvinicius/relatorio_tcc), clonado à parte nesta pasta.
 /relatorio_tcc/
+
+# Site da documentação gerado pelo Zensical (zensical build)
+site/
