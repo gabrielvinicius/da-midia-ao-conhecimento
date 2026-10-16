@@ -53,7 +53,7 @@ einops~=0.8.1  # Moondream 2
 # Tokenizador do modelo de sentimento (XLM-RoBERTa). Sem ele, o modelo nunca
 # carregou e o "tom" das análises vinha de palavras-chave.
 sentencepiece~=0.2.2
-sentence-transformers>=3.0,<6
+sentence-transformers>=5.7.0,<6
 accelerate>=1.0,<2  # device_map do Moondream
 faster-whisper~=1.2.1
 # O faster-whisper 1.2.1 chama av.open(..., metadata_errors=...), argumento que
