@@ -27,6 +27,11 @@ updates:
       # instalava); sobe junto com a trava acima.
       - dependency-name: sentence-transformers
         versions: [">=6"]
+      # O faster-whisper 1.2.1 passa metadata_errors ao av.open, que o PyAV 19
+      # removeu (o #145 subiu o av e a transcrição quebrou). Sobe junto com
+      # um faster-whisper que aceite o PyAV 19.
+      - dependency-name: av
+        versions: [">=19"]
 
   - package-ecosystem: npm
     directory: /frontend
