@@ -26,10 +26,10 @@ concurrency:
 
 jobs:
   deploy:
-    # A execução manual também só vale para a main: no plano gratuito, a regra
-    # de ramo do ambiente "producao" não é aplicada a repositórios privados, e
-    # um "Run workflow" num ramo qualquer implantaria código que não passou
-    # pela CI da main.
+    # A execução manual também só vale para a main: um "Run workflow" num ramo
+    # qualquer implantaria código que não passou pela CI da main. O ambiente
+    # "producao" repete a regra (só a main), em vigor desde que o repositório
+    # ficou público.
     if: >-
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')

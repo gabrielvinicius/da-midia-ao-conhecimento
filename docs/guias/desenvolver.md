@@ -101,6 +101,9 @@ Ao mudar comportamento, atualize também o guia ou a explicação
 correspondente em `docs/`, no mesmo PR.
 
 Uma página nova entra também no menu do site, em `nav` no `zensical.toml`.
+O mesmo menu define o nome dela na Wiki do GitHub, que é publicada sozinha a
+partir de `docs/` depois do merge (workflow `wiki.yml`); não edite a Wiki
+direto, porque a publicação seguinte sobrescreve a mudança.
 Para ver o site como ele será publicado:
 
 ```bash

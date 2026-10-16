@@ -1,0 +1,60 @@
+name: Wiki
+
+# Publica docs/ na Wiki do GitHub a cada mudança na main. A fonte continua em
+# docs/ (revisada nos PRs, com a referência gerada do código e o site); a
+# Wiki é um espelho para quem lê pelo GitHub, e o que for editado nela à mão
+# é sobrescrito na publicação seguinte.
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/**
+      - zensical.toml
+      - scripts/docs/publicar_wiki.py
+      - .github/workflows/wiki.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wiki
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Escrever na Wiki exige contents: write (ela é outro repositório git).
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      # A Wiki só passa a existir como repositório depois que a primeira
+      # página é criada pela interface do GitHub (aba Wiki).
+      - name: Publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPOSITORY}.wiki.git" wiki
+          python scripts/docs/publicar_wiki.py wiki
+          cd wiki
+          git add -A
+          if git diff --cached --quiet; then
+            echo "A Wiki já está atualizada."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Documentação de ${GITHUB_SHA::7} (docs/ na main)"
+          git push -q origin HEAD

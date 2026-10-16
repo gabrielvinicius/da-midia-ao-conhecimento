@@ -86,6 +86,22 @@ O código que chega à produção passa por várias verificações (ADR-016):
 - **Versões fixas**: toda imagem do Compose tem versão ou digest, nunca
   `latest`; um teste confere.
 
+### Repositório público
+
+O repositório é público desde outubro de 2026. Antes da abertura, o
+histórico foi varrido (gitleaks) e reescrito sem duas chaves de API, um vídeo
+de terceiros e arquivos de ferramentas. Tirar uma chave do histórico não
+basta: ela é revogada no painel do serviço, porque já esteve num
+repositório na nuvem. No GitHub:
+
+- **PRs de fora** só rodam workflows depois da aprovação do dono do
+  repositório. O runner da produção roda na própria máquina, e um PR de fork
+  poderia trocar o workflow para usá-lo.
+- **Varredura de segredos com bloqueio do envio**: um push com uma chave
+  conhecida é recusado.
+- **Ambiente `producao` só para a `main`**: a implantação recusa qualquer
+  outro ramo, além da condição do próprio workflow.
+
 ## Limites conhecidos
 
 - Não há autenticação em dois fatores nem login pela conta da instituição

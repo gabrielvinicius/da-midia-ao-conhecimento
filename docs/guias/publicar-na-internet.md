@@ -41,7 +41,7 @@ Hostname**; o Cloudflare cria o registro de DNS junto.
 |---|---|---|
 | `tcc.seudominio.dev` | `http://frontend:80` | Login da própria plataforma |
 | `app.seudominio.dev` | `http://frontend:80` | Login da própria plataforma |
-| `docs.seudominio.dev` | `http://docs:80` | Cloudflare Access |
+| `docs.seudominio.dev` | `http://docs:80` | Nenhuma: o site é público |
 | `metricas.seudominio.dev` | `http://prometheus:9090` | Cloudflare Access |
 | `rastros.seudominio.dev` | `http://jaeger:16686` | Cloudflare Access |
 
@@ -50,10 +50,10 @@ plataforma não pede mudança no CORS nem no `.env`. O `PUBLIC_URL` continua
 um só, porque é o endereço dos links enviados por e-mail. A sessão fica
 separada por endereço: quem entrou por um precisa entrar de novo no outro.
 
-### Painéis e documentação com o Cloudflare Access
+### Painéis com o Cloudflare Access
 
-O Prometheus e o Jaeger não têm login, e o site da documentação descreve a
-produção. Na internet, eles ficam atrás do Cloudflare Access, que pede um
+O Prometheus e o Jaeger não têm login, e os rastros incluem dados das
+requisições. Na internet, eles ficam atrás do Cloudflare Access, que pede um
 código enviado ao e-mail autorizado antes de qualquer requisição chegar à
 máquina.
 
@@ -75,9 +75,12 @@ de entrada do Access:
 curl -sI https://metricas.seudominio.dev/ | head -1   # HTTP/2 302
 ```
 
+### Site da documentação
+
 O serviço `docs` só existe com o perfil `internet`: a implantação constrói
 o site a cada versão (`docker/docs.Dockerfile`, em modo estrito), junto com
-a interface.
+a interface. O site é público, como o repositório: nada do que entra em
+`docs/` pode depender de ficar escondido.
 
 ### Redes que bloqueiam o domínio
 
