@@ -49,7 +49,7 @@ torchvision==0.29.1  # Moondream 2
 # junto com o torchvision e o einops ausentes, a descrição dos quadros falhava
 # em silêncio em todo vídeo.
 transformers>=4.49.0,<4.50
-einops~=0.8.1  # Moondream 2
+einops~=0.8.2  # Moondream 2
 # Tokenizador do modelo de sentimento (XLM-RoBERTa). Sem ele, o modelo nunca
 # carregou e o "tom" das análises vinha de palavras-chave.
 sentencepiece~=0.2.2
