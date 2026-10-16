@@ -13,12 +13,12 @@ from src.user_management.domain import User, UserRole
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
 
-@router.get("/ping")
+@router.get("/ping", summary="Resposta mínima (a API está no ar?)")
 async def ping() -> dict:
     return {"status": "ok"}
 
 
-@router.get("/system-status")
+@router.get("/system-status", summary="Nível de carga da máquina")
 async def get_system_status(current_user: User = Depends(get_current_user)) -> dict:
     advisor = HardwareAdvisor()
     status = {"pressure": advisor.recommend_strategy().value}

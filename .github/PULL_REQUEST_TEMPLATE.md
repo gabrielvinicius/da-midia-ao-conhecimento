@@ -15,5 +15,6 @@ implantação; como desfazer se der errado. -->
 
 - [ ] CI verde (backend, frontend, migrations, deployment; images, se tocou em Dockerfile ou dependências)
 - [ ] Variáveis novas documentadas no `.env.example`
-- [ ] `AGENTS.md`, README e ADRs (`docs/adr`) atualizados quando a regra ou a decisão mudou
+- [ ] Documentação em `docs/` atualizada no mesmo PR (guia, explicação ou ADR), e a referência regerada (`python scripts/docs/gerar_referencia.py`) se rotas, configurações ou eventos mudaram
+- [ ] `AGENTS.md` atualizado quando uma regra do código mudou
 - [ ] Arquitetura preservada (injeção de dependência, camadas, `lint-imports`)

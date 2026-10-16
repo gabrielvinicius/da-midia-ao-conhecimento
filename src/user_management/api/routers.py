@@ -69,12 +69,12 @@ async def register(
     )
 
 
-@router.get("/options", response_model=AuthOptionsResponse)
+@router.get("/options", response_model=AuthOptionsResponse, summary="Opções da conta (envio de e-mails ligado?)")
 async def auth_options(account_emails: AccountEmailService = Depends(get_account_email_service)):
     return AuthOptionsResponse(email_enabled=account_emails.enabled)
 
 
-@router.post("/verify-email", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/verify-email", status_code=status.HTTP_204_NO_CONTENT, summary="Confirmar o e-mail pelo link recebido")
 async def verify_email(
     payload: TokenAction, account_emails: AccountEmailService = Depends(get_account_email_service)
 ) -> Response:
@@ -100,7 +100,7 @@ async def forgot_password(
     return {"message": "Se houver uma conta com este e-mail, enviamos um link para criar uma nova senha."}
 
 
-@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT, summary="Definir nova senha pelo link recebido")
 async def reset_password(
     payload: PasswordResetRequest, account_emails: AccountEmailService = Depends(get_account_email_service)
 ) -> Response:
@@ -116,7 +116,7 @@ def _client_ip(request: Request) -> Optional[str]:
     return request.client.host if request.client else None
 
 
-@router.post("/token")
+@router.post("/token", summary="Entrar (e-mail e senha)")
 async def login_for_access_token(
     request: Request,
     response: Response,
@@ -167,7 +167,7 @@ async def login_for_access_token(
     }
 
 
-@router.post("/refresh")
+@router.post("/refresh", summary="Renovar a sessão pelo cookie de renovação")
 async def refresh_token(
     request: Request,
     response: Response,
@@ -236,7 +236,7 @@ async def change_my_password(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me", response_model=UserResponse, summary="Usuário da sessão")
 async def read_users_me(current_user: Annotated[User, Depends(get_current_user)]):
     # Explicit mapping from Domain Entity -> DTO
     return UserResponse(

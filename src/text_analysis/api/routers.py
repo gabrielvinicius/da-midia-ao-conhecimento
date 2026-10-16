@@ -93,7 +93,7 @@ async def topics_overview(
     return [TopicGroupResponse.model_validate(asdict(group)) for group in await service.topic_overview(requester)]
 
 
-@router.get("/media/{media_id}", response_model=AnalyzeResponse)
+@router.get("/media/{media_id}", response_model=AnalyzeResponse, summary="Análise de uma mídia")
 async def get_analysis_by_media(
     media_id: UUID,
     service: TextAnalysisReadService = Depends(get_analysis_read_service),
@@ -104,7 +104,7 @@ async def get_analysis_by_media(
     )
 
 
-@router.get("/{analysis_id}", response_model=AnalyzeResponse)
+@router.get("/{analysis_id}", response_model=AnalyzeResponse, summary="Análise pelo id")
 async def get_analysis_result(
     analysis_id: UUID,
     service: TextAnalysisReadService = Depends(get_analysis_read_service),
@@ -113,7 +113,7 @@ async def get_analysis_result(
     return await service.get_analysis(GetAnalysisQuery(analysis_id=analysis_id), requester)
 
 
-@router.get("/{analysis_id}/topics")
+@router.get("/{analysis_id}/topics", summary="Temas de uma análise")
 async def get_topics(
     analysis_id: UUID,
     service: TextAnalysisReadService = Depends(get_analysis_read_service),

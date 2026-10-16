@@ -247,3 +247,31 @@ jobs:
         run: |
           alembic downgrade base
           alembic upgrade head
+
+  # Documentação (docs/ e README): Markdown conferido e links internos, com as
+  # âncoras, verificados. Offline: só os links do próprio repositório; um site
+  # externo fora do ar não deve quebrar a CI. A referência gerada a partir do
+  # código é conferida pelo teste tests/unit/test_docs_reference.py (backend).
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Markdown (markdownlint)
+        uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
+        with:
+          globs: |
+            README.md
+            docs/**/*.md
+
+      - name: Links internos e âncoras (lychee)
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          lycheeVersion: v0.24.2
+          args: --offline --include-fragments --no-progress README.md 'docs/**/*.md'
+          fail: true
+          jobSummary: false

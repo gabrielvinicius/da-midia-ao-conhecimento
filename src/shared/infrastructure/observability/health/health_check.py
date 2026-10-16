@@ -44,7 +44,7 @@ async def redis_ok() -> bool:
 CHECKS: dict[str, Callable[[], Awaitable[bool]]] = {"database": database_ok, "redis": redis_ok}
 
 
-@router.get("/health")
+@router.get("/health", summary="Saúde da API, do banco e do Redis (503 se algum falhar)")
 async def health_check() -> JSONResponse:
     results = {name: await check() for name, check in CHECKS.items()}
     healthy = all(results.values())

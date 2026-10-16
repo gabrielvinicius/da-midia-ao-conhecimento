@@ -1,0 +1,18 @@
+// Verificação do Markdown da documentação (job "docs" da CI).
+// Regras: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+{
+  "config": {
+    "default": true,
+    // Linhas longas são normais em tabelas e em links; o GitHub quebra o texto.
+    "MD013": false,
+    // A referência gerada começa com um comentário avisando que é gerada.
+    "MD041": false,
+    // <br> nas células das tabelas geradas.
+    "MD033": { "allowed_elements": ["br"] },
+    // "Veja também" e "Sintoma" se repetem em seções diferentes.
+    "MD024": { "siblings_only": true },
+    // Tabelas no estilo compacto (|---|), o do repositório inteiro.
+    "MD060": false
+  },
+  "globs": ["README.md", "docs/**/*.md"]
+}
