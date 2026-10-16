@@ -34,9 +34,9 @@ flowchart LR
 - **Imagens marcadas pelo commit.** As versões anteriores ficam na máquina, e
   voltar a uma delas leva segundos, sem internet e sem reconstruir.
 - **Sem registro de imagens.** A imagem do backend, com as bibliotecas da GPU,
-  ocupa 13 GB, acima da cota de pacotes de um repositório privado no plano
-  gratuito; a CI constrói e varre a variante de CPU, que tem as mesmas camadas
-  de sistema.
+  ocupa 13 GB: construí-la na própria máquina é mais rápido do que enviá-la a
+  um registro e baixá-la de volta. A CI constrói e varre a variante de CPU,
+  que tem as mesmas camadas de sistema.
 - **Migrações num serviço próprio**, que roda uma vez antes da API e dos
   workers. Uma migração precisa ser compatível com a versão anterior
   (expandir, e só depois contrair), ou a volta automática não funciona.
