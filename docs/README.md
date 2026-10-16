@@ -76,5 +76,5 @@ Contexto e motivos, para quem quer entender antes de mudar.
 - **Verificada na CI.** O job `docs` confere o Markdown (markdownlint) e todos
   os links internos, inclusive as âncoras (lychee).
 - **Regras do código.** As regras que todo PR segue estão em
-  [`AGENTS.md`](../AGENTS.md); o relatório do TCC fica no repositório
+  [`AGENTS.md`](https://github.com/gabrielvinicius/da-midia-ao-conhecimento/blob/main/AGENTS.md); o relatório do TCC fica no repositório
   `relatorio_tcc`.

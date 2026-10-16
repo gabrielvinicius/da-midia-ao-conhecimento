@@ -1,0 +1,4 @@
+# Site da documentação (docker/docs.Dockerfile e o job "docs" da CI). Fica
+# fora da imagem da aplicação. O Zensical ainda está na série 0.0.x: a versão
+# é exata, e o Dependabot propõe as novas.
+zensical==0.0.70

@@ -189,7 +189,7 @@ jobs:
       # justificadas em .hadolint.yaml.
       - name: Dockerfiles (hadolint)
         run: |
-          for f in Dockerfile frontend/Dockerfile; do
+          for f in Dockerfile frontend/Dockerfile docker/docs.Dockerfile; do
             echo "== $f"
             docker run --rm -v "$PWD/.hadolint.yaml:/.config/hadolint.yaml:ro" -i hadolint/hadolint:v2.15.1 < "$f"
           done
@@ -248,13 +248,13 @@ jobs:
           alembic downgrade base
           alembic upgrade head
 
-  # Documentação (docs/ e README): Markdown conferido e links internos, com as
-  # âncoras, verificados. Offline: só os links do próprio repositório; um site
+  # Documentação (docs/ e README): Markdown conferido, links internos, com as
+  # âncoras, verificados e o site (Zensical) gerado. Offline: só os links do próprio repositório; um site
   # externo fora do ar não deve quebrar a CI. A referência gerada a partir do
   # código é conferida pelo teste tests/unit/test_docs_reference.py (backend).
   docs:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -275,3 +275,15 @@ jobs:
           args: --offline --include-fragments --no-progress README.md 'docs/**/*.md'
           fail: true
           jobSummary: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      # O site (zensical.toml) em modo estrito: um link para página inexistente
+      # reprova aqui, antes de reprovar a imagem na implantação.
+      - name: Site da documentação (Zensical)
+        run: |
+          pip install -r requirements-docs.txt
+          zensical build --strict

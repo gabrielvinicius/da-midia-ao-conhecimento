@@ -49,8 +49,8 @@ variáveis (usado nos testes). Veja [Cópias de segurança](../guias/copias-de-s
 | O que | Onde |
 |---|---|
 | Saúde da API, do banco e do Redis | `http://localhost:3000/api/health` (503 se algum falhar) |
-| Métricas (Prometheus) | `http://localhost:9090`, só na própria máquina |
-| Rastros das requisições e tarefas (Jaeger) | `http://localhost:16686`, só na própria máquina |
+| Métricas (Prometheus) | `http://localhost:9090` na própria máquina; de fora, pelo túnel com o Cloudflare Access |
+| Rastros das requisições e tarefas (Jaeger) | `http://localhost:16686` na própria máquina; de fora, pelo túnel com o Cloudflare Access |
 | Fila, servidor e qualidade das análises | Interface: Administração |
 
 ## Desenvolvimento
@@ -64,5 +64,6 @@ variáveis (usado nos testes). Veja [Cópias de segurança](../guias/copias-de-s
 | Verificações do backend | `ruff check src tests main.py` e `lint-imports` |
 | Testes da interface | `npm run test:ci` e `npm run test:e2e`, em `frontend/` |
 | Regerar a referência da documentação | `python scripts/docs/gerar_referencia.py` |
+| Ver o site da documentação | `pip install -r requirements-docs.txt` e `zensical serve` (em `http://localhost:8000`) |
 
 Os comandos completos da CI estão em [Desenvolver](../guias/desenvolver.md).

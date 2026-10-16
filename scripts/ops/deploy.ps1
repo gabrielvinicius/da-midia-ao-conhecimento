@@ -12,8 +12,9 @@
     pwsh scripts/ops/deploy.ps1 -PreviousSha <commit em produção antes>
 
   Cada versão vira imagens marcadas com o commit (app:<commit>,
-  frontend:<commit>); a versão saudável também recebe a marca "current", que
-  é a que o Compose usa sem APP_TAG. Voltar atrás é subir com APP_TAG no
+  frontend:<commit> e, com o perfil "internet", docs:<commit>); a versão
+  saudável também recebe a marca "current", que é a que o Compose usa sem
+  APP_TAG. Voltar atrás é subir com APP_TAG no
   commit anterior: a imagem dele continua na máquina, nada é reconstruído.
   Ficam as últimas -KeepVersions versões; as mais antigas e o cache de build
   com mais de uma semana são apagados.
@@ -34,6 +35,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $builtServices = @("backend", "frontend")
+# O site da documentação só é construído quando o perfil dele está ligado.
+$optionalServices = @("docs")
 
 function Invoke-Docker([string[]]$arguments) {
     & docker @arguments
@@ -94,6 +97,9 @@ function Remove-OldVersions([string[]]$repositories, [string[]]$keep) {
 
 $config = Get-ComposeConfig
 $project = $config.name
+$optionalBuilt = $optionalServices | Where-Object { $config.services.$_ }
+$builtServices += $optionalBuilt
+$optionalRepositories = $optionalBuilt | ForEach-Object { Get-ImageRepository $config $_ }
 $repositories = $builtServices | ForEach-Object { Get-ImageRepository $config $_ } | Select-Object -Unique
 $version = (& git rev-parse --short=12 HEAD).Trim()
 $previousTag = Get-RunningTag
@@ -117,6 +123,15 @@ try {
 }
 catch {
     Write-Host "::error::Falha na implantação: $($_.Exception.Message)"
+    # A documentação não decide a volta: se a versão anterior não tinha a
+    # imagem dela (o perfil foi ligado agora), a anterior sobe com o site novo.
+    foreach ($repository in $optionalRepositories) {
+        & docker image inspect "${repository}:${previousTag}" *> $null
+        if ($previousTag -and $LASTEXITCODE -ne 0) {
+            & docker image inspect "${repository}:${version}" *> $null
+            if ($LASTEXITCODE -eq 0) { & docker tag "${repository}:${version}" "${repository}:${previousTag}" }
+        }
+    }
     $canRollBack = $previousTag -and ($repositories | ForEach-Object {
         & docker image inspect "${_}:${previousTag}" *> $null; $LASTEXITCODE -eq 0 }) -notcontains $false
     if (-not $canRollBack) {
