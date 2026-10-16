@@ -64,7 +64,7 @@ API) e `src/worker_process.py` (montagem de cada processo de worker).
 | `integration/` | Portas e adaptadores; os de PostgreSQL rodam com `TEST_POSTGRES_URL` |
 | `smoke/` | A API sobe e responde |
 | `e2e/` | Fluxo completo pela API, com PostgreSQL e Redis |
-| `mocks/`, `utils/`, `assets/` | Dublês, utilitários e arquivos de exemplo |
+| `mocks/`, `utils/` | Dublês e utilitários dos testes |
 
 Os testes da interface ficam em `frontend/` (Vitest ao lado dos componentes e
 Playwright em `frontend/tests/e2e`).

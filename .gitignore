@@ -33,16 +33,15 @@ app.db
 celerybeat-schedule
 celerybeat.pid
 
-# Node (a interface fica no submódulo frontend)
+# Node (as regras da interface ficam em frontend/.gitignore)
 /node_modules/
-/frontend/node_modules/
-/frontend/dist/
 
 # Ferramentas pessoais (IDE e assistentes)
 .idea/
 /frontend/.idea/
 .qwen/
 .gemini/
+.claude/
 gha-creds-*.json
 /acli.exe
 
