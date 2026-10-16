@@ -16,9 +16,9 @@ python-multipart~=0.0.32
 httpx~=0.28.1  # cliente do Ollama
 
 # Banco de dados
-sqlalchemy[asyncio]~=2.1.1
+sqlalchemy[asyncio]~=2.1.4
 alembic~=1.20.0
-asyncpg~=0.31.0
+asyncpg~=0.32.0
 psycopg2-binary~=2.9.13  # driver síncrono das migrações
 pgvector~=0.5.1
 
@@ -48,7 +48,7 @@ torchvision==0.29.1  # Moondream 2
 # transformers 4.50+ ("'PhiForCausalLM' object has no attribute 'generate'");
 # junto com o torchvision e o einops ausentes, a descrição dos quadros falhava
 # em silêncio em todo vídeo.
-transformers>=4.46,<4.50
+transformers>=4.49.0,<4.50
 einops~=0.8.1  # Moondream 2
 # Tokenizador do modelo de sentimento (XLM-RoBERTa). Sem ele, o modelo nunca
 # carregou e o "tom" das análises vinha de palavras-chave.
@@ -58,7 +58,7 @@ accelerate>=1.0,<2  # device_map do Moondream
 faster-whisper~=1.2.1
 # O faster-whisper 1.2.1 chama av.open(..., metadata_errors=...), argumento que
 # o PyAV 19 removeu: sem limite, toda transcrição falhava com TypeError.
-av~=18.1.0
+av~=19.0.1
 ctranslate2~=4.8.2
 openai-whisper==20250625  # provedor opcional de transcrição
 # Importação por link: o YouTube muda com frequência e versões antigas param de
