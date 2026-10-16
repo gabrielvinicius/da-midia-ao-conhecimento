@@ -19,13 +19,18 @@ cada uma com o motivo ao lado:
   (ADR-014); sobem à mão, com a medição de tempo e memória na GPU.
 - **`transformers` 4.50 ou mais** e **`sentence-transformers` 6**: o Moondream 2
   usa uma revisão de 2024 que exige o `transformers` abaixo de 4.50.
+- **`av` (PyAV) 19**: o `faster-whisper` 1.2.1 passa ao `av.open` um
+  argumento que o PyAV 19 removeu, e toda transcrição falha. O teste
+  `tests/integration/media_processing/test_audio_decoding.py` pega o caso.
 - **TypeScript 7**: o typescript-eslint ainda não o aceita.
 - **`@types/node`** e **Node**: seguem a versão LTS da imagem e da CI.
 
 ## Versões menores e correções
 
 Com a CI verde, faça o merge. Uma falha num PR desses costuma vir do próprio
-pacote; leia o log antes de reexecutar.
+pacote; leia o log antes de reexecutar. **Não faça o merge com a CI
+vermelha**: a implantação só roda depois da CI verde na `main`, e um PR
+quebrado ali segura todas as implantações seguintes.
 
 ## Versões maiores
 
