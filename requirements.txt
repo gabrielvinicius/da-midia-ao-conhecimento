@@ -64,7 +64,7 @@ openai-whisper==20250625  # provedor opcional de transcrição
 # Importação por link: o YouTube muda com frequência e versões antigas param de
 # funcionar, por isso só o mínimo testado.
 yt-dlp>=2026.8.19
-numpy~=2.4.6
+numpy~=2.5.4
 scikit-learn~=1.9.1
 bertopic~=0.17.4
 
