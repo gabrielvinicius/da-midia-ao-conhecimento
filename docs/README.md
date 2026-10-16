@@ -67,14 +67,21 @@ Contexto e motivos, para quem quer entender antes de mudar.
 
 ## Como esta documentação é mantida
 
-- **Junto com o código.** Fica no repositório, muda no mesmo PR que muda o
-  comportamento e passa pela mesma revisão. Por isso não há uma Wiki separada:
-  ela ficaria fora da revisão e se afastaria do código sem ninguém notar.
+- **Junto com o código.** Fica em `docs/`, no repositório, muda no mesmo PR
+  que muda o comportamento e passa pela mesma revisão.
+- **Três formas de ler, uma fonte.** O site
+  ([docs.gabrielvinicius.dev](https://docs.gabrielvinicius.dev)) e a
+  [Wiki do GitHub](https://github.com/gabrielvinicius/da-midia-ao-conhecimento/wiki)
+  são gerados de `docs/` a cada mudança na `main`. Corrija sempre o arquivo em
+  `docs/`: uma edição feita direto na Wiki é sobrescrita na publicação
+  seguinte.
 - **Referência gerada.** Depois de mudar rotas, configurações ou eventos, rode
   `python scripts/docs/gerar_referencia.py`. O teste
   `tests/unit/test_docs_reference.py` falha se a referência ficar para trás.
-- **Verificada na CI.** O job `docs` confere o Markdown (markdownlint) e todos
-  os links internos, inclusive as âncoras (lychee).
+- **Verificada na CI.** O job `docs` confere o Markdown (markdownlint), todos
+  os links internos, inclusive as âncoras (lychee), e gera o site em modo
+  estrito. Um teste confere que toda página vira uma página da Wiki, com os
+  links entre elas funcionando.
 - **Regras do código.** As regras que todo PR segue estão em
   [`AGENTS.md`](https://github.com/gabrielvinicius/da-midia-ao-conhecimento/blob/main/AGENTS.md); o relatório do TCC fica no repositório
   `relatorio_tcc`.

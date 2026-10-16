@@ -16,7 +16,7 @@ interface web e a implantação. O relatório do TCC fica num repositório à pa
 | `docker/` | Arquivos montados nos contêineres (`garage.toml`, `prometheus.yml`, entrada do worker) e a imagem do site da documentação (`docs.Dockerfile`) |
 | `scripts/ops/` | Implantação, cópias de segurança e tarefa do runner ([Comandos](comandos.md)) |
 | `scripts/evaluation/` | Medições do protocolo de avaliação do TCC (WER, tempos) |
-| `scripts/docs/` | Gerador da referência desta documentação |
+| `scripts/docs/` | Gerador da referência desta documentação e conversor para a Wiki |
 | `docs/` | Esta documentação e os ADRs |
 | `zensical.toml` | Site da documentação: menu, tema e extensões do Markdown |
 | `docker-compose.yml` | Produção; `docker-compose.cpu.yml`, `.rocm.yml` e `.dev.yml` só sobrescrevem o que muda |
@@ -24,7 +24,7 @@ interface web e a implantação. O relatório do TCC fica num repositório à pa
 | `.env.example` | Todas as configurações, comentadas ([referência](configuracao.md)) |
 | `.importlinter` | Fronteiras entre módulos e camadas, conferidas pelo `lint-imports` |
 | `AGENTS.md` | Regras do código, para pessoas e assistentes de IA |
-| `.github/` | Workflows (CI, imagens, implantação, cópias), Dependabot e modelo de PR |
+| `.github/` | Workflows (CI, imagens, implantação, cópias, Wiki), Dependabot e modelo de PR |
 
 ## Módulos do backend (`src/`)
 
