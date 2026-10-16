@@ -100,9 +100,11 @@ class ResumableUpload:
                 storage_provider=staged.storage_provider,
                 transcription_provider=staged.transcription_provider,
                 correlation_id=correlation_id,
+                move_source=True,
             )
         )
-        # Só depois do registro: se ele falhar, o navegador pode tentar concluir de novo.
+        # Só depois do registro: se ele falhar, o arquivo volta para a área
+        # temporária (StorageUploaderPort.discard), e a conclusão pode ser repetida.
         await staging.remove(upload_id)
         return media
 

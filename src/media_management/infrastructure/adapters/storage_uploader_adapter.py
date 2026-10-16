@@ -47,12 +47,18 @@ class StorageServiceFactoryUploader(StorageUploaderPort):
             source_path=command.file_path,
             destination=destination_path,
             content_type=content_type,
+            move=bool(getattr(command, "move_source", False)),
         )
         return UploadResult(destination_path=destination_path, metadata=metadata)
 
     async def discard(self, command, destination_path: str) -> None:
         provider = getattr(command, "storage_provider", None) or self._default_provider
-        await self._factory.create_storage_service(str(provider)).delete(destination_path)
+        storage = self._factory.create_storage_service(str(provider))
+        if getattr(command, "move_source", False):
+            # O arquivo saiu da área temporária: sem devolvê-lo, a conclusão
+            # não poderia ser repetida e o envio teria de recomeçar.
+            await storage.download_to(destination_path, command.file_path)
+        await storage.delete(destination_path)
 
 
 class DefaultUploadMetadataMapper(UploadMetadataMapperPort):

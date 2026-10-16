@@ -1,6 +1,7 @@
 # Cópias de segurança
 
-As cópias guardam o banco, as mídias enviadas e, quando o S3 local está
+As cópias guardam o banco, as mídias enviadas (sem os envios em partes
+ainda em andamento, da pasta `.envios-em-partes`) e, quando o S3 local está
 ligado, os dados do Garage, num repositório [restic](https://restic.readthedocs.io/):
 incremental (só o que mudou é gravado), com deduplicação e cifrado. Este guia
 mostra como configurar, conferir e restaurar. Os motivos das escolhas estão no

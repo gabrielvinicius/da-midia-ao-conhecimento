@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import mimetypes
+import os
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 from uuid import uuid4
@@ -63,14 +64,17 @@ class S3StorageRepository(StorageRepositoryPort):
             updated_at=now,
         )
 
-    async def store_from(self, file_path: FilePath, source_path: str) -> FileMetadata:
-        """Envio em partes (upload_file do boto3), sem ler o arquivo para a memória."""
+    async def store_from(self, file_path: FilePath, source_path: str, *, move: bool = False) -> FileMetadata:
+        """Envio em partes (upload_file do boto3), sem ler o arquivo para a memória.
+        Com ``move``, apaga a origem depois do envio."""
         await self._ensure_bucket()
         key = _key(file_path)
         content_type = mimetypes.guess_type(key)[0] or "application/octet-stream"
         await asyncio.to_thread(
             self._s3.upload_file, source_path, self._bucket, key, ExtraArgs={"ContentType": content_type}
         )
+        if move:
+            await asyncio.to_thread(os.remove, source_path)
         return await self.get_metadata(file_path)
 
     async def read_range(self, file_path: FilePath, start: int, end: int) -> Optional[bytes]:

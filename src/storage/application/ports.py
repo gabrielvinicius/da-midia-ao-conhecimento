@@ -16,8 +16,11 @@ class StorageRepositoryPort(Protocol):
 
     async def retrieve(self, file_path: FilePath) -> Optional[bytes]: ...
 
-    async def store_from(self, file_path: FilePath, source_path: str) -> FileMetadata:
-        """Grava a partir de um arquivo local, sem carregá-lo na memória."""
+    async def store_from(self, file_path: FilePath, source_path: str, *, move: bool = False) -> FileMetadata:
+        """Grava a partir de um arquivo local, sem carregá-lo na memória.
+
+        Com ``move``, a origem deixa de existir: no mesmo disco, o arquivo só
+        muda de nome, em vez de ser copiado byte a byte."""
         ...
 
     async def read_range(self, file_path: FilePath, start: int, end: int) -> Optional[bytes]:
@@ -44,7 +47,11 @@ class StorageRepositoryPort(Protocol):
 class FileStoragePort(Protocol):
     """Narrow upload/download port used by media_management."""
 
-    async def upload_file(self, *, source_path: str, destination: str, content_type: str) -> Dict[str, Any]: ...
+    async def upload_file(
+        self, *, source_path: str, destination: str, content_type: str, move: bool = False
+    ) -> Dict[str, Any]: ...
+
+    async def download_to(self, path: Any, destination: str) -> bool: ...
 
     async def delete(self, file_path: str) -> bool: ...
 
