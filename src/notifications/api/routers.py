@@ -36,7 +36,7 @@ async def list_my_notifications(
     return [realtime_message(n)["payload"] for n in notifications]
 
 
-@router.post("/read-all", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/read-all", status_code=status.HTTP_204_NO_CONTENT, summary="Marcar todos os avisos como lidos")
 async def mark_all_my_notifications_as_read(
     service: NotificationService = Depends(get_notification_service),
     current_user: User = Depends(get_current_user),
@@ -44,7 +44,7 @@ async def mark_all_my_notifications_as_read(
     await service.mark_all_as_read(current_user.id)
 
 
-@router.post("/{notification_id}/read", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/{notification_id}/read", status_code=status.HTTP_204_NO_CONTENT, summary="Marcar um aviso como lido")
 async def mark_notification_as_read(
     notification_id: UUID,
     service: NotificationService = Depends(get_notification_service),
