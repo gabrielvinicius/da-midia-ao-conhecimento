@@ -13,6 +13,7 @@ diferentes. Comece pela que corresponde ao que você precisa agora.
 | Você quer... | Vá para |
 |---|---|
 | **aprender** a usar e rodar o sistema pela primeira vez | [Tutorial](#tutorial) |
+| **usar** as telas da plataforma, como usuário ou administrador | [Manual do usuário](guias/manual-do-usuario.md) e [do administrador](guias/manual-do-administrador.md) |
 | **resolver** uma tarefa concreta (implantar, restaurar, trocar um modelo) | [Guias](#guias) |
 | **consultar** um detalhe exato (rota da API, variável, evento) | [Referência](#referência) |
 | **entender** como e por que o sistema funciona assim | [Explicação](#explicação) |
@@ -29,6 +30,8 @@ Para quem já conhece o sistema e tem uma tarefa a cumprir.
 
 | Guia | Quando usar |
 |---|---|
+| [Manual do usuário](guias/manual-do-usuario.md) | Usar cada tela da plataforma: envio, página da mídia, busca, revisão, resumos, temas e avisos |
+| [Manual do administrador](guias/manual-do-administrador.md) | Acompanhar a fila, as mídias, os usuários, a qualidade da IA, os tempos e o servidor |
 | [Implantar em produção](guias/implantar-em-producao.md) | Preparar a máquina, o runner e a implantação contínua |
 | [Publicar na internet](guias/publicar-na-internet.md) | HTTPS pelo Cloudflare Tunnel, ou acesso pela rede local |
 | [Cópias de segurança](guias/copias-de-seguranca.md) | Configurar, conferir e restaurar as cópias |

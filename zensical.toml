@@ -20,6 +20,8 @@ nav = [
     { "Primeiros passos" = "tutoriais/primeiros-passos.md" },
   ] },
   { "Guias" = [
+    { "Manual do usuário" = "guias/manual-do-usuario.md" },
+    { "Manual do administrador" = "guias/manual-do-administrador.md" },
     { "Implantar em produção" = "guias/implantar-em-producao.md" },
     { "Publicar na internet" = "guias/publicar-na-internet.md" },
     { "Cópias de segurança" = "guias/copias-de-seguranca.md" },
