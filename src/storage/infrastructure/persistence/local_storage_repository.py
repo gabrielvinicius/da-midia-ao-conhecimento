@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+import errno
+import os
 import shutil
 import mimetypes
 from datetime import datetime, timezone
@@ -52,14 +54,25 @@ class LocalStorageService(StorageRepositoryPort):
                 f"Falha ao gravar arquivo {file_path}: {exc}"
             ) from exc
 
-    async def store_from(self, file_path: FilePath, source_path: str) -> FileMetadata:
+    async def store_from(self, file_path: FilePath, source_path: str, *, move: bool = False) -> FileMetadata:
         destination = self._resolve_path(file_path)
 
-        def _copy() -> None:
+        def _store() -> None:
             destination.parent.mkdir(parents=True, exist_ok=True)
+            if move:
+                try:
+                    # Mesmo disco: só troca o nome. Copiar os 433 MB de uma
+                    # entrevista levava 2,5 s na conclusão do envio.
+                    os.replace(source_path, destination)
+                    return
+                except OSError as exc:
+                    if exc.errno != errno.EXDEV:
+                        raise
             shutil.copyfile(source_path, destination)
+            if move:
+                os.remove(source_path)
 
-        await asyncio.to_thread(_copy)
+        await asyncio.to_thread(_store)
         return await self.get_metadata(file_path)
 
     async def read_range(self, file_path: FilePath, start: int, end: int) -> Optional[bytes]:

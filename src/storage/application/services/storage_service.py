@@ -29,11 +29,12 @@ class StorageService:
         file_path = FilePath.from_path(path)
         return await self._repository.retrieve(file_path)
 
-    async def store_file_from(self, path: str, source_path: str) -> FileMetadata:
-        """Grava a partir de um arquivo local (envios de até 500 MB)."""
+    async def store_file_from(self, path: str, source_path: str, *, move: bool = False) -> FileMetadata:
+        """Grava a partir de um arquivo local (envios de até 500 MB); com
+        ``move``, a origem é consumida."""
         file_path = FilePath.from_path(path)
-        logger.info("storage.store_file", path=str(file_path))
-        return await self._repository.store_from(file_path, source_path)
+        logger.info("storage.store_file", path=str(file_path), move=move)
+        return await self._repository.store_from(file_path, source_path, move=move)
 
     async def read_file_range(self, path: str, start: int, end: int) -> Optional[bytes]:
         """Trecho do arquivo (para o reprodutor), sem lê-lo inteiro."""
