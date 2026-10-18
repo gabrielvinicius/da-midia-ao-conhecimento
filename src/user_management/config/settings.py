@@ -52,6 +52,8 @@ class UserSettings(BaseSettings):
     smtp_security: str = Field(default="starttls", validation_alias=AliasChoices("SMTP_SECURITY"))
     email_verification_hours: int = 24
     password_reset_minutes: int = 60
+    # Pedidos de e-mail (cadastro reenviado, nova senha) por endereço numa hora.
+    account_emails_per_hour: int = 3
 
     model_config = SettingsConfigDict(
         env_prefix="USER_",

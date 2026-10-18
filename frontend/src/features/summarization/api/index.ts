@@ -54,12 +54,14 @@ export const semanticSearch =async (query: string, limit = 10): Promise<Semantic
   (await api.get<SemanticSearchResult[]>('/text-analysis/search', { params: { query, limit } })).data;
 
 export type ReviewProgress = {
-  /** Caixa de 1 a 5: acertar sobe, errar volta para 1. A partir da 4, dominada. */
+  /** Caixa da revisão espaçada: acertar sobe, errar volta para 1. */
   box: number;
   correct_count: number;
   wrong_count: number;
   last_answered_at: string | null;
   due_at: string | null;
+  /** Dominada: chegou à caixa configurada no servidor (REVIEW_MASTERED_BOX). */
+  mastered: boolean;
 };
 export type StudyQuestion = {
   question: string;

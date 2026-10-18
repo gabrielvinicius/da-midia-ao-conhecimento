@@ -12,26 +12,35 @@ from typing import Optional, Sequence
 from src.text_analysis.domain.entities.sentiment import Sentiment, SentimentLabel, TextChunk
 from src.text_analysis.domain.entities.topic import Topic
 
-# Tamanho do resumo, proporcional à transcrição: cerca de 12% das palavras,
-# entre 120 e 900. Até 200 palavras, formato curto (sem seções): um resumo
-# com título, seções e pontos-chave ficava do tamanho de uma fala curta.
-SUMMARY_RATIO = 0.12
-SUMMARY_MIN_WORDS = 120
-SUMMARY_MAX_WORDS = 900
-SHORT_SUMMARY_WORDS = 200
+
+@dataclass(frozen=True)
+class SummaryLength:
+    """Tamanho do resumo: uma porcentagem das palavras da transcrição, com um
+    mínimo. Até ``short_words``, formato curto (sem seções): um resumo com
+    título, seções e pontos-chave ficava do tamanho de uma fala curta.
+
+    Os valores vêm das configurações (SUMMARY_*); os padrões são os delas.
+    """
+
+    percent: float = 12
+    min_words: int = 120
+    short_words: int = 200
+
+    def __post_init__(self) -> None:
+        if self.percent <= 0 or self.min_words < 1:
+            raise ValueError("SUMMARY_PERCENT e SUMMARY_MIN_WORDS precisam ser positivos")
+
+    def target_words(self, source_words: int) -> int:
+        return max(self.min_words, round(source_words * self.percent / 100))
+
+    def is_short(self, target_words: int) -> bool:
+        return target_words <= self.short_words
+
 
 # Parcela mínima de trechos com o mesmo rótulo para o tom ser "predominante".
 TONE_MAJORITY = 0.6
 
 OUTLIER_TOPIC_ID = -1  # trechos que o BERTopic não pôs em nenhum tema
-
-
-def summary_target_words(source_words: int) -> int:
-    return max(SUMMARY_MIN_WORDS, min(SUMMARY_MAX_WORDS, round(source_words * SUMMARY_RATIO)))
-
-
-def is_short_summary(target_words: int) -> bool:
-    return target_words <= SHORT_SUMMARY_WORDS
 
 
 def overall_sentiment(sentiments: Sequence[Sentiment]) -> Optional[SentimentLabel]:
@@ -124,16 +133,13 @@ def topic_profiles(
 
 
 __all__ = [
-    "SHORT_SUMMARY_WORDS",
-    "SUMMARY_MAX_WORDS",
+    "SummaryLength",
     "Tone",
     "TopicProfile",
     "chunk_tones",
-    "is_short_summary",
     "main_topics",
     "overall_sentiment",
     "predominant_tone",
     "sentiment_distribution",
-    "summary_target_words",
     "topic_profiles",
 ]

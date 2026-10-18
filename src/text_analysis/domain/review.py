@@ -1,8 +1,9 @@
 """Revisão espaçada das perguntas de estudo (caixas de Leitner).
 
-Cada pergunta está numa caixa de 1 a 5. Acertar sobe uma caixa e afasta a
-próxima revisão (hoje, 1, 3, 7 e 14 dias); errar volta para a caixa 1, para
-rever ainda hoje. A partir da caixa 4 a pergunta conta como dominada.
+Cada pergunta está numa caixa. Acertar sobe uma caixa e afasta a próxima
+revisão; errar volta para a caixa 1. Com o padrão (REVIEW_INTERVAL_DAYS e
+REVIEW_MASTERED_BOX), são 5 caixas, com revisão hoje, em 1, 3, 7 e 14 dias, e
+a pergunta conta como dominada a partir da caixa 4 (três acertos seguidos).
 """
 from __future__ import annotations
 
@@ -13,8 +14,6 @@ import unicodedata
 from dataclasses import dataclass, replace
 from typing import Optional
 
-INTERVAL_DAYS = {1: 0, 2: 1, 3: 3, 4: 7, 5: 14}
-MASTERED_BOX = 4
 
 
 def normalized(text: str) -> str:
@@ -32,6 +31,34 @@ def question_key(question: str) -> str:
 
 
 @dataclass(frozen=True)
+class ReviewSchedule:
+    """Dias até a próxima revisão em cada caixa (o primeiro é o da caixa 1) e
+    a caixa a partir da qual a pergunta conta como dominada."""
+
+    interval_days: tuple[int, ...] = (0, 1, 3, 7, 14)
+    mastered_box: int = 4
+
+    def __post_init__(self) -> None:
+        if not self.interval_days or any(d < 0 for d in self.interval_days):
+            raise ValueError("REVIEW_INTERVAL_DAYS precisa de ao menos um número de dias, nenhum negativo")
+        if not 1 <= self.mastered_box <= len(self.interval_days):
+            raise ValueError("REVIEW_MASTERED_BOX precisa ser uma das caixas de REVIEW_INTERVAL_DAYS")
+
+    @property
+    def boxes(self) -> int:
+        return len(self.interval_days)
+
+    def days_until_review(self, box: int) -> int:
+        return self.interval_days[min(max(box, 1), self.boxes) - 1]
+
+    def is_mastered(self, card: "ReviewCard") -> bool:
+        return card.box >= self.mastered_box
+
+
+DEFAULT_SCHEDULE = ReviewSchedule()
+
+
+@dataclass(frozen=True)
 class ReviewCard:
     box: int = 1
     correct_count: int = 0
@@ -39,23 +66,21 @@ class ReviewCard:
     last_answered_at: Optional[datetime.datetime] = None
     due_at: Optional[datetime.datetime] = None  # None: nunca respondida
 
-    def answered(self, correct: bool, now: datetime.datetime) -> "ReviewCard":
-        box = min(self.box + 1, max(INTERVAL_DAYS)) if correct else 1
+    def answered(
+        self, correct: bool, now: datetime.datetime, schedule: ReviewSchedule = DEFAULT_SCHEDULE
+    ) -> "ReviewCard":
+        box = min(self.box + 1, schedule.boxes) if correct else 1
         return replace(
             self,
             box=box,
             correct_count=self.correct_count + (1 if correct else 0),
             wrong_count=self.wrong_count + (0 if correct else 1),
             last_answered_at=now,
-            due_at=now + datetime.timedelta(days=INTERVAL_DAYS[box]),
+            due_at=now + datetime.timedelta(days=schedule.days_until_review(box)),
         )
 
     def is_due(self, now: datetime.datetime) -> bool:
         return self.due_at is None or self.due_at <= now
 
-    @property
-    def mastered(self) -> bool:
-        return self.box >= MASTERED_BOX
 
-
-__all__ = ["INTERVAL_DAYS", "MASTERED_BOX", "ReviewCard", "normalized", "question_key"]
+__all__ = ["DEFAULT_SCHEDULE", "ReviewCard", "ReviewSchedule", "normalized", "question_key"]

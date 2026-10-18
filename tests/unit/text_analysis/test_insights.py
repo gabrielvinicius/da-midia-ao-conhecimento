@@ -9,7 +9,7 @@ from src.shared.domain.errors import NotFoundError
 from src.text_analysis.application.insights import notebook, topic_overview
 from src.text_analysis.application.services.analysis_review_service import AnalysisReviewService
 from src.text_analysis.domain.entities.sentiment import TextChunk
-from src.text_analysis.domain.review import ReviewCard, question_key
+from src.text_analysis.domain.review import DEFAULT_SCHEDULE, ReviewCard, ReviewSchedule, question_key
 from src.text_analysis.application.insights import FeedbackRecord, corrected_parts, quality_report, study_deck
 from src.text_analysis.domain import Analysis, Topic
 from src.text_analysis.domain.chapters import Chapter, ReviewQuestion
@@ -90,11 +90,35 @@ def test_right_answers_space_the_reviews_and_a_wrong_one_starts_over():
     for expected_days in (1, 3, 7, 14, 14):
         card = card.answered(True, NOW)
         assert card.due_at == NOW + datetime.timedelta(days=expected_days)
-    assert card.box == 5 and card.mastered and card.correct_count == 5
+    assert card.box == 5 and DEFAULT_SCHEDULE.is_mastered(card) and card.correct_count == 5
 
     card = card.answered(False, NOW)
     assert (card.box, card.due_at, card.wrong_count) == (1, NOW, 1)
-    assert card.is_due(NOW) and not card.mastered
+    assert card.is_due(NOW) and not DEFAULT_SCHEDULE.is_mastered(card)
+
+
+def test_three_right_answers_in_a_row_master_a_question_by_default():
+    card = ReviewCard()
+    for _ in range(2):
+        card = card.answered(True, NOW)
+    assert not DEFAULT_SCHEDULE.is_mastered(card)
+    assert DEFAULT_SCHEDULE.is_mastered(card.answered(True, NOW))
+
+
+def test_a_configured_schedule_changes_the_intervals_and_when_it_is_mastered():
+    schedule = ReviewSchedule(interval_days=(0, 2, 10), mastered_box=3)
+    card = ReviewCard()
+    for expected_days in (2, 10, 10):
+        card = card.answered(True, NOW, schedule)
+        assert card.due_at == NOW + datetime.timedelta(days=expected_days)
+    assert card.box == 3 and schedule.is_mastered(card)
+
+
+def test_a_schedule_refuses_a_mastered_box_it_does_not_have():
+    with pytest.raises(ValueError):
+        ReviewSchedule(interval_days=(0, 1, 3), mastered_box=4)
+    with pytest.raises(ValueError):
+        ReviewSchedule(interval_days=(0, -1))
 
 
 def test_question_key_ignores_case_accents_and_punctuation():
@@ -108,7 +132,7 @@ def test_deck_marks_progress_and_what_is_due():
 
     questions = study_deck([analysis], progress, now=NOW)[0].questions
 
-    assert (questions[0].progress, questions[0].due) == (learned, False)
+    assert (questions[0].progress.box, questions[0].progress.mastered, questions[0].due) == (2, False, False)
     assert (questions[1].progress, questions[1].due) == (None, True)
 
 

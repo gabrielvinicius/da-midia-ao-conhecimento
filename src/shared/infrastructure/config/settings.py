@@ -45,6 +45,50 @@ class Settings(BaseSettings):
     # (temas e seus títulos), grounding (verificação de fidelidade), chapters
     # (capítulos com horário) e questions (perguntas de revisão).
     analysis_factors: str = "sentiment,topics,grounding,chapters,questions"
+    # Trechos da análise (em caracteres): a base dos vetores, dos temas e da
+    # busca. Trocar o tamanho vale para as próximas análises.
+    analysis_chunk_size: int = 512
+    analysis_chunk_overlap: int = 64
+    # Transcrições até este tamanho (~20 min de fala) vão inteiras à síntese e
+    # às perguntas; acima, a síntese resume blocos de
+    # ANALYSIS_SYNTHESIS_BLOCK_CHARS e une os resumos parciais, e as perguntas
+    # partem do resumo. Com 36 mil, uma aula de 30 min ia numa chamada só e o
+    # resumo pulava partes.
+    analysis_full_transcript_chars: int = 18000
+    analysis_synthesis_block_chars: int = 18000
+    # Tamanho do resumo: SUMMARY_PERCENT % das palavras da transcrição, com no
+    # mínimo SUMMARY_MIN_WORDS (sem máximo: uma aula de 2 h, com ~18 mil
+    # palavras, pede ~2.200). Até SUMMARY_SHORT_WORDS, formato curto (sem
+    # seções): um resumo com título, seções e pontos-chave ficava do tamanho
+    # de uma fala curta.
+    summary_percent: float = 12
+    summary_min_words: int = 120
+    summary_short_words: int = 200
+    # Similaridade mínima (cosseno, multilingual-e5) entre uma frase do resumo
+    # e algum trecho da transcrição para a frase contar como apoiada.
+    grounding_threshold: float = 0.80
+    # Capítulos: gravações abaixo de CHAPTERS_MIN_RECORDING_MINUTES ficam sem
+    # capítulos; um capítulo tem no mínimo CHAPTERS_MIN_MINUTES e há no máximo
+    # CHAPTERS_MAX. Sem temas que dividam a gravação, um a cada
+    # CHAPTERS_EVERY_MINUTES.
+    chapters_min_recording_minutes: float = 4
+    chapters_min_minutes: float = 2
+    chapters_max: int = 10
+    chapters_every_minutes: float = 5
+    # Revisão espaçada: dias até a próxima revisão em cada caixa (a 1ª é a de
+    # quem errou ou nunca respondeu; 0 = hoje) e a caixa a partir da qual a
+    # pergunta conta como dominada. Com o padrão, três acertos seguidos.
+    review_interval_days: str = "0,1,3,7,14"
+    review_mastered_box: int = 4
+    # Tentativas de uma tarefa do pipeline além da primeira, e a espera antes
+    # da tentativa n: PIPELINE_RETRY_BASE_SECONDS * 2^(n-1), até
+    # PIPELINE_RETRY_MAX_SECONDS. Cada tentativa pode ocupar a GPU por muito
+    # tempo.
+    pipeline_max_retries: int = 3
+    pipeline_retry_base_seconds: int = 30
+    pipeline_retry_max_seconds: int = 600
+    # Máximo de mídias com falha que o administrador reprocessa de uma vez.
+    admin_bulk_reprocess_max: int = 200
     # Descrição de quadros de vídeo: "ollama" (padrão; o mesmo Qwen3.5 do
     # resumo, que aceita imagens), "moondream" ou "none" (desligada).
     # Comparados nos mesmos quadros de uma aula: o Qwen3.5 descreve em
@@ -71,6 +115,11 @@ class Settings(BaseSettings):
     # ficou em 1º em 7 de 8 perguntas (4 de 8 só com os vetores). Roda na CPU
     # da API (~2 GB de memória). Vazio: só os vetores.
     search_reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    # Candidatos que a busca por vetores traz para o reranqueador ordenar.
+    # Medido numa aula de 30 min (8 perguntas formuladas com outras palavras):
+    # o trecho certo ficava em 1º em 4 de 8 só com os vetores e em 7 de 8
+    # reordenando os 20 primeiros. Mais candidatos, busca mais lenta na CPU.
+    search_rerank_candidates: int = 20
 
     @property
     def resolved_device(self) -> str:

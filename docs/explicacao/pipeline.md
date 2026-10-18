@@ -53,7 +53,7 @@ sequenceDiagram
 2. **Agendamento.** Ainda na API, o módulo de processamento reage ao evento e
    põe a tarefa na fila: **transcrição** para áudio e vídeo, **extração de
    texto** (com OCR) para documentos e imagens. Arquivos com menos de 50 MB
-   vão para uma fila rápida, à frente dos grandes.
+   (`PROCESSING_FAST_LANE_MAX_MB`) vão para uma fila rápida, à frente dos grandes.
 3. **Transcrição.** O worker pesado baixa o arquivo para o disco, transcreve
    com o Whisper e, nos vídeos, descreve uma amostra de quadros, guardando uma
    descrição por cena. Ao terminar, publica `TranscriptionCompleted`; a mídia

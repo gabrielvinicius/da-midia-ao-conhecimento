@@ -18,12 +18,11 @@ from src.text_analysis.application.pipeline.base import AnalysisStep
 from src.text_analysis.application.pipeline.synthesis import APPENDIX_MARKER, language_name
 from src.text_analysis.application.ports import TextGenerationPort, TextGenerationUnavailableError
 from src.text_analysis.domain import Analysis
-from src.text_analysis.domain.chapters import Chapter, ReviewQuestion, chapter_spans
+from src.text_analysis.domain.chapters import Chapter, ChapterRules, ReviewQuestion, chapter_spans
 
 logger = structlog.get_logger(__name__)
 
 CHAPTER_SAMPLE_CHARS = 600  # começo de cada capítulo, para o título
-MAX_TRANSCRIPT_CHARS = 18000  # acima disso, as perguntas partem do resumo
 _TITLE_LINE = re.compile(r"^\s*[-*]?\s*(\d+)\s*[:.)\-–]\s*(.+?)\s*$")
 _QUESTION_LINE = re.compile(
     r"^\s*(?:\d+[.)]\s*)?P:\s*(?P<q>.+?)\s*\|\s*R:\s*(?P<a>.+?)\s*(?:\|\s*C:\s*(?P<c>\d+))?\s*$",
@@ -38,17 +37,24 @@ def _clean(text: str) -> str:
 class ChapterStep(AnalysisStep):
     """Capítulos com horário: cortes pelos temas, títulos numa chamada só."""
 
-    def __init__(self, text_generation: TextGenerationPort, language: str, max_words: int = 8):
+    def __init__(
+        self,
+        text_generation: TextGenerationPort,
+        language: str,
+        max_words: int = 8,
+        rules: ChapterRules = ChapterRules(),
+    ):
         self.text_generation = text_generation
         self.language = language
         self.max_words = max_words
+        self.rules = rules
 
     @property
     def name(self) -> str:
         return "chapters"
 
     async def process(self, analysis: Analysis) -> Analysis:
-        spans = chapter_spans(analysis.chunks or [], analysis.topics or [])
+        spans = chapter_spans(analysis.chunks or [], analysis.topics or [], self.rules)
         if not spans:
             return analysis  # documento, gravação curta ou sem horários
         titles: dict[int, str] = {}
@@ -104,9 +110,11 @@ class ChapterStep(AnalysisStep):
 class ReviewQuestionsStep(AnalysisStep):
     """Perguntas de revisão com resposta e o momento da gravação onde ela está."""
 
-    def __init__(self, text_generation: TextGenerationPort, language: str):
+    def __init__(self, text_generation: TextGenerationPort, language: str, max_transcript_chars: int = 18000):
         self.text_generation = text_generation
         self.language = language
+        # Acima disso, as perguntas partem do resumo (ANALYSIS_FULL_TRANSCRIPT_CHARS).
+        self.max_transcript_chars = max_transcript_chars
 
     @property
     def name(self) -> str:
@@ -131,11 +139,10 @@ class ReviewQuestionsStep(AnalysisStep):
         words = len((analysis.document.text or "").split()) if analysis.document else 0
         return max(3, min(8, words // 700))
 
-    @staticmethod
-    def material(analysis: Analysis) -> Optional[str]:
+    def material(self, analysis: Analysis) -> Optional[str]:
         """A transcrição, se couber; senão, o resumo (sem o apêndice)."""
         text = (analysis.document.text or "").strip() if analysis.document else ""
-        if text and len(text) <= MAX_TRANSCRIPT_CHARS:
+        if text and len(text) <= self.max_transcript_chars:
             return text
         summary = (analysis.summary or "").split(APPENDIX_MARKER, 1)[0].strip()
         return summary or None

@@ -79,14 +79,19 @@ def build_analysis_pipeline(config: AnalysisConfig, session: Any) -> PipelineCom
             language=config.language,
             max_full_transcript_chars=config.max_full_transcript_chars,
             block_chars=config.synthesis_block_chars,
+            length=config.summary_length,
         )
     )
-    # Capítulos (cortes pelos temas; sem temas, a cada ~5 min) e perguntas de
+    # Capítulos (cortes pelos temas; sem temas, a intervalos regulares) e perguntas de
     # revisão, que apontam o capítulo da resposta.
     if "chapters" in factors:
-        steps.append(ChapterStep(gen_adapter, language=config.language))
+        steps.append(ChapterStep(gen_adapter, language=config.language, rules=config.chapter_rules))
     if "questions" in factors:
-        steps.append(ReviewQuestionsStep(gen_adapter, language=config.language))
+        steps.append(
+            ReviewQuestionsStep(
+                gen_adapter, language=config.language, max_transcript_chars=config.max_full_transcript_chars
+            )
+        )
     if "grounding" in factors:
         steps.append(GroundingCheckStep(embedding_adapter, threshold=config.grounding_threshold))
 

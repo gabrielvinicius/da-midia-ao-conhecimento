@@ -223,6 +223,6 @@ async def review_answer(
     service: AnalysisReviewService = Depends(get_analysis_review_service),
     requester: Requester = Depends(get_requester),
 ):
-    """Acertou: a pergunta volta mais tarde (1, 3, 7, 14 dias). Errou: volta hoje."""
+    """Acertou: a pergunta volta mais tarde (REVIEW_INTERVAL_DAYS). Errou: volta à primeira caixa."""
     card = await service.answer_question(analysis_id, requester, payload.question, payload.correct)
     return ReviewProgressResponse.model_validate(asdict(card))

@@ -1,6 +1,8 @@
 """Leitura das análises, só para o dono da mídia ou um administrador."""
 from typing import Any
 
+from ...domain.review import DEFAULT_SCHEDULE, ReviewSchedule
+
 from src.shared.domain.errors import NotFoundError
 
 from ...domain import Analysis
@@ -12,9 +14,15 @@ from ..ports.repository import AnalysisRepositoryPort, ReviewProgressPort
 
 
 class TextAnalysisReadService:
-    def __init__(self, repository: AnalysisRepositoryPort, progress: ReviewProgressPort | None = None) -> None:
+    def __init__(
+        self,
+        repository: AnalysisRepositoryPort,
+        progress: ReviewProgressPort | None = None,
+        schedule: ReviewSchedule = DEFAULT_SCHEDULE,
+    ) -> None:
         self.repository = repository
         self._progress = progress
+        self._schedule = schedule
 
     async def get_analysis(self, query: GetAnalysisQuery, requester: Requester) -> dict[str, Any]:
         analysis = await self._accessible(await self.repository.get(str(query.analysis_id)), requester)
@@ -34,7 +42,7 @@ class TextAnalysisReadService:
         """Perguntas de revisão de todas as análises de quem pede."""
         analyses = await self.repository.list_analyses(str(requester.user_id))
         progress = await self._progress.progress_of(requester.user_id) if self._progress else {}
-        return study_deck(analyses, progress)
+        return study_deck(analyses, progress, schedule=self._schedule)
 
     async def notebook(self, requester: Requester) -> list[NotebookEntry]:
         """Os resumos de todas as mídias de quem pede."""

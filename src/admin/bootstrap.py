@@ -78,6 +78,7 @@ def build_admin_module(
         media=media_admin_adapter,
         permission_service=permission_service,
         audit_service=audit_service,
+        bulk_reprocess_max=settings.admin_bulk_reprocess_max,
     )
 
     service = AdminService(

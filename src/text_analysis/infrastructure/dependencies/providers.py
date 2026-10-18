@@ -114,15 +114,35 @@ __all__ = [
 def build_analysis_config(**overrides):
     """Configuração da análise a partir das configurações do ambiente."""
     from src.shared.infrastructure.config.settings import settings
-    from src.text_analysis.application.config import AnalysisConfig
-
-    from src.text_analysis.application.config import OPTIONAL_FACTORS
+    from src.text_analysis.application.config import OPTIONAL_FACTORS, AnalysisConfig
+    from src.text_analysis.domain.chapters import ChapterRules
+    from src.text_analysis.domain.content_profile import SummaryLength
 
     factors = {f.strip().lower() for f in settings.analysis_factors.split(",") if f.strip()}
     unknown = factors - OPTIONAL_FACTORS
     if unknown:
         raise ValueError(f"ANALYSIS_FACTORS desconhecidos: {sorted(unknown)}; use {sorted(OPTIONAL_FACTORS)}")
-    return AnalysisConfig(**{"llm_model": settings.llm_model, "factors": frozenset(factors), **overrides})
+    values = {
+        "llm_model": settings.llm_model,
+        "factors": frozenset(factors),
+        "chunk_size": settings.analysis_chunk_size,
+        "chunk_overlap": settings.analysis_chunk_overlap,
+        "max_full_transcript_chars": settings.analysis_full_transcript_chars,
+        "synthesis_block_chars": settings.analysis_synthesis_block_chars,
+        "grounding_threshold": settings.grounding_threshold,
+        "summary_length": SummaryLength(
+            percent=settings.summary_percent,
+            min_words=settings.summary_min_words,
+            short_words=settings.summary_short_words,
+        ),
+        "chapter_rules": ChapterRules(
+            min_recording_seconds=settings.chapters_min_recording_minutes * 60,
+            min_chapter_seconds=settings.chapters_min_minutes * 60,
+            max_chapters=settings.chapters_max,
+            seconds_per_chapter=settings.chapters_every_minutes * 60,
+        ),
+    }
+    return AnalysisConfig(**{**values, **overrides})
 
 
 def runtime_diagnostics() -> dict:

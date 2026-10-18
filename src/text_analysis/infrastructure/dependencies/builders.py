@@ -23,6 +23,7 @@ from src.text_analysis.application.services.knowledge_base_service import (
 from src.text_analysis.application.services.text_analysis_read_service import (
     TextAnalysisReadService,
 )
+from src.text_analysis.domain.review import ReviewSchedule
 from src.text_analysis.infrastructure.adapters.celery_analysis_queue import CeleryAnalysisQueue
 from src.text_analysis.infrastructure.dependencies.pipeline_factory import (
     build_analysis_pipeline,
@@ -100,10 +101,19 @@ def build_text_analysis_service(
     )
 
 
+def build_review_schedule() -> ReviewSchedule:
+    """Agenda da revisão espaçada (REVIEW_INTERVAL_DAYS, REVIEW_MASTERED_BOX)."""
+    from src.shared.infrastructure.config.settings import settings
+
+    days = tuple(int(d) for d in settings.review_interval_days.split(",") if d.strip())
+    return ReviewSchedule(interval_days=days, mastered_box=settings.review_mastered_box)
+
+
 def build_analysis_read_service(session, *, repository: Any = None) -> TextAnalysisReadService:
     return TextAnalysisReadService(
         repository=repository or SqlAlchemyAnalysisRepository(session),
         progress=ReviewProgressRepository(session) if session is not None else None,
+        schedule=build_review_schedule(),
     )
 
 
@@ -112,6 +122,7 @@ def build_analysis_review_service(session, *, repository: Any = None) -> Analysi
         repository=repository or SqlAlchemyAnalysisRepository(session),
         feedback_repo=FeedbackRepository(session),
         progress=ReviewProgressRepository(session) if session is not None else None,
+        schedule=build_review_schedule(),
     )
 
 
@@ -136,6 +147,7 @@ def build_knowledge_service(session) -> KnowledgeBaseService:
         embedding_service=get_embedding_adapter(build_analysis_config()),
         reranker=get_reranker_adapter(settings.search_reranker_model),
         analyses=SqlAlchemyAnalysisRepository(session),
+        rerank_candidates=settings.search_rerank_candidates,
     )
 
 

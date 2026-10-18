@@ -35,13 +35,13 @@ const server = setupServer(
       { media_id: 'm1', analysis_id: 'a1', questions: [
         { question: 'O que é DDD?', answer: 'Projeto orientado ao domínio.', start: 754, progress: null, due: true },
         { question: 'O que é um agregado?', answer: 'Um conjunto consistente.', start: null, due: false,
-          progress: { box: 4, correct_count: 3, wrong_count: 1, last_answered_at: now, due_at: now } },
+          progress: { box: 4, correct_count: 3, wrong_count: 1, last_answered_at: now, due_at: now, mastered: true } },
       ] },
     ]),
   ),
   http.post('/api/text-analysis/a1/review-answer', async ({ request }) => {
     answers.push(await request.json());
-    return HttpResponse.json({ box: 2, correct_count: 1, wrong_count: 0, last_answered_at: now, due_at: now });
+    return HttpResponse.json({ box: 2, correct_count: 1, wrong_count: 0, last_answered_at: now, due_at: now, mastered: false });
   }),
   http.get('/api/text-analysis/notebook', () =>
     HttpResponse.json([

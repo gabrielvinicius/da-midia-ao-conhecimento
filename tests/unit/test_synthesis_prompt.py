@@ -103,12 +103,38 @@ async def test_appendix_shows_when_each_excerpt_happens_and_what_was_on_screen()
     assert "- [12:40] slide with the chain rule" in analysis.summary
 
 
-def test_summary_size_follows_the_source():
-    from src.text_analysis.domain.content_profile import summary_target_words
+def test_summary_size_is_a_percentage_of_the_source_with_a_minimum_and_no_maximum():
+    from src.text_analysis.domain.content_profile import SummaryLength
 
-    assert summary_target_words(200) == 120  # mínimo
-    assert summary_target_words(3000) == 360  # ~12%
-    assert summary_target_words(20000) == 900  # máximo
+    length = SummaryLength()
+    assert length.target_words(200) == 120  # mínimo
+    assert length.target_words(3000) == 360  # 12%
+    assert length.target_words(20000) == 2400  # sem teto: aula longa, resumo longo
+    assert SummaryLength(percent=5, min_words=50).target_words(20000) == 1000
+
+
+def test_summary_length_refuses_values_that_make_no_sense():
+    from src.text_analysis.domain.content_profile import SummaryLength
+
+    with pytest.raises(ValueError):
+        SummaryLength(percent=0)
+    with pytest.raises(ValueError):
+        SummaryLength(min_words=0)
+
+
+@pytest.mark.asyncio
+async def test_synthesis_asks_for_the_configured_percentage():
+    from src.text_analysis.domain.content_profile import SummaryLength
+
+    text_gen = _text_gen()
+    analysis = _analysis("palavra " * 4000)
+
+    await SynthesisStep(
+        text_gen, language="pt", max_full_transcript_chars=100000, length=SummaryLength(percent=20)
+    ).process(analysis)
+
+    assert analysis.diagnostics["synthesis_target_words"] == 800
+    assert "cerca de 800 palavras" in text_gen.summarize_topic.call_args.args[1]
 
 
 @pytest.mark.asyncio

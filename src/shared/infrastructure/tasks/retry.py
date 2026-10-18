@@ -18,6 +18,7 @@ from __future__ import annotations
 from sqlalchemy.exc import IntegrityError, InterfaceError, OperationalError
 
 from src.shared.domain.errors import TemporarilyUnavailableError, is_permanent_failure
+from src.shared.infrastructure.config.settings import settings
 
 try:  # o Redis é opcional nos testes
     from redis.exceptions import ConnectionError as RedisConnectionError
@@ -27,11 +28,11 @@ try:  # o Redis é opcional nos testes
 except ImportError:  # pragma: no cover
     _REDIS_ERRORS = ()
 
-# Tentativas além da primeira. Cada uma pode ocupar a GPU por muito tempo.
-PIPELINE_MAX_RETRIES = 3
-# Espera antes da tentativa n (1, 2, 3...): 30 s, 60 s, 120 s, até 10 min.
-RETRY_BASE_SECONDS = 30
-RETRY_MAX_SECONDS = 600
+# Tentativas além da primeira e a espera antes de cada uma (com o padrão,
+# 30 s, 60 s, 120 s, até 10 min): PIPELINE_MAX_RETRIES e PIPELINE_RETRY_*.
+PIPELINE_MAX_RETRIES = settings.pipeline_max_retries
+RETRY_BASE_SECONDS = settings.pipeline_retry_base_seconds
+RETRY_MAX_SECONDS = settings.pipeline_retry_max_seconds
 
 TRANSIENT_ERRORS: tuple = (
     OperationalError,

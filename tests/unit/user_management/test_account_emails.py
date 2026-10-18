@@ -21,7 +21,10 @@ from src.user_management.infrastructure.dependencies.providers import BcryptPass
 from src.user_management.infrastructure.repositories.fake_user_repository import FakeUserRepository
 
 SETTINGS = SimpleNamespace(
-    public_url="https://tcc.exemplo.dev/", email_verification_hours=24, password_reset_minutes=60
+    public_url="https://tcc.exemplo.dev/",
+    email_verification_hours=24,
+    password_reset_minutes=60,
+    account_emails_per_hour=3,
 )
 PASSWORD = "Senha-forte-1"
 
