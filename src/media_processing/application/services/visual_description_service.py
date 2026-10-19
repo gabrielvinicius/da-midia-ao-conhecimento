@@ -16,7 +16,7 @@ from src.media_processing.application.ports import (
     VideoFrameExtractorPort,
     VisualAnalysisPort,
 )
-from src.media_processing.domain.visual_sampling import frame_timestamps, is_same_scene, is_video_file
+from src.media_processing.domain.visual_sampling import FrameSampling, is_video_file
 from src.shared.application.ports import ProcessingStatsPort
 from src.shared.domain.time.timestamps import format_timestamp
 
@@ -34,10 +34,12 @@ class VisualDescriptionService:
         analyzer: VisualAnalysisPort,
         extractor: VideoFrameExtractorPort,
         stats: Optional[ProcessingStatsPort] = None,
+        sampling: FrameSampling = FrameSampling(),
     ) -> None:
         self._analyzer = analyzer
         self._extractor = extractor
         self._stats = stats
+        self._sampling = sampling
 
     async def describe_recording(
         self, video_path: str, size_bytes: int, duration: Optional[float]
@@ -68,7 +70,7 @@ class VisualDescriptionService:
         Os quadros complementam a transcrição; uma falha aqui é registrada e
         devolve o que já foi descrito, sem derrubar o processamento.
         """
-        timestamps = frame_timestamps(duration)
+        timestamps = self._sampling.timestamps(duration)
         if not timestamps:
             return []
         descriptions: List[str] = []
@@ -82,7 +84,7 @@ class VisualDescriptionService:
                 if not text or "unavailable" in text.lower():
                     continue
                 text = text.strip()
-                if is_same_scene(previous, text):
+                if self._sampling.is_same_scene(previous, text):
                     continue  # a mesma cena descrita de novo
                 descriptions.append(f"[{format_timestamp(ts)}] {text}")
                 previous = text

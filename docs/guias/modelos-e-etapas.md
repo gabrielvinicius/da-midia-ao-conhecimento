@@ -83,9 +83,37 @@ gênero e o resumo sempre rodam.
 SEARCH_RERANKER_MODEL=BAAI/bge-reranker-v2-m3
 ```
 
-O reranqueador lê a pergunta e cada um dos 20 trechos mais parecidos e os
-reordena, na CPU da API. Vazio, a busca usa só a proximidade dos vetores: mais
-rápida e menos precisa.
+O reranqueador lê a pergunta e cada um dos trechos mais parecidos (20 por
+padrão, `SEARCH_RERANK_CANDIDATES`) e os reordena, na CPU da API. Vazio, a
+busca usa só a proximidade dos vetores: mais rápida e menos precisa.
+
+## Ajustar o resumo, os capítulos e a revisão
+
+Os parâmetros que mudam o resultado da análise ficam no `.env`, não no código.
+Valem para as próximas análises; as já feitas não mudam. A lista completa, com
+os padrões, está em [Configuração](../referencia/configuracao.md).
+
+| O que ajustar | Variáveis |
+| --- | --- |
+| Tamanho do resumo: porcentagem das palavras da transcrição, com um mínimo | `SUMMARY_PERCENT`, `SUMMARY_MIN_WORDS`, `SUMMARY_SHORT_WORDS` |
+| Quando o resumo é feito por blocos | `ANALYSIS_FULL_TRANSCRIPT_CHARS`, `ANALYSIS_SYNTHESIS_BLOCK_CHARS` |
+| Tamanho dos trechos da busca | `ANALYSIS_CHUNK_SIZE`, `ANALYSIS_CHUNK_OVERLAP` |
+| Rigor da verificação de fidelidade | `GROUNDING_THRESHOLD` |
+| Capítulos | `CHAPTERS_MIN_RECORDING_MINUTES`, `CHAPTERS_MIN_MINUTES`, `CHAPTERS_MAX`, `CHAPTERS_EVERY_MINUTES` |
+| Revisão espaçada | `REVIEW_INTERVAL_DAYS`, `REVIEW_MASTERED_BOX` |
+| Quadros de vídeo descritos | `PROCESSING_FRAME_EVERY_SECONDS`, `PROCESSING_FRAMES_MIN`, `PROCESSING_FRAMES_MAX`, `PROCESSING_SAME_SCENE_SIMILARITY` |
+
+O resumo não tem tamanho máximo: uma aula de 2 horas, com cerca de 18 mil
+palavras, pede um resumo de cerca de 2.200 com o padrão de 12%. Em gravações
+muito longas, o pedido ocupa boa parte da janela do modelo
+(`LLM_CONTEXT_TOKENS`); quando falta espaço, o diagnóstico da análise registra
+`synthesis_prompt_truncated` ou `summary_truncated`.
+
+Um valor sem sentido no resumo, nos capítulos ou na revisão, como
+`REVIEW_MASTERED_BOX` maior que o número de caixas de `REVIEW_INTERVAL_DAYS`,
+impede a API de subir, com a variável na mensagem de erro; no deploy, a
+verificação de saúde falha e a versão anterior volta. Nos quadros de vídeo, o
+erro aparece no worker, ao processar a primeira mídia.
 
 ## Máquinas sem GPU NVIDIA
 

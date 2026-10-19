@@ -29,9 +29,6 @@ from .user_service import UserService
 
 logger = structlog.get_logger(__name__)
 
-# Pedidos de e-mail por endereço (cadastro reenviado, nova senha) numa hora.
-MAX_EMAILS_PER_HOUR = 3
-
 
 def password_fingerprint(password_hash: str) -> str:
     return hashlib.sha256(password_hash.encode("utf-8")).hexdigest()[:16]
@@ -148,7 +145,8 @@ class AccountEmailService:
         if self._limiter:
             if await self._limiter.retry_after(key) > 0:
                 return None
-            await self._limiter.register_failure(key, MAX_EMAILS_PER_HOUR, 3600)
+            # Pedidos por endereço numa hora (USER_ACCOUNT_EMAILS_PER_HOUR).
+            await self._limiter.register_failure(key, self._settings.account_emails_per_hour, 3600)
         return await self._users.user_read_service.get_user_by_email(normalize_email(email))
 
     def _payload(self, token: str, purpose: TokenPurpose) -> dict:
@@ -172,4 +170,4 @@ class AccountEmailService:
         return f"{self._settings.public_url.rstrip('/')}/{page}?token={token}"
 
 
-__all__ = ["AccountEmailService", "MAX_EMAILS_PER_HOUR", "password_fingerprint"]
+__all__ = ["AccountEmailService", "password_fingerprint"]

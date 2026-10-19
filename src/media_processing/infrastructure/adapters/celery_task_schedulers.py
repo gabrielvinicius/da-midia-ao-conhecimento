@@ -11,6 +11,7 @@ from uuid import UUID
 
 import structlog
 
+from src.media_processing.config.settings import processing_settings
 from src.shared.infrastructure.tasks.sender import send_task
 
 from src.shared.events.integration_events import (
@@ -23,8 +24,6 @@ from src.shared.events.integration_events import (
 )
 
 logger = structlog.get_logger(__name__)
-
-FAST_LANE_MAX_BYTES = 50 * 1024 * 1024
 
 
 def _send(task_name: str, kwargs: dict, queue: str):
@@ -82,7 +81,7 @@ class CeleryTranscriptionTaskScheduler:
         correlation_id: Optional[str] = None,
     ) -> Any:
         queue = QUEUE_TRANSCRIPTION
-        if file_size_bytes and file_size_bytes < FAST_LANE_MAX_BYTES:
+        if file_size_bytes and file_size_bytes < processing_settings.fast_lane_max_mb * 1024 * 1024:
             queue = QUEUE_TRANSCRIPTION_FAST
 
         task = _send(

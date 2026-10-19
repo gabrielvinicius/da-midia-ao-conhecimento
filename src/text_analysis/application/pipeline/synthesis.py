@@ -17,13 +17,11 @@ from src.text_analysis.application.pipeline.genre import genre_focus
 from src.text_analysis.application.ports import TextGenerationPort
 from src.text_analysis.domain import Analysis, SentimentLabel, SummarySource
 from src.text_analysis.domain.content_profile import (
-    SUMMARY_MAX_WORDS,
+    SummaryLength,
     Tone,
     chunk_tones,
-    is_short_summary,
     main_topics,
     predominant_tone,
-    summary_target_words,
     topic_profiles,
 )
 
@@ -121,7 +119,8 @@ class SynthesisStep(AnalysisStep):
     - Maior que isso (gravações longas): a transcrição inteira é dividida em
       blocos consecutivos; cada bloco é resumido e os resumos parciais são
       unidos numa segunda chamada.
-    - O tamanho pedido acompanha o tamanho do material (``summary_target_words``),
+    - O tamanho pedido é uma porcentagem das palavras do material, com um
+      mínimo (``SummaryLength``, das configurações SUMMARY_*),
       e a resposta tem teto de tokens (com folga; ver ``RESPONSE_SLACK``).
     - Se nenhum modelo responder: resumo simplificado com os temas.
 
@@ -141,11 +140,13 @@ class SynthesisStep(AnalysisStep):
         language: str,
         max_full_transcript_chars: int = 18000,
         block_chars: int = 18000,
+        length: SummaryLength = SummaryLength(),
     ):
         self.text_generation = text_generation
         self.language = language
         self.max_full_transcript_chars = max_full_transcript_chars
         self.block_chars = block_chars
+        self.length = length
 
     @property
     def name(self) -> str:
@@ -156,7 +157,7 @@ class SynthesisStep(AnalysisStep):
         if not analysis.topics and not transcript:
             return analysis
 
-        target = summary_target_words(len(transcript.split()))
+        target = self.length.target_words(len(transcript.split()))
         analysis.diagnostics["synthesis_target_words"] = target
         self._used_reserve = False
         self._prompt_tokens: list[int] = []
@@ -328,8 +329,9 @@ class SynthesisStep(AnalysisStep):
         if visual:
             parts.append("<descricoes_visuais>\n" + "\n".join(visual) + "\n</descricoes_visuais>")
 
-        target = target_words or SUMMARY_MAX_WORDS
-        if is_short_summary(target):
+        words = len((analysis.document.text or "").split()) if analysis.document else 0
+        target = target_words or self.length.target_words(words)
+        if self.length.is_short(target):
             response_format = (
                 f"Formato da resposta (Markdown), com cerca de {target} palavras no total:\n"
                 "# [Título específico que descreva o conteúdo]\n"

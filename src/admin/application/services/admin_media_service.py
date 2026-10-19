@@ -13,10 +13,6 @@ from src.user_management.domain import User
 
 logger = structlog.get_logger(__name__)
 
-# Teto de um pedido de reprocessamento em lote. Antes, todas as mídias com
-# falha eram carregadas e reprocessadas dentro de um único pedido HTTP.
-BULK_REPROCESS_MAX = 200
-
 
 @dataclass(frozen=True)
 class BulkReprocessResult:
@@ -31,10 +27,15 @@ class AdminMediaService:
         media: MediaAdminPort,
         permission_service: PermissionServicePort,
         audit_service: AdminAuditPort,
+        bulk_reprocess_max: int = 200,
     ) -> None:
         self._media = media
         self.permission_service = permission_service
         self.audit_service = audit_service
+        # Teto de um pedido de reprocessamento em lote (ADMIN_BULK_REPROCESS_MAX).
+        # Antes, todas as mídias com falha eram carregadas e reprocessadas
+        # dentro de um único pedido HTTP.
+        self._bulk_reprocess_max = bulk_reprocess_max
 
     async def list_media(self, query: ListMediaQuery) -> PaginatedMedia:
         return await self._media.list_media(query)
@@ -57,7 +58,7 @@ class AdminMediaService:
         mais novas. As reprocessadas saem do estado de falha, então o próximo
         pedido pega o lote seguinte."""
         self.permission_service.require_admin(admin_user)
-        limit = max(1, min(limit, BULK_REPROCESS_MAX))
+        limit = max(1, min(limit, self._bulk_reprocess_max))
         ids = await self._media.failed_media_ids(limit + 1)
         batch = ids[:limit]
         reprocessed = 0

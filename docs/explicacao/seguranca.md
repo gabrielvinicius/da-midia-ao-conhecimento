@@ -88,11 +88,13 @@ O código que chega à produção passa por várias verificações (ADR-016):
 
 ### Repositório público
 
-O repositório é público desde outubro de 2026. Antes da abertura, o
-histórico foi varrido (gitleaks) e reescrito sem duas chaves de API, um vídeo
-de terceiros e arquivos de ferramentas. Tirar uma chave do histórico não
-basta: ela é revogada no painel do serviço, porque já esteve num
-repositório na nuvem. No GitHub:
+O repositório é público desde outubro de 2026 e foi criado a partir de um
+histórico reescrito. Antes da abertura, o histórico foi varrido (gitleaks) e
+reescrito sem duas chaves de API, um vídeo de terceiros e arquivos de
+ferramentas. As duas chaves existiram só no histórico do repositório
+anterior, que continua privado, e nunca fizeram parte deste. Ainda assim,
+tirar uma chave do histórico não basta: as duas devem ser revogadas no painel
+de cada serviço, porque já estiveram num repositório na nuvem. No GitHub:
 
 - **PRs de fora** só rodam workflows depois da aprovação do dono do
   repositório. O runner da produção roda na própria máquina, e um PR de fork

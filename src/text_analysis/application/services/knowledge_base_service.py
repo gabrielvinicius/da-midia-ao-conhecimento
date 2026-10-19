@@ -11,12 +11,6 @@ from src.text_analysis.application.ports.repository import AnalysisRepositoryPor
 
 logger = structlog.get_logger(__name__)
 
-# Candidatos que a busca por vetores traz para o reranqueador ordenar. Medido
-# numa aula de 30 min (8 perguntas formuladas com outras palavras): o trecho
-# certo ficava em 1º em 4 de 8 só com os vetores e em 7 de 8 reordenando os
-# 20 primeiros.
-RERANK_CANDIDATES = 20
-
 # Abaixo disso, o reranqueador não reconhece o trecho como resposta. Os trechos
 # não são descartados: na avaliação (21 perguntas em 7 mídias), o trecho
 # certo de perguntas com outras palavras ("ordem dos fatores" para a
@@ -52,11 +46,14 @@ class KnowledgeBaseService:
         embedding_service: EmbeddingServicePort,
         reranker: Optional[RerankerPort] = None,
         analyses: Optional[AnalysisRepositoryPort] = None,
+        rerank_candidates: int = 20,
     ):
         self._repo = vector_repo
         self._embedding_service = embedding_service
         self._reranker = reranker
         self._analyses = analyses
+        # Candidatos que os vetores trazem para o reranqueador (SEARCH_RERANK_CANDIDATES).
+        self._rerank_candidates = rerank_candidates
 
     async def search(
         self, query: str, limit: int = 5, user_id: Optional[UUID] = None
@@ -68,7 +65,7 @@ class KnowledgeBaseService:
 
         # O modelo de vetores é síncrono e pesado: roda fora do laço da API.
         embeddings = await asyncio.to_thread(self._embedding_service.embed, [query], kind="query")
-        candidates = max(limit, RERANK_CANDIDATES) if self._reranker else limit
+        candidates = max(limit, self._rerank_candidates) if self._reranker else limit
         results = await self._repo.semantic_search(embeddings[0], limit=candidates, user_id=user_id)
 
         formatted = [

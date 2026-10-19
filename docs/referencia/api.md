@@ -68,7 +68,7 @@ Dono ou administrador: uma mídia de outra pessoa responde 404, e não 403 (veja
 | `GET` | `/text-analysis/topics-overview` | com sessão | Temas de todas as mídias de quem pede, juntos pelo título; os que se repetem em mais mídias primeiro. |
 | `GET` | `/text-analysis/{analysis_id}` | com sessão | Análise pelo id |
 | `POST` | `/text-analysis/{analysis_id}/feedback` | com sessão | Registra a avaliação humana de uma análise (no corpo, não na URL). |
-| `POST` | `/text-analysis/{analysis_id}/review-answer` | com sessão | Acertou: a pergunta volta mais tarde (1, 3, 7, 14 dias). Errou: volta hoje. |
+| `POST` | `/text-analysis/{analysis_id}/review-answer` | com sessão | Acertou: a pergunta volta mais tarde (REVIEW_INTERVAL_DAYS). Errou: volta à primeira caixa. |
 | `PUT` | `/text-analysis/{analysis_id}/study` | com sessão | Corrige capítulos e perguntas de revisão, preservando a versão da IA. |
 | `PUT` | `/text-analysis/{analysis_id}/summary` | com sessão | Corrige o resumo gerado pela IA, preservando o original. |
 | `GET` | `/text-analysis/{analysis_id}/topics` | com sessão | Temas de uma análise |

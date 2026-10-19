@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { useMediaNames } from "@/features/media/hooks/useMediaNames";
 import { answerReviewQuestion, getStudyDeck, type StudyQuestion } from "@/features/summarization/api";
-import { MASTERED_BOX, progressSummary } from "@/features/summarization/studyProgress";
+import { progressSummary } from "@/features/summarization/studyProgress";
 import { apiErrorMessage } from "@/lib/errors";
 import { formatClock } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -34,7 +34,7 @@ const shuffled = <T,>(items: T[]): T[] => {
 const statusOf = (card: StudyCard): { label: string; tone: string } => {
   const p = card.progress;
   if (!p) return { label: "Nova", tone: "bg-slate-100 text-slate-700" };
-  if (p.box >= MASTERED_BOX) return { label: "Dominada", tone: "bg-emerald-100 text-emerald-800" };
+  if (p.mastered) return { label: "Dominada", tone: "bg-emerald-100 text-emerald-800" };
   if (card.due) return { label: "Revisar agora", tone: "bg-amber-100 text-amber-800" };
   const when = p.due_at ? formatDistanceToNow(new Date(p.due_at), { addSuffix: true, locale: ptBR }) : "";
   return { label: `Revisar ${when}`, tone: "bg-sky-100 text-sky-800" };

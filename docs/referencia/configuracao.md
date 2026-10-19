@@ -24,6 +24,24 @@ A coluna **.env.example** marca as que aparecem lá, com explicação; as demais
 | `LLM_TIMEOUT_SECONDS` | `900` |  |  |
 | `ANALYSIS_TIME_LIMIT_MINUTES` | `150` | sim | Tempo máximo de uma análise no worker. Fica abaixo do prazo em que a mídia "em análise" é dada como falha (MEDIA_ANALYSIS_GIVE_UP_MINUTES, 180), para que a falha venha da própria análise, com o motivo. |
 | `ANALYSIS_FACTORS` | `sentiment,topics,grounding,chapters,questions` | sim | Fatores opcionais da análise, separados por vírgula: sentiment, topics (temas e seus títulos), grounding (verificação de fidelidade), chapters (capítulos com horário) e questions (perguntas de revisão). |
+| `ANALYSIS_CHUNK_SIZE` | `512` | sim | Trechos da análise (em caracteres): a base dos vetores, dos temas e da busca. Trocar o tamanho vale para as próximas análises. |
+| `ANALYSIS_CHUNK_OVERLAP` | `64` | sim | Trechos (em caracteres) dos vetores, dos temas e da busca. |
+| `ANALYSIS_FULL_TRANSCRIPT_CHARS` | `18000` | sim | Transcrições até este tamanho (~20 min de fala) vão inteiras à síntese e às perguntas; acima, a síntese resume blocos de ANALYSIS_SYNTHESIS_BLOCK_CHARS e une os resumos parciais, e as perguntas partem do resumo. Com 36 mil, uma aula de 30 min ia numa chamada só e o resumo pulava partes. |
+| `ANALYSIS_SYNTHESIS_BLOCK_CHARS` | `18000` | sim | Transcrições até este tamanho vão inteiras ao resumo e às perguntas (~20 min de fala); acima, o resumo é feito por blocos e as perguntas partem dele. |
+| `SUMMARY_PERCENT` | `12` | sim | Tamanho do resumo: SUMMARY_PERCENT % das palavras da transcrição, com no mínimo SUMMARY_MIN_WORDS (sem máximo: uma aula de 2 h, com ~18 mil palavras, pede ~2.200). Até SUMMARY_SHORT_WORDS, formato curto (sem seções): um resumo com título, seções e pontos-chave ficava do tamanho de uma fala curta. |
+| `SUMMARY_MIN_WORDS` | `120` | sim | Os valores valem para as próximas análises; as já feitas não mudam. Tamanho do resumo: porcentagem das palavras da transcrição, com um mínimo (sem máximo). Até SUMMARY_SHORT_WORDS, o resumo sai no formato curto, sem seções. Gravações muito longas (mais de ~3 h) pedem resumos que ocupam boa parte de LLM_CONTEXT_TOKENS; o diagnóstico da análise avisa se faltou espaço. |
+| `SUMMARY_SHORT_WORDS` | `200` | sim | Os valores valem para as próximas análises; as já feitas não mudam. Tamanho do resumo: porcentagem das palavras da transcrição, com um mínimo (sem máximo). Até SUMMARY_SHORT_WORDS, o resumo sai no formato curto, sem seções. Gravações muito longas (mais de ~3 h) pedem resumos que ocupam boa parte de LLM_CONTEXT_TOKENS; o diagnóstico da análise avisa se faltou espaço. |
+| `GROUNDING_THRESHOLD` | `0.8` | sim | Similaridade mínima (cosseno, multilingual-e5) entre uma frase do resumo e algum trecho da transcrição para a frase contar como apoiada. |
+| `CHAPTERS_MIN_RECORDING_MINUTES` | `4` | sim | Capítulos: gravações abaixo de CHAPTERS_MIN_RECORDING_MINUTES ficam sem capítulos; um capítulo tem no mínimo CHAPTERS_MIN_MINUTES e há no máximo CHAPTERS_MAX. Sem temas que dividam a gravação, um a cada CHAPTERS_EVERY_MINUTES. |
+| `CHAPTERS_MIN_MINUTES` | `2` | sim | Capítulos: gravações mais curtas que o mínimo ficam sem; cada capítulo tem ao menos CHAPTERS_MIN_MINUTES; no máximo CHAPTERS_MAX; sem temas que dividam a gravação, um a cada CHAPTERS_EVERY_MINUTES. |
+| `CHAPTERS_MAX` | `10` | sim | Capítulos: gravações mais curtas que o mínimo ficam sem; cada capítulo tem ao menos CHAPTERS_MIN_MINUTES; no máximo CHAPTERS_MAX; sem temas que dividam a gravação, um a cada CHAPTERS_EVERY_MINUTES. |
+| `CHAPTERS_EVERY_MINUTES` | `5` | sim | Capítulos: gravações mais curtas que o mínimo ficam sem; cada capítulo tem ao menos CHAPTERS_MIN_MINUTES; no máximo CHAPTERS_MAX; sem temas que dividam a gravação, um a cada CHAPTERS_EVERY_MINUTES. |
+| `REVIEW_INTERVAL_DAYS` | `0,1,3,7,14` | sim | Revisão espaçada: dias até a próxima revisão em cada caixa (a 1ª é a de quem errou ou nunca respondeu; 0 = hoje) e a caixa a partir da qual a pergunta conta como dominada. Com o padrão, três acertos seguidos. |
+| `REVIEW_MASTERED_BOX` | `4` | sim | Revisão espaçada: dias até a próxima revisão em cada caixa (a primeira é a de quem errou; 0 = hoje) e a caixa a partir da qual a pergunta está dominada. |
+| `PIPELINE_MAX_RETRIES` | `3` | sim | Tentativas de uma tarefa do pipeline além da primeira, e a espera antes da tentativa n: PIPELINE_RETRY_BASE_SECONDS * 2^(n-1), até PIPELINE_RETRY_MAX_SECONDS. Cada tentativa pode ocupar a GPU por muito tempo. |
+| `PIPELINE_RETRY_BASE_SECONDS` | `30` | sim | Tentativas de uma tarefa do pipeline além da primeira, e a espera antes de cada uma (dobra a cada tentativa, até o máximo). |
+| `PIPELINE_RETRY_MAX_SECONDS` | `600` | sim | Tentativas de uma tarefa do pipeline além da primeira, e a espera antes de cada uma (dobra a cada tentativa, até o máximo). |
+| `ADMIN_BULK_REPROCESS_MAX` | `200` | sim | Máximo de mídias com falha que o administrador reprocessa de uma vez. |
 | `VISUAL_PROVIDER` | `ollama` | sim | Descrição de quadros de vídeo: "ollama" (padrão; o mesmo Qwen3.5 do resumo, que aceita imagens), "moondream" ou "none" (desligada). Comparados nos mesmos quadros de uma aula: o Qwen3.5 descreve em português e transcreve os textos da tela (nomes, títulos de livros), o Moondream só dizia "um homem fala ao microfone"; e não carrega um segundo modelo de ~4 GB na GPU. Custa ~4 s por quadro (Moondream, ~2 s). |
 | `VISUAL_OLLAMA_MODEL` | `qwen3.5:9b` | sim | Descrição dos quadros do vídeo: ollama (o mesmo modelo do resumo, que aceita imagens: descreve em português e lê os textos da tela), moondream (mais leve, descrições curtas em inglês) ou none (desligada). |
 | `AI_DEVICE` | `auto` |  | AI / Machine Learning Hardware Options: "auto", "cuda", "cpu", "rocm" |
@@ -31,6 +49,7 @@ A coluna **.env.example** marca as que aparecem lá, com explicação; as demais
 | `WHISPER_MODEL` | `large-v3-turbo` | sim | Modelo de transcrição (Faster-Whisper ou openai-whisper). |
 | `WHISPER_HOTWORDS` | (vazio) | sim | Termos do domínio (separados por vírgula) que orientam a transcrição. O Whisper acerta a fala comum e erra justo o jargão: numa aula de engenharia de software, "overengineering" saiu "o Wolverine de Neil" e "KISS, DRY e YAGNI" saiu "Keys, Draw e Agni". Vazio: sem glossário. |
 | `SEARCH_RERANKER_MODEL` | `BAAI/bge-reranker-v2-m3` | sim | Reranqueador da busca semântica: reordena os 20 trechos mais parecidos lendo pergunta e trecho juntos. Numa aula de 30 min, o trecho certo ficou em 1º em 7 de 8 perguntas (4 de 8 só com os vetores). Roda na CPU da API (~2 GB de memória). Vazio: só os vetores. |
+| `SEARCH_RERANK_CANDIDATES` | `20` | sim | Candidatos que a busca por vetores traz para o reranqueador ordenar. Medido numa aula de 30 min (8 perguntas formuladas com outras palavras): o trecho certo ficava em 1º em 4 de 8 só com os vetores e em 7 de 8 reordenando os 20 primeiros. Mais candidatos, busca mais lenta na CPU. |
 
 ## Mídias e envios
 
@@ -68,6 +87,11 @@ A coluna **.env.example** marca as que aparecem lá, com explicação; as demais
 | `PROCESSING_STALL_UNKNOWN_DURATION_MINUTES` | `60` | sim | Documentos, imagens e mídias cuja duração não pôde ser lida: |
 | `PROCESSING_STALL_QUEUE_HOURS` | `24` | sim | Tarefa que nunca começou (fila perdida): |
 | `PROCESSING_STALL_FALLBACK_REALTIME_FACTOR` | `1.0` | sim | Tarefa que nunca começou (fila perdida): |
+| `PROCESSING_FAST_LANE_MAX_MB` | `50` | sim | Arquivos abaixo deste tamanho vão para a fila rápida de transcrição, para uma gravação curta não esperar atrás de uma aula de duas horas. |
+| `PROCESSING_FRAME_EVERY_SECONDS` | `180` | sim | Quadros de vídeo descritos: um a cada PROCESSING_FRAME_EVERY_SECONDS, entre PROCESSING_FRAMES_MIN e PROCESSING_FRAMES_MAX (cada um custa ~4 s de GPU), e a semelhança de palavras a partir da qual duas descrições seguidas contam como a mesma cena e a segunda é descartada. |
+| `PROCESSING_FRAMES_MIN` | `3` | sim | Quadros descritos: um a cada N segundos, entre o mínimo e o máximo (cada um custa ~4 s de GPU); descrições seguidas com esta semelhança de palavras (0 a 1) contam como a mesma cena e a repetida é descartada. |
+| `PROCESSING_FRAMES_MAX` | `8` | sim | Quadros descritos: um a cada N segundos, entre o mínimo e o máximo (cada um custa ~4 s de GPU); descrições seguidas com esta semelhança de palavras (0 a 1) contam como a mesma cena e a repetida é descartada. |
+| `PROCESSING_SAME_SCENE_SIMILARITY` | `0.55` | sim | Quadros descritos: um a cada N segundos, entre o mínimo e o máximo (cada um custa ~4 s de GPU); descrições seguidas com esta semelhança de palavras (0 a 1) contam como a mesma cena e a repetida é descartada. |
 
 ## Armazenamento
 
@@ -110,6 +134,7 @@ A coluna **.env.example** marca as que aparecem lá, com explicação; as demais
 | `SMTP_SECURITY` | `starttls` | sim | starttls (porta 587), ssl (465) ou none (servidor local de testes). |
 | `USER_EMAIL_VERIFICATION_HOURS` | `24` |  |  |
 | `USER_PASSWORD_RESET_MINUTES` | `60` |  |  |
+| `USER_ACCOUNT_EMAILS_PER_HOUR` | `3` | sim | Pedidos de e-mail (cadastro reenviado, nova senha) por endereço numa hora. |
 
 ## Lidas fora das classes de configuração
 

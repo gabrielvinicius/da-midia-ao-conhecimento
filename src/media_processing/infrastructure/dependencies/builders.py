@@ -66,6 +66,7 @@ def _visual_describer(stats=None):
         FFmpegFrameExtractor,
     )
     from src.media_processing.infrastructure.dependencies.providers import get_visual_analyzer
+    from src.media_processing.config.settings import processing_settings
     from src.shared.infrastructure.config.settings import settings
 
     if settings.visual_provider.strip().lower() == "none":
@@ -75,7 +76,9 @@ def _visual_describer(stats=None):
     except Exception as exc:  # sem provedor de visão, os vídeos seguem só com a fala
         logger.warning("visual_description.unavailable", error=str(exc))
         return None
-    return VisualDescriptionService(analyzer, FFmpegFrameExtractor(), stats=stats)
+    return VisualDescriptionService(
+        analyzer, FFmpegFrameExtractor(), stats=stats, sampling=processing_settings.frame_sampling()
+    )
 
 
 def build_transcription_service(session, event_bus: Optional[SupportsEventBus] = None) -> TranscriptionService:
