@@ -6,7 +6,6 @@ import pytest
 
 from src.text_analysis.application.ports import RerankerPort
 from src.text_analysis.application.services.knowledge_base_service import (
-    RERANK_CANDIDATES,
     KnowledgeBaseService,
     match_level,
     summary_title,
@@ -47,11 +46,11 @@ class _Reranker(RerankerPort):
 @pytest.mark.asyncio
 async def test_reranker_orders_the_candidates_brought_by_the_vectors():
     repo = _Repo(["fala sobre outra coisa", "mais outra coisa", "o manifesto ágil teve 17 autores"])
-    service = KnowledgeBaseService(repo, _Embedder(), reranker=_Reranker())
+    service = KnowledgeBaseService(repo, _Embedder(), reranker=_Reranker(), rerank_candidates=12)
 
     results = await service.search("quantos assinaram o manifesto?", limit=2)
 
-    assert repo.limits == [RERANK_CANDIDATES]  # busca mais candidatos para reordenar
+    assert repo.limits == [12]  # busca mais candidatos para reordenar (SEARCH_RERANK_CANDIDATES)
     assert results[0]["content"] == "o manifesto ágil teve 17 autores"
     assert results[0]["relevance"] == 90.0 and len(results) == 2
 

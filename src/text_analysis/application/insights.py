@@ -12,7 +12,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 
 from ..domain import Analysis
-from ..domain.review import ReviewCard, normalized, question_key
+from ..domain.review import DEFAULT_SCHEDULE, ReviewCard, ReviewSchedule, normalized, question_key
 from src.shared.domain.time.clock import utcnow
 
 # Progresso de cada pergunta de quem estuda: (id da análise, chave da pergunta) -> cartão.
@@ -20,11 +20,35 @@ ProgressMap = Dict[Tuple[str, str], ReviewCard]
 
 
 @dataclass(frozen=True)
+class ReviewProgress:
+    """O cartão de uma pergunta como quem estuda o vê: com "dominada" já
+    decidida pela agenda de revisão configurada."""
+
+    box: int
+    correct_count: int
+    wrong_count: int
+    last_answered_at: Optional[datetime.datetime]
+    due_at: Optional[datetime.datetime]
+    mastered: bool
+
+
+def review_progress(card: ReviewCard, schedule: ReviewSchedule = DEFAULT_SCHEDULE) -> ReviewProgress:
+    return ReviewProgress(
+        box=card.box,
+        correct_count=card.correct_count,
+        wrong_count=card.wrong_count,
+        last_answered_at=card.last_answered_at,
+        due_at=card.due_at,
+        mastered=schedule.is_mastered(card),
+    )
+
+
+@dataclass(frozen=True)
 class StudyQuestion:
     question: str
     answer: str
     start: Optional[float]  # momento da gravação onde está a resposta
-    progress: Optional[ReviewCard] = None  # None: nunca respondida
+    progress: Optional[ReviewProgress] = None  # None: nunca respondida
     due: bool = True  # para revisar agora
 
 
@@ -64,7 +88,10 @@ class AnalysisQualityReport:
 
 
 def study_deck(
-    analyses: Iterable[Analysis], progress: Optional[ProgressMap] = None, now: Optional[datetime.datetime] = None
+    analyses: Iterable[Analysis],
+    progress: Optional[ProgressMap] = None,
+    now: Optional[datetime.datetime] = None,
+    schedule: ReviewSchedule = DEFAULT_SCHEDULE,
 ) -> List[StudyDeckEntry]:
     """As perguntas de revisão de cada análise que tem alguma, das mais novas
     para as mais antigas (a ordem que o repositório entregar), com o progresso
@@ -74,7 +101,8 @@ def study_deck(
 
     def question(analysis: Analysis, q) -> StudyQuestion:
         card = progress.get((str(analysis.id), question_key(q.question)))
-        return StudyQuestion(q.question, q.answer, q.start, card, card is None or card.is_due(now))
+        view = review_progress(card, schedule) if card else None
+        return StudyQuestion(q.question, q.answer, q.start, view, card is None or card.is_due(now))
 
     return [
         StudyDeckEntry(media_id=a.media_id, analysis_id=a.id, questions=[question(a, q) for q in a.review_questions])

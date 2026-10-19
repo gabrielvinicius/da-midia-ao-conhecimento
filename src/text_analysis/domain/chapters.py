@@ -14,10 +14,19 @@ from src.text_analysis.domain.content_profile import OUTLIER_TOPIC_ID
 from src.text_analysis.domain.entities.sentiment import TextChunk
 from src.text_analysis.domain.entities.topic import Topic
 
-MIN_RECORDING_SECONDS = 4 * 60  # gravações curtas não precisam de capítulos
-MIN_CHAPTER_SECONDS = 2 * 60
-MAX_CHAPTERS = 10
-SECONDS_PER_CHAPTER = 5 * 60  # sem temas: um capítulo a cada ~5 min
+
+@dataclass(frozen=True)
+class ChapterRules:
+    """Limites dos capítulos; vêm das configurações (CHAPTERS_*)."""
+
+    min_recording_seconds: float = 4 * 60  # gravações curtas não precisam de capítulos
+    min_chapter_seconds: float = 2 * 60
+    max_chapters: int = 10
+    seconds_per_chapter: float = 5 * 60  # sem temas: um capítulo a cada ~5 min
+
+    def __post_init__(self) -> None:
+        if self.max_chapters < 2 or self.seconds_per_chapter <= 0:
+            raise ValueError("CHAPTERS_MAX precisa ser 2 ou mais e CHAPTERS_EVERY_MINUTES, positivo")
 
 
 @dataclass(frozen=True)
@@ -36,20 +45,22 @@ class ReviewQuestion:
     start: Optional[float] = None  # momento da gravação onde está a resposta
 
 
-def chapter_spans(chunks: Sequence[TextChunk], topics: Sequence[Topic]) -> list[tuple[int, int]]:
+def chapter_spans(
+    chunks: Sequence[TextChunk], topics: Sequence[Topic], rules: ChapterRules = ChapterRules()
+) -> list[tuple[int, int]]:
     """Faixas de trechos (início, fim inclusivos) de cada capítulo, em ordem.
 
     Sequências de trechos do mesmo tema viram capítulos; as curtas demais e as
     sem tema se juntam à anterior; acima do máximo, as vizinhas mais curtas se
-    juntam. Sem temas que dividam a gravação, cortes a cada ~5 min.
+    juntam. Sem temas que dividam a gravação, cortes a intervalos regulares.
     """
-    if not _timed(chunks) or _duration(chunks) < MIN_RECORDING_SECONDS:
+    if not _timed(chunks) or _duration(chunks) < rules.min_recording_seconds:
         return []
     spans = _topic_runs(chunks, topics)
-    spans = _merge_short(spans, chunks)
+    spans = _merge_short(spans, chunks, rules.min_chapter_seconds)
     if len(spans) < 2:
-        spans = _even_spans(chunks)
-    while len(spans) > MAX_CHAPTERS:
+        spans = _even_spans(chunks, rules)
+    while len(spans) > rules.max_chapters:
         spans = _merge_shortest_pair(spans, chunks)
     return spans
 
@@ -81,15 +92,17 @@ def _topic_runs(chunks: Sequence[TextChunk], topics: Sequence[Topic]) -> list[tu
     return [(a, b) for a, b in runs]
 
 
-def _merge_short(spans: list[tuple[int, int]], chunks: Sequence[TextChunk]) -> list[tuple[int, int]]:
+def _merge_short(
+    spans: list[tuple[int, int]], chunks: Sequence[TextChunk], min_seconds: float
+) -> list[tuple[int, int]]:
     merged: list[tuple[int, int]] = []
     for span in spans:
-        if merged and _span_seconds(span, chunks) < MIN_CHAPTER_SECONDS:
+        if merged and _span_seconds(span, chunks) < min_seconds:
             merged[-1] = (merged[-1][0], span[1])
         else:
             merged.append(span)
     # O primeiro capítulo curto se junta ao seguinte.
-    if len(merged) > 1 and _span_seconds(merged[0], chunks) < MIN_CHAPTER_SECONDS:
+    if len(merged) > 1 and _span_seconds(merged[0], chunks) < min_seconds:
         merged[1] = (merged[0][0], merged[1][1])
         merged.pop(0)
     return merged
@@ -103,8 +116,8 @@ def _merge_shortest_pair(spans: list[tuple[int, int]], chunks: Sequence[TextChun
     return spans[:i] + [(spans[i][0], spans[i + 1][1])] + spans[i + 2:]
 
 
-def _even_spans(chunks: Sequence[TextChunk]) -> list[tuple[int, int]]:
-    count = max(2, min(MAX_CHAPTERS, round(_duration(chunks) / SECONDS_PER_CHAPTER)))
+def _even_spans(chunks: Sequence[TextChunk], rules: ChapterRules) -> list[tuple[int, int]]:
+    count = max(2, min(rules.max_chapters, round(_duration(chunks) / rules.seconds_per_chapter)))
     width = _duration(chunks) / count
     spans: list[tuple[int, int]] = []
     for i, chunk in enumerate(chunks):
@@ -116,4 +129,4 @@ def _even_spans(chunks: Sequence[TextChunk]) -> list[tuple[int, int]]:
     return spans
 
 
-__all__ = ["Chapter", "ReviewQuestion", "chapter_spans"]
+__all__ = ["Chapter", "ChapterRules", "ReviewQuestion", "chapter_spans"]

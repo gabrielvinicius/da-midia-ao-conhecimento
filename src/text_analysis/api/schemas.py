@@ -33,11 +33,12 @@ class AnalyzeResponse(BaseModel):
 
 
 class ReviewProgressResponse(BaseModel):
-    box: int = Field(..., description="Caixa de 1 a 5; a partir da 4, dominada.")
+    box: int = Field(..., description="Caixa da revisão espaçada: acertar sobe uma, errar volta para a 1.")
     correct_count: int
     wrong_count: int
     last_answered_at: Optional[datetime] = None
     due_at: Optional[datetime] = None
+    mastered: bool = Field(False, description="Dominada: chegou à caixa de REVIEW_MASTERED_BOX.")
 
 
 class StudyQuestionResponse(BaseModel):
