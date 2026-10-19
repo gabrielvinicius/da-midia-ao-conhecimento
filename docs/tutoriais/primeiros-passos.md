@@ -87,7 +87,8 @@ que você colocou no `.env`. Você verá o **Painel**, ainda sem mídias.
 
 1. Clique em **Enviar mídia**.
 2. Arraste o arquivo para a área de envio ou clique para escolhê-lo.
-3. Mantenha **Local (Filesystem)** como armazenamento e clique em **Enviar**.
+3. Clique em **Enviar**. As **Opções avançadas** já vêm com o padrão do
+   sistema.
 
 O arquivo aparece no Painel com o estado **Processando**. Repare no sino, no
 alto da página: os avisos chegam em tempo real, sem recarregar.
@@ -140,6 +141,8 @@ sistema. Para apagar tudo, inclusive o banco e as mídias, acrescente `-v`.
 
 ## Próximos passos
 
+- Conheça cada tela da plataforma: [Manual do usuário](../guias/manual-do-usuario.md)
+  e [Manual do administrador](../guias/manual-do-administrador.md).
 - Entenda o que aconteceu em cada etapa: [Pipeline de processamento](../explicacao/pipeline.md).
 - Rode com GPU ou troque os modelos: [Modelos e etapas da análise](../guias/modelos-e-etapas.md).
 - Coloque em produção: [Implantar em produção](../guias/implantar-em-producao.md).
