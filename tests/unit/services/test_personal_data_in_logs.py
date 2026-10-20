@@ -1,8 +1,40 @@
 """E-mail e texto da busca não vão para os logs."""
+import ast
+from pathlib import Path
+
 import pytest
 import structlog
 
 from src.shared.application.privacy import masked_email
+
+ROOT = Path(__file__).resolve().parents[3]
+LOG_METHODS = {"debug", "info", "warning", "error", "exception", "critical"}
+
+
+def _unmasked_email_in_logs(path: Path) -> list[str]:
+    """Chamadas de log com ``email=`` que não passa por masked_email."""
+    problems = []
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+            continue
+        if node.func.attr not in LOG_METHODS:
+            continue
+        for kw in node.keywords:
+            masked = (
+                isinstance(kw.value, ast.Call)
+                and isinstance(kw.value.func, ast.Name)
+                and kw.value.func.id == "masked_email"
+            )
+            if kw.arg == "email" and not masked:
+                problems.append(f"{path.relative_to(ROOT)}:{node.lineno}")
+    return problems
+
+
+def test_no_log_call_passes_a_raw_email():
+    """O main.py registrava o e-mail do primeiro administrador sem máscara."""
+    files = [ROOT / "main.py", *sorted((ROOT / "src").rglob("*.py"))]
+    problems = [p for f in files for p in _unmasked_email_in_logs(f)]
+    assert problems == []
 
 
 def test_email_is_masked_but_still_traceable():

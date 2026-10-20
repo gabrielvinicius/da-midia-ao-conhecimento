@@ -12,6 +12,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from src.shared.api.monitoring_router import router as monitoring_router
 from src.shared.api.providers_router import router as providers_router
 from src.shared.domain.brand import PLATFORM_NAME
+from src.shared.application.privacy import masked_email
 from src.shared.application.lifecycle import (
     ApplicationResources,
     start_application_resources,
@@ -289,14 +290,14 @@ async def lifespan(app: FastAPI):
 
             logger.info(
                 "auth.ensure_admin.success",
-                email=default_admin_email,
+                email=masked_email(default_admin_email),
                 user_id=str(admin_user.id),
                 force_password_reset=force_admin_password,
             )
         except Exception as exc:  # pragma: no cover - defensive guard
             logger.warning(
                 "auth.ensure_admin.failed",
-                email=default_admin_email,
+                email=masked_email(default_admin_email),
                 error=str(exc),
             )
 
