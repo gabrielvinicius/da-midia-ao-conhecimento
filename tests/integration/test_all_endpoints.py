@@ -151,16 +151,3 @@ async def test_get_media(client: AsyncClient, authenticated_user: User):
     media_id = response.json()["id"]
     response = await client.get(f"/media/{media_id}")
     assert response.status_code == 200
-
-
-@pytest.mark.skip(reason="Depends on background task completion not synchronized in this test.")
-@pytest.mark.asyncio
-async def test_get_transcription(client: AsyncClient, authenticated_user: User):
-    """Test getting a transcription."""
-    response = await client.post(
-        "/media/",
-        files={"file": ("test.txt", b"test content", "text/plain")},
-    )
-    media_id = response.json()["id"]
-    response = await client.get(f"/transcriptions/?media_id={media_id}")
-    assert response.status_code == 200

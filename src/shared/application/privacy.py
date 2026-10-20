@@ -20,4 +20,18 @@ def masked_email(email: str | None) -> str:
     return f"{local[:1]}***@{domain}#{digest}"
 
 
-__all__ = ["masked_email"]
+def masked_ip(ip: str | None) -> str:
+    """``203.0.113.42`` vira ``203.0.x.x#17af``: o endereço IP também é dado
+    pessoal (LGPD); a marca segue as tentativas da mesma origem sem guardá-lo."""
+    ip = (ip or "").strip()
+    if not ip:
+        return "***"
+    digest = hashlib.sha256(ip.encode()).hexdigest()[:4]
+    if "." in ip:
+        prefix = ".".join(ip.split(".")[:2]) + ".x.x"
+    else:
+        prefix = ip.split(":")[0] + ":x"
+    return f"{prefix}#{digest}"
+
+
+__all__ = ["masked_email", "masked_ip"]
