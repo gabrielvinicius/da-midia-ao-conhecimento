@@ -61,7 +61,7 @@ A coluna **.env.example** marca as que aparecem lá, com explicação; as demais
 | `MEDIA_TRANSCRIPTION_PROVIDERS_ALLOWED` | `default,fastwhisper,openai-whisper` |  | Nomes do catálogo de transcrição (media_processing); um nome fora da lista só gera aviso, e o worker usa o padrão. |
 | `MEDIA_MEDIA_MIN_FILE_SIZE_BYTES` | `1` |  |  |
 | `MEDIA_MEDIA_MAX_FILE_SIZE_BYTES` | `524288000` |  |  |
-| `MEDIA_MEDIA_UPLOAD_PART_MAX_BYTES` | `67108864` |  | Envio em partes (a Cloudflare recusa requisições acima de 100 MB): maior parte aceita, pasta dos envios em andamento (vazia: a temporária do sistema) e horas até um envio abandonado ser apagado. |
+| `MEDIA_MEDIA_UPLOAD_PART_MAX_BYTES` | `67108864` |  | Envio em partes (a Cloudflare recusa requisições acima de 100 MB): maior parte aceita, pasta dos envios em andamento (vazia: a temporária do sistema; no Compose, dentro do armazenamento, para a conclusão mover o arquivo em vez de copiá-lo) e horas até um envio abandonado ser apagado. |
 | `MEDIA_MEDIA_UPLOAD_STAGING_DIR` | (vazio) |  |  |
 | `MEDIA_MEDIA_UPLOAD_STAGING_HOURS` | `24` |  |  |
 | `MEDIA_MEDIA_ALLOWED_AUDIO_EXTENSIONS` | `mp3,wav,flac,aac,ogg,m4a` |  |  |

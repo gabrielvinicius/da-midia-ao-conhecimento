@@ -31,9 +31,12 @@ class StorageClientAdapter(FileStoragePort):
     service: StorageService
     provider_name: str
 
-    async def upload_file(self, *, source_path: str, destination: str, content_type: str) -> Dict[str, Any]:
-        """Grava o arquivo enviado a partir do temporário da API."""
-        file_meta = await self.service.store_file_from(str(Path(destination)), source_path)
+    async def upload_file(
+        self, *, source_path: str, destination: str, content_type: str, move: bool = False
+    ) -> Dict[str, Any]:
+        """Grava o arquivo enviado a partir do temporário da API (com ``move``,
+        o temporário passa a ser o arquivo guardado)."""
+        file_meta = await self.service.store_file_from(str(Path(destination)), source_path, move=move)
         return {
             "path": str(file_meta.file_path),
             "provider": self.provider_name,

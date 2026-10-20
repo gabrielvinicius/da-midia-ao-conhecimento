@@ -11,7 +11,7 @@ class _Storage:
     def __init__(self, provider, calls):
         self.provider, self.calls = provider, calls
 
-    async def upload_file(self, *, source_path, destination, content_type):
+    async def upload_file(self, *, source_path, destination, content_type, move=False):
         self.calls.append(self.provider)
         return {"path": destination, "size": 1}
 

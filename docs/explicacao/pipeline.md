@@ -48,8 +48,13 @@ sequenceDiagram
 ```
 
 1. **Envio.** A interface manda o arquivo em partes de 32 MB, porque a
-   Cloudflare recusa requisições acima de 100 MB. Ao concluir, a API grava a
-   mídia e publica `MediaUploaded` no próprio processo.
+   Cloudflare recusa requisições acima de 100 MB. As partes ficam numa pasta
+   dentro do armazenamento (`.envios-em-partes`), no mesmo disco das mídias:
+   ao concluir, a API só move o arquivo para o lugar definitivo, registra a
+   mídia e publica `MediaUploaded` no próprio processo. Antes, as partes
+   ficavam no `/tmp` do contêiner, e a conclusão copiava o arquivo inteiro
+   (2,5 s para 433 MB). Se o registro falhar, o arquivo volta para a pasta
+   dos envios, e a conclusão pode ser repetida.
 2. **Agendamento.** Ainda na API, o módulo de processamento reage ao evento e
    põe a tarefa na fila: **transcrição** para áudio e vídeo, **extração de
    texto** (com OCR) para documentos e imagens. Arquivos com menos de 50 MB

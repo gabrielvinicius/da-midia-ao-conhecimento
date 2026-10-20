@@ -25,6 +25,13 @@ class CreateMediaCommand(BaseModel):
     correlation_id: Optional[str] = Field(
         None, description="Identificador da requisição, levado até as tarefas da fila."
     )
+    move_source: bool = Field(
+        False,
+        description=(
+            "O arquivo recebido pode ser movido para o armazenamento, em vez de copiado "
+            "(envio em partes: a área temporária fica no mesmo disco das mídias)."
+        ),
+    )
 
 
 class StartUploadCommand(BaseModel):

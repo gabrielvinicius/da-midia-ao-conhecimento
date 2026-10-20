@@ -52,6 +52,7 @@ async def test_parts_build_the_file_and_completion_becomes_a_normal_upload(tmp_p
     assert seen["content"] == b"a" * 6 + b"b" * 4 + b"c" * 10 + b"d" * 5
     command = seen["command"]
     assert (command.filename, command.file_size_bytes, command.correlation_id) == ("aula.mp4", 25, "req-1")
+    assert command.move_source  # a área temporária fica no disco das mídias: mover, não copiar
     assert os.listdir(tmp_path) == []  # a área temporária é limpa
 
 

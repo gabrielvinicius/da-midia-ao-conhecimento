@@ -295,6 +295,10 @@ services:
       # na CPU. Com "cuda" aqui, o modelo de vetores não carregava e a busca
       # devolvia trechos aleatórios (vetores de reserva, sem sentido).
       AI_DEVICE: cpu
+      # Envios em partes no mesmo disco das mídias: a conclusão só troca o
+      # nome do arquivo. No /tmp do contêiner, copiava os bytes para o
+      # armazenamento (2,5 s em 433 MB). O backup ignora esta pasta.
+      MEDIA_MEDIA_UPLOAD_STAGING_DIR: /app/storage/.envios-em-partes
 
   worker-heavy:
     <<: *app

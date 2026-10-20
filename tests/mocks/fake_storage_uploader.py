@@ -13,10 +13,12 @@ from tests.mocks.in_memory_storage import InMemoryStorage
 class FakeStorageUploadAdapter:
     storage: InMemoryStorage
 
-    async def upload_file(self, *, source_path: str, destination: str, content_type: str) -> Dict:
+    async def upload_file(self, *, source_path: str, destination: str, content_type: str, move: bool = False) -> Dict:
         # Lê o temporário da API e guarda em memória
         content = Path(source_path).read_bytes()
         await self.storage.store(file_path=destination, content=content)
+        if move:
+            Path(source_path).unlink()
         return {"path": destination, "size": len(content), "content_type": content_type}
 
 
@@ -29,10 +31,13 @@ class FakeStorageUploader:
             source_path=command.file_path,
             destination=f"{command.user_id}/{media_id}/{command.filename}",
             content_type=content_type,
+            move=command.move_source,
         )
         return UploadResult(destination_path=metadata["path"], metadata=metadata)
 
     async def discard(self, command, destination_path: str) -> None:
+        if command.move_source:
+            Path(command.file_path).write_bytes(await self.adapter.storage.retrieve(destination_path))
         await self.adapter.storage.remove(destination_path)
 
 

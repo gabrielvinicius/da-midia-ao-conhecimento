@@ -57,6 +57,20 @@ async def test_remove_folder_deletes_only_that_media(repo):
 
 
 @pytest.mark.asyncio
+async def test_store_from_with_move_removes_the_local_source(repo, tmp_path):
+    """No S3 não há como só trocar o nome: o arquivo sobe, e o temporário
+    (a área dos envios em partes) é apagado."""
+    storage, client = repo
+    source = tmp_path / "envio.part"
+    source.write_bytes(b"aula")
+
+    await storage.store_from(FilePath("u1/aula.mp3"), str(source), move=True)
+
+    assert not source.exists()
+    assert client.get_object(Bucket="midias", Key="u1/aula.mp3")["Body"].read() == b"aula"
+
+
+@pytest.mark.asyncio
 async def test_download_goes_straight_to_disk(repo, tmp_path):
     """O worker baixa a mídia direto para o disco, sem lê-la para a memória."""
     storage, _ = repo

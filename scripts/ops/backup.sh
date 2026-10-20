@@ -32,7 +32,9 @@ docker compose exec -T postgres pg_dump -U "${DB_USER:-postgres}" -d "${DB_NAME:
 restic "$RESTIC_IMAGE" backup --stdin --stdin-filename banco.dump --tag banco < "$DUMP"
 
 echo "[backup] mídias ($MEDIA_SOURCE)"
-restic -v "$MEDIA_SOURCE:/dados/midias:ro" "$RESTIC_IMAGE" backup /dados/midias --tag midias
+# Sem os envios em partes ainda em andamento (MEDIA_MEDIA_UPLOAD_STAGING_DIR).
+restic -v "$MEDIA_SOURCE:/dados/midias:ro" "$RESTIC_IMAGE" backup /dados/midias --tag midias \
+  --exclude=/dados/midias/.envios-em-partes
 
 if [ -n "$S3_SOURCE" ]; then
   echo "[backup] S3 local, Garage ($S3_SOURCE)"

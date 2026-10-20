@@ -130,7 +130,8 @@ class StorageUploaderPort(Protocol):
     ) -> UploadResult: ...
 
     async def discard(self, command, destination_path: str) -> None:
-        """Apaga um arquivo enviado cuja mídia não chegou a ser gravada."""
+        """Apaga um arquivo enviado cuja mídia não chegou a ser gravada. Se ele
+        foi movido (``move_source``), antes o devolve ao caminho de origem."""
         ...
 
 
