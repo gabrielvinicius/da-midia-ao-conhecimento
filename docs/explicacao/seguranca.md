@@ -53,7 +53,9 @@ ao banco.
 
 Os logs não guardam e-mails nem o texto das buscas. Um e-mail aparece mascarado
 e com um código (`g***@gmail.com#ffd7`), que permite reconhecer a mesma conta
-em vários registros sem expor o endereço. As métricas do Prometheus nunca
+em vários registros sem expor o endereço. O endereço IP, também dado pessoal
+pela LGPD, aparece do mesmo modo (`203.0.x.x#17af`) no aviso de login
+bloqueado. As métricas do Prometheus nunca
 levam o id de uma mídia ou de um usuário.
 
 ## Execução isolada

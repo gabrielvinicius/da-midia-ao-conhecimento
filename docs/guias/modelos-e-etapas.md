@@ -70,7 +70,7 @@ ANALYSIS_FACTORS=sentiment,topics,grounding,chapters,questions
 | `sentiment` | Tom ao longo da gravação |
 | `topics` | Temas e seus títulos |
 | `grounding` | Verificação de fidelidade do resumo |
-| `chapters` | Capítulos com horário (dependem dos temas) |
+| `chapters` | Capítulos com horário (seguem os temas; sem eles, intervalos regulares) |
 | `questions` | Perguntas de revisão |
 
 Uma etapa desligada sai do pipeline e o modelo dela nem é carregado; as
