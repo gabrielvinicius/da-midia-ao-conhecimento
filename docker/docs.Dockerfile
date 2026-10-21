@@ -5,7 +5,7 @@
 
 # Stage 1: gera o site. Em modo estrito, um link para página inexistente
 # reprova o build, e a versão anterior continua no ar.
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /src
