@@ -182,7 +182,7 @@ services:
 
   prometheus:
     # Coleta as métricas da API e dos workers pela porta interna 9100.
-    image: prom/prometheus:v3.15.0
+    image: prom/prometheus:v3.15.1
     volumes:
       - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
