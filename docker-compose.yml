@@ -394,7 +394,7 @@ services:
     # portas no roteador (perfil "internet"). O token vem do painel da
     # Cloudflare (Zero Trust > Networks > Tunnels), com o hostname público
     # apontando para http://frontend:80.
-    image: cloudflare/cloudflared:2026.10.0
+    image: cloudflare/cloudflared:2026.10.3
     command: tunnel --no-autoupdate run
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
