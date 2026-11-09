@@ -167,7 +167,7 @@ services:
       retries: 5
 
   jaeger:
-    image: jaegertracing/jaeger:2.22.0
+    image: jaegertracing/jaeger:2.23.0
     ports:
       # Só na própria máquina: os rastros incluem dados das requisições. Pela
       # internet, só pelo túnel com o Cloudflare Access na frente
