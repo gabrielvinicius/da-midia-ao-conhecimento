@@ -215,6 +215,12 @@ services:
       # memória de GPU do contexto, com perda de qualidade desprezível.
       - OLLAMA_FLASH_ATTENTION=1
       - OLLAMA_KV_CACHE_TYPE=q8_0
+      # Janela padrão para quem não informa num_ctx: os clientes no formato da
+      # OpenAI (/v1, pelo ollama-gateway) não têm como pedir. Sem ela, o
+      # Ollama carregava o modelo com 4096 tokens, pouco para agentes como o
+      # Metabot, e o recarregava a cada troca com a API (que pede
+      # LLM_CONTEXT_TOKENS). Mantenha igual a LLM_CONTEXT_TOKENS do .env.
+      - OLLAMA_CONTEXT_LENGTH=${LLM_CONTEXT_TOKENS:-16384}
     networks:
       - backend-net
       # backend-net é interna (sem internet); public-net dá a saída necessária
