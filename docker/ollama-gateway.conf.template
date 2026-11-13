@@ -1,0 +1,53 @@
+# Acesso externo ao Ollama (serviço ollama-gateway do compose). O Ollama não
+# tem autenticação própria: este proxy só repassa as requisições com o
+# cabeçalho "Authorization: Bearer <OLLAMA_API_TOKEN>". A API e os workers
+# continuam falando com o Ollama direto, por http://ollama:11434 na rede
+# interna, sem passar por aqui.
+#
+# O entrypoint da imagem troca ${OLLAMA_API_TOKEN} pelo valor do .env ao
+# iniciar (as variáveis do nginx, como $http_authorization, ficam intactas).
+
+# A chave do map ("Bearer " + token) passa dos 64 bytes do padrão.
+map_hash_bucket_size 256;
+
+map $http_authorization $ollama_token_valido {
+    default 0;
+    "Bearer ${OLLAMA_API_TOKEN}" 1;
+}
+
+server {
+    listen 8080;
+
+    # O nome "ollama" é resolvido a cada requisição pelo DNS do Docker. Com o
+    # IP guardado ao iniciar, recriar o Ollama deixaria o gateway em 502.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $ollama_upstream http://ollama:11434;
+
+    # Imagens em base64 (modelos multimodais) vão no corpo da requisição.
+    client_max_body_size 100m;
+
+    # Healthcheck do compose, sem token e sem chegar ao Ollama.
+    location = /healthz {
+        access_log off;
+        return 200 "ok\n";
+    }
+
+    location / {
+        if ($ollama_token_valido = 0) {
+            add_header WWW-Authenticate 'Bearer realm="ollama"' always;
+            return 401 '{"error":"token ausente ou inválido"}\n';
+        }
+
+        proxy_pass $ollama_upstream;
+        proxy_http_version 1.1;
+        # O token não segue para o Ollama.
+        proxy_set_header Authorization "";
+        proxy_set_header X-Real-IP $remote_addr;
+        # Respostas em streaming chegam ao cliente token a token, e gerações
+        # longas (modelo carregando na GPU, contexto grande) não caem por prazo.
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 900s;
+        proxy_send_timeout 900s;
+    }
+}

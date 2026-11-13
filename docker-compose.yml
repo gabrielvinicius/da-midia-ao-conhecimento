@@ -232,6 +232,40 @@ services:
       timeout: 10s
       retries: 5
 
+  ollama-gateway:
+    # Opcional (perfil "ollama-api"): acesso ao Ollama de fora do compose
+    # (outras máquinas da rede e, pelo túnel, a internet), só com o token
+    # OLLAMA_API_TOKEN do .env no cabeçalho "Authorization: Bearer". A API e
+    # os workers não passam por aqui: seguem em http://ollama:11434.
+    # Configuração em docker/ollama-gateway.conf.template. Pelo túnel, o
+    # hostname público aponta para http://ollama-gateway:8080.
+    image: nginxinc/nginx-unprivileged:1.31-alpine
+    profiles: ["ollama-api"]
+    environment:
+      OLLAMA_API_TOKEN: ${OLLAMA_API_TOKEN:-}
+    # Sem token, o gateway não sobe (em vez de subir aceitando qualquer um).
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["test -n \"$$OLLAMA_API_TOKEN\" || { echo 'defina OLLAMA_API_TOKEN no .env' >&2; exit 1; }; exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
+    volumes:
+      - ./docker/ollama-gateway.conf.template:/etc/nginx/templates/default.conf.template:ro
+    ports:
+      - "11435:8080"
+    depends_on:
+      ollama: { condition: service_started }
+    networks:
+      # backend-net chega ao Ollama; public-net publica a porta e recebe o túnel.
+      - backend-net
+      - public-net
+    restart: unless-stopped
+    logging: *logging
+    security_opt: *no-new-privileges
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   ollama-models:
     # Roda uma vez a cada "up": baixa o modelo principal e o reserva, se ainda
     # não estiverem no volume ollama_models (downloads seguintes são rápidos).
