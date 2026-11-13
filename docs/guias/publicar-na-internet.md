@@ -112,6 +112,62 @@ própria sub-rede.
 > usar as duas formas de acesso, prefira o endereço HTTPS também dentro da
 > rede local.
 
+## Ollama para outros programas
+
+O Ollama do compose não publica porta: só a API e os workers o usam. Para
+outros programas (de outra máquina da rede ou pela internet) usarem os mesmos
+modelos, o serviço opcional `ollama-gateway` abre o acesso com um token. O
+Ollama não tem autenticação própria; o gateway recusa (401) as requisições
+sem o cabeçalho `Authorization: Bearer <token>`. A API e os workers continuam
+indo direto ao Ollama, sem passar por ele.
+
+1. No `.env`, gere o token e inclua o perfil `ollama-api`:
+
+    ```bash
+    python -c "import secrets; print(secrets.token_urlsafe(48))"
+    ```
+
+    ```ini
+    OLLAMA_API_TOKEN=<o token gerado>
+    COMPOSE_PROFILES=internet,ollama-api
+    ```
+
+2. Suba o gateway (os demais serviços não são recriados):
+
+    ```bash
+    docker compose up -d --no-deps ollama-gateway
+    ```
+
+3. Pela rede local, libere a porta 11435 (PowerShell como administrador):
+
+    ```powershell
+    New-NetFirewallRule -DisplayName "Ollama API (gateway com token) 11435" `
+      -Direction Inbound -Protocol TCP -LocalPort 11435 -Action Allow `
+      -Profile Private -RemoteAddress LocalSubnet
+    ```
+
+4. Pela internet, adicione no túnel um hostname público (por exemplo
+   `ollama.seudominio`) apontando para `http://ollama-gateway:8080`.
+
+Os programas usam `http://<ip da máquina>:11435` ou `https://ollama.seudominio`
+com o token. Clientes no formato da OpenAI usam o caminho `/v1` e o token como
+chave da API:
+
+```bash
+curl https://ollama.seudominio/api/chat \
+  -H "Authorization: Bearer <token>" \
+  -d '{"model":"qwen3.5:9b","messages":[{"role":"user","content":"oi"}]}'
+```
+
+> [!WARNING]
+> O Ollama mantém um modelo carregado por vez (`OLLAMA_MAX_LOADED_MODELS=1`).
+> Pedidos de fora dividem a GPU com as análises: um modelo diferente do
+> `LLM_MODEL` faz o Ollama trocar de modelo, e as análises em andamento
+> esperam a troca. Pela Cloudflare, respostas sem streaming que levam mais de
+> 100 s terminam em erro 524; use `"stream": true`.
+
+Para trocar o token, edite o `.env` e recrie o gateway com o comando do passo 2.
+
 ## Veja também
 
 - [Segurança](../explicacao/seguranca.md): por que o cookie da sessão é
